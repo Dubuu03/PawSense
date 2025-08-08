@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/auth/auth_service.dart';
+import '../../services/auth/auth_service.dart';
+import 'forgot_password_page.dart';
 
 class SignInPage extends StatefulWidget {
   const SignInPage({super.key});
@@ -73,7 +74,22 @@ class _SignInPageState extends State<SignInPage> {
                         obscureText: true,
                         validator: (v) => v != null && v.length >= 6 ? null : 'Min 6 chars',
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ForgotPasswordPage(),
+                              ),
+                            );
+                          },
+                          child: const Text('Forgot Password?'),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
                       ElevatedButton(
                         onPressed: _signIn,
                         child: const Text('Sign In'),

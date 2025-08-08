@@ -67,4 +67,12 @@ class AuthService {
     );
     return cred.user;
   }
+
+  Future<void> sendPasswordResetEmail(String email) async {
+    await _auth.sendPasswordResetEmail(email: email);
+  }
+
+  Future<List<String>> fetchSignInMethodsForEmail(String email) async {
+    return await _auth.fetchSignInMethodsForEmail(email);
+  }
 }

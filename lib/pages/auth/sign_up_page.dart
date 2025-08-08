@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/auth/auth_service.dart';
+import '../../services/auth/auth_service.dart';
 import 'verify_email_page.dart';
 
 class SignUpPage extends StatefulWidget {

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../services/auth/auth_service.dart';
-import '../models/user_model.dart';
+import '../../services/auth/auth_service.dart';
+import '../../models/user_model.dart';
 
 class VerifyEmailPage extends StatefulWidget {
   final String username;
