@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../services/auth/auth_service.dart';
+import '../../services/auth_service.dart';
 import 'verify_email_page.dart';
+import '../../utils/constants.dart';
+import '../../utils/validators.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -58,6 +60,14 @@ class _SignUpPageState extends State<SignUpPage> {
     setState(() => _isLoading = true);
 
     try {
+      // Check if username is already taken
+      final usernameTaken = await _authService.isUsernameTaken(_usernameController.text.trim());
+      if (usernameTaken) {
+        _showSnack('Username is already taken');
+        setState(() => _isLoading = false);
+        return;
+      }
+
       final uid = await _authService.signUpWithEmail(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
@@ -108,25 +118,13 @@ class _SignUpPageState extends State<SignUpPage> {
                   key: _formKey,
                   child: Column(
                     children: [
-                      _buildTextField(_usernameController, 'Username'),
-                      _buildTextField(_emailController, 'Email',
-                          validator: (v) =>
-                              v != null && v.contains('@')
-                                  ? null
-                                  : 'Enter valid email'),
-                      _buildTextField(_contactController, 'Contact Number',
-                          keyboardType: TextInputType.phone),
-                      _buildTextField(_addressController, 'Address'),
+                      _buildTextField(_usernameController, 'Username', validator: (v) => requiredValidator(v, 'Username')),
+                      _buildTextField(_emailController, 'Email', validator: emailValidator),
+                      _buildTextField(_contactController, 'Contact Number', keyboardType: TextInputType.phone, validator: phoneValidator),
+                      _buildTextField(_addressController, 'Address', validator: (v) => requiredValidator(v, 'Address')),
                       _buildDOBPicker(),
-                      _buildTextField(_passwordController, 'Password',
-                          obscureText: true,
-                          validator: (v) =>
-                              v != null && v.length >= 6
-                                  ? null
-                                  : 'Min 6 chars'),
-                      _buildTextField(
-                          _confirmPasswordController, 'Confirm Password',
-                          obscureText: true),
+                      _buildTextField(_passwordController, 'Password', obscureText: true, validator: passwordValidator),
+                      _buildTextField(_confirmPasswordController, 'Confirm Password', obscureText: true, validator: (v) => confirmPasswordValidator(v, _passwordController.text)),
                       _buildTermsCheckbox(),
                       const SizedBox(height: 24),
                       ElevatedButton(
@@ -151,13 +149,23 @@ class _SignUpPageState extends State<SignUpPage> {
       String? Function(String?)? validator}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: TextFormField(
-        controller: controller,
-        decoration: InputDecoration(labelText: label),
-        obscureText: obscureText,
-        keyboardType: keyboardType,
-        validator: validator ??
-            (v) => v == null || v.isEmpty ? 'Enter $label' : null,
+      child: StatefulBuilder(
+        builder: (context, setFieldState) {
+          return TextFormField(
+            controller: controller,
+            decoration: InputDecoration(labelText: label),
+            obscureText: obscureText,
+            keyboardType: keyboardType,
+            validator: validator ??
+                (v) => v == null || v.isEmpty ? 'Enter $label' : null,
+            onChanged: (_) {
+              // Clear error when user types
+              setState(() {
+                _formKey.currentState?.validate();
+              });
+            },
+          );
+        },
       ),
     );
   }
@@ -167,9 +175,9 @@ class _SignUpPageState extends State<SignUpPage> {
       children: [
         Expanded(
           child: Text(
-            _dateOfBirth == null
-                ? 'No date selected'
-                : 'DOB: ${_dateOfBirth!.toLocal().toString().split(' ')[0]}',
+      _dateOfBirth == null
+        ? 'No date selected'
+        : 'DOB: ${_dateOfBirth!.toLocal().toString().split(' ')[0]}',
           ),
         ),
         TextButton(

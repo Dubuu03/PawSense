@@ -1,5 +1,8 @@
+
 import 'package:flutter/material.dart';
-import '../../services/auth/auth_service.dart';
+import '../../services/auth_service.dart';
+import '../../utils/constants.dart';
+import '../../utils/validators.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -49,7 +52,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Forgot Password')),
+  appBar: AppBar(title: Text('Forgot Password', style: Theme.of(context).textTheme.titleLarge)),
       body: Center(
         child: _isLoading
             ? const CircularProgressIndicator()
@@ -63,12 +66,12 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                       TextFormField(
                         controller: _emailController,
                         decoration: const InputDecoration(labelText: 'Email'),
-                        validator: (v) => v != null && v.contains('@') ? null : 'Enter valid email',
+                        validator: emailValidator,
                       ),
                       const SizedBox(height: 24),
                       ElevatedButton(
                         onPressed: _sendReset,
-                        child: const Text('Send Reset Link'),
+                        child: Text('Send Reset Link', style: kTextStyleRegular),
                       ),
                     ],
                   ),

@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:pawsense/pages/auth/sign_up_page.dart';
 import 'package:pawsense/pages/home_page.dart';
 import 'package:pawsense/pages/auth/sign_in_page.dart';
-
-
+import 'utils/constants.dart';
 import 'config/firebase_options.dart';
 
 void main() async {
@@ -23,10 +22,10 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'PawSense',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      initialRoute: '/signin',
+      theme: lightTheme,
+      darkTheme: darkTheme,
+      themeMode: ThemeMode.system,
+      initialRoute: '/signup',
       routes: {
         '/signin': (context) => const SignInPage(),
         '/signup': (context) => const SignUpPage(),

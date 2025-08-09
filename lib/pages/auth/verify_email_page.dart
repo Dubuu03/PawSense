@@ -1,7 +1,9 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
-import '../../services/auth/auth_service.dart';
+import '../../services/auth_service.dart';
 import '../../models/user_model.dart';
+import '../../utils/constants.dart';
 
 class VerifyEmailPage extends StatefulWidget {
   final String username;
@@ -26,6 +28,7 @@ class VerifyEmailPage extends StatefulWidget {
   @override
   State<VerifyEmailPage> createState() => _VerifyEmailPageState();
 }
+
 class _VerifyEmailPageState extends State<VerifyEmailPage> {
   final _authService = AuthService();
 
@@ -40,7 +43,6 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
   void initState() {
     super.initState();
     _startTimer();
-
 
     _emailVerifiedSub = _authService.emailVerifiedStream.listen((verified) {
       if (verified) {
@@ -83,23 +85,26 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
   Future<void> _saveUser() async {
     final user = _authService.currentUser;
     if (!_saved && user != null) {
-      await _authService.saveUser(UserModel(
-        uid: widget.uid,
-        username: widget.username,
-        email: widget.email,
-        contactNumber: widget.contactNumber,
-        dateOfBirth: widget.dateOfBirth,
-        agreedToTerms: widget.agreedToTerms,
-        createdAt: DateTime.now(),
-        address: widget.address,
-      ));
+      await _authService.saveUser(
+        UserModel(
+          uid: widget.uid,
+          username: widget.username,
+          email: widget.email,
+          contactNumber: widget.contactNumber,
+          dateOfBirth: widget.dateOfBirth,
+          agreedToTerms: widget.agreedToTerms,
+          createdAt: DateTime.now(),
+          address: widget.address,
+        ),
+      );
       _saved = true;
     }
   }
 
   void _showSnack(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _handleVerified() async {
@@ -114,24 +119,32 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar:
-          AppBar(leading: BackButton(onPressed: () => Navigator.pop(context))),
+      appBar: AppBar(
+        leading: BackButton(onPressed: () => Navigator.pop(context)),
+        title: Text('Verify Email', style: Theme.of(context).textTheme.titleLarge),
+      ),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Image.asset('img/sendemail.png', height: 150, fit: BoxFit.contain),
+              Image.asset(
+                'assets/img/sendemail.png',
+                height: 150,
+                fit: BoxFit.contain,                
+              ),
+
               const SizedBox(height: 40),
-              const Text(
+              Text(
                 'Confirm your email address',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style: kTextStyleLarge,
               ),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'We sent you a verification link. Please check your email to continue.',
                 textAlign: TextAlign.center,
+                style: kTextStyleRegular,
               ),
               const SizedBox(height: 24),
 
@@ -147,9 +160,10 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
                   ),
                   onPressed: _seconds == 0 ? _resendEmail : null,
                   child: Text(
-                    _seconds == 0 ? "Resend Email" : "Send Again in $_seconds s",
-                    style: TextStyle(
-                      fontSize: 14,
+                    _seconds == 0
+                        ? "Resend Email"
+                        : "Send Again in $_seconds s",
+                    style: kTextStyleSmall.copyWith(
                       color: _seconds == 0 ? Colors.black : Colors.grey[700],
                     ),
                   ),

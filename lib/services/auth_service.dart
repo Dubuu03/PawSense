@@ -1,8 +1,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import '../../models/user_model.dart';
+import '../models/user_model.dart';
 class AuthService {
+  /// Checks if a username is already taken in the 'users' collection.
+  Future<bool> isUsernameTaken(String username) async {
+    final query = await _firestore
+        .collection('users')
+        .where('username', isEqualTo: username)
+        .limit(1)
+        .get();
+    return query.docs.isNotEmpty;
+  }
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
 

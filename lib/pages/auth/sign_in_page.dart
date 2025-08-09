@@ -1,6 +1,9 @@
+
 import 'package:flutter/material.dart';
-import '../../services/auth/auth_service.dart';
+import '../../services/auth_service.dart';
 import 'forgot_password_page.dart';
+import '../../utils/constants.dart';
+import '../../utils/validators.dart';
 
 class SignInPage extends StatefulWidget {
   const SignInPage({super.key});
@@ -52,7 +55,7 @@ class _SignInPageState extends State<SignInPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Sign In')),
+  appBar: AppBar(title: Text('Sign In', style: Theme.of(context).textTheme.titleLarge)),
       body: Center(
         child: _isLoading
             ? const CircularProgressIndicator()
@@ -65,14 +68,14 @@ class _SignInPageState extends State<SignInPage> {
                       TextFormField(
                         controller: _emailController,
                         decoration: const InputDecoration(labelText: 'Email'),
-                        validator: (v) => v != null && v.contains('@') ? null : 'Enter valid email',
+                        validator: emailValidator,
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _passwordController,
                         decoration: const InputDecoration(labelText: 'Password'),
                         obscureText: true,
-                        validator: (v) => v != null && v.length >= 6 ? null : 'Min 6 chars',
+                        validator: passwordValidator,
                       ),
                       const SizedBox(height: 12),
                       Align(
@@ -86,13 +89,13 @@ class _SignInPageState extends State<SignInPage> {
                               ),
                             );
                           },
-                          child: const Text('Forgot Password?'),
+                          child: Text('Forgot Password?', style: kTextStyleRegular),
                         ),
                       ),
                       const SizedBox(height: 12),
                       ElevatedButton(
                         onPressed: _signIn,
-                        child: const Text('Sign In'),
+                        child: Text('Sign In', style: kTextStyleRegular),
                       ),
                     ],
                   ),
