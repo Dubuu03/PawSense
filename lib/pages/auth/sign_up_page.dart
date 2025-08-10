@@ -431,6 +431,10 @@ class _SignUpPageState extends State<SignUpPage>
             child: TextFormField(
               decoration: InputDecoration(
                 hintText: 'Select your date of birth',
+                 hintStyle: TextStyle(
+                  color: Colors.grey[500],
+                  fontWeight: FontWeight.normal,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
                   borderSide: BorderSide(color: Colors.grey.shade300),

@@ -39,4 +39,5 @@ class AuthErrorMapper {
     }
     return (field: null, message: null, generalMessage: 'Sign in failed. Please try again.');
   }
+
 }

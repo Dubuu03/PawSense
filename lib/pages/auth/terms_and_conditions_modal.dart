@@ -382,53 +382,50 @@ class _TermsAndConditionsModalState extends State<TermsAndConditionsModal>
                   ),
                 ),
                 
-                // Agreement checkbox
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: _scrolledToBottom ? Colors.green.shade50 : Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: _scrolledToBottom ? Colors.green.shade200 : Colors.grey.shade300,
+            // Agreement checkbox (smaller version)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              decoration: BoxDecoration(
+                color: _scrolledToBottom ? Colors.green.shade50 : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: _scrolledToBottom ? Colors.green.shade200 : Colors.grey.shade300,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(4),
+                      onTap: _scrolledToBottom
+                          ? () => setState(() => _checked = !_checked)
+                          : null,
+                      child: Icon(
+                        _checked ? Icons.check_box : Icons.check_box_outline_blank,
+                        color: _scrolledToBottom
+                            ? (_checked ? Colors.blue.shade600 : Colors.grey[600])
+                            : Colors.grey[400],
+                        size: 20, // smaller icon
+                      ),
                     ),
                   ),
-                  child: Row(
-                    children: [
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(4),
-                          onTap: _scrolledToBottom
-                              ? () => setState(() => _checked = !_checked)
-                              : null,
-                          child: Container(
-                            padding: const EdgeInsets.all(2),
-                            child: Icon(
-                              _checked ? Icons.check_box : Icons.check_box_outline_blank,
-                              color: _scrolledToBottom
-                                  ? (_checked ? Colors.blue.shade600 : Colors.grey[600])
-                                  : Colors.grey[400],
-                              size: 24,
-                            ),
-                          ),
-                        ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'I agree to the Terms and Conditions',
+                      style: TextStyle(
+                        fontSize: 12, // smaller text
+                        color: _scrolledToBottom ? Colors.grey[800] : Colors.grey[500],
+                        fontWeight: FontWeight.w400, // lighter weight
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'I have read and agree to the Terms and Conditions',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: _scrolledToBottom ? Colors.grey[800] : Colors.grey[500],
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-                
+                ],
+              ),
+            ),
+
                 // Action buttons
                 Container(
                   padding: const EdgeInsets.all(20),
