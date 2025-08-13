@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:pawsense/pages/auth/sign_up_page.dart';
 import 'package:pawsense/pages/home_page.dart';
 import 'package:pawsense/pages/auth/sign_in_page.dart';
+import 'package:pawsense/pages/signup.dart';
 import 'utils/constants.dart';
 import 'config/firebase_options.dart';
 
@@ -24,8 +25,9 @@ class MyApp extends StatelessWidget {
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: ThemeMode.system,
-      initialRoute: '/signin',
+      initialRoute: '/signup',
       routes: {
+        '/uisignup': (context) => const Signup(),
         '/signin': (context) => const SignInPage(),
         '/signup': (context) => const SignUpPage(),
         '/home': (context) => const HomePage(),
