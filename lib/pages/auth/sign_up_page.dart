@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../services/auth_service.dart';
+import '../../services/auth/auth_service.dart';
 import 'verify_email_page.dart';
 import 'terms_and_conditions_modal.dart';
 import '../../utils/constants.dart';
@@ -672,8 +672,8 @@ class _SignUpPageState extends State<SignUpPage>
                                   controller: _confirmPasswordController,
                                   label: 'Confirm Password',
                                   hintText: 'Re-enter your password',
-                                  validator: (v) =>
-                                      confirmPasswordValidator(v, _passwordController.text),
+                  validator: (v) =>
+                    confirmPasswordValidator(v, _passwordController.text),
                                 ),
                                 _buildTermsCheckbox(),
                                 const SizedBox(height: 24),
