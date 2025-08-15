@@ -52,124 +52,283 @@ class NotificationItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: EdgeInsets.only(bottom: 16),
-      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isUnread ? Colors.blue.shade50 : Colors.white,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isUnread ? AppColors.primary.withOpacity(0.2) : Colors.grey.shade200,
-        ),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            // Left colored border (only for unread messages)
+            if (isUnread)
               Container(
-                padding: EdgeInsets.all(8),
+                width: 4,
                 decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  color: isEmergency 
+                      ? Colors.red 
+                      : requiresAction 
+                          ? Colors.orange 
+                          : AppColors.primary,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(12),
+                    bottomLeft: Radius.circular(12),
+                  ),
                 ),
-                child: Icon(icon, color: iconColor),
               ),
-              SizedBox(width: 16),
-              Expanded(
+            // Content
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Header row with icon, title, badges, and actions
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          title,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                        // Icon
+                        Container(
+                          padding: EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: iconColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(icon, color: iconColor, size: 20),
+                        ),
+                        SizedBox(width: 12),
+                        // Title and badges
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      title,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 16,
+                                        color: Colors.grey[900],
+                                      ),
+                                    ),
+                                  ),
+                                 if (requiresAction) ...[
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 8, right: 8),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.orange.shade100,
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Text(
+                                              'Action Required',
+                                              style: TextStyle(
+                                                color: Colors.orange.shade700,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                description,
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 14,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        Text(
-                          _getTimeAgo(),
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      description,
-                      style: TextStyle(
-                        color: Colors.grey[700],
-                        fontSize: 14,
-                      ),
-                    ),
-                    if (details != null) ...[
-                      SizedBox(height: 12),
-                      ...details!.entries.map((entry) => Padding(
-                            padding: EdgeInsets.only(bottom: 4),
-                            child: Row(
+                        // Timestamp and actions
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
+                                Icon(Icons.access_time, size: 14, color: Colors.grey[500]),
+                                SizedBox(width: 4),
                                 Text(
-                                  '${entry.key}:',
+                                  _getTimeAgo(),
                                   style: TextStyle(
-                                    color: Colors.grey[600],
-                                    fontSize: 13,
+                                    color: Colors.grey[500],
+                                    fontSize: 12,
                                   ),
                                 ),
                                 SizedBox(width: 8),
-                                Text(
-                                  entry.value,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                  ),
+                                PopupMenuButton<String>(
+                                  icon: Icon(Icons.more_vert, size: 18, color: Colors.grey[500]),
+                                  itemBuilder: (context) => [
+                                    PopupMenuItem(
+                                      value: 'delete',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                                          SizedBox(width: 8),
+                                          Text('Delete', style: TextStyle(color: Colors.red)),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                  onSelected: (value) {
+                                    if (value == 'delete') onDelete();
+                                  },
                                 ),
                               ],
                             ),
-                          )),
+                            if (isUnread) ...[
+                              SizedBox(height: 8),
+                              TextButton(
+                                onPressed: onMarkRead,
+                                style: TextButton.styleFrom(
+                                  foregroundColor: AppColors.primary,
+                                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                  minimumSize: Size.zero,
+                                ),
+                                child: Text(
+                                  'Mark as read',
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                    
+                    // Details section
+                    if (details != null) ...[
+                      SizedBox(height: 16),
+                      Container(
+                        padding: EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Column(
+                          children: details!.entries.map((entry) {
+                            return Padding(
+                              padding: EdgeInsets.only(bottom: entry == details!.entries.last ? 0 : 8),
+                              child: Row(
+                                children: [
+                                  SizedBox(
+                                    width: 80,
+                                    child: Text(
+                                      '${entry.key}:',
+                                      style: TextStyle(
+                                        color: Colors.grey[600],
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Text(
+                                      entry.value,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.grey[800],
+                                      ),
+                                    ),
+                                  ),
+                                  if (entry.key.toLowerCase().contains('contact') || 
+                                      entry.key.toLowerCase().contains('phone'))
+                                    Icon(Icons.phone, size: 14, color: Colors.grey[500]),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ],
+                    
+                    // Action buttons
+                    if (requiresAction && onAction != null) ...[
+                      SizedBox(height: 16),
+                      Row(
+                        children: [
+                          if (isEmergency)
+                            ElevatedButton(
+                              onPressed: onAction,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                                foregroundColor: Colors.white,
+                                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: Text(
+                                'Emergency Response',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                            )
+                          else ...[
+                            ElevatedButton(
+                              onPressed: onAction,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: Colors.white,
+                                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: Text(
+                                'Approve',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            SizedBox(width: 12),
+                            OutlinedButton(
+                              onPressed: () {
+                                // Handle decline action
+                              },
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.red,
+                                side: BorderSide(color: Colors.red),
+                                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: Text(
+                                'Decline',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ],
                   ],
                 ),
               ),
-            ],
-          ),
-          if (requiresAction || isUnread) ...[
-            SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                if (isUnread)
-                  TextButton(
-                    onPressed: onMarkRead,
-                    child: Text('Mark as read'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.primary,
-                    ),
-                  ),
-                if (requiresAction && onAction != null) ...[
-                  SizedBox(width: 12),
-                  ElevatedButton(
-                    onPressed: onAction,
-                    child: Text(actionButtonText ?? 'Take Action'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isEmergency ? Colors.red : AppColors.primary,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ],
-                SizedBox(width: 12),
-                IconButton(
-                  onPressed: onDelete,
-                  icon: Icon(Icons.delete_outline),
-                  color: Colors.grey[600],
-                ),
-              ],
             ),
           ],
-        ],
+        ),
       ),
     );
   }

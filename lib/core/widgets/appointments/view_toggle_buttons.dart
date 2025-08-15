@@ -19,15 +19,15 @@ class ViewToggleButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), 
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), 
         decoration: BoxDecoration(
           color: isSelected ? AppColors.white : Colors.transparent, 
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
           text,
           style: TextStyle(
-            fontSize: kFontSizeRegular - 2,
+            fontSize: kFontSizeRegular,
             fontWeight: FontWeight.w500,
             color: isSelected ? AppColors.textPrimary : AppColors.textSecondary, 
           ),

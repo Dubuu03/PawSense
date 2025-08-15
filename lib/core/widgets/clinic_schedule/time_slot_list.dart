@@ -78,14 +78,14 @@ class TimeSlotList extends StatelessWidget {
             ),
 
             SizedBox(height: kSpacingLarge),
-            Expanded(
-              child: ListView.separated(
-                itemCount: timeSlots.length,
-                separatorBuilder: (context, index) => SizedBox(height: kSpacingSmall),
-                itemBuilder: (context, index) {
-                  return TimeSlotItem(timeSlot: timeSlots[index]);
-                },
-              ),
+            ListView.separated(
+              shrinkWrap: true,
+              physics: NeverScrollableScrollPhysics(),
+              itemCount: timeSlots.length,
+              separatorBuilder: (context, index) => SizedBox(height: kSpacingSmall),
+              itemBuilder: (context, index) {
+                return TimeSlotItem(timeSlot: timeSlots[index]);
+              },
             ),
           ],
         ),

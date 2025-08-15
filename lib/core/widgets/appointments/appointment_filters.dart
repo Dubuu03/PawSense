@@ -7,19 +7,15 @@ import '../shared/search_field.dart';
 class AppointmentFilters extends StatelessWidget {
   final String searchQuery;
   final String selectedStatus;
-  final String selectedView;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<String> onStatusChanged;
-  final ValueChanged<String> onViewChanged;
 
   const AppointmentFilters({
     Key? key,
     required this.searchQuery,
     required this.selectedStatus,
-    required this.selectedView,
     required this.onSearchChanged,
     required this.onStatusChanged,
-    required this.onViewChanged,
   }) : super(key: key);
 
   @override
@@ -52,58 +48,47 @@ class AppointmentFilters extends StatelessWidget {
             ),
             const SizedBox(width: 12),
 
-            // Status Dropdown
-            SizedBox(
-              width: 140,
-              child: DropdownButtonFormField<String>(
-                value: selectedStatus,
-                onChanged: (value) => onStatusChanged(value!),
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide.none,
+            // Status Filter Buttons
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  ViewToggleButton(
+                    text: 'All',
+                    isSelected: selectedStatus == 'All Status',
+                    onTap: () => onStatusChanged('All Status'),
                   ),
-                  filled: true,
-                  fillColor: AppColors.white,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'All Status', child: Text('All Status')),
-                  DropdownMenuItem(value: 'Pending', child: Text('Pending')),
-                  DropdownMenuItem(value: 'Confirmed', child: Text('Confirmed')),
-                  DropdownMenuItem(value: 'Completed', child: Text('Completed')),
-                  DropdownMenuItem(value: 'Cancelled', child: Text('Cancelled')),
+                  const SizedBox(width: 4),
+                  ViewToggleButton(
+                    text: 'Pending',
+                    isSelected: selectedStatus == 'Pending',
+                    onTap: () => onStatusChanged('Pending'),
+                  ),
+                  const SizedBox(width: 4),
+                  ViewToggleButton(
+                    text: 'Confirmed',
+                    isSelected: selectedStatus == 'Confirmed',
+                    onTap: () => onStatusChanged('Confirmed'),
+                  ),
+                  const SizedBox(width: 4),
+                  ViewToggleButton(
+                    text: 'Completed',
+                    isSelected: selectedStatus == 'Completed',
+                    onTap: () => onStatusChanged('Completed'),
+                  ),
+                  const SizedBox(width: 4),
+                  ViewToggleButton(
+                    text: 'Cancelled',
+                    isSelected: selectedStatus == 'Cancelled',
+                    onTap: () => onStatusChanged('Cancelled'),
+                  ),
                 ],
               ),
             ),
-            
-            const SizedBox(width: 12),
-
-          // View Toggle Buttons using PeriodButton
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: Colors.grey[200], // light gray background
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                ViewToggleButton(
-                  text: 'Table',
-                  isSelected: selectedView == 'Table',
-                  onTap: () => onViewChanged('Table'),
-                ),
-                const SizedBox(width: 8),
-                ViewToggleButton(
-                  text: 'Calendar',
-                  isSelected: selectedView == 'Calendar',
-                  onTap: () => onViewChanged('Calendar'),
-                ),
-              ],
-            ),
-          ),
-
-
           ],
         ),
       ),
