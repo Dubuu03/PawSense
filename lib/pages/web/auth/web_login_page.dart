@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../core/services/auth/auth_service_web.dart';
+import '../../../core/services/auth/auth_service_web.dart';
 
 class WebLoginPage extends StatefulWidget {
   const WebLoginPage({Key? key}) : super(key: key);
@@ -14,6 +14,7 @@ class _WebLoginPageState extends State<WebLoginPage> {
   final _passwordController = TextEditingController();
   final _authService = AuthServiceWeb();
 
+  bool _obscurePassword = true; // add this in your State class
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -126,23 +127,33 @@ class _WebLoginPageState extends State<WebLoginPage> {
                     // Password Field
                     TextFormField(
                       controller: _passwordController,
-                      obscureText: true,
-                      decoration: const InputDecoration(
+                      obscureText: _obscurePassword,
+                      decoration: InputDecoration(
                         labelText: 'Password',
-                        prefixIcon: Icon(Icons.lock),
-                        border: OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.lock),
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _obscurePassword = !_obscurePassword;
+                            });
+                          },
+                        ),
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'Please enter your password';
                         }
-                        if (value.length < 6) {
-                          return 'Password must be at least 6 characters';
-                        }
                         return null;
                       },
                       onFieldSubmitted: (_) => _handleLogin(),
                     ),
+                    const SizedBox(height: 24),
                     const SizedBox(height: 24),
 
                     // Error Message
