@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/services/auth/auth_service_web.dart';
+import '../../../core/utils/app_colors.dart';
+import '../../../core/utils/constants.dart';
 
 class WebLoginPage extends StatefulWidget {
   const WebLoginPage({Key? key}) : super(key: key);
@@ -14,7 +16,7 @@ class _WebLoginPageState extends State<WebLoginPage> {
   final _passwordController = TextEditingController();
   final _authService = AuthServiceWeb();
 
-  bool _obscurePassword = true; // add this in your State class
+  bool _obscurePassword = true;
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -69,97 +71,251 @@ class _WebLoginPageState extends State<WebLoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       body: Center(
         child: Container(
           constraints: const BoxConstraints(maxWidth: 400),
-          padding: const EdgeInsets.all(32.0),
+          margin: const EdgeInsets.all(20),
           child: Card(
-            elevation: 8,
-            child: Padding(
-              padding: const EdgeInsets.all(32.0),
+            elevation: 0,
+            color: AppColors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(40),
               child: Form(
                 key: _formKey,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // Logo/Title
-                    const Text(
-                      'PawSense Admin',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.deepPurple,
+                    // Logo
+                    Container(
+                      width: 120,
+                      height: 120,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Web Administration Portal',
-                      style: TextStyle(fontSize: 16, color: Colors.grey),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 32),
-
-                    // Email Field
-                    TextFormField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                        labelText: 'Email',
-                        prefixIcon: Icon(Icons.email),
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter your email';
-                        }
-                        if (!RegExp(
-                          r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                        ).hasMatch(value)) {
-                          return 'Please enter a valid email';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Password Field
-                    TextFormField(
-                      controller: _passwordController,
-                      obscureText: _obscurePassword,
-                      decoration: InputDecoration(
-                        labelText: 'Password',
-                        prefixIcon: const Icon(Icons.lock),
-                        border: const OutlineInputBorder(),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscurePassword
-                                ? Icons.visibility_off
-                                : Icons.visibility,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: SizedBox(
+                          width: 120, // set your desired width
+                          height: 120, // set your desired height
+                          child: Image.asset(
+                            'assets/img/image1.png',
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                width: 120,
+                                height: 120,
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: const Icon(
+                                  Icons.pets,
+                                  color: Colors.white,
+                                  size: 60, // bigger fallback icon
+                                ),
+                              );
+                            },
                           ),
-                          onPressed: () {
-                            setState(() {
-                              _obscurePassword = !_obscurePassword;
-                            });
-                          },
                         ),
                       ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter your password';
-                        }
-                        return null;
-                      },
-                      onFieldSubmitted: (_) => _handleLogin(),
                     ),
-                    const SizedBox(height: 24),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 8),
+
+                    // Title
+                    Text(
+                      'PawSense',
+                      style: kTextStyleTitle.copyWith(
+                        fontSize: 28,
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Admin Panel',
+                      style: kTextStyleRegular.copyWith(
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 40),
+
+                    // Email Field
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Email',
+                          style: kTextStyleSmall.copyWith(
+                            fontSize: 14,
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          style: kTextStyleRegular.copyWith(
+                            // <- typing style here
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Enter your email',
+                            hintStyle: kTextStyleRegular.copyWith(
+                              color: AppColors.textTertiary,
+                            ),
+                            filled: true,
+                            fillColor: AppColors.white,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 16,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: AppColors.border,
+                                width: 1,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: AppColors.border,
+                                width: 1,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: AppColors.primary,
+                                width: 2,
+                              ),
+                            ),
+                            errorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: AppColors.error,
+                                width: 1,
+                              ),
+                            ),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter your email';
+                            }
+                            if (!RegExp(
+                              r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                            ).hasMatch(value)) {
+                              return 'Please enter a valid email';
+                            }
+                            return null;
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Password Field
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Password',
+                          style: kTextStyleSmall.copyWith(
+                            fontSize: 14,
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _passwordController,
+                          obscureText: _obscurePassword,
+                          style: kTextStyleRegular.copyWith(
+                            // text style while typing
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Enter your password',
+                            hintStyle: kTextStyleRegular.copyWith(
+                              // placeholder style
+                              color: AppColors.textTertiary,
+                            ),
+                            filled: true,
+                            fillColor: AppColors.white,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 16,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: AppColors.border,
+                                width: 1,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: AppColors.border,
+                                width: 1,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: AppColors.primary,
+                                width: 2,
+                              ),
+                            ),
+                            errorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: AppColors.error,
+                                width: 1,
+                              ),
+                            ),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                                color: AppColors.textSecondary,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _obscurePassword = !_obscurePassword;
+                                });
+                              },
+                            ),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter your password';
+                            }
+                            return null;
+                          },
+                          onFieldSubmitted: (_) => _handleLogin(),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 32),
 
                     // Error Message
                     if (_errorMessage != null)
                       Container(
+                        width: double.infinity,
                         padding: const EdgeInsets.all(12),
+                        margin: const EdgeInsets.only(bottom: 16),
                         decoration: BoxDecoration(
                           color: Colors.red.shade50,
                           borderRadius: BorderRadius.circular(8),
@@ -176,57 +332,84 @@ class _WebLoginPageState extends State<WebLoginPage> {
                             Expanded(
                               child: Text(
                                 _errorMessage!,
-                                style: TextStyle(
-                                  color: Colors.red.shade700,
+                                style: kTextStyleSmall.copyWith(
                                   fontSize: 14,
+                                  color: Colors.red.shade700,
                                 ),
                               ),
                             ),
                           ],
                         ),
                       ),
-                    if (_errorMessage != null) const SizedBox(height: 16),
 
-                    // Login Button
-                    ElevatedButton(
-                      onPressed: _isLoading ? null : _handleLogin,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.deepPurple,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                    // Sign In Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _handleLogin,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: AppColors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          elevation: 0,
+                          disabledBackgroundColor: AppColors.primary
+                              .withOpacity(0.6),
                         ),
-                      ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              )
+                            : Text(
+                                'Sign In',
+                                style: kTextStyleRegular.copyWith(
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
-                            )
-                          : const Text(
-                              'Sign In',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                      ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 24),
 
-                    // Help Text
+                    // Footer Text
                     Text(
-                      'Contact your administrator if you need access.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
+                      'For registered admin accounts only',
+                      style: kTextStyleSmall.copyWith(
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
                       ),
                       textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    RichText(
+                      textAlign: TextAlign.center,
+                      text: TextSpan(
+                        style: kTextStyleSmall.copyWith(
+                          fontSize: 14,
+                          color: AppColors.textSecondary,
+                        ),
+                        children: [
+                          const TextSpan(
+                            text: 'Need to create an admin account? ',
+                          ),
+                          TextSpan(
+                            text: 'Sign up (Clinic Admin Only)',
+                            style: kTextStyleSmall.copyWith(
+                              fontSize: 14,
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
