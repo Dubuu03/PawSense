@@ -100,15 +100,15 @@ class _WebLoginPageState extends State<WebLoginPage> {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(16),
                         child: SizedBox(
-                          width: 120, // set your desired width
-                          height: 120, // set your desired height
+                          width: 120,
+                          height: 120,
                           child: Image.asset(
                             'assets/img/image1.png',
                             fit: BoxFit.contain,
                             errorBuilder: (context, error, stackTrace) {
                               return Container(
-                                width: 120,
-                                height: 120,
+                                width: 10,
+                                height: 10,
                                 decoration: BoxDecoration(
                                   color: AppColors.primary,
                                   borderRadius: BorderRadius.circular(16),
@@ -116,7 +116,7 @@ class _WebLoginPageState extends State<WebLoginPage> {
                                 child: const Icon(
                                   Icons.pets,
                                   color: Colors.white,
-                                  size: 60, // bigger fallback icon
+                                  size: 120,
                                 ),
                               );
                             },
@@ -124,7 +124,7 @@ class _WebLoginPageState extends State<WebLoginPage> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 0),
 
                     // Title
                     Text(
