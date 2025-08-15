@@ -18,6 +18,7 @@ class Owner {
 enum AppointmentStatus { pending, confirmed, completed, cancelled }
 
 class Appointment {
+  final String date;
   final String time;
   final Pet pet;
   final String diseaseReason;
@@ -25,6 +26,7 @@ class Appointment {
   final AppointmentStatus status;
 
   Appointment({
+    required this.date,
     required this.time,
     required this.pet,
     required this.diseaseReason,
