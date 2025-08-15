@@ -5,8 +5,8 @@ import '../../utils/constants.dart';
 class ServiceCard extends StatelessWidget {
   final String title;
   final String description;
-  final int duration;
-  final String price;
+  final int duration;      // keep as int
+  final String price;      // keep as String from your data
   final String category;
   final bool isActive;
   final VoidCallback? onToggle;
@@ -43,14 +43,15 @@ class ServiceCard extends StatelessWidget {
         ],
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: MainAxisSize.min, // let height follow content
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header row: title + actions
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Service Title and Category
+              // Title + category chip
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -58,12 +59,17 @@ class ServiceCard extends StatelessWidget {
                     Text(
                       title,
                       style: kTextStyleSmall.copyWith(
-                        fontWeight: FontWeight.w600
-                      )
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.primary.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(20),
@@ -71,25 +77,26 @@ class ServiceCard extends StatelessWidget {
                       child: Text(
                         category,
                         style: kTextStyleSmall.copyWith(
-                          color: AppColors.primary
-                        )
+                          color: AppColors.primary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
                 ),
               ),
-              // Service Actions
+
+              // Actions
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Transform.scale(
                     scale: 0.8,
                     child: Switch(
                       value: isActive,
                       onChanged: onToggle != null ? (_) => onToggle!() : null,
-                      activeColor: AppColors.primary,
-                      activeTrackColor: AppColors.primary.withOpacity(0.5),
-                      inactiveThumbColor: Colors.grey[400],
-                      inactiveTrackColor: Colors.grey[300],
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                   ),
                   if (onEdit != null)
@@ -114,20 +121,25 @@ class ServiceCard extends StatelessWidget {
               ),
             ],
           ),
+
           const SizedBox(height: 12),
+
+          // Description
           Text(
             description,
             style: kTextStyleSmall.copyWith(
               color: Colors.grey[700],
               height: 1.5,
             ),
-            maxLines: 2,
+            maxLines: 3,
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 16),
+
+          const SizedBox(height: 12),
+
+          // Duration + Price row
           Row(
             children: [
-              // Duration
               Row(
                 children: [
                   Icon(Icons.schedule_rounded,
@@ -143,7 +155,6 @@ class ServiceCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(width: 16),
-              // Price
               Row(
                 children: [
                   Icon(Icons.payments_rounded,

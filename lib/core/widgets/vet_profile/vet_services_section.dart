@@ -25,6 +25,7 @@ class VetServicesSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -44,7 +45,9 @@ class VetServicesSection extends StatelessWidget {
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -53,35 +56,39 @@ class VetServicesSection extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 24),
-          GridView.builder(
-            shrinkWrap: true, // ✅ prevents overflow
-            physics:
-                const NeverScrollableScrollPhysics(), // ✅ avoids scroll conflict
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              childAspectRatio: 2.5,
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 16,
-            ),
-            itemCount: services.length,
-            itemBuilder: (context, index) {
-              final service = services[index];
-              return ServiceCard(
-                title: service['title'],
-                description: service['description'],
-                duration: service['duration'],
-                price: service['price'],
-                category: service['category'],
-                isActive: service['isActive'] ?? true,
-                onToggle: onServiceToggle != null
-                    ? () => onServiceToggle!(service['id'])
-                    : null,
-                onEdit: onServiceEdit != null
-                    ? () => onServiceEdit!(service['id'])
-                    : null,
-                onDelete: onServiceDelete != null
-                    ? () => onServiceDelete!(service['id'])
-                    : null,
+
+          // Two-column, auto-height layout
+          LayoutBuilder(
+            builder: (context, constraints) {
+              const double spacing = 16;
+              // Force two columns: each item takes half of the available width (minus spacing)
+              final double itemWidth = (constraints.maxWidth - spacing) / 2;
+
+              return Wrap(
+                spacing: spacing,
+                runSpacing: 16,
+                children: services.map((service) {
+                  return SizedBox(
+                    width: itemWidth,
+                    child: ServiceCard(
+                      title: service['title'],
+                      description: service['description'],
+                      duration: service['duration'], // int
+                      price: service['price'],       // String
+                      category: service['category'],
+                      isActive: service['isActive'] ?? true,
+                      onToggle: onServiceToggle != null
+                          ? () => onServiceToggle!(service['id'])
+                          : null,
+                      onEdit: onServiceEdit != null
+                          ? () => onServiceEdit!(service['id'])
+                          : null,
+                      onDelete: onServiceDelete != null
+                          ? () => onServiceDelete!(service['id'])
+                          : null,
+                    ),
+                  );
+                }).toList(),
               );
             },
           ),
