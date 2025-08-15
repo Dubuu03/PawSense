@@ -22,6 +22,7 @@ class _AppointmentManagementScreenState extends State<AppointmentManagementScree
   // Sample data
   final List<Appointment> appointments = [
     Appointment(
+      date: '2025-01-20',
       time: '09:00 AM',
       pet: Pet(name: 'Max', type: 'Dog', emoji: '🐕'),
       diseaseReason: 'Skin Allergies',
@@ -29,6 +30,7 @@ class _AppointmentManagementScreenState extends State<AppointmentManagementScree
       status: AppointmentStatus.pending,
     ),
     Appointment(
+      date: '2025-01-20',
       time: '10:30 AM',
       pet: Pet(name: 'Luna', type: 'Cat', emoji: '🐱'),
       diseaseReason: 'Routine Checkup',
@@ -36,6 +38,7 @@ class _AppointmentManagementScreenState extends State<AppointmentManagementScree
       status: AppointmentStatus.confirmed,
     ),
     Appointment(
+      date: '2025-01-21',
       time: '02:00 PM',
       pet: Pet(name: 'Buddy', type: 'Dog', emoji: '🐕'),
       diseaseReason: 'Dental Cleaning',
@@ -43,6 +46,7 @@ class _AppointmentManagementScreenState extends State<AppointmentManagementScree
       status: AppointmentStatus.completed,
     ),
     Appointment(
+      date: '2025-01-21',
       time: '03:30 PM',
       pet: Pet(name: 'Whiskers', type: 'Cat', emoji: '🐱'),
       diseaseReason: 'Digestive Issues',
@@ -50,6 +54,7 @@ class _AppointmentManagementScreenState extends State<AppointmentManagementScree
       status: AppointmentStatus.pending,
     ),
     Appointment(
+      date: '2025-01-22',
       time: '04:45 PM',
       pet: Pet(name: 'Rocky', type: 'Dog', emoji: '🐕'),
       diseaseReason: 'Emergency Visit',

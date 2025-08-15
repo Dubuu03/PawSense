@@ -1,6 +1,7 @@
 // widgets/appointment_table_header.dart
 import 'package:flutter/material.dart';
 import '../../utils/app_colors.dart';
+import '../../utils/constants.dart';
 
 class AppointmentTableHeader extends StatelessWidget {
   const AppointmentTableHeader({Key? key}) : super(key: key);
@@ -17,10 +18,22 @@ class AppointmentTableHeader extends StatelessWidget {
           Expanded(
             flex: 1,
             child: Text(
+              'Date',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+                fontSize: kFontSizeSmall,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 1,
+            child: Text(
               'Time',
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 color: AppColors.textPrimary,
+                fontSize: kFontSizeSmall,
               ),
             ),
           ),
@@ -31,6 +44,7 @@ class AppointmentTableHeader extends StatelessWidget {
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 color: AppColors.textPrimary,
+                fontSize: kFontSizeSmall,
               ),
             ),
           ),
@@ -41,6 +55,7 @@ class AppointmentTableHeader extends StatelessWidget {
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 color: AppColors.textPrimary,
+                fontSize: kFontSizeSmall,
               ),
             ),
           ),
@@ -51,6 +66,7 @@ class AppointmentTableHeader extends StatelessWidget {
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 color: AppColors.textPrimary,
+                fontSize: kFontSizeSmall,
               ),
             ),
           ),
@@ -61,6 +77,7 @@ class AppointmentTableHeader extends StatelessWidget {
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 color: AppColors.textPrimary,
+                fontSize: kFontSizeSmall,
               ),
             ),
           ),
@@ -71,6 +88,7 @@ class AppointmentTableHeader extends StatelessWidget {
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 color: AppColors.textPrimary,
+                fontSize: kFontSizeSmall,
               ),
             ),
           ),
