@@ -14,41 +14,91 @@ class NotificationsScreen extends StatefulWidget {
 class _NotificationsScreenState extends State<NotificationsScreen> {
   NotificationType _selectedTab = NotificationType.all;
   
-  // TODO: Replace with actual data from your notification service
   final List<Map<String, dynamic>> notifications = [
     {
       'id': '1',
-      'title': 'New Appointment Request',
-      'description': 'Max (Golden Retriever) - Skin condition examination requested for tomorrow 2:00 PM',
-      'timestamp': DateTime.now().subtract(Duration(minutes: 2)),
-      'isEmergency': false,
-      'isUnread': true,
-      'requiresAction': true,
-      'icon': Icons.calendar_today,
-      'iconColor': Colors.blue,
-      'actionButtonText': 'Approve',
-      'type': NotificationType.appointments,
-      'details': {
-        'Patient': 'Max',
-        'Owner': 'John Smith',
-        'Time': '2024-01-16 14:00',
-      },
-    },
-    {
-      'id': '2',
-      'title': 'Emergency Appointment',
-      'description': 'Rocky (German Shepherd) - Possible poisoning, owner requesting immediate consultation',
+      'title': 'Emergency Appointment Request',
+      'description': 'Pet owner reports severe breathing difficulty in a 2-year-old German Shepherd.',
       'timestamp': DateTime.now().subtract(Duration(minutes: 5)),
       'isEmergency': true,
       'isUnread': true,
       'requiresAction': true,
-      'icon': Icons.warning,
+      'icon': Icons.pets,
       'iconColor': Colors.red,
-      'actionButtonText': 'Emergency Response',
+      'actionButtonText': 'Review Request',
       'type': NotificationType.appointments,
       'details': {
-        'Patient': 'Rocky',
-        'Owner': 'David Brown',
+        'Owner': 'John Smith',
+        'Pet': 'Max (German Shepherd)',
+        'Contact': '+1 (555) 123-4567',
+      },
+    },
+    {
+      'id': '2',
+      'title': 'New Appointment Scheduled',
+      'description': 'Regular checkup appointment scheduled for tomorrow at 2:30 PM.',
+      'timestamp': DateTime.now().subtract(Duration(hours: 2)),
+      'isEmergency': false,
+      'isUnread': true,
+      'requiresAction': false,
+      'icon': Icons.calendar_today,
+      'iconColor': AppColors.primary,
+      'type': NotificationType.appointments,
+      'details': {
+        'Date': 'Aug 16, 2025',
+        'Time': '2:30 PM',
+        'Service': 'Regular Checkup',
+      },
+    },
+    {
+      'id': '3',
+      'title': 'Lab Results Available',
+      'description': 'Blood work results for patient "Bella" are now available for review.',
+      'timestamp': DateTime.now().subtract(Duration(hours: 4)),
+      'isEmergency': false,
+      'isUnread': true,
+      'requiresAction': true,
+      'icon': Icons.science,
+      'iconColor': Colors.orange,
+      'actionButtonText': 'View Results',
+      'type': NotificationType.system,
+      'details': {
+        'Patient': 'Bella (Maine Coon)',
+        'Test Type': 'Blood Work',
+        'Ordered By': 'Dr. Sarah Johnson',
+      },
+    },
+    {
+      'id': '4',
+      'title': 'Profile Update Required',
+      'description': 'Please update your certification information. Your dermatology certification expires in 30 days.',
+      'timestamp': DateTime.now().subtract(Duration(days: 1)),
+      'isEmergency': false,
+      'isUnread': false,
+      'requiresAction': false,
+      'icon': Icons.warning_amber,
+      'iconColor': Colors.amber,
+      'type': NotificationType.system,
+      'details': {
+        'Certificate': 'Board Certification in Dermatology',
+        'Expires': 'Sep 14, 2025',
+      },
+    },
+    {
+      'id': '5',
+      'title': 'Appointment Cancelled',
+      'description': 'The 3:00 PM vaccination appointment for "Charlie" has been cancelled by the owner.',
+      'timestamp': DateTime.now().subtract(Duration(days: 1)),
+      'isEmergency': false,
+      'isUnread': false,
+      'requiresAction': false,
+      'icon': Icons.event_busy,
+      'iconColor': Colors.grey,
+      'type': NotificationType.appointments,
+      'details': {
+        'Original Date': 'Aug 14, 2025',
+        'Time': '3:00 PM',
+        'Service': 'Vaccination',
       },
     },
   ];
@@ -97,36 +147,47 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ),
           SizedBox(height: 24),
           Expanded(
-            child: ListView.builder(
-              itemCount: _getFilteredNotifications().length,
-              itemBuilder: (context, index) {
-                final notification = _getFilteredNotifications()[index];
-                return NotificationItem(
-                  title: notification['title'],
-                  description: notification['description'],
-                  timestamp: notification['timestamp'],
-                  isEmergency: notification['isEmergency'],
-                  isUnread: notification['isUnread'],
-                  requiresAction: notification['requiresAction'],
-                  icon: notification['icon'],
-                  iconColor: notification['iconColor'],
-                  actionButtonText: notification['actionButtonText'],
-                  details: notification['details']?.cast<String, String>(),
-                  onMarkRead: () {
-                    setState(() {
-                      notification['isUnread'] = false;
-                    });
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: ListView.builder(
+                  padding: EdgeInsets.all(24),
+                  itemCount: _getFilteredNotifications().length,
+                  itemBuilder: (context, index) {
+                    final notification = _getFilteredNotifications()[index];
+                    return NotificationItem(
+                      title: notification['title'],
+                      description: notification['description'],
+                      timestamp: notification['timestamp'],
+                      isEmergency: notification['isEmergency'],
+                      isUnread: notification['isUnread'],
+                      requiresAction: notification['requiresAction'],
+                      icon: notification['icon'],
+                      iconColor: notification['iconColor'],
+                      actionButtonText: notification['actionButtonText'],
+                      details: notification['details']?.cast<String, String>(),
+                      onMarkRead: () {
+                        setState(() {
+                          notification['isUnread'] = false;
+                        });
+                      },
+                      onDelete: () {
+                        setState(() {
+                          notifications.removeWhere((n) => n['id'] == notification['id']);
+                        });
+                      },
+                      onAction: () {
+                        // TODO: Handle action based on notification type
+                      },
+                    );
                   },
-                  onDelete: () {
-                    setState(() {
-                      notifications.removeWhere((n) => n['id'] == notification['id']);
-                    });
-                  },
-                  onAction: () {
-                    // TODO: Implement action handling based on notification type
-                  },
-                );
-              },
+                ),
+              ),
             ),
           ),
         ],
