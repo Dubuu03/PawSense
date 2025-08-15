@@ -6,7 +6,7 @@ import 'package:pawsense/pages/mobile/auth/sign_up_page.dart';
 import 'package:pawsense/pages/mobile/home_page.dart';
 import 'package:pawsense/pages/web/admin_main.dart';
 import 'package:pawsense/pages/web/dashboard_screen.dart';
-import 'package:pawsense/pages/web/web_login_page.dart';
+import 'package:pawsense/pages/web/auth/web_login_page.dart';
 import 'package:pawsense/pages/web/superadmin_page.dart';
 import 'package:pawsense/core/services/auth/auth_service_web.dart';
 import 'package:pawsense/core/utils/constants.dart';
@@ -18,22 +18,11 @@ void main() async {
   // Initialize Firebase with proper options
   if (kIsWeb) {
     await Firebase.initializeApp(
-      options: const FirebaseOptions(
-        apiKey: 'AIzaSyCYC9kIBdnqyrslDW18MGpvnjr7_lz7_wI',
-        appId: '1:1040108127502:web:417570b3f365ed24e7835f',
-        messagingSenderId: '1040108127502',
-        projectId: 'pawsense-134fc',
-        authDomain: 'pawsense-134fc.firebaseapp.com',
-        storageBucket: 'pawsense-134fc.firebasestorage.app',
-        measurementId: 'G-E2RR862KHY',
-      ),
-    );
-  } else {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
+      options: kIsWeb
+          ? DefaultFirebaseOptions.web
+          : DefaultFirebaseOptions.currentPlatform,
     );
   }
-
   runApp(const PawSenseApp());
 }
 
@@ -43,6 +32,7 @@ class PawSenseApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       title: 'PawSense',
       theme: lightTheme,
       darkTheme: darkTheme,
