@@ -41,33 +41,28 @@ class ScheduleHeader extends StatelessWidget {
         ),
 
         SizedBox(width: kSpacingMedium),
-        _buildSettingsButton(),
+       _buildSettingsButton(() {
+          // Handle settings click
+        })
       ],
     );
   }
 
 
-  Widget _buildSettingsButton() {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(kBorderRadiusSmall),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.settings, size: 16, color: AppColors.textSecondary),
-          SizedBox(width: 8),
-          Text(
-            'Settings',
-            style: TextStyle(
-              fontSize: 14,
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ],
+    Widget _buildSettingsButton(VoidCallback onSettings) {
+    return ElevatedButton.icon(
+      onPressed: onSettings,
+      icon: const Icon(Icons.settings, color: Colors.white),
+      label: const Text('Settings'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
       ),
     );
   }
+
 }

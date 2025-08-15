@@ -82,8 +82,15 @@ class VetProfileBasicInfo extends StatelessWidget {
             icon: Icons.language_outlined,
             text: website,
           ),
-          const SizedBox(height: 16),
 
+          const SizedBox(height: kSpacingSmall),
+          
+          Divider(
+            color: AppColors.textTertiary,
+            thickness: 1,           // line thickness
+            height: 1,             // space around the line
+          ),
+           const SizedBox(height: kSpacingSmall),
           // Toggles
           AvailabilityToggle(
             title: 'Emergency Available',

@@ -22,7 +22,7 @@ class _ClinicScheduleScreenState extends State<ClinicScheduleScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: Padding(
+      body: SingleChildScrollView(
         padding: EdgeInsets.all(kSpacingLarge),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -36,7 +36,7 @@ class _ClinicScheduleScreenState extends State<ClinicScheduleScreen> {
               },
             ),
             SizedBox(height: kSpacingLarge),
-            
+
             Card(
               color: Colors.white,
               elevation: 0,
@@ -79,9 +79,7 @@ class _ClinicScheduleScreenState extends State<ClinicScheduleScreen> {
               ),
             ),
             SizedBox(height: kSpacingLarge),
-            Expanded(
-              child: TimeSlotList(selectedDay: selectedDay),
-            ),
+            TimeSlotList(selectedDay: selectedDay),
           ],
         ),
       ),

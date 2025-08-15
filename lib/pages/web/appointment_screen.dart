@@ -17,7 +17,6 @@ class AppointmentManagementScreen extends StatefulWidget {
 class _AppointmentManagementScreenState extends State<AppointmentManagementScreen> {
   String searchQuery = '';
   String selectedStatus = 'All Status';
-  String selectedView = 'Table';
 
   // Sample data
   final List<Appointment> appointments = [
@@ -95,10 +94,8 @@ class _AppointmentManagementScreenState extends State<AppointmentManagementScree
             AppointmentFilters(
               searchQuery: searchQuery,
               selectedStatus: selectedStatus,
-              selectedView: selectedView,
               onSearchChanged: (query) => setState(() => searchQuery = query),
               onStatusChanged: (status) => setState(() => selectedStatus = status),
-              onViewChanged: (view) => setState(() => selectedView = view),
             ),
 
             const SizedBox(height: 16),
