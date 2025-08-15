@@ -88,3 +88,4 @@ class _ClinicScheduleScreenState extends State<ClinicScheduleScreen> {
     );
   }
 }
+

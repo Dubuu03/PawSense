@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../utils/app_colors.dart';
-import '../../utils/constants.dart';
+import 'package:pawsense/core/utils/app_colors.dart';
+import 'package:pawsense/core/utils/constants.dart';
 import 'nav_item.dart';
 
 class SideNavigation extends StatelessWidget {

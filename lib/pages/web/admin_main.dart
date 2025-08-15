@@ -1,25 +1,43 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:pawsense/pages/web/appointment_screen.dart';
 import 'package:pawsense/pages/web/clinic_schedule_screen.dart';
 import 'package:pawsense/pages/web/patient_record_screen.dart';
+import 'package:pawsense/pages/web/clinic_schedule_screen.dart';
+import 'package:pawsense/pages/web/vet_profile_screen.dart';
 import '../../core/widgets/navigation/side_navigation.dart';
 import '../../core/widgets/navigation/top_nav_bar.dart';
 import '../../core/utils/app_colors.dart';
 import '../../pages/web/dashboard_screen.dart';
+import '../../pages/web/notifications_screen.dart';
 
 class AdminMain extends StatefulWidget {
+  final int initialIndex;
+  
+  const AdminMain({Key? key, this.initialIndex = 0}) : super(key: key);
+  
   @override
   _AdminMainState createState() => _AdminMainState();
 }
 
 class _AdminMainState extends State<AdminMain> {
-  int _selectedIndex = 0;
+  late int _selectedIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedIndex = widget.initialIndex;
+  }
 
   final List<Widget> _pages = [
     DashboardScreen(),
     AppointmentManagementScreen(),
     PatientRecordsScreen(),
     ClinicScheduleScreen(),
+    VetProfileScreen(),
+    NotificationsScreen(),
+    SizedBox(), // Support
+    SizedBox(), // Settings
   ];
 
   void _onNavItemSelected(int index) {
