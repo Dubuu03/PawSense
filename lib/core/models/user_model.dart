@@ -7,10 +7,10 @@ class UserModel {
   final bool darkTheme;
   final String role; // user | admin | super_admin
   final DateTime createdAt;
-  final DateTime dateOfBirth;
-  final String contactNumber;
-  final bool agreedToTerms;
-  final String address;
+  final DateTime? dateOfBirth;
+  final String? contactNumber;
+  final bool? agreedToTerms;
+  final String? address;
 
   /// Creates a new UserModel instance.
   const UserModel({
@@ -21,10 +21,10 @@ class UserModel {
     this.darkTheme = false,
     this.role = 'user',
     required this.createdAt,
-    required this.dateOfBirth,
-    required this.contactNumber,
-    required this.agreedToTerms,
-    required this.address,
+    this.dateOfBirth,
+    this.contactNumber,
+    this.agreedToTerms,
+    this.address,
   });
 
   /// Converts the UserModel to a map for Firestore storage.
@@ -36,7 +36,7 @@ class UserModel {
     'darkTheme': darkTheme,
     'role': role,
     'createdAt': createdAt.toIso8601String(),
-    'dateOfBirth': dateOfBirth.toIso8601String(),
+    'dateOfBirth': dateOfBirth?.toIso8601String(),
     'contactNumber': contactNumber,
     'agreedToTerms': agreedToTerms,
     'address': address,
@@ -52,11 +52,13 @@ class UserModel {
       darkTheme: map['darkTheme'] ?? false,
       role: map['role'] ?? 'user',
       createdAt: DateTime.tryParse(map['createdAt'] ?? '') ?? DateTime.now(),
-      dateOfBirth:
-          DateTime.tryParse(map['dateOfBirth'] ?? '') ?? DateTime.now(),
-      contactNumber: map['contactNumber'] ?? '',
-      agreedToTerms: map['agreedToTerms'] ?? false,
-      address: map['address'] ?? '',
+      // After
+      dateOfBirth: map['dateOfBirth'] != null
+          ? DateTime.tryParse(map['dateOfBirth'])
+          : null,
+      contactNumber: map['contactNumber'],
+      agreedToTerms: map['agreedToTerms'],
+      address: map['address'],
     );
   }
 

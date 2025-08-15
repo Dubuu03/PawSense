@@ -36,18 +36,20 @@ class AppointmentHeader extends StatelessWidget {
               ),
             ],
           ),
-          ElevatedButton(
-            onPressed: onNewAppointment,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
+        ElevatedButton.icon(
+          onPressed: onNewAppointment,
+          icon: const Icon(Icons.add, size: 18),
+          label: const Text('New Appointment'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: const Text('New Appointment'),
           ),
+        )
+
         ],
       ),
     );

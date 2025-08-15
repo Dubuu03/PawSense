@@ -180,7 +180,6 @@ class _PatientRecordsScreenState extends State<PatientRecordsScreen> {
             // Patient Cards
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     double cardWidth = constraints.maxWidth < 900 ? constraints.maxWidth : 500;
@@ -194,32 +193,52 @@ class _PatientRecordsScreenState extends State<PatientRecordsScreen> {
                       return matchesType && matchesStatus;
                     }).toList();
 
-                    return Wrap(
-                      spacing: 16,
-                      runSpacing: 16,
-                      children: filteredPatients.map((patient) {
-                        return SizedBox(
-                          width: cardWidth,
-                          child: PatientCard(
-                            name: patient.name,
-                            breed: patient.breed,
-                            petIcon: patient.petIcon,
-                            age: patient.age,
-                            weight: patient.weight,
-                            lastVisit: patient.lastVisit,
-                            status: patient.status,
-                            confidencePercentage: patient.confidencePercentage,
-                            diseaseDetection: patient.diseaseDetection,
-                            cardColor: patient.cardColor,
-                            onViewDetails: () {
-                              print('View details for ${patient.name}');
-                            },
-                            onEdit: () {
-                              print('Edit ${patient.name}');
-                            },
-                          ),
-                        );
-                      }).toList(),
+                    return Padding(
+                    padding: const EdgeInsets.fromLTRB(25, 0, 10, 0),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final screenWidth = constraints.maxWidth;
+
+                          const maxCardWidth = 400.0;
+                          const spacing = 16.0;
+
+                          // Ensure at least 1 card per row
+                          int cardsPerRow = (screenWidth / (maxCardWidth + spacing)).floor();
+                          cardsPerRow = cardsPerRow < 1 ? 1 : cardsPerRow;
+
+                          // Compute width for each card based on available space
+                          final totalSpacing = (cardsPerRow - 1) * spacing;
+                          final cardWidth = (screenWidth - totalSpacing) / cardsPerRow;
+
+                          return Wrap(
+                            spacing: spacing,
+                            runSpacing: spacing,
+                            children: filteredPatients.map((patient) {
+                              return SizedBox(
+                                width: cardWidth,
+                                child: PatientCard(
+                                  name: patient.name,
+                                  breed: patient.breed,
+                                  petIcon: patient.petIcon,
+                                  age: patient.age,
+                                  weight: patient.weight,
+                                  lastVisit: patient.lastVisit,
+                                  status: patient.status,
+                                  confidencePercentage: patient.confidencePercentage,
+                                  diseaseDetection: patient.diseaseDetection,
+                                  cardColor: patient.cardColor,
+                                  onViewDetails: () {
+                                    print('View details for ${patient.name}');
+                                  },
+                                  onEdit: () {
+                                    print('Edit ${patient.name}');
+                                  },
+                                ),
+                              );
+                            }).toList(),
+                          );
+                        },
+                      ),
                     );
                   },
                 ),

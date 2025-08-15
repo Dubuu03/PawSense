@@ -30,6 +30,17 @@ class AppointmentTableRow extends StatelessWidget {
         children: [
           Expanded(
             flex: 1,
+            child: Text(
+              appointment.date,
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+                color: AppColors.textPrimary,
+                fontSize: kFontSizeSmall,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 1,
             child: Row(
               children: [
                 Container(
@@ -46,6 +57,7 @@ class AppointmentTableRow extends StatelessWidget {
                   style: const TextStyle(
                     fontWeight: FontWeight.w500,
                     color: AppColors.textPrimary,
+                    fontSize: kFontSizeSmall,
                   ),
                 ),
               ],

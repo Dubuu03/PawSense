@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:pawsense/pages/web/appointment_screen.dart';
+import 'package:pawsense/pages/web/clinic_schedule_screen.dart';
 import 'package:pawsense/pages/web/patient_record_screen.dart';
 import 'package:pawsense/pages/web/clinic_schedule_screen.dart';
 import 'package:pawsense/pages/web/vet_profile_screen.dart';

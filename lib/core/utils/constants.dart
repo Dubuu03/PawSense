@@ -9,6 +9,16 @@ const double kFontSizeRegular = 16.0;
 const double kFontSizeLarge = 20.0;
 const double kFontSizeTitle = 24.0;
 
+// Spacing
+const double kSpacingSmall = 8.0;
+const double kSpacingMedium = 16.0;
+const double kSpacingLarge = 24.0;
+const double kSpacingXLarge = 32.0;
+
+// Border radius
+const double kBorderRadius = 12.0;
+const double kBorderRadiusSmall = 8.0;
+
 // Text styles
 /// This file contains app-wide constants such as colors, text styles, and other reusable values.
 const TextStyle kTextStyleSmall = TextStyle(
