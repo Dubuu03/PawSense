@@ -1,10 +1,174 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'dart:typed_data';
 import '../../models/user_model.dart';
 import '../../models/clinic_model.dart';
-import '../../models/clinic_details_model.dart';
+
+// Temporary inline definitions to resolve import issues
+enum ServiceCategory {
+  consultation,
+  diagnostic,
+  preventive,
+  surgery,
+  emergency,
+  telemedicine,
+}
+
+class ClinicService {
+  final String serviceName;
+  final String serviceDescription;
+  final String estimatedPrice;
+  final String duration;
+  final ServiceCategory category;
+
+  ClinicService({
+    required this.serviceName,
+    required this.serviceDescription,
+    required this.estimatedPrice,
+    required this.duration,
+    required this.category,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'serviceName': serviceName,
+      'serviceDescription': serviceDescription,
+      'estimatedPrice': estimatedPrice,
+      'duration': duration,
+      'category': category.name,
+    };
+  }
+
+  factory ClinicService.fromMap(Map<String, dynamic> map) {
+    return ClinicService(
+      serviceName: map['serviceName'] ?? '',
+      serviceDescription: map['serviceDescription'] ?? '',
+      estimatedPrice: map['estimatedPrice'] ?? '',
+      duration: map['duration'] ?? '',
+      category: ServiceCategory.values.firstWhere(
+        (e) => e.name == map['category'],
+        orElse: () => ServiceCategory.consultation,
+      ),
+    );
+  }
+
+  ClinicService copyWith({
+    String? serviceName,
+    String? serviceDescription,
+    String? estimatedPrice,
+    String? duration,
+    ServiceCategory? category,
+  }) {
+    return ClinicService(
+      serviceName: serviceName ?? this.serviceName,
+      serviceDescription: serviceDescription ?? this.serviceDescription,
+      estimatedPrice: estimatedPrice ?? this.estimatedPrice,
+      duration: duration ?? this.duration,
+      category: category ?? this.category,
+    );
+  }
+}
+
+class ClinicCertification {
+  final String name;
+  final String issuer;
+  final Timestamp dateIssued;
+  final Timestamp? dateExpiry;
+
+  ClinicCertification({
+    required this.name,
+    required this.issuer,
+    required this.dateIssued,
+    this.dateExpiry,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'name': name,
+      'issuer': issuer,
+      'dateIssued': dateIssued,
+      'dateExpiry': dateExpiry,
+    };
+  }
+
+  factory ClinicCertification.fromMap(Map<String, dynamic> map) {
+    return ClinicCertification(
+      name: map['name'] ?? '',
+      issuer: map['issuer'] ?? '',
+      dateIssued: map['dateIssued'] as Timestamp,
+      dateExpiry: map['dateExpiry'] as Timestamp?,
+    );
+  }
+
+  ClinicCertification copyWith({
+    String? name,
+    String? issuer,
+    Timestamp? dateIssued,
+    Timestamp? dateExpiry,
+  }) {
+    return ClinicCertification(
+      name: name ?? this.name,
+      issuer: issuer ?? this.issuer,
+      dateIssued: dateIssued ?? this.dateIssued,
+      dateExpiry: dateExpiry ?? this.dateExpiry,
+    );
+  }
+}
+
+class ClinicDetails {
+  final String id;
+  final String clinicId;
+  final List<ClinicService> services;
+  final List<ClinicCertification> certificationsAndLicenses;
+  final DateTime createdAt;
+
+  ClinicDetails({
+    required this.id,
+    required this.clinicId,
+    required this.services,
+    required this.certificationsAndLicenses,
+    required this.createdAt,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'clinicId': clinicId,
+      'services': services.map((service) => service.toMap()).toList(),
+      'certificationsAndLicenses': certificationsAndLicenses.map((cert) => cert.toMap()).toList(),
+      'createdAt': createdAt.toIso8601String(),
+    };
+  }
+
+  factory ClinicDetails.fromMap(Map<String, dynamic> map) {
+    return ClinicDetails(
+      id: map['id'] ?? '',
+      clinicId: map['clinicId'] ?? '',
+      services: (map['services'] as List<dynamic>? ?? [])
+          .map((serviceMap) => ClinicService.fromMap(serviceMap as Map<String, dynamic>))
+          .toList(),
+      certificationsAndLicenses: (map['certificationsAndLicenses'] as List<dynamic>? ?? [])
+          .map((certMap) => ClinicCertification.fromMap(certMap as Map<String, dynamic>))
+          .toList(),
+      createdAt: DateTime.parse(map['createdAt']),
+    );
+  }
+
+  ClinicDetails copyWith({
+    String? id,
+    String? clinicId,
+    List<ClinicService>? services,
+    List<ClinicCertification>? certificationsAndLicenses,
+    DateTime? createdAt,
+  }) {
+    return ClinicDetails(
+      id: id ?? this.id,
+      clinicId: clinicId ?? this.clinicId,
+      services: services ?? this.services,
+      certificationsAndLicenses: certificationsAndLicenses ?? this.certificationsAndLicenses,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+}
 
 class AuthResult {
   final bool success;
@@ -100,10 +264,11 @@ class AuthServiceWeb {
     required String email,
     required String password,
     required String username,
+    required String? firstName,
+    required String? lastName,
+    required String? contactNumber,
     required Clinic clinic,
     required ClinicDetails clinicDetails,
-    Uint8List? documentBytes,
-    String? documentName,
   }) async {
     try {
       print('Starting clinic admin signup for email: $email'); // Debug print
@@ -118,17 +283,7 @@ class AuthServiceWeb {
         final uid = result.user!.uid;
         print('Firebase Auth user created with UID: $uid'); // Debug print
 
-        // Upload document if provided (skip for testing)
-        String? documentUrl;
-        if (documentBytes != null && documentName != null) {
-          print('Uploading document...'); // Debug print
-          documentUrl = await _uploadDocument(uid, documentBytes, documentName);
-          print('Document uploaded: $documentUrl'); // Debug print
-        } else {
-          print('Skipping document upload (testing mode)'); // Debug print
-        }
-
-        // Create user document with admin role
+        // Create user document with admin role and new fields
         final userModel = UserModel(
           uid: uid,
           username: username,
@@ -137,20 +292,25 @@ class AuthServiceWeb {
           createdAt: DateTime.now(),
           darkTheme: false,
           agreedToTerms: true,
+          contactNumber: contactNumber,
+          firstName: firstName,
+          lastName: lastName,
         );
 
-        // Create clinic document with uid as clinic id
-        final clinicWithId = clinic.copyWith(id: uid);
+        // Create clinic document with uid as clinic id and userId reference
+        final clinicWithId = clinic.copyWith(
+          id: uid, 
+          userId: uid,
+        );
 
         // Create clinic details document with generated id and clinic id
         final clinicDetailsId = _firestore
-            .collection('clinic_details')
+            .collection('clinicDetails')
             .doc()
             .id;
         final clinicDetailsWithIds = clinicDetails.copyWith(
           id: clinicDetailsId,
           clinicId: uid,
-          documentImage: documentUrl ?? '', // Empty string if no upload
         );
 
         print('Preparing Firestore batch write...'); // Debug print
@@ -169,7 +329,7 @@ class AuthServiceWeb {
 
         // Add clinic details document
         batch.set(
-          _firestore.collection('clinic_details').doc(clinicDetailsId),
+          _firestore.collection('clinicDetails').doc(clinicDetailsId),
           clinicDetailsWithIds.toMap(),
         );
 
@@ -219,56 +379,6 @@ class AuthServiceWeb {
         success: false,
         error: 'Account creation failed. Please try again.',
       );
-    }
-  }
-
-  // Helper method to upload document to Firebase Storage
-  Future<String?> _uploadDocument(
-    String uid,
-    Uint8List documentBytes,
-    String fileName,
-  ) async {
-    try {
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final cleanFileName =
-          '${timestamp}_${fileName.replaceAll(RegExp(r'[^\w\-.]'), '_')}';
-
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('clinic_documents')
-          .child(uid)
-          .child(cleanFileName);
-
-      // Determine content type based on file extension
-      String contentType = 'application/octet-stream';
-      final extension = fileName.toLowerCase().split('.').last;
-      switch (extension) {
-        case 'jpg':
-        case 'jpeg':
-          contentType = 'image/jpeg';
-          break;
-        case 'png':
-          contentType = 'image/png';
-          break;
-        case 'pdf':
-          contentType = 'application/pdf';
-          break;
-      }
-
-      final metadata = SettableMetadata(
-        contentType: contentType,
-        customMetadata: {
-          'uploadedBy': uid,
-          'uploadedAt': DateTime.now().toIso8601String(),
-          'originalName': fileName,
-        },
-      );
-
-      final uploadTask = await storageRef.putData(documentBytes, metadata);
-      return await uploadTask.ref.getDownloadURL();
-    } catch (e) {
-      print('Error uploading document: $e');
-      return null;
     }
   }
 

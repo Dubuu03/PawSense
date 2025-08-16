@@ -11,6 +11,9 @@ class UserModel {
   final String? contactNumber;
   final bool? agreedToTerms;
   final String? address;
+  // New admin fields - nullable for mobile compatibility
+  final String? firstName;
+  final String? lastName;
 
   /// Creates a new UserModel instance.
   const UserModel({
@@ -23,8 +26,11 @@ class UserModel {
     required this.createdAt,
     this.dateOfBirth,
     this.contactNumber,
-    this.agreedToTerms,
+    this.agreedToTerms = true,
     this.address,
+    // New admin fields - nullable for mobile compatibility
+    this.firstName,
+    this.lastName,
   });
 
   /// Converts the UserModel to a map for Firestore storage.
@@ -40,6 +46,8 @@ class UserModel {
     'contactNumber': contactNumber,
     'agreedToTerms': agreedToTerms,
     'address': address,
+    'firstName': firstName,
+    'lastName': lastName,
   };
 
   /// Creates a UserModel from a Firestore map.
@@ -57,8 +65,10 @@ class UserModel {
           ? DateTime.tryParse(map['dateOfBirth'])
           : null,
       contactNumber: map['contactNumber'],
-      agreedToTerms: map['agreedToTerms'],
+      agreedToTerms: map['agreedToTerms'] ?? true,
       address: map['address'],
+      firstName: map['firstName'],
+      lastName: map['lastName'],
     );
   }
 
@@ -75,6 +85,8 @@ class UserModel {
     String? contactNumber,
     bool? agreedToTerms,
     String? address,
+    String? firstName,
+    String? lastName,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
@@ -88,6 +100,8 @@ class UserModel {
       contactNumber: contactNumber ?? this.contactNumber,
       agreedToTerms: agreedToTerms ?? this.agreedToTerms,
       address: address ?? this.address,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
     );
   }
 }
