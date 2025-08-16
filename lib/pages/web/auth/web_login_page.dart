@@ -398,11 +398,9 @@ class _WebLoginPageState extends State<WebLoginPage> {
                           color: AppColors.textSecondary,
                         ),
                         children: [
-                          const TextSpan(
-                            text: 'Need to create an admin account? ',
-                          ),
+                          const TextSpan(text: "Don't have an account? "),
                           TextSpan(
-                            text: 'Sign up (Clinic Admin Only)',
+                            text: 'Sign up here',
                             style: kTextStyleSmall.copyWith(
                               fontSize: 14,
                               color: AppColors.primary,
@@ -410,10 +408,7 @@ class _WebLoginPageState extends State<WebLoginPage> {
                             ),
                             recognizer: TapGestureRecognizer()
                               ..onTap = () {
-                                Navigator.pushReplacementNamed(
-                                  context,
-                                  '/websignup',
-                                );
+                                Navigator.pushNamed(context, '/admin_signup');
                               },
                           ),
                         ],
