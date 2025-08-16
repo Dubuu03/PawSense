@@ -19,7 +19,7 @@ class _PatientRecordsScreenState extends State<PatientRecordsScreen> {
   String _selectedType = 'All Types';
   String _selectedStatus = 'All Status';
 
-  final List<String> _types = ['All Types', 'Dog', 'Cat',];
+  final List<String> _types = ['All Types', 'Dog', 'Cat'];
   final List<String> _statuses = ['All Status', 'Healthy', 'Treatment'];
 
   // Helper function to get pet icon based on type
@@ -125,21 +125,24 @@ class _PatientRecordsScreenState extends State<PatientRecordsScreen> {
       },
     ];
 
-    return rawPatients.map((data) => PatientData(
-      name: data['name'] as String,
-      breed: data['breed'] as String,
-      petIcon: _getPetIcon(data['type'] as String),
-      age: data['age'] as String,
-      weight: data['weight'] as String,
-      lastVisit: data['lastVisit'] as String,
-      status: data['status'] as PatientStatus,
-      confidencePercentage: data['confidencePercentage'] as int,
-      diseaseDetection: data['diseaseDetection'] as String,
-      cardColor: _getRandomColor(),
-      type: data['type'] as String,
-    )).toList();
+    return rawPatients
+        .map(
+          (data) => PatientData(
+            name: data['name'] as String,
+            breed: data['breed'] as String,
+            petIcon: _getPetIcon(data['type'] as String),
+            age: data['age'] as String,
+            weight: data['weight'] as String,
+            lastVisit: data['lastVisit'] as String,
+            status: data['status'] as PatientStatus,
+            confidencePercentage: data['confidencePercentage'] as int,
+            diseaseDetection: data['diseaseDetection'] as String,
+            cardColor: _getRandomColor(),
+            type: data['type'] as String,
+          ),
+        )
+        .toList();
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -182,19 +185,26 @@ class _PatientRecordsScreenState extends State<PatientRecordsScreen> {
               child: SingleChildScrollView(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    double cardWidth = constraints.maxWidth < 900 ? constraints.maxWidth : 500;
+                    double cardWidth = constraints.maxWidth < 900
+                        ? constraints.maxWidth
+                        : 500;
 
                     // Filter patients by type and optionally by status
                     List<PatientData> filteredPatients = _patients.where((p) {
-                      final matchesType = _selectedType == 'All Types' || p.type.toLowerCase() == _selectedType.toLowerCase();
-                      final matchesStatus = _selectedStatus == 'All Status' ||
-                          (p.status == PatientStatus.healthy && _selectedStatus == 'Healthy') ||
-                          (p.status == PatientStatus.treatment && _selectedStatus == 'Treatment');
+                      final matchesType =
+                          _selectedType == 'All Types' ||
+                          p.type.toLowerCase() == _selectedType.toLowerCase();
+                      final matchesStatus =
+                          _selectedStatus == 'All Status' ||
+                          (p.status == PatientStatus.healthy &&
+                              _selectedStatus == 'Healthy') ||
+                          (p.status == PatientStatus.treatment &&
+                              _selectedStatus == 'Treatment');
                       return matchesType && matchesStatus;
                     }).toList();
 
                     return Padding(
-                    padding: const EdgeInsets.fromLTRB(25, 0, 10, 0),
+                      padding: const EdgeInsets.fromLTRB(25, 0, 10, 0),
                       child: LayoutBuilder(
                         builder: (context, constraints) {
                           final screenWidth = constraints.maxWidth;
@@ -203,12 +213,14 @@ class _PatientRecordsScreenState extends State<PatientRecordsScreen> {
                           const spacing = 16.0;
 
                           // Ensure at least 1 card per row
-                          int cardsPerRow = (screenWidth / (maxCardWidth + spacing)).floor();
+                          int cardsPerRow =
+                              (screenWidth / (maxCardWidth + spacing)).floor();
                           cardsPerRow = cardsPerRow < 1 ? 1 : cardsPerRow;
 
                           // Compute width for each card based on available space
                           final totalSpacing = (cardsPerRow - 1) * spacing;
-                          final cardWidth = (screenWidth - totalSpacing) / cardsPerRow;
+                          final cardWidth =
+                              (screenWidth - totalSpacing) / cardsPerRow;
 
                           return Wrap(
                             spacing: spacing,
@@ -224,7 +236,8 @@ class _PatientRecordsScreenState extends State<PatientRecordsScreen> {
                                   weight: patient.weight,
                                   lastVisit: patient.lastVisit,
                                   status: patient.status,
-                                  confidencePercentage: patient.confidencePercentage,
+                                  confidencePercentage:
+                                      patient.confidencePercentage,
                                   diseaseDetection: patient.diseaseDetection,
                                   cardColor: patient.cardColor,
                                   onViewDetails: () {

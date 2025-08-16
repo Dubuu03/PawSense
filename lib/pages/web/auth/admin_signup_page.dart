@@ -67,7 +67,6 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
     super.dispose();
   }
 
-
   Future<void> _handleSignup() async {
     if (!_formKeys[2].currentState!.validate()) return;
     if (!_agreedToTerms) {
