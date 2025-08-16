@@ -4,7 +4,7 @@ import '../../../utils/constants.dart';
 import 'settings_form_field.dart';
 
 class AccountSettings extends StatefulWidget {
-  const AccountSettings({Key? key}) : super(key: key);
+  const AccountSettings({super.key});
 
   @override
   State<AccountSettings> createState() => _AccountSettingsState();

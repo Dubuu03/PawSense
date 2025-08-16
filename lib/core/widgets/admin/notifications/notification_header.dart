@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../utils/app_colors.dart';
+import '../../../utils/constants.dart';
 
 class NotificationHeader extends StatelessWidget {
   final int unreadCount;
@@ -8,12 +9,12 @@ class NotificationHeader extends StatelessWidget {
   final VoidCallback onSettings;
 
   const NotificationHeader({
-    Key? key,
+    super.key,
     required this.unreadCount,
     required this.actionRequired,
     required this.onMarkAllRead,
     required this.onSettings,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -25,35 +26,35 @@ class NotificationHeader extends StatelessWidget {
           children: [
             Text(
               'Notifications',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
+              style: kTextStyleTitle.copyWith(
+                color: AppColors.textPrimary,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: kSpacingSmall),
             Row(
               children: [
                 Text(
                   '$unreadCount unread notifications',
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 14,
+                  style: kTextStyleRegular.copyWith(
+                    fontSize: kFontSizeRegular - 2,
+                    color: AppColors.textSecondary,
                   ),
                 ),
                 if (actionRequired > 0) ...[
-                  const SizedBox(width: 8),
+                  SizedBox(width: kSpacingSmall),
                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: kSpacingSmall,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
-                      color: Colors.red[50],
-                      borderRadius: BorderRadius.circular(4),
+                      color: AppColors.error.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(kBorderRadiusSmall),
                     ),
                     child: Text(
                       '$actionRequired action required',
-                      style: TextStyle(
-                        color: Colors.red,
-                        fontSize: 12,
+                      style: kTextStyleSmall.copyWith(
+                        color: AppColors.error,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -67,26 +68,47 @@ class NotificationHeader extends StatelessWidget {
           children: [
             TextButton.icon(
               onPressed: onMarkAllRead,
-              icon: Icon(Icons.done_all, color: AppColors.primary),
+              icon: Icon(
+                Icons.done_all,
+                color: AppColors.primary,
+                size: kIconSizeMedium,
+              ),
               label: Text(
                 'Mark All Read',
-                style: TextStyle(color: AppColors.primary),
+                style: kTextStyleRegular.copyWith(
+                  color: AppColors.primary,
+                ),
               ),
               style: TextButton.styleFrom(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: EdgeInsets.symmetric(
+                  horizontal: kSpacingMedium,
+                  vertical: kSpacingMedium,
+                ),
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: kSpacingMedium),
             ElevatedButton.icon(
               onPressed: onSettings,
-              icon: Icon(Icons.settings, color: Colors.white),
-              label: Text('Settings'),
+              icon: Icon(
+                Icons.settings,
+                color: AppColors.white,
+                size: kIconSizeMedium,
+              ),
+              label: Text(
+                'Settings',
+                style: kTextStyleRegular.copyWith(
+                  color: AppColors.white,
+                ),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                foregroundColor: AppColors.white,
+                padding: EdgeInsets.symmetric(
+                  horizontal: kSpacingMedium,
+                  vertical: kSpacingMedium,
+                ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(kBorderRadiusSmall),
                 ),
               ),
             ),

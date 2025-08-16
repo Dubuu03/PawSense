@@ -7,7 +7,7 @@ import 'summary_card.dart';
 class AppointmentSummary extends StatelessWidget {
   final List<Appointment> appointments;
 
-  const AppointmentSummary({Key? key, required this.appointments}) : super(key: key);
+  const AppointmentSummary({super.key, required this.appointments});
 
   @override
   Widget build(BuildContext context) {

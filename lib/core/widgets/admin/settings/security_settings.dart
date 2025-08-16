@@ -3,7 +3,7 @@ import '../../../utils/app_colors.dart';
 import '../../../utils/constants.dart';
 
 class SecuritySettings extends StatefulWidget {
-  const SecuritySettings({Key? key}) : super(key: key);
+  const SecuritySettings({super.key});
 
   @override
   State<SecuritySettings> createState() => _SecuritySettingsState();

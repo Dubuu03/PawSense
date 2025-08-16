@@ -4,6 +4,8 @@ import '../../../utils/constants.dart';
 import 'faq_item.dart';
 
 class FAQList extends StatefulWidget {
+  const FAQList({super.key});
+
   @override
   _FAQListState createState() => _FAQListState();
 }

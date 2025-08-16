@@ -4,7 +4,7 @@ import 'stats_card.dart';
 class StatsCards extends StatelessWidget {
   final List<Map<String, dynamic>> statsList;
 
-  const StatsCards({Key? key, required this.statsList}) : super(key: key);
+  const StatsCards({super.key, required this.statsList});
 
   @override
   Widget build(BuildContext context) {

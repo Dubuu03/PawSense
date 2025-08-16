@@ -5,9 +5,9 @@ class TimeSlotItem extends StatelessWidget {
   final TimeSlot timeSlot;
 
   const TimeSlotItem({
-    Key? key,
+    super.key,
     required this.timeSlot,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +39,7 @@ class TimeSlotItem extends StatelessWidget {
   }
 
   Widget _buildTimeColumn() {
-    return Container(
+    return SizedBox(
       width: 60,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

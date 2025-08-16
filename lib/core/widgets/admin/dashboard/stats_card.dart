@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../utils/app_colors.dart';
+import '../../../utils/constants.dart';
 
 class StatsCard extends StatelessWidget {
   final String title;
@@ -10,27 +11,27 @@ class StatsCard extends StatelessWidget {
   final Color iconColor;
 
   const StatsCard({
-    Key? key,
+    super.key,
     required this.title,
     required this.value,
     required this.change,
     required this.changeColor,
     required this.icon,
     required this.iconColor,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(24),
+      padding: EdgeInsets.all(kSpacingLarge),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(kBorderRadius),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: Offset(0, 2),
+            color: Colors.black.withOpacity(kShadowOpacity),
+            blurRadius: kShadowBlurRadius,
+            offset: kShadowOffset,
           ),
         ],
       ),
@@ -42,28 +43,25 @@ class StatsCard extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: TextStyle(
-                  fontSize: 14,
+                style: kTextStyleRegular.copyWith(
+                  fontSize: kFontSizeRegular - 2,
                   color: AppColors.textSecondary,
                 ),
               ),
-              Icon(icon, color: iconColor, size: 20),
+              Icon(icon, color: iconColor, size: kIconSizeMedium),
             ],
           ),
-          SizedBox(height: 12),
+          SizedBox(height: kSpacingMedium),
           Text(
             value,
-            style: TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
+            style: kTextStyleHeader.copyWith(
               color: AppColors.textPrimary,
             ),
           ),
-          SizedBox(height: 8),
+          SizedBox(height: kSpacingSmall),
           Text(
             change,
-            style: TextStyle(
-              fontSize: 12,
+            style: kTextStyleSmall.copyWith(
               color: changeColor,
             ),
           ),

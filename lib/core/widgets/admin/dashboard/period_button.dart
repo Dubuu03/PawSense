@@ -8,11 +8,11 @@ class PeriodButton extends StatelessWidget {
   final VoidCallback onTap;
 
   const PeriodButton({
-    Key? key,
+    super.key,
     required this.text,
     required this.isSelected,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

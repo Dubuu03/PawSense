@@ -8,10 +8,10 @@ class DashboardHeader extends StatelessWidget {
   final Function(String) onPeriodChanged;
 
   const DashboardHeader({
-    Key? key,
+    super.key,
     required this.selectedPeriod,
     required this.onPeriodChanged,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

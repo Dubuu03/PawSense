@@ -5,9 +5,9 @@ class VetProfileHeader extends StatelessWidget {
   final VoidCallback? onEditProfile;
 
   const VetProfileHeader({
-    Key? key,
+    super.key,
     this.onEditProfile,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

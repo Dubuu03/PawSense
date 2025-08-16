@@ -3,6 +3,8 @@ import 'package:pawsense/core/models/schedule_stats.dart';
 import 'stats_card.dart';
 
 class ScheduleStatsWidget extends StatelessWidget {
+  const ScheduleStatsWidget({super.key});
+
   @override
   Widget build(BuildContext context) {
     final stats = ScheduleStats(

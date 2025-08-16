@@ -4,7 +4,7 @@ import '../../../utils/constants.dart';
 import 'settings_form_field.dart';
 
 class ClinicSettings extends StatefulWidget {
-  const ClinicSettings({Key? key}) : super(key: key);
+  const ClinicSettings({super.key});
 
   @override
   State<ClinicSettings> createState() => _ClinicSettingsState();

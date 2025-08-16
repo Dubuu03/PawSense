@@ -3,7 +3,7 @@ import '../../../utils/app_colors.dart';
 import '../../../utils/constants.dart';
 
 class BillingSettings extends StatelessWidget {
-  const BillingSettings({Key? key}) : super(key: key);
+  const BillingSettings({super.key});
 
   @override
   Widget build(BuildContext context) {

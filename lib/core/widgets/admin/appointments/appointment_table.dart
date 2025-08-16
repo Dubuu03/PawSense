@@ -12,12 +12,12 @@ class AppointmentTable extends StatelessWidget {
   final Function(Appointment) onView;
 
   const AppointmentTable({
-    Key? key,
+    super.key,
     required this.appointments,
     required this.onEdit,
     required this.onDelete,
     required this.onView,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

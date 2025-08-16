@@ -9,13 +9,13 @@ class CertificationCard extends StatelessWidget {
   final VoidCallback? onDownload;
 
   const CertificationCard({
-    Key? key,
+    super.key,
     required this.title,
     required this.organization,
     required this.issueDate,
     this.expiryDate,
     this.onDownload,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -8,10 +8,10 @@ class FAQItem extends StatefulWidget {
   final VoidCallback? onToggleExpanded;
 
   const FAQItem({
-    Key? key,
+    super.key,
     required this.faqItem,
     this.onToggleExpanded,
-  }) : super(key: key);
+  });
 
   @override
   State<FAQItem> createState() => _FAQItemState();

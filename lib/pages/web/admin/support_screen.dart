@@ -5,9 +5,11 @@ import 'package:pawsense/core/widgets/admin/support/support_filters.dart';
 import 'package:pawsense/core/widgets/admin/support/support_header.dart';
 import 'package:pawsense/core/widgets/admin/support/support_tabs.dart';
 import 'package:pawsense/core/widgets/admin/support/ticket_list.dart';
-import '../../core/utils/app_colors.dart';
+import '../../../core/utils/app_colors.dart';
 
 class SupportCenterScreen extends StatefulWidget {
+  const SupportCenterScreen({super.key});
+
   @override
   _SupportCenterScreenState createState() => _SupportCenterScreenState();
 }

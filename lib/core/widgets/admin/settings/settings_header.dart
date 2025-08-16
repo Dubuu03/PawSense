@@ -3,7 +3,7 @@ import '../../../utils/app_colors.dart';
 import '../../../utils/constants.dart';
 
 class SettingsHeader extends StatelessWidget {
-  const SettingsHeader({Key? key}) : super(key: key);
+  const SettingsHeader({super.key});
 
   @override
   Widget build(BuildContext context) {

@@ -8,11 +8,11 @@ class SummaryCard extends StatelessWidget {
   final Color color;
 
   const SummaryCard({
-    Key? key,
+    super.key,
     required this.count,
     required this.label,
     required this.color,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

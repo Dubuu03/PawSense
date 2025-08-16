@@ -9,6 +9,8 @@ import 'package:pawsense/core/widgets/admin/clinic_schedule/week_navigation.dart
 
 
 class ClinicScheduleScreen extends StatefulWidget {
+  const ClinicScheduleScreen({super.key});
+
   @override
   _ClinicScheduleScreenState createState() => _ClinicScheduleScreenState();
 }

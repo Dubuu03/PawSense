@@ -6,7 +6,7 @@ import '../../../utils/app_colors.dart';
 class AppointmentHeader extends StatelessWidget {
   final VoidCallback onNewAppointment;
 
-  const AppointmentHeader({Key? key, required this.onNewAppointment}) : super(key: key);
+  const AppointmentHeader({super.key, required this.onNewAppointment});
 
   @override
   Widget build(BuildContext context) {

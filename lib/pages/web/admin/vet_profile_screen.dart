@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants.dart';
-import '../../core/widgets/admin/vet_profile/vet_basic_info.dart';
-import '../../core/widgets/admin/vet_profile/specialization_badge.dart';
-import '../../core/widgets/admin/vet_profile/certification_card.dart';
-import '../../core/widgets/admin/vet_profile/vet_services_section.dart';
-import '../../core/widgets/admin/vet_profile/vet_profile_header.dart';
+import '../../../core/widgets/admin/vet_profile/vet_basic_info.dart';
+import '../../../core/widgets/admin/vet_profile/specialization_badge.dart';
+import '../../../core/widgets/admin/vet_profile/certification_card.dart';
+import '../../../core/widgets/admin/vet_profile/vet_services_section.dart';
+import '../../../core/widgets/admin/vet_profile/vet_profile_header.dart';
 
 class VetProfileScreen extends StatefulWidget {
   const VetProfileScreen({super.key});

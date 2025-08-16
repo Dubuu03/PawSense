@@ -12,14 +12,14 @@ class SupportFilters extends StatelessWidget {
   final Function(String) onCategoryChanged;
 
   const SupportFilters({
-    Key? key,
+    super.key,
     required this.searchQuery,
     required this.selectedStatus,
     required this.selectedCategory,
     required this.onSearchChanged,
     required this.onStatusChanged,
     required this.onCategoryChanged,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

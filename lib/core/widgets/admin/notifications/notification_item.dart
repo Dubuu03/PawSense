@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../utils/app_colors.dart';
+import '../../../utils/constants.dart';
 
 class NotificationItem extends StatelessWidget {
   final String title;
@@ -17,7 +18,7 @@ class NotificationItem extends StatelessWidget {
   final Map<String, String>? details;
 
   const NotificationItem({
-    Key? key,
+    super.key,
     required this.title,
     required this.description,
     required this.timestamp,
@@ -31,7 +32,7 @@ class NotificationItem extends StatelessWidget {
     required this.icon,
     required this.iconColor,
     this.details,
-  }) : super(key: key);
+  });
 
   String _getTimeAgo() {
     final now = DateTime.now();
@@ -51,14 +52,14 @@ class NotificationItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: EdgeInsets.only(bottom: 16),
+      margin: EdgeInsets.only(bottom: kSpacingMedium),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(kBorderRadius),
+        border: Border.all(color: AppColors.border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withOpacity(kShadowOpacity),
             blurRadius: 4,
             offset: Offset(0, 2),
           ),
@@ -73,20 +74,20 @@ class NotificationItem extends StatelessWidget {
                 width: 4,
                 decoration: BoxDecoration(
                   color: isEmergency 
-                      ? Colors.red 
+                      ? AppColors.error 
                       : requiresAction 
-                          ? Colors.orange 
+                          ? AppColors.warning 
                           : AppColors.primary,
                   borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(12),
-                    bottomLeft: Radius.circular(12),
+                    topLeft: Radius.circular(kBorderRadius),
+                    bottomLeft: Radius.circular(kBorderRadius),
                   ),
                 ),
               ),
             // Content
             Expanded(
               child: Padding(
-                padding: EdgeInsets.all(16),
+                padding: EdgeInsets.all(kSpacingMedium),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -96,14 +97,14 @@ class NotificationItem extends StatelessWidget {
                       children: [
                         // Icon
                         Container(
-                          padding: EdgeInsets.all(8),
+                          padding: EdgeInsets.all(kSpacingSmall),
                           decoration: BoxDecoration(
                             color: iconColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(kBorderRadiusSmall),
                           ),
-                          child: Icon(icon, color: iconColor, size: 20),
+                          child: Icon(icon, color: iconColor, size: kIconSizeMedium),
                         ),
-                        SizedBox(width: 12),
+                        SizedBox(width: kSpacingMedium),
                         // Title and badges
                         Expanded(
                           child: Column(
@@ -114,33 +115,31 @@ class NotificationItem extends StatelessWidget {
                                   Expanded(
                                     child: Text(
                                       title,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 16,
-                                        color: Colors.grey[900],
+                                      style: kTextStyleLarge.copyWith(
+                                        fontSize: kFontSizeRegular,
+                                        color: AppColors.textPrimary,
                                       ),
                                     ),
                                   ),
-                                 if (requiresAction) ...[
+                                  if (requiresAction) ...[
                                     Padding(
-                                      padding: const EdgeInsets.only(top: 8, right: 8),
+                                      padding: EdgeInsets.only(top: kSpacingSmall, right: kSpacingSmall),
                                       child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: Colors.orange.shade100,
-                                          borderRadius: BorderRadius.circular(12),
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: kSpacingSmall,
+                                          vertical: 4,
                                         ),
-                                        child: Row(
-                                          children: [
-                                            Text(
-                                              'Action Required',
-                                              style: TextStyle(
-                                                color: Colors.orange.shade700,
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                            ),
-                                          ],
+                                        decoration: BoxDecoration(
+                                          color: AppColors.warning.withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(kBorderRadius),
+                                        ),
+                                        child: Text(
+                                          'Action Required',
+                                          style: kTextStyleSmall.copyWith(
+                                            color: AppColors.warning,
+                                            fontWeight: FontWeight.w500,
+                                            fontSize: 11,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -150,9 +149,9 @@ class NotificationItem extends StatelessWidget {
                               SizedBox(height: 4),
                               Text(
                                 description,
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 14,
+                                style: kTextStyleRegular.copyWith(
+                                  fontSize: kFontSizeRegular - 2,
+                                  color: AppColors.textSecondary,
                                   height: 1.4,
                                 ),
                               ),
@@ -166,26 +165,42 @@ class NotificationItem extends StatelessWidget {
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.access_time, size: 14, color: Colors.grey[500]),
+                                Icon(
+                                  Icons.access_time,
+                                  size: kIconSizeSmall,
+                                  color: AppColors.textTertiary,
+                                ),
                                 SizedBox(width: 4),
                                 Text(
                                   _getTimeAgo(),
-                                  style: TextStyle(
-                                    color: Colors.grey[500],
-                                    fontSize: 12,
+                                  style: kTextStyleSmall.copyWith(
+                                    color: AppColors.textTertiary,
                                   ),
                                 ),
-                                SizedBox(width: 8),
+                                SizedBox(width: kSpacingSmall),
                                 PopupMenuButton<String>(
-                                  icon: Icon(Icons.more_vert, size: 18, color: Colors.grey[500]),
+                                  icon: Icon(
+                                    Icons.more_vert,
+                                    size: kIconSizeSmall,
+                                    color: AppColors.textTertiary,
+                                  ),
                                   itemBuilder: (context) => [
                                     PopupMenuItem(
                                       value: 'delete',
                                       child: Row(
                                         children: [
-                                          Icon(Icons.delete_outline, size: 16, color: Colors.red),
-                                          SizedBox(width: 8),
-                                          Text('Delete', style: TextStyle(color: Colors.red)),
+                                          Icon(
+                                            Icons.delete_outline,
+                                            size: kIconSizeSmall,
+                                            color: AppColors.error,
+                                          ),
+                                          SizedBox(width: kSpacingSmall),
+                                          Text(
+                                            'Delete',
+                                            style: kTextStyleRegular.copyWith(
+                                              color: AppColors.error,
+                                            ),
+                                          ),
                                         ],
                                       ),
                                     ),
@@ -197,17 +212,20 @@ class NotificationItem extends StatelessWidget {
                               ],
                             ),
                             if (isUnread) ...[
-                              SizedBox(height: 8),
+                              SizedBox(height: kSpacingSmall),
                               TextButton(
                                 onPressed: onMarkRead,
                                 style: TextButton.styleFrom(
                                   foregroundColor: AppColors.primary,
-                                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: kSpacingMedium,
+                                    vertical: 4,
+                                  ),
                                   minimumSize: Size.zero,
                                 ),
                                 child: Text(
                                   'Mark as read',
-                                  style: TextStyle(fontSize: 12),
+                                  style: kTextStyleSmall,
                                 ),
                               ),
                             ],
@@ -218,27 +236,28 @@ class NotificationItem extends StatelessWidget {
                     
                     // Details section
                     if (details != null) ...[
-                      SizedBox(height: 16),
+                      SizedBox(height: kSpacingMedium),
                       Container(
-                        padding: EdgeInsets.all(12),
+                        padding: EdgeInsets.all(kSpacingMedium),
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.grey.shade200),
+                          color: AppColors.background,
+                          borderRadius: BorderRadius.circular(kBorderRadiusSmall),
+                          border: Border.all(color: AppColors.border),
                         ),
                         child: Column(
                           children: details!.entries.map((entry) {
                             return Padding(
-                              padding: EdgeInsets.only(bottom: entry == details!.entries.last ? 0 : 8),
+                              padding: EdgeInsets.only(
+                                bottom: entry == details!.entries.last ? 0 : kSpacingSmall,
+                              ),
                               child: Row(
                                 children: [
                                   SizedBox(
                                     width: 80,
                                     child: Text(
                                       '${entry.key}:',
-                                      style: TextStyle(
-                                        color: Colors.grey[600],
-                                        fontSize: 13,
+                                      style: kTextStyleSmall.copyWith(
+                                        color: AppColors.textSecondary,
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
@@ -246,16 +265,19 @@ class NotificationItem extends StatelessWidget {
                                   Expanded(
                                     child: Text(
                                       entry.value,
-                                      style: TextStyle(
-                                        fontSize: 13,
+                                      style: kTextStyleSmall.copyWith(
                                         fontWeight: FontWeight.w600,
-                                        color: Colors.grey[800],
+                                        color: AppColors.textPrimary,
                                       ),
                                     ),
                                   ),
                                   if (entry.key.toLowerCase().contains('contact') || 
                                       entry.key.toLowerCase().contains('phone'))
-                                    Icon(Icons.phone, size: 14, color: Colors.grey[500]),
+                                    Icon(
+                                      Icons.phone,
+                                      size: kIconSizeSmall,
+                                      color: AppColors.textTertiary,
+                                    ),
                                 ],
                               ),
                             );
@@ -266,23 +288,29 @@ class NotificationItem extends StatelessWidget {
                     
                     // Action buttons
                     if (requiresAction && onAction != null) ...[
-                      SizedBox(height: 16),
+                      SizedBox(height: kSpacingMedium),
                       Row(
                         children: [
                           if (isEmergency)
                             ElevatedButton(
                               onPressed: onAction,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red,
-                                foregroundColor: Colors.white,
-                                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                backgroundColor: AppColors.error,
+                                foregroundColor: AppColors.white,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: kSpacingMedium,
+                                  vertical: kSpacingMedium,
+                                ),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(kBorderRadiusSmall),
                                 ),
                               ),
                               child: Text(
                                 'Emergency Response',
-                                style: TextStyle(fontWeight: FontWeight.w600),
+                                style: kTextStyleRegular.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.white,
+                                ),
                               ),
                             )
                           else ...[
@@ -290,33 +318,45 @@ class NotificationItem extends StatelessWidget {
                               onPressed: onAction,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.primary,
-                                foregroundColor: Colors.white,
-                                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                foregroundColor: AppColors.white,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: kSpacingMedium,
+                                  vertical: 10,
+                                ),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(kBorderRadiusSmall),
                                 ),
                               ),
                               child: Text(
                                 'Approve',
-                                style: TextStyle(fontWeight: FontWeight.w600),
+                                style: kTextStyleRegular.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.white,
+                                ),
                               ),
                             ),
-                            SizedBox(width: 12),
+                            SizedBox(width: kSpacingMedium),
                             OutlinedButton(
                               onPressed: () {
-                                // Handle decline action
+                                // TODO: Handle decline action - integrate with Firebase
                               },
                               style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.red,
-                                side: BorderSide(color: Colors.red),
-                                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                foregroundColor: AppColors.error,
+                                side: BorderSide(color: AppColors.error),
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: kSpacingMedium,
+                                  vertical: 10,
+                                ),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(kBorderRadiusSmall),
                                 ),
                               ),
                               child: Text(
                                 'Decline',
-                                style: TextStyle(fontWeight: FontWeight.w600),
+                                style: kTextStyleRegular.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.error,
+                                ),
                               ),
                             ),
                           ],

@@ -8,10 +8,10 @@ class DiseaseItem extends StatelessWidget {
   final int maxValue;
 
   const DiseaseItem({
-    Key? key,
+    super.key,
     required this.disease,
     required this.maxValue,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

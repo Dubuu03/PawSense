@@ -14,7 +14,7 @@ class PatientFilterBar extends StatelessWidget {
   final Function(String) onSearchChanged;
 
   const PatientFilterBar({
-    Key? key,
+    super.key,
     required this.searchController,
     required this.selectedType,
     required this.selectedStatus,
@@ -23,7 +23,7 @@ class PatientFilterBar extends StatelessWidget {
     required this.onTypeChanged,
     required this.onStatusChanged,
     required this.onSearchChanged,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

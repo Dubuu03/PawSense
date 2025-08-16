@@ -6,18 +6,20 @@ import 'nav_item.dart';
 class SideNavigation extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onItemSelected;
+  final String userRole; // Add user role parameter
 
   // Default fake contact details (can be replaced later with dynamic values)
   final String emergencyPhone;
   final String emergencyEmail;
 
   const SideNavigation({
-    Key? key,
+    super.key,
     required this.selectedIndex,
     required this.onItemSelected,
+    this.userRole = 'admin', // Default to admin role
     this.emergencyPhone = '+63 912 345 6789',
     this.emergencyEmail = 'support@clinicdemo.com',
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -75,16 +77,33 @@ class SideNavigation extends StatelessWidget {
   }
 
   Widget _buildNavItems() {
-    final items = [
-      {'icon': Icons.dashboard, 'title': 'Dashboard'},
-      {'icon': Icons.calendar_today, 'title': 'Appointment\nManagement'},
-      {'icon': Icons.folder_open, 'title': 'Patient Records'},
-      {'icon': Icons.schedule, 'title': 'Clinic Schedule'},
-      {'icon': Icons.person_outline, 'title': 'Vet Profile & Services'},
-      {'icon': Icons.notifications_outlined, 'title': 'Notifications'},
-      {'icon': Icons.help_outline, 'title': 'Support'},
-      {'icon': Icons.settings_outlined, 'title': 'Settings'},
-    ];
+    // Different navigation items based on user role
+    List<Map<String, dynamic>> items;
+    
+    if (userRole == 'super_admin') {
+      items = [
+        {'icon': Icons.dashboard, 'title': 'Dashboard'},
+        {'icon': Icons.admin_panel_settings, 'title': 'Admin Management'},
+        {'icon': Icons.business, 'title': 'Clinic Management'},
+        {'icon': Icons.analytics, 'title': 'System Analytics'},
+        {'icon': Icons.people_outline, 'title': 'User Management'},
+        {'icon': Icons.notifications_outlined, 'title': 'Notifications'},
+        {'icon': Icons.help_outline, 'title': 'Support Center'},
+        {'icon': Icons.settings_outlined, 'title': 'System Settings'},
+      ];
+    } else {
+      // Default admin items
+      items = [
+        {'icon': Icons.dashboard, 'title': 'Dashboard'},
+        {'icon': Icons.calendar_today, 'title': 'Appointment\nManagement'},
+        {'icon': Icons.folder_open, 'title': 'Patient Records'},
+        {'icon': Icons.schedule, 'title': 'Clinic Schedule'},
+        {'icon': Icons.person_outline, 'title': 'Vet Profile & Services'},
+        {'icon': Icons.notifications_outlined, 'title': 'Notifications'},
+        {'icon': Icons.help_outline, 'title': 'Support'},
+        {'icon': Icons.settings_outlined, 'title': 'Settings'},
+      ];
+    }
 
     return Expanded(
       child: ListView.builder(

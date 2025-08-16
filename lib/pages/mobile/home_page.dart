@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../core/services/auth/auth_service_mobile.dart';
 import '../../core/models/user_model.dart';
 import '../../core/services/user_services.dart';
+import '../../core/utils/app_colors.dart';
+import '../../core/utils/constants.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -48,11 +50,21 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('Home', style: Theme.of(context).textTheme.titleLarge),
+        backgroundColor: AppColors.white,
+        elevation: 0,
+        title: Text(
+          'Home',
+          style: kTextStyleTitle.copyWith(color: AppColors.textPrimary),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: Icon(
+              Icons.logout,
+              color: AppColors.textSecondary,
+              size: kIconSizeLarge,
+            ),
             tooltip: 'Logout',
             onPressed: () => _logout(context),
           ),
@@ -60,33 +72,101 @@ class _HomePageState extends State<HomePage> {
       ),
       body: Center(
         child: _loading
-    ? const CircularProgressIndicator()
-    : _userModel != null
-        ? Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Welcome to Home Page,',
-                style: Theme.of(context).textTheme.titleLarge,
+            ? CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+              )
+            : Container(
+                margin: EdgeInsets.all(kSpacingLarge),
+                padding: EdgeInsets.all(kSpacingLarge),
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(kBorderRadius),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(kShadowOpacity),
+                      blurRadius: kShadowBlurRadius,
+                      offset: kShadowOffset,
+                    ),
+                  ],
+                ),
+                child: _userModel != null
+                    ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(40),
+                            ),
+                            child: Icon(
+                              Icons.person,
+                              size: 40,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          SizedBox(height: kSpacingMedium),
+                          Text(
+                            'Welcome to PawSense!',
+                            style: kTextStyleTitle.copyWith(
+                              color: AppColors.textPrimary,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          SizedBox(height: kSpacingSmall),
+                          Text(
+                            _userModel!.username,
+                            style: kTextStyleLarge.copyWith(
+                              color: AppColors.primary,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          SizedBox(height: kSpacingSmall),
+                          Text(
+                            'Your pet care companion',
+                            style: kTextStyleRegular.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      )
+                    : Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(40),
+                            ),
+                            child: Icon(
+                              Icons.pets,
+                              size: 40,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          SizedBox(height: kSpacingMedium),
+                          Text(
+                            'Welcome to PawSense!',
+                            style: kTextStyleTitle.copyWith(
+                              color: AppColors.textPrimary,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          SizedBox(height: kSpacingSmall),
+                          Text(
+                            'Your pet care companion',
+                            style: kTextStyleRegular.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
               ),
-              Text(
-                _userModel!.username,
-                style: Theme.of(context).textTheme.titleLarge,
-                textAlign: TextAlign.center,
-              ),
-            ],
-          )
-        : Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Welcome to Home Page!',
-                style: Theme.of(context).textTheme.titleLarge,
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-
       ),
     );
   }

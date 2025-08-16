@@ -5,6 +5,8 @@ import '../../../utils/constants.dart';
 import 'disease_item.dart';
 
 class CommonDiseasesChart extends StatelessWidget {
+  const CommonDiseasesChart({super.key});
+
   @override
   Widget build(BuildContext context) {
     final diseases = [

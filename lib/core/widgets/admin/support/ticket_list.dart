@@ -10,11 +10,11 @@ class TicketList extends StatelessWidget {
   final String selectedCategory;
 
   const TicketList({
-    Key? key,
+    super.key,
     required this.searchQuery,
     required this.selectedStatus,
     required this.selectedCategory,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

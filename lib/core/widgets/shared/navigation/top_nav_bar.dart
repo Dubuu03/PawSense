@@ -11,14 +11,14 @@ class TopNavBar extends StatelessWidget {
   final VoidCallback? onProfileTap; // callback when clicking name + avatar
 
   const TopNavBar({
-    Key? key,
+    super.key,
     this.clinicTitle = 'Veterinary Clinic Dashboard',
     this.userInitials = 'SJ',
     this.userName = 'Dr. Sarah Johnson',
     this.userRole = 'Veterinarian',
     this.hasNotifications = true,
     this.onProfileTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

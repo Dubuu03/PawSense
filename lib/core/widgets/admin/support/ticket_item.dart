@@ -8,9 +8,9 @@ class TicketItem extends StatelessWidget {
   final SupportTicket ticket;
 
   const TicketItem({
-    Key? key,
+    super.key,
     required this.ticket,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

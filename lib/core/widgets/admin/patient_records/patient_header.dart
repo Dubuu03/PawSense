@@ -7,9 +7,9 @@ class PatientRecordsHeader extends StatelessWidget {
   final VoidCallback? onAddPatient;
 
   const PatientRecordsHeader({
-    Key? key,
+    super.key,
     this.onAddPatient,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

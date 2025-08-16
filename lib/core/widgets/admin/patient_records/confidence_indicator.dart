@@ -7,10 +7,10 @@ class ConfidenceIndicator extends StatelessWidget {
   final String label;
 
   const ConfidenceIndicator({
-    Key? key,
+    super.key,
     required this.percentage,
     required this.label,
-  }) : super(key: key);
+  });
 
   Color get confidenceColor {
     if (percentage >= 95) return AppColors.success;

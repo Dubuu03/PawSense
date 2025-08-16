@@ -8,9 +8,9 @@ class StatusChip extends StatelessWidget {
   final PatientStatus status;
 
   const StatusChip({
-    Key? key,
+    super.key,
     required this.status,
-  }) : super(key: key);
+  });
 
   Color get backgroundColor {
     switch (status) {

@@ -12,12 +12,12 @@ class AppointmentTableRow extends StatelessWidget {
   final VoidCallback onView;
 
   const AppointmentTableRow({
-    Key? key,
+    super.key,
     required this.appointment,
     required this.onEdit,
     required this.onDelete,
     required this.onView,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

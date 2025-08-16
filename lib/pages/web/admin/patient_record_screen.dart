@@ -8,7 +8,7 @@ import 'package:pawsense/core/widgets/admin/patient_records/patient_status.dart'
 import 'dart:math';
 
 class PatientRecordsScreen extends StatefulWidget {
-  const PatientRecordsScreen({Key? key}) : super(key: key);
+  const PatientRecordsScreen({super.key});
 
   @override
   State<PatientRecordsScreen> createState() => _PatientRecordsScreenState();

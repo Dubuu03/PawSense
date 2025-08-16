@@ -3,7 +3,7 @@ import '../../../utils/app_colors.dart';
 import '../../../utils/constants.dart';
 
 class NotificationSettings extends StatefulWidget {
-  const NotificationSettings({Key? key}) : super(key: key);
+  const NotificationSettings({super.key});
 
   @override
   State<NotificationSettings> createState() => _NotificationSettingsState();

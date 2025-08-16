@@ -7,10 +7,10 @@ class SettingsNavigation extends StatelessWidget {
   final ValueChanged<String> onSectionChanged;
 
   const SettingsNavigation({
-    Key? key,
+    super.key,
     required this.selectedSection,
     required this.onSectionChanged,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

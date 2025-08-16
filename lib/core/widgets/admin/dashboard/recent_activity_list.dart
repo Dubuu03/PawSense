@@ -5,6 +5,8 @@ import '../../../utils/constants.dart';
 import 'activity_list_item.dart';
 
 class RecentActivityList extends StatelessWidget {
+  const RecentActivityList({super.key});
+
   @override
   Widget build(BuildContext context) {
     final activities = [

@@ -17,7 +17,7 @@ class PatientCard extends StatelessWidget {
   final VoidCallback? onEdit;
 
   const PatientCard({
-    Key? key,
+    super.key,
     required this.name,
     required this.breed,
     required this.petIcon,
@@ -30,7 +30,7 @@ class PatientCard extends StatelessWidget {
     required this.cardColor,
     this.onViewDetails,
     this.onEdit,
-  }) : super(key: key);
+  });
 
   Color get confidenceColor {
     if (confidencePercentage >= 95) return AppColors.success;

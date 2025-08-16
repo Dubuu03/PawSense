@@ -7,10 +7,10 @@ class ScheduleHeader extends StatelessWidget {
   final Function(String) onViewChanged;
 
   const ScheduleHeader({
-    Key? key,
+    super.key,
     required this.selectedView,
     required this.onViewChanged,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

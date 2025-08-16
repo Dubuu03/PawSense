@@ -7,10 +7,10 @@ class SupportTabs extends StatelessWidget {
   final Function(int) onTabChanged;
 
   const SupportTabs({
-    Key? key,
+    super.key,
     required this.tabController,
     required this.onTabChanged,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

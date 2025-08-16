@@ -5,10 +5,10 @@ class WeekNavigation extends StatelessWidget {
   final Function(DateTime) onDateChanged;
 
   const WeekNavigation({
-    Key? key,
+    super.key,
     required this.selectedDate,
     required this.onDateChanged,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

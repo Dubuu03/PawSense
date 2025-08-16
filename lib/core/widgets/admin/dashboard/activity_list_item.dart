@@ -6,7 +6,7 @@ import '../../../utils/constants.dart';
 class ActivityListItem extends StatelessWidget {
   final ActivityItem activity;
 
-  const ActivityListItem({Key? key, required this.activity}) : super(key: key);
+  const ActivityListItem({super.key, required this.activity});
 
   @override
   Widget build(BuildContext context) {

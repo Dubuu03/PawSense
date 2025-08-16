@@ -8,9 +8,9 @@ class TimeSlotList extends StatelessWidget {
   final String selectedDay;
 
   const TimeSlotList({
-    Key? key,
+    super.key,
     required this.selectedDay,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

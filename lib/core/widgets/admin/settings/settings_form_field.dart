@@ -11,14 +11,14 @@ class SettingsFormField extends StatefulWidget {
   final String? hintText;
 
   const SettingsFormField({
-    Key? key,
+    super.key,
     required this.label,
     required this.controller,
     this.isPassword = false,
     this.maxLines = 1,
     this.keyboardType,
     this.hintText,
-  }) : super(key: key);
+  });
 
   @override
   State<SettingsFormField> createState() => _SettingsFormFieldState();

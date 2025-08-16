@@ -3,6 +3,8 @@ import '../../../utils/app_colors.dart';
 import '../../../utils/constants.dart';
 
 class SupportHeader extends StatelessWidget {
+  const SupportHeader({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Column(

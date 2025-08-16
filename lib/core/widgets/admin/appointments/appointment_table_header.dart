@@ -4,7 +4,7 @@ import '../../../utils/app_colors.dart';
 import '../../../utils/constants.dart';
 
 class AppointmentTableHeader extends StatelessWidget {
-  const AppointmentTableHeader({Key? key}) : super(key: key);
+  const AppointmentTableHeader({super.key});
 
   @override
   Widget build(BuildContext context) {

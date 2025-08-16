@@ -7,11 +7,11 @@ class SpecializationBadge extends StatelessWidget {
   final bool hasCertification;
 
   const SpecializationBadge({
-    Key? key,
+    super.key,
     required this.title,
     required this.level,
     this.hasCertification = false,
-  }) : super(key: key);
+  });
 
   Color _getLevelColor() {
     switch (level.toLowerCase()) {

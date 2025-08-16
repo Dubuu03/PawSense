@@ -6,10 +6,10 @@ class WeekDaysGrid extends StatelessWidget {
   final Function(String) onDaySelected;
 
   const WeekDaysGrid({
-    Key? key,
+    super.key,
     required this.selectedDay,
     required this.onDaySelected,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

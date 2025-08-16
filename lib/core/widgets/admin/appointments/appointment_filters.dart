@@ -11,12 +11,12 @@ class AppointmentFilters extends StatelessWidget {
   final ValueChanged<String> onStatusChanged;
 
   const AppointmentFilters({
-    Key? key,
+    super.key,
     required this.searchQuery,
     required this.selectedStatus,
     required this.onSearchChanged,
     required this.onStatusChanged,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
