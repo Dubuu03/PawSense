@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/services/auth/auth_service_web.dart';
 import '../../../core/utils/app_colors.dart';
 import '../../../core/utils/constants.dart';
+import 'package:flutter/gestures.dart';
 
 class WebLoginPage extends StatefulWidget {
   const WebLoginPage({Key? key}) : super(key: key);
@@ -397,16 +398,18 @@ class _WebLoginPageState extends State<WebLoginPage> {
                           color: AppColors.textSecondary,
                         ),
                         children: [
-                          const TextSpan(
-                            text: 'Need to create an admin account? ',
-                          ),
+                          const TextSpan(text: "Don't have an account? "),
                           TextSpan(
-                            text: 'Sign up (Clinic Admin Only)',
+                            text: 'Sign up here',
                             style: kTextStyleSmall.copyWith(
                               fontSize: 14,
                               color: AppColors.primary,
                               fontWeight: FontWeight.w500,
                             ),
+                            recognizer: TapGestureRecognizer()
+                              ..onTap = () {
+                                Navigator.pushNamed(context, '/admin_signup');
+                              },
                           ),
                         ],
                       ),

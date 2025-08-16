@@ -1,6 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:typed_data';
 import '../../models/user_model.dart';
+import '../../models/clinic_model.dart';
+import '../../models/clinic_details_model.dart';
 
 class AuthResult {
   final bool success;
@@ -91,6 +95,183 @@ class AuthServiceWeb {
     }
   }
 
+  // NEW: Sign up clinic admin with all required data
+  Future<AuthResult> signUpClinicAdmin({
+    required String email,
+    required String password,
+    required String username,
+    required Clinic clinic,
+    required ClinicDetails clinicDetails,
+    Uint8List? documentBytes,
+    String? documentName,
+  }) async {
+    try {
+      print('Starting clinic admin signup for email: $email'); // Debug print
+
+      // Create Firebase Auth user
+      final UserCredential result = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      if (result.user != null) {
+        final uid = result.user!.uid;
+        print('Firebase Auth user created with UID: $uid'); // Debug print
+
+        // Upload document if provided (skip for testing)
+        String? documentUrl;
+        if (documentBytes != null && documentName != null) {
+          print('Uploading document...'); // Debug print
+          documentUrl = await _uploadDocument(uid, documentBytes, documentName);
+          print('Document uploaded: $documentUrl'); // Debug print
+        } else {
+          print('Skipping document upload (testing mode)'); // Debug print
+        }
+
+        // Create user document with admin role
+        final userModel = UserModel(
+          uid: uid,
+          username: username,
+          email: email,
+          role: 'admin',
+          createdAt: DateTime.now(),
+          darkTheme: false,
+          agreedToTerms: true,
+        );
+
+        // Create clinic document with uid as clinic id
+        final clinicWithId = clinic.copyWith(id: uid);
+
+        // Create clinic details document with generated id and clinic id
+        final clinicDetailsId = _firestore
+            .collection('clinic_details')
+            .doc()
+            .id;
+        final clinicDetailsWithIds = clinicDetails.copyWith(
+          id: clinicDetailsId,
+          clinicId: uid,
+          documentImage: documentUrl ?? '', // Empty string if no upload
+        );
+
+        print('Preparing Firestore batch write...'); // Debug print
+
+        // Batch write all documents
+        final batch = _firestore.batch();
+
+        // Add user document
+        batch.set(_firestore.collection('users').doc(uid), userModel.toMap());
+
+        // Add clinic document
+        batch.set(
+          _firestore.collection('clinics').doc(uid),
+          clinicWithId.toMap(),
+        );
+
+        // Add clinic details document
+        batch.set(
+          _firestore.collection('clinic_details').doc(clinicDetailsId),
+          clinicDetailsWithIds.toMap(),
+        );
+
+        // Commit batch
+        print('Committing Firestore batch...'); // Debug print
+        await batch.commit();
+        print('Firestore batch committed successfully!'); // Debug print
+
+        return AuthResult(success: true, role: 'admin', user: userModel);
+      } else {
+        print('Failed to create Firebase Auth user'); // Debug print
+        return AuthResult(success: false, error: 'Failed to create account.');
+      }
+    } on FirebaseAuthException catch (e) {
+      print('FirebaseAuthException: ${e.code} - ${e.message}'); // Debug print
+      String errorMessage;
+      switch (e.code) {
+        case 'weak-password':
+          errorMessage = 'The password provided is too weak.';
+          break;
+        case 'email-already-in-use':
+          errorMessage = 'An account already exists with this email address.';
+          break;
+        case 'invalid-email':
+          errorMessage = 'The email address is not valid.';
+          break;
+        case 'operation-not-allowed':
+          errorMessage = 'Email/password accounts are not enabled.';
+          break;
+        default:
+          errorMessage = 'Account creation failed. Please try again.';
+      }
+
+      return AuthResult(success: false, error: errorMessage);
+    } catch (e) {
+      print('General error creating clinic admin account: $e'); // Debug print
+
+      // Cleanup: Delete auth user if Firestore operations failed
+      try {
+        await _auth.currentUser?.delete();
+        print('Cleaned up auth user after error'); // Debug print
+      } catch (cleanupError) {
+        print('Error during cleanup: $cleanupError'); // Debug print
+      }
+
+      return AuthResult(
+        success: false,
+        error: 'Account creation failed. Please try again.',
+      );
+    }
+  }
+
+  // Helper method to upload document to Firebase Storage
+  Future<String?> _uploadDocument(
+    String uid,
+    Uint8List documentBytes,
+    String fileName,
+  ) async {
+    try {
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final cleanFileName =
+          '${timestamp}_${fileName.replaceAll(RegExp(r'[^\w\-.]'), '_')}';
+
+      final storageRef = FirebaseStorage.instance
+          .ref()
+          .child('clinic_documents')
+          .child(uid)
+          .child(cleanFileName);
+
+      // Determine content type based on file extension
+      String contentType = 'application/octet-stream';
+      final extension = fileName.toLowerCase().split('.').last;
+      switch (extension) {
+        case 'jpg':
+        case 'jpeg':
+          contentType = 'image/jpeg';
+          break;
+        case 'png':
+          contentType = 'image/png';
+          break;
+        case 'pdf':
+          contentType = 'application/pdf';
+          break;
+      }
+
+      final metadata = SettableMetadata(
+        contentType: contentType,
+        customMetadata: {
+          'uploadedBy': uid,
+          'uploadedAt': DateTime.now().toIso8601String(),
+          'originalName': fileName,
+        },
+      );
+
+      final uploadTask = await storageRef.putData(documentBytes, metadata);
+      return await uploadTask.ref.getDownloadURL();
+    } catch (e) {
+      print('Error uploading document: $e');
+      return null;
+    }
+  }
+
   // Get user data from Firestore
   Future<UserModel?> _getUserData(String uid) async {
     try {
@@ -116,6 +297,91 @@ class AuthServiceWeb {
       return await _getUserData(user.uid);
     }
     return null;
+  }
+
+  // Get clinic data for current admin user
+  Future<Clinic?> getCurrentUserClinic() async {
+    final user = currentUser;
+    if (user != null) {
+      return await getClinicData(user.uid);
+    }
+    return null;
+  }
+
+  // Get clinic data by clinic ID (uid)
+  Future<Clinic?> getClinicData(String clinicId) async {
+    try {
+      final DocumentSnapshot doc = await _firestore
+          .collection('clinics')
+          .doc(clinicId)
+          .get();
+
+      if (doc.exists) {
+        return Clinic.fromMap(doc.data() as Map<String, dynamic>);
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching clinic data: $e');
+      return null;
+    }
+  }
+
+  // Get clinic details for current admin user
+  Future<ClinicDetails?> getCurrentUserClinicDetails() async {
+    final user = currentUser;
+    if (user != null) {
+      return await getClinicDetails(user.uid);
+    }
+    return null;
+  }
+
+  // Get clinic details by clinic ID (uid)
+  Future<ClinicDetails?> getClinicDetails(String clinicId) async {
+    try {
+      final QuerySnapshot query = await _firestore
+          .collection('clinic_details')
+          .where('clinicId', isEqualTo: clinicId)
+          .limit(1)
+          .get();
+
+      if (query.docs.isNotEmpty) {
+        return ClinicDetails.fromMap(
+          query.docs.first.data() as Map<String, dynamic>,
+        );
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching clinic details: $e');
+      return null;
+    }
+  }
+
+  // Update clinic data
+  Future<bool> updateClinicData(Clinic clinic) async {
+    try {
+      await _firestore
+          .collection('clinics')
+          .doc(clinic.id)
+          .update(clinic.toMap());
+      return true;
+    } catch (e) {
+      print('Error updating clinic data: $e');
+      return false;
+    }
+  }
+
+  // Update clinic details
+  Future<bool> updateClinicDetails(ClinicDetails clinicDetails) async {
+    try {
+      await _firestore
+          .collection('clinic_details')
+          .doc(clinicDetails.id)
+          .update(clinicDetails.toMap());
+      return true;
+    } catch (e) {
+      print('Error updating clinic details: $e');
+      return false;
+    }
   }
 
   // Check if current user is admin
