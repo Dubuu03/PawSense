@@ -14,21 +14,19 @@ import 'package:pawsense/core/services/data_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize Firebase with proper options
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
   // Initialize DataService and enable Firebase
   DataService().enableFirebase(true);
-  
+
   runApp(const PawSenseApp());
 }
 
 class PawSenseApp extends StatelessWidget {
   const PawSenseApp({super.key});
-  
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -48,7 +46,7 @@ class PawSenseApp extends StatelessWidget {
         // Web routes - Both admin and super admin use the same guard
         '/web_login': (context) => const WebLoginPage(),
         '/admin_signup': (context) => const AdminSignupPage(),
-        '/admin': (context) => const AdminMainGuard(),
+        '/admin_main': (context) => const AdminMainGuard(),
         '/dashboard': (context) => DashboardScreen(),
       },
     );
