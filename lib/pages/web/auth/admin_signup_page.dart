@@ -7,8 +7,6 @@ import '../../../core/services/auth/auth_service_web.dart';
 import '../../../core/utils/app_colors.dart';
 import '../../../core/utils/constants.dart';
 
-
-
 class AdminSignupPage extends StatefulWidget {
   const AdminSignupPage({super.key});
 
@@ -54,7 +52,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
       estimatedPrice: '',
       duration: '',
       category: ServiceCategory.consultation,
-    )
+    ),
   ];
   List<ClinicCertification> _certifications = [
     ClinicCertification(
@@ -62,7 +60,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
       issuer: '',
       dateIssued: Timestamp.now(),
       dateExpiry: null,
-    )
+    ),
   ];
 
   bool _obscurePassword = true;
@@ -117,7 +115,9 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
           address: _clinicAddressController.text.trim(),
           phone: _clinicPhoneController.text.trim(),
           email: _clinicEmailController.text.trim(),
-          website: _websiteController.text.trim().isEmpty ? null : _websiteController.text.trim(),
+          website: _websiteController.text.trim().isEmpty
+              ? null
+              : _websiteController.text.trim(),
           createdAt: DateTime.now(),
         ),
         clinicDetails: ClinicDetails(
@@ -187,13 +187,15 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
   // Service management methods
   void _addService() {
     setState(() {
-      _services.add(ClinicService(
-        serviceName: '',
-        serviceDescription: '',
-        estimatedPrice: '',
-        duration: '',
-        category: ServiceCategory.consultation,
-      ));
+      _services.add(
+        ClinicService(
+          serviceName: '',
+          serviceDescription: '',
+          estimatedPrice: '',
+          duration: '',
+          category: ServiceCategory.consultation,
+        ),
+      );
     });
   }
 
@@ -205,7 +207,8 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
     });
   }
 
-  void _updateService(int index, {
+  void _updateService(
+    int index, {
     String? serviceName,
     String? serviceDescription,
     String? estimatedPrice,
@@ -215,7 +218,8 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
     setState(() {
       _services[index] = _services[index].copyWith(
         serviceName: serviceName ?? _services[index].serviceName,
-        serviceDescription: serviceDescription ?? _services[index].serviceDescription,
+        serviceDescription:
+            serviceDescription ?? _services[index].serviceDescription,
         estimatedPrice: estimatedPrice ?? _services[index].estimatedPrice,
         duration: duration ?? _services[index].duration,
         category: category ?? _services[index].category,
@@ -226,12 +230,14 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
   // Certification management methods
   void _addCertification() {
     setState(() {
-      _certifications.add(ClinicCertification(
-        name: '',
-        issuer: '',
-        dateIssued: Timestamp.now(),
-        dateExpiry: null,
-      ));
+      _certifications.add(
+        ClinicCertification(
+          name: '',
+          issuer: '',
+          dateIssued: Timestamp.now(),
+          dateExpiry: null,
+        ),
+      );
     });
   }
 
@@ -243,7 +249,8 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
     });
   }
 
-  void _updateCertification(int index, {
+  void _updateCertification(
+    int index, {
     String? name,
     String? issuer,
     Timestamp? dateIssued,
@@ -436,7 +443,13 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
             keyboardType: TextInputType.phone,
             validator: (value) {
               if (value == null || value.isEmpty) {
-                return 'Please enter your contact number';
+                return 'Contact number is required';
+              }
+              if (value.length != 11) {
+                return 'Contact number must be 11 digits';
+              }
+              if (!RegExp(r'^[0-9]+$').hasMatch(value)) {
+                return 'Contact number must contain only numbers';
               }
               return null;
             },
@@ -481,7 +494,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                 return 'Please enter a password';
               }
               if (value.length < 6) {
-                return 'Password must be at least 6 characters';
+                return 'Password must be at least 8 characters';
               }
               return null;
             },
@@ -581,7 +594,13 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                   keyboardType: TextInputType.phone,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Please enter phone number';
+                      return 'Contact number is required';
+                    }
+                    if (value.length != 11) {
+                      return 'Contact number must be 11 digits';
+                    }
+                    if (!RegExp(r'^[0-9]+$').hasMatch(value)) {
+                      return 'Contact number must contain only numbers';
                     }
                     return null;
                   },
@@ -781,25 +800,29 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
             Row(
               children: [
                 Expanded(
-                  flex: 2,
+                  flex: 3,
                   child: TextFormField(
-                    initialValue: _services[index].serviceName,
-                    onChanged: (value) => _updateService(index, serviceName: value),
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       labelText: 'Service Name',
                       border: OutlineInputBorder(),
                     ),
-                    validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8), // spacing between
                 Expanded(
+                  flex: 2,
                   child: DropdownButtonFormField<ServiceCategory>(
+                    isExpanded: true, // 👈 important
                     value: _services[index].category,
-                    onChanged: (value) => _updateService(index, category: value),
-                    decoration: InputDecoration(
+                    onChanged: (value) =>
+                        _updateService(index, category: value),
+                    decoration: const InputDecoration(
                       labelText: 'Category',
                       border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(
+                        vertical: 16, // 👈 match TextFormField height
+                        horizontal: 8,
+                      ),
                     ),
                     items: ServiceCategory.values.map((category) {
                       return DropdownMenuItem(
@@ -814,7 +837,8 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
             const SizedBox(height: 12),
             TextFormField(
               initialValue: _services[index].serviceDescription,
-              onChanged: (value) => _updateService(index, serviceDescription: value),
+              onChanged: (value) =>
+                  _updateService(index, serviceDescription: value),
               decoration: InputDecoration(
                 labelText: 'Description',
                 border: OutlineInputBorder(),
@@ -828,27 +852,31 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                 Expanded(
                   child: TextFormField(
                     initialValue: _services[index].estimatedPrice,
-                    onChanged: (value) => _updateService(index, estimatedPrice: value),
+                    onChanged: (value) =>
+                        _updateService(index, estimatedPrice: value),
                     decoration: InputDecoration(
                       labelText: 'Estimated Price',
                       border: OutlineInputBorder(),
                       prefixText: '₱ ',
                     ),
                     keyboardType: TextInputType.number,
-                    validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
+                    validator: (value) =>
+                        value?.isEmpty ?? true ? 'Required' : null,
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: TextFormField(
                     initialValue: _services[index].duration,
-                    onChanged: (value) => _updateService(index, duration: value),
+                    onChanged: (value) =>
+                        _updateService(index, duration: value),
                     decoration: InputDecoration(
                       labelText: 'Duration',
                       border: OutlineInputBorder(),
                       hintText: 'e.g. 30 mins',
                     ),
-                    validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
+                    validator: (value) =>
+                        value?.isEmpty ?? true ? 'Required' : null,
                   ),
                 ),
               ],
@@ -926,24 +954,28 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                 Expanded(
                   child: TextFormField(
                     initialValue: _certifications[index].name,
-                    onChanged: (value) => _updateCertification(index, name: value),
+                    onChanged: (value) =>
+                        _updateCertification(index, name: value),
                     decoration: InputDecoration(
                       labelText: 'Certification Name',
                       border: OutlineInputBorder(),
                     ),
-                    validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
+                    validator: (value) =>
+                        value?.isEmpty ?? true ? 'Required' : null,
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: TextFormField(
                     initialValue: _certifications[index].issuer,
-                    onChanged: (value) => _updateCertification(index, issuer: value),
+                    onChanged: (value) =>
+                        _updateCertification(index, issuer: value),
                     decoration: InputDecoration(
                       labelText: 'Issuing Organization',
                       border: OutlineInputBorder(),
                     ),
-                    validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
+                    validator: (value) =>
+                        value?.isEmpty ?? true ? 'Required' : null,
                   ),
                 ),
               ],

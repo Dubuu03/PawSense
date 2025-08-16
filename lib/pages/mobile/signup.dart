@@ -113,8 +113,9 @@ class _SignupState extends State<Signup> {
                     if (value == null || value.isEmpty) {
                       return 'Email is required';
                     }
-                    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                        .hasMatch(value)) {
+                    if (!RegExp(
+                      r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                    ).hasMatch(value)) {
                       return 'Please enter a valid email';
                     }
                     return null;
@@ -281,8 +282,9 @@ class _SignupState extends State<Signup> {
                     onPressed: _isLoading ? null : _handleSignup,
                     child: _isLoading
                         ? CircularProgressIndicator(
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(AppColors.white),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              AppColors.white,
+                            ),
                           )
                         : Text(
                             'Sign Up',
@@ -363,14 +365,10 @@ class _SignupState extends State<Signup> {
         obscureText: obscureText,
         readOnly: readOnly,
         onTap: onTap,
-        style: kTextStyleSmall.copyWith(
-          color: AppColors.textPrimary,
-        ),
+        style: kTextStyleSmall.copyWith(color: AppColors.textPrimary),
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: kTextStyleSmall.copyWith(
-            color: AppColors.textSecondary,
-          ),
+          labelStyle: kTextStyleSmall.copyWith(color: AppColors.textSecondary),
           filled: true,
           fillColor: AppColors.white,
           border: OutlineInputBorder(
