@@ -5,7 +5,7 @@ import '../../../core/utils/constants.dart';
 import 'package:flutter/gestures.dart';
 
 class WebLoginPage extends StatefulWidget {
-  const WebLoginPage({Key? key}) : super(key: key);
+  const WebLoginPage({super.key});
 
   @override
   State<WebLoginPage> createState() => _WebLoginPageState();
@@ -43,11 +43,10 @@ class _WebLoginPageState extends State<WebLoginPage> {
       );
 
       if (result.success && result.role != null) {
-        // Navigate based on role
-        if (result.role == 'admin') {
+        // Navigate based on role - Both admin and super_admin go to admin_main
+        // The AdminMain component will handle the role-based UI differences
+        if (result.role == 'admin' || result.role == 'super_admin') {
           Navigator.pushReplacementNamed(context, '/admin_main');
-        } else if (result.role == 'super_admin') {
-          Navigator.pushReplacementNamed(context, '/super_admin');
         } else {
           setState(() {
             _errorMessage = 'Access denied. Insufficient permissions.';

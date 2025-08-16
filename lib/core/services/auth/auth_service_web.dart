@@ -408,7 +408,7 @@ class AuthServiceWeb {
       await _auth.signOut();
     } catch (e) {
       print('Error signing out: $e');
-      throw e;
+      rethrow;
     }
   }
 

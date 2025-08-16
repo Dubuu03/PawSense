@@ -1,5 +1,6 @@
 /// Centralized error handling for authentication and user flows.
 /// Use these helpers to map Firebase and app errors to user-friendly messages and field errors.
+library;
 
 class AuthErrorMapper {
   /// Returns a tuple: (field, message, generalMessage)
