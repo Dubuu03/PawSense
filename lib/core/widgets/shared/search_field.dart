@@ -9,12 +9,12 @@ class SearchField extends StatelessWidget {
   final double? fontSize;
 
   const SearchField({
-    Key? key,
+    super.key,
     required this.hintText,
     this.onChanged,
     this.controller,
     this.fontSize,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

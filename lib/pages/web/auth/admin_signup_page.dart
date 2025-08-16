@@ -7,7 +7,7 @@ import '../../../core/models/clinic_model.dart';
 import '../../../core/models/clinic_details_model.dart';
 
 class AdminSignupPage extends StatefulWidget {
-  const AdminSignupPage({Key? key}) : super(key: key);
+  const AdminSignupPage({super.key});
 
   @override
   State<AdminSignupPage> createState() => _AdminSignupPageState();

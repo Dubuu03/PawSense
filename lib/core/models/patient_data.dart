@@ -1,5 +1,5 @@
 import 'package:flutter/widgets.dart';
-import 'package:pawsense/core/widgets/patient_records/patient_status.dart';
+import 'package:pawsense/core/widgets/admin/patient_records/patient_status.dart';
 
 class PatientData {
   final String name;
