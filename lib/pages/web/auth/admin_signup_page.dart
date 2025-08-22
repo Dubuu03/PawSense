@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../core/models/clinic_model.dart';
+
 import '../../../core/services/auth/auth_service_web.dart';
 import '../../../core/utils/app_colors.dart';
 import '../../../core/utils/constants.dart';
-import '../../../core/models/clinic_model.dart';
-import '../../../core/models/clinic_details_model.dart';
 
 class AdminSignupPage extends StatefulWidget {
   const AdminSignupPage({super.key});
@@ -32,19 +33,35 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _usernameController = TextEditingController();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
+  final _contactNumberController = TextEditingController();
 
   // Step 2: Clinic Info
   final _clinicNameController = TextEditingController();
   final _clinicAddressController = TextEditingController();
   final _clinicPhoneController = TextEditingController();
   final _clinicEmailController = TextEditingController();
-  final _servicesController = TextEditingController();
+  final _websiteController = TextEditingController();
 
-  // Step 3: Clinic Details
-  final _certificationNameController = TextEditingController();
-  final _licenseNumberController = TextEditingController();
-  DateTime? _issuedDate;
-  DateTime? _expiryDate;
+  // Step 3: Services and Certifications - Dynamic lists
+  List<ClinicService> _services = [
+    ClinicService(
+      serviceName: '',
+      serviceDescription: '',
+      estimatedPrice: '',
+      duration: '',
+      category: ServiceCategory.consultation,
+    ),
+  ];
+  List<ClinicCertification> _certifications = [
+    ClinicCertification(
+      name: '',
+      issuer: '',
+      dateIssued: Timestamp.now(),
+      dateExpiry: null,
+    ),
+  ];
 
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -56,17 +73,17 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _usernameController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _contactNumberController.dispose();
     _clinicNameController.dispose();
     _clinicAddressController.dispose();
     _clinicPhoneController.dispose();
     _clinicEmailController.dispose();
-    _servicesController.dispose();
-    _certificationNameController.dispose();
-    _licenseNumberController.dispose();
+    _websiteController.dispose();
     _pageController.dispose();
     super.dispose();
   }
-
 
   Future<void> _handleSignup() async {
     if (!_formKeys[2].currentState!.validate()) return;
@@ -83,32 +100,33 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
     });
 
     try {
-      // Create the auth account without file upload for testing
+      // Create the auth account with new field structure
       final result = await _authService.signUpClinicAdmin(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
         username: _usernameController.text.trim(),
+        firstName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
+        contactNumber: _contactNumberController.text.trim(),
         clinic: Clinic(
           id: '', // Will be set to uid
-          name: _clinicNameController.text.trim(),
+          userId: '', // Will be set to uid
+          clinicName: _clinicNameController.text.trim(),
           address: _clinicAddressController.text.trim(),
           phone: _clinicPhoneController.text.trim(),
           email: _clinicEmailController.text.trim(),
-          services: _servicesController.text.trim(),
+          website: _websiteController.text.trim().isEmpty
+              ? null
+              : _websiteController.text.trim(),
           createdAt: DateTime.now(),
         ),
         clinicDetails: ClinicDetails(
           id: '', // Will be generated
           clinicId: '', // Will be set to uid
-          certificationName: _certificationNameController.text.trim(),
-          licenseNumber: _licenseNumberController.text.trim(),
-          issuedDate: _issuedDate!,
-          expiryDate: _expiryDate!,
-          documentImage: '', // Empty for now (testing)
+          services: _services,
+          certificationsAndLicenses: _certifications,
           createdAt: DateTime.now(),
         ),
-        documentBytes: null, // No upload for testing
-        documentName: null,
       );
 
       if (result.success) {
@@ -166,22 +184,108 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
     );
   }
 
-  Future<void> _selectDate(bool isIssuedDate) async {
+  // Service management methods
+  void _addService() {
+    setState(() {
+      _services.add(
+        ClinicService(
+          serviceName: '',
+          serviceDescription: '',
+          estimatedPrice: '',
+          duration: '',
+          category: ServiceCategory.consultation,
+        ),
+      );
+    });
+  }
+
+  void _removeService(int index) {
+    setState(() {
+      if (_services.length > 1) {
+        _services.removeAt(index);
+      }
+    });
+  }
+
+  void _updateService(
+    int index, {
+    String? serviceName,
+    String? serviceDescription,
+    String? estimatedPrice,
+    String? duration,
+    ServiceCategory? category,
+  }) {
+    setState(() {
+      _services[index] = _services[index].copyWith(
+        serviceName: serviceName ?? _services[index].serviceName,
+        serviceDescription:
+            serviceDescription ?? _services[index].serviceDescription,
+        estimatedPrice: estimatedPrice ?? _services[index].estimatedPrice,
+        duration: duration ?? _services[index].duration,
+        category: category ?? _services[index].category,
+      );
+    });
+  }
+
+  // Certification management methods
+  void _addCertification() {
+    setState(() {
+      _certifications.add(
+        ClinicCertification(
+          name: '',
+          issuer: '',
+          dateIssued: Timestamp.now(),
+          dateExpiry: null,
+        ),
+      );
+    });
+  }
+
+  void _removeCertification(int index) {
+    setState(() {
+      if (_certifications.length > 1) {
+        _certifications.removeAt(index);
+      }
+    });
+  }
+
+  void _updateCertification(
+    int index, {
+    String? name,
+    String? issuer,
+    Timestamp? dateIssued,
+    Timestamp? dateExpiry,
+  }) {
+    setState(() {
+      _certifications[index] = _certifications[index].copyWith(
+        name: name ?? _certifications[index].name,
+        issuer: issuer ?? _certifications[index].issuer,
+        dateIssued: dateIssued ?? _certifications[index].dateIssued,
+        dateExpiry: dateExpiry ?? _certifications[index].dateExpiry,
+      );
+    });
+  }
+
+  Future<void> _selectCertificationDate(int index, bool isIssued) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: isIssuedDate
-          ? (_issuedDate ?? DateTime.now())
-          : (_expiryDate ?? DateTime.now().add(const Duration(days: 365))),
+      initialDate: isIssued
+          ? _certifications[index].dateIssued.toDate()
+          : (_certifications[index].dateExpiry?.toDate() ?? DateTime.now()),
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
     );
 
     if (picked != null) {
       setState(() {
-        if (isIssuedDate) {
-          _issuedDate = picked;
+        if (isIssued) {
+          _certifications[index] = _certifications[index].copyWith(
+            dateIssued: Timestamp.fromDate(picked),
+          );
         } else {
-          _expiryDate = picked;
+          _certifications[index] = _certifications[index].copyWith(
+            dateExpiry: Timestamp.fromDate(picked),
+          );
         }
       });
     }
@@ -277,6 +381,40 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
           ),
           const SizedBox(height: 32),
 
+          // First Name and Last Name Row
+          Row(
+            children: [
+              Expanded(
+                child: _buildTextField(
+                  controller: _firstNameController,
+                  label: 'First Name',
+                  hint: 'Enter your first name',
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter your first name';
+                    }
+                    return null;
+                  },
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildTextField(
+                  controller: _lastNameController,
+                  label: 'Last Name',
+                  hint: 'Enter your last name',
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter your last name';
+                    }
+                    return null;
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
           // Email
           _buildTextField(
             controller: _emailController,
@@ -291,6 +429,27 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                 r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
               ).hasMatch(value)) {
                 return 'Please enter a valid email address';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 20),
+
+          // Contact Number
+          _buildTextField(
+            controller: _contactNumberController,
+            label: 'Contact Number',
+            hint: 'Enter your contact number',
+            keyboardType: TextInputType.phone,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Contact number is required';
+              }
+              if (value.length != 11) {
+                return 'Contact number must be 11 digits';
+              }
+              if (!RegExp(r'^[0-9]+$').hasMatch(value)) {
+                return 'Contact number must contain only numbers';
               }
               return null;
             },
@@ -335,7 +494,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                 return 'Please enter a password';
               }
               if (value.length < 6) {
-                return 'Password must be at least 6 characters';
+                return 'Password must be at least 8 characters';
               }
               return null;
             },
@@ -435,7 +594,13 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                   keyboardType: TextInputType.phone,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Please enter phone number';
+                      return 'Contact number is required';
+                    }
+                    if (value.length != 11) {
+                      return 'Contact number must be 11 digits';
+                    }
+                    if (!RegExp(r'^[0-9]+$').hasMatch(value)) {
+                      return 'Contact number must contain only numbers';
                     }
                     return null;
                   },
@@ -465,15 +630,18 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
           ),
           const SizedBox(height: 20),
 
-          // Services Offered
+          // Website (Optional)
           _buildTextField(
-            controller: _servicesController,
-            label: 'Services Offered',
-            hint: 'Describe the services your clinic offers',
-            maxLines: 4,
+            controller: _websiteController,
+            label: 'Website (Optional)',
+            hint: 'Enter your clinic website',
+            keyboardType: TextInputType.url,
             validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please describe your services';
+              // Optional field, only validate if not empty
+              if (value != null && value.isNotEmpty) {
+                if (!RegExp(r'^https?://').hasMatch(value)) {
+                  return 'Please enter a valid URL starting with http:// or https://';
+                }
               }
               return null;
             },
@@ -490,7 +658,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Certification Details',
+            'Services & Certifications',
             style: kTextStyleTitle.copyWith(
               fontSize: 24,
               color: AppColors.textPrimary,
@@ -499,90 +667,18 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Provide your veterinary certification information',
+            'Add your clinic services and certifications',
             style: kTextStyleRegular.copyWith(color: AppColors.textSecondary),
           ),
           const SizedBox(height: 32),
 
-          // Certification Name
-          _buildTextField(
-            controller: _certificationNameController,
-            label: 'Certification Name',
-            hint: 'Enter certification name',
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter certification name';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 20),
-
-          // License Number
-          _buildTextField(
-            controller: _licenseNumberController,
-            label: 'License Number',
-            hint: 'Enter license number',
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter license number';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 20),
-
-          // Date Row
-          Row(
-            children: [
-              Expanded(
-                child: _buildDateField(
-                  label: 'Issued Date',
-                  value: _issuedDate,
-                  onTap: () => _selectDate(true),
-                  validator: () =>
-                      _issuedDate == null ? 'Please select issued date' : null,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildDateField(
-                  label: 'Expiry Date',
-                  value: _expiryDate,
-                  onTap: () => _selectDate(false),
-                  validator: () =>
-                      _expiryDate == null ? 'Please select expiry date' : null,
-                ),
-              ),
-            ],
-          ),
+          // Services Section
+          _buildServicesSection(),
           const SizedBox(height: 32),
 
-          // Document Upload - TEMPORARILY DISABLED
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.blue.shade200),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Document upload is temporarily disabled for testing. You can add certification documents later from your admin panel.',
-                    style: kTextStyleSmall.copyWith(
-                      fontSize: 14,
-                      color: Colors.blue.shade700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
+          // Certifications Section
+          _buildCertificationsSection(),
+          const SizedBox(height: 32),
 
           // Terms and Conditions
           Row(
@@ -635,6 +731,277 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildServicesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Clinic Services',
+              style: kTextStyleRegular.copyWith(
+                fontSize: 18,
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: _addService,
+              icon: Icon(Icons.add, size: 16),
+              label: Text('Add Service'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.white,
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                textStyle: kTextStyleSmall.copyWith(fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        ..._services.asMap().entries.map((entry) {
+          final index = entry.key;
+          return _buildServiceCard(index);
+        }).toList(),
+      ],
+    );
+  }
+
+  Widget _buildServiceCard(int index) {
+    return Card(
+      margin: EdgeInsets.only(bottom: 16),
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Service ${index + 1}',
+                  style: kTextStyleRegular.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                if (_services.length > 1)
+                  IconButton(
+                    onPressed: () => _removeService(index),
+                    icon: Icon(Icons.delete_outline, color: AppColors.error),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: TextFormField(
+                    decoration: const InputDecoration(
+                      labelText: 'Service Name',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8), // spacing between
+                Expanded(
+                  flex: 2,
+                  child: DropdownButtonFormField<ServiceCategory>(
+                    isExpanded: true, // 👈 important
+                    value: _services[index].category,
+                    onChanged: (value) =>
+                        _updateService(index, category: value),
+                    decoration: const InputDecoration(
+                      labelText: 'Category',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(
+                        vertical: 16, // 👈 match TextFormField height
+                        horizontal: 8,
+                      ),
+                    ),
+                    items: ServiceCategory.values.map((category) {
+                      return DropdownMenuItem(
+                        value: category,
+                        child: Text(category.name.toUpperCase()),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              initialValue: _services[index].serviceDescription,
+              onChanged: (value) =>
+                  _updateService(index, serviceDescription: value),
+              decoration: InputDecoration(
+                labelText: 'Description',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
+              validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    initialValue: _services[index].estimatedPrice,
+                    onChanged: (value) =>
+                        _updateService(index, estimatedPrice: value),
+                    decoration: InputDecoration(
+                      labelText: 'Estimated Price',
+                      border: OutlineInputBorder(),
+                      prefixText: '₱ ',
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: (value) =>
+                        value?.isEmpty ?? true ? 'Required' : null,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextFormField(
+                    initialValue: _services[index].duration,
+                    onChanged: (value) =>
+                        _updateService(index, duration: value),
+                    decoration: InputDecoration(
+                      labelText: 'Duration',
+                      border: OutlineInputBorder(),
+                      hintText: 'e.g. 30 mins',
+                    ),
+                    validator: (value) =>
+                        value?.isEmpty ?? true ? 'Required' : null,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCertificationsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Certifications & Licenses',
+              style: kTextStyleRegular.copyWith(
+                fontSize: 18,
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: _addCertification,
+              icon: Icon(Icons.add, size: 16),
+              label: Text('Add Certification'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.white,
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                textStyle: kTextStyleSmall.copyWith(fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        ..._certifications.asMap().entries.map((entry) {
+          final index = entry.key;
+          return _buildCertificationCard(index);
+        }).toList(),
+      ],
+    );
+  }
+
+  Widget _buildCertificationCard(int index) {
+    return Card(
+      margin: EdgeInsets.only(bottom: 16),
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Certification ${index + 1}',
+                  style: kTextStyleRegular.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                if (_certifications.length > 1)
+                  IconButton(
+                    onPressed: () => _removeCertification(index),
+                    icon: Icon(Icons.delete_outline, color: AppColors.error),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    initialValue: _certifications[index].name,
+                    onChanged: (value) =>
+                        _updateCertification(index, name: value),
+                    decoration: InputDecoration(
+                      labelText: 'Certification Name',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) =>
+                        value?.isEmpty ?? true ? 'Required' : null,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextFormField(
+                    initialValue: _certifications[index].issuer,
+                    onChanged: (value) =>
+                        _updateCertification(index, issuer: value),
+                    decoration: InputDecoration(
+                      labelText: 'Issuing Organization',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) =>
+                        value?.isEmpty ?? true ? 'Required' : null,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildTimestampDateField(
+                    label: 'Issue Date',
+                    value: _certifications[index].dateIssued,
+                    onTap: () => _selectCertificationDate(index, true),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildTimestampDateField(
+                    label: 'Expiry Date (Optional)',
+                    value: _certifications[index].dateExpiry,
+                    onTap: () => _selectCertificationDate(index, false),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -705,11 +1072,10 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
     );
   }
 
-  Widget _buildDateField({
+  Widget _buildTimestampDateField({
     required String label,
-    required DateTime? value,
+    required Timestamp? value,
     required VoidCallback onTap,
-    required String? Function() validator,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -729,10 +1095,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             decoration: BoxDecoration(
-              border: Border.all(
-                color: validator() != null ? AppColors.error : AppColors.border,
-                width: 1,
-              ),
+              border: Border.all(color: AppColors.border, width: 1),
               borderRadius: BorderRadius.circular(8),
               color: AppColors.white,
             ),
@@ -741,7 +1104,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                 Expanded(
                   child: Text(
                     value != null
-                        ? '${value.day}/${value.month}/${value.year}'
+                        ? '${value.toDate().day}/${value.toDate().month}/${value.toDate().year}'
                         : 'Select date',
                     style: kTextStyleRegular.copyWith(
                       color: value != null
@@ -760,17 +1123,6 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
             ),
           ),
         ),
-        if (validator() != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              validator()!,
-              style: kTextStyleSmall.copyWith(
-                fontSize: 12,
-                color: AppColors.error,
-              ),
-            ),
-          ),
       ],
     );
   }

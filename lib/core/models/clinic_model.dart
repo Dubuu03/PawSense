@@ -1,68 +1,74 @@
 // core/models/clinic_model.dart
 class Clinic {
   final String id;
-  final String name;
+  final String userId; // Reference to user UID
+  final String clinicName;
   final String address;
   final String phone;
   final String email;
-  final String services;
+  final String? website;
   final DateTime createdAt;
 
   Clinic({
     required this.id,
-    required this.name,
+    required this.userId,
+    required this.clinicName,
     required this.address,
     required this.phone,
     required this.email,
-    required this.services,
+    this.website,
     required this.createdAt,
   });
 
   Map<String, dynamic> toMap() => {
     'id': id,
-    'name': name,
+    'userId': userId,
+    'clinicName': clinicName,
     'address': address,
     'phone': phone,
     'email': email,
-    'services': services,
+    'website': website,
     'createdAt': createdAt.toIso8601String(),
   };
 
   factory Clinic.fromMap(Map<String, dynamic> map) {
     return Clinic(
       id: map['id'] ?? '',
-      name: map['name'] ?? '',
+      userId: map['userId'] ?? '',
+      clinicName: map['clinicName'] ?? '',
       address: map['address'] ?? '',
       phone: map['phone'] ?? '',
       email: map['email'] ?? '',
-      services: map['services'] ?? '',
+      website: map['website'],
       createdAt: DateTime.parse(map['createdAt']),
     );
   }
 
   Clinic copyWith({
     String? id,
-    String? name,
+    String? userId,
+    String? clinicName,
     String? address,
     String? phone,
     String? email,
-    String? services,
+    String? website,
     DateTime? createdAt,
   }) {
     return Clinic(
       id: id ?? this.id,
-      name: name ?? this.name,
+      userId: userId ?? this.userId,
+      clinicName: clinicName ?? this.clinicName,
       address: address ?? this.address,
       phone: phone ?? this.phone,
       email: email ?? this.email,
-      services: services ?? this.services,
+      website: website ?? this.website,
       createdAt: createdAt ?? this.createdAt,
     );
   }
 
   @override
   String toString() {
-    return 'Clinic(id: $id, name: $name, address: $address, phone: $phone, email: $email, services: $services, createdAt: $createdAt)';
+    return 'Clinic(id: $id, userId: $userId, clinicName: $clinicName, address: $address, phone: $phone, email: $email, website: $website, createdAt: $createdAt)';
   }
 
   @override
@@ -70,22 +76,24 @@ class Clinic {
     if (identical(this, other)) return true;
     return other is Clinic &&
         other.id == id &&
-        other.name == name &&
+        other.userId == userId &&
+        other.clinicName == clinicName &&
         other.address == address &&
         other.phone == phone &&
         other.email == email &&
-        other.services == services &&
+        other.website == website &&
         other.createdAt == createdAt;
   }
 
   @override
   int get hashCode {
     return id.hashCode ^
-        name.hashCode ^
+        userId.hashCode ^
+        clinicName.hashCode ^
         address.hashCode ^
         phone.hashCode ^
         email.hashCode ^
-        services.hashCode ^
+        website.hashCode ^
         createdAt.hashCode;
   }
 }
