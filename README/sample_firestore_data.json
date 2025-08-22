@@ -1,0 +1,203 @@
+{
+  "README": "Sample Firestore data for VetProfileScreen testing",
+  "instructions": [
+    "1. Go to your Firebase Console",
+    "2. Navigate to Firestore Database",
+    "3. Create/Update the following collections with the sample data below",
+    "4. Replace 'your-user-uid' with the actual UID of your authenticated user",
+    "5. Make sure the user UID matches between all collections"
+  ],
+  
+  "collections": {
+    "users": {
+      "your-user-uid": {
+        "uid": "your-user-uid",
+        "username": "Dr. Drix Narciso", 
+        "email": "drix@pawsense.com",
+        "role": "admin",
+        "firstName": "Drix",
+        "lastName": "Narciso",
+        "contactNumber": "+1 (555) 123-4567",
+        "createdAt": "2025-01-15T10:00:00Z",
+        "darkTheme": false,
+        "agreedToTerms": true
+      }
+    },
+    
+    "clinics": {
+      "your-user-uid": {
+        "id": "your-user-uid",
+        "userId": "your-user-uid",
+        "clinicName": "PawSense Veterinary Clinic",
+        "address": "123 Pet Care Lane, Animal City, AC 12345",
+        "phone": "+1 (555) 123-4567",
+        "email": "clinic@pawsense.com",
+        "website": "www.pawsense.com",
+        "createdAt": "2025-01-15T10:00:00Z"
+      }
+    },
+    
+    "clinicDetails": {
+      "clinic-details-doc-id": {
+        "id": "clinic-details-doc-id",
+        "clinicId": "your-user-uid",
+        "clinicName": "PawSense Veterinary Clinic",
+        "description": "Premier veterinary care facility providing comprehensive medical services for pets",
+        "address": "123 Pet Care Lane, Animal City, AC 12345",
+        "phone": "+1 (555) 123-4567",
+        "email": "clinic@pawsense.com",
+        "website": "www.pawsense.com",
+        "operatingHours": "Mon-Fri: 8AM-6PM, Sat: 9AM-4PM, Sun: Emergency Only",
+        "emergencyContact": "+1 (555) 911-PETS",
+        "specialties": [
+          "Small Animal Care",
+          "Dermatology", 
+          "Dentistry",
+          "Emergency Medicine",
+          "Surgical Procedures"
+        ],
+        "acceptedInsurance": [
+          "Pet Insurance Plus",
+          "Animal Health Network",
+          "VetCare Insurance"
+        ],
+        "acceptedPaymentMethods": [
+          "Cash",
+          "Credit Card",
+          "PayPal",
+          "Pet Insurance"
+        ],
+        "services": [
+          {
+            "id": "service-1",
+            "clinicId": "your-user-uid",
+            "serviceName": "General Consultation",
+            "serviceDescription": "Comprehensive health examination and consultation for your pet",
+            "estimatedPrice": "PHP 750.00",
+            "duration": "30 minutes",
+            "category": "consultation",
+            "isActive": true,
+            "createdAt": "2025-01-15T10:00:00Z",
+            "createdBy": "your-user-uid"
+          },
+          {
+            "id": "service-2", 
+            "clinicId": "your-user-uid",
+            "serviceName": "Skin Scraping & Analysis",
+            "serviceDescription": "Microscopic examination for skin conditions and parasites",
+            "estimatedPrice": "PHP 1200.00",
+            "duration": "45 minutes",
+            "category": "diagnostic",
+            "isActive": true,
+            "createdAt": "2025-01-15T10:00:00Z",
+            "createdBy": "your-user-uid"
+          },
+          {
+            "id": "service-3",
+            "clinicId": "your-user-uid", 
+            "serviceName": "Vaccination Package",
+            "serviceDescription": "Complete vaccination schedule for puppies and kittens",
+            "estimatedPrice": "PHP 950.00",
+            "duration": "20 minutes",
+            "category": "preventive",
+            "isActive": true,
+            "createdAt": "2025-01-15T10:00:00Z",
+            "createdBy": "your-user-uid"
+          },
+          {
+            "id": "service-4",
+            "clinicId": "your-user-uid",
+            "serviceName": "Dental Cleaning",
+            "serviceDescription": "Professional dental cleaning and oral health assessment",
+            "estimatedPrice": "PHP 2500.00",
+            "duration": "90 minutes",
+            "category": "other",
+            "isActive": true,
+            "createdAt": "2025-01-15T10:00:00Z",
+            "createdBy": "your-user-uid"
+          },
+          {
+            "id": "service-5",
+            "clinicId": "your-user-uid",
+            "serviceName": "Emergency Surgery",
+            "serviceDescription": "24/7 emergency surgical procedures for critical cases",
+            "estimatedPrice": "PHP 15000.00",
+            "duration": "2-4 hours",
+            "category": "emergency",
+            "isActive": true,
+            "createdAt": "2025-01-15T10:00:00Z",
+            "createdBy": "your-user-uid"
+          }
+        ],
+        "certifications": [
+          {
+            "id": "cert-1",
+            "clinicId": "your-user-uid",
+            "name": "DVM - Doctor of Veterinary Medicine",
+            "issuer": "Animal Care University",
+            "description": "Comprehensive veterinary medicine degree with clinical training",
+            "dateIssued": "2015-01-15T00:00:00Z",
+            "dateExpiry": null,
+            "status": "approved",
+            "documentUrl": null,
+            "createdAt": "2025-01-15T10:00:00Z",
+            "createdBy": "your-user-uid"
+          },
+          {
+            "id": "cert-2",
+            "clinicId": "your-user-uid", 
+            "name": "Certified Animal Dermatologist",
+            "issuer": "Veterinary Dermatology Association",
+            "description": "Specialized certification in veterinary dermatology and skin disorders",
+            "dateIssued": "2018-05-01T00:00:00Z",
+            "dateExpiry": "2028-05-01T00:00:00Z",
+            "status": "approved",
+            "documentUrl": null,
+            "createdAt": "2025-01-15T10:00:00Z",
+            "createdBy": "your-user-uid"
+          },
+          {
+            "id": "cert-3",
+            "clinicId": "your-user-uid",
+            "name": "Licensed Veterinary Dentist",
+            "issuer": "Dental Veterinarians International",
+            "description": "Professional license for veterinary dental procedures and oral surgery",
+            "dateIssued": "2020-09-15T00:00:00Z", 
+            "dateExpiry": null,
+            "status": "approved",
+            "documentUrl": null,
+            "createdAt": "2025-01-15T10:00:00Z",
+            "createdBy": "your-user-uid"
+          }
+        ],
+        "additionalInfo": {
+          "emergencyAvailable": true,
+          "telemedicineEnabled": true,
+          "afterHoursContact": "+1 (555) 911-PETS",
+          "languages": ["English", "Spanish"],
+          "equipmentList": [
+            "Digital X-Ray Machine",
+            "Ultrasound Equipment", 
+            "Surgical Suite",
+            "Dental X-Ray Unit",
+            "Laboratory Equipment"
+          ]
+        },
+        "isVerified": true,
+        "isActive": true,
+        "createdAt": "2025-01-15T10:00:00Z",
+        "createdBy": "your-user-uid"
+      }
+    }
+  },
+  
+  "notes": [
+    "- Make sure to replace 'your-user-uid' with your actual Firebase user UID",
+    "- The clinicId in clinicDetails should match the user's UID",
+    "- All service IDs should be unique",
+    "- All certification IDs should be unique", 
+    "- Dates should be in ISO 8601 format",
+    "- Service categories should match the ServiceCategory enum: consultation, diagnostic, preventive, surgery, emergency, telemedicine, grooming, boarding, training, other",
+    "- Certification status should be: pending, approved, rejected, expired, suspended"
+  ]
+}

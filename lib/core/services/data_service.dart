@@ -8,6 +8,16 @@ import '../models/ticket_status.dart';
 import '../widgets/admin/patient_records/patient_status.dart';
 import '../utils/app_colors.dart';
 
+/// Cache wrapper class
+class _CachedData<T> {
+  final T data;
+  final DateTime expiry;
+  
+  _CachedData(this.data, this.expiry);
+  
+  bool get isExpired => DateTime.now().isAfter(expiry);
+}
+
 /// Data service abstraction layer for Firebase integration
 /// This service provides a unified interface for data operations
 /// Making it easy to switch between mock data and Firebase
@@ -19,6 +29,34 @@ class DataService {
   // TODO: Replace with Firebase service when ready
   bool _useFirebase = false;
   
+  // In-memory cache for performance optimization
+  final Map<String, _CachedData> _cache = {};
+  
+  /// Cache helper methods
+  void _cacheSet<T>(String key, T data, {Duration expiry = const Duration(minutes: 5)}) {
+    _cache[key] = _CachedData(data, DateTime.now().add(expiry));
+  }
+  
+  T? _cacheGet<T>(String key) {
+    final cached = _cache[key];
+    if (cached != null && !cached.isExpired) {
+      return cached.data as T;
+    }
+    if (cached != null && cached.isExpired) {
+      _cache.remove(key); // Clean expired cache
+    }
+    return null;
+  }
+  
+  /// Clear specific cache or all cache
+  void clearCache([String? key]) {
+    if (key != null) {
+      _cache.remove(key);
+    } else {
+      _cache.clear();
+    }
+  }
+  
   /// Toggle between Firebase and mock data
   void enableFirebase(bool enabled) {
     _useFirebase = enabled;
@@ -29,13 +67,18 @@ class DataService {
 
   // User Management
   Future<UserModel?> getCurrentUser() async {
+    // Check cache first
+    final cached = _cacheGet<UserModel>('current_user');
+    if (cached != null) return cached;
+    
+    UserModel? user;
     if (_useFirebase) {
       // TODO: Implement Firebase user retrieval
       throw UnimplementedError('Firebase integration pending');
     }
     
     // Mock data for development
-    return UserModel(
+    user = UserModel(
       uid: 'mock_user_123',
       username: 'Dr. Sarah Johnson',
       email: 'sarah.johnson@pawsense.com',
@@ -45,16 +88,26 @@ class DataService {
       role: 'admin',
       createdAt: DateTime.now().subtract(Duration(days: 30)),
     );
+    
+    // Cache for 10 minutes
+    _cacheSet('current_user', user, expiry: Duration(minutes: 10));
+    
+    return user;
   }
 
   Future<List<UserModel>> getAllUsers() async {
+    // Check cache first
+    final cached = _cacheGet<List<UserModel>>('all_users');
+    if (cached != null) return cached;
+    
+    List<UserModel> users;
     if (_useFirebase) {
       // TODO: Implement Firebase user list retrieval
       throw UnimplementedError('Firebase integration pending');
     }
 
     // Mock data
-    return [
+    users = [
       UserModel(
         uid: 'user_1',
         username: 'John Pet Owner',
@@ -70,6 +123,11 @@ class DataService {
         createdAt: DateTime.now().subtract(Duration(days: 60)),
       ),
     ];
+    
+    // Cache for 5 minutes - users change less frequently
+    _cacheSet('all_users', users, expiry: Duration(minutes: 5));
+    
+    return users;
   }
 
   // Appointment Management
@@ -78,13 +136,21 @@ class DataService {
     DateTime? endDate,
     String? status,
   }) async {
+    // Create cache key based on parameters
+    final cacheKey = 'appointments_${startDate?.toIso8601String() ?? 'null'}_${endDate?.toIso8601String() ?? 'null'}_${status ?? 'all'}';
+    
+    // Check cache first
+    final cached = _cacheGet<List<Appointment>>(cacheKey);
+    if (cached != null) return cached;
+    
+    List<Appointment> appointments;
     if (_useFirebase) {
       // TODO: Implement Firebase appointments retrieval with filters
       throw UnimplementedError('Firebase integration pending');
     }
 
     // Mock data
-    return [
+    appointments = [
       Appointment(
         date: DateTime.now().add(Duration(days: 1)).toIso8601String().split('T')[0],
         time: '10:00 AM',
@@ -102,6 +168,20 @@ class DataService {
         status: AppointmentStatus.confirmed,
       ),
     ];
+    
+    // Apply filters to mock data if needed
+    if (status != null) {
+      final statusEnum = AppointmentStatus.values.firstWhere(
+        (s) => s.toString().split('.').last == status.toLowerCase(),
+        orElse: () => AppointmentStatus.pending,
+      );
+      appointments = appointments.where((a) => a.status == statusEnum).toList();
+    }
+    
+    // Cache for 3 minutes - appointments change more frequently
+    _cacheSet(cacheKey, appointments, expiry: Duration(minutes: 3));
+    
+    return appointments;
   }
 
   Future<bool> updateAppointmentStatus(String appointmentId, AppointmentStatus status) async {
@@ -112,18 +192,31 @@ class DataService {
 
     // Mock success response
     await Future.delayed(Duration(seconds: 1));
+    
+    // Clear appointments cache since data has changed
+    final keysToRemove = _cache.keys.where((key) => key.startsWith('appointments_')).toList();
+    for (final key in keysToRemove) {
+      _cache.remove(key);
+    }
+    
     return true;
   }
 
   // Patient Management
-  Future<List<PatientData>> getPatients() async {
+  Future<List<PatientData>> getPatients({int? limit}) async {
+    // Check cache first
+    final cacheKey = 'patients${limit != null ? '_limit_$limit' : ''}';
+    final cached = _cacheGet<List<PatientData>>(cacheKey);
+    if (cached != null) return cached;
+    
+    List<PatientData> patients;
     if (_useFirebase) {
       // TODO: Implement Firebase patient retrieval
       throw UnimplementedError('Firebase integration pending');
     }
 
     // Mock data
-    return [
+    patients = [
       PatientData(
         name: 'Buddy',
         breed: 'Golden Retriever',
@@ -150,7 +243,52 @@ class DataService {
         cardColor: AppColors.warning,
         type: 'Cat',
       ),
+      // Add more mock patients for testing pagination
+      PatientData(
+        name: 'Charlie',
+        breed: 'Labrador',
+        age: '2 years',
+        weight: '25 kg',
+        lastVisit: '2024-01-12',
+        status: PatientStatus.healthy,
+        confidencePercentage: 95,
+        petIcon: '🐕',
+        diseaseDetection: 'Healthy',
+        cardColor: AppColors.success,
+        type: 'Dog',
+      ),
     ];
+    
+    // Apply limit if specified
+    if (limit != null && limit > 0) {
+      patients = patients.take(limit).toList();
+    }
+    
+    // Cache for 8 minutes - patient data doesn't change very frequently
+    _cacheSet(cacheKey, patients, expiry: Duration(minutes: 8));
+    
+    return patients;
+  }
+
+  /// Get today's appointments - used by dashboard and navigation preloader
+  Future<List<Appointment>> getTodayAppointments() async {
+    final today = DateTime.now();
+    final todayStr = today.toIso8601String().split('T')[0];
+    
+    // Check cache first - shorter cache for real-time data
+    final cached = _cacheGet<List<Appointment>>('today_appointments_$todayStr');
+    if (cached != null) return cached;
+    
+    // Get appointments for today
+    final allAppointments = await getAppointments();
+    final todayAppointments = allAppointments.where((appointment) => 
+      appointment.date == todayStr
+    ).toList();
+    
+    // Cache for 2 minutes - very short for real-time dashboard data
+    _cacheSet('today_appointments_$todayStr', todayAppointments, expiry: Duration(minutes: 2));
+    
+    return todayAppointments;
   }
 
   // Support Management
@@ -281,15 +419,94 @@ class DataService {
     return results;
   }
 
+  // Preloading and Performance Optimization
+  
+  /// Preload data for specific screens to improve navigation performance
+  Future<void> preloadForScreen(String screenName) async {
+    final futures = <Future<void>>[];
+    
+    switch (screenName.toLowerCase()) {
+      case 'dashboard':
+        // Preload dashboard essentials
+        futures.add(getCurrentUser().then((_) {}));
+        futures.add(getTodayAppointments().then((_) {}));
+        futures.add(getPatients(limit: 10).then((_) {}));
+        futures.add(getSupportTickets().then((_) {}));
+        break;
+        
+      case 'appointments':
+        // Preload appointments data
+        futures.add(getAppointments().then((_) {}));
+        futures.add(getAppointments(status: 'pending').then((_) {}));
+        futures.add(getAppointments(status: 'confirmed').then((_) {}));
+        futures.add(getTodayAppointments().then((_) {}));
+        break;
+        
+      case 'patients':
+        futures.add(getPatients().then((_) {}));
+        break;
+        
+      case 'support':
+        futures.add(getSupportTickets().then((_) {}));
+        futures.add(getFAQs().then((_) {}));
+        break;
+        
+      case 'notifications':
+        futures.add(getNotifications().then((_) {}));
+        break;
+        
+      default:
+        // Generic preload
+        futures.add(getCurrentUser().then((_) {}));
+    }
+    
+    // Execute all preloads in parallel but handle errors gracefully
+    await Future.wait(futures.map((future) async {
+      try {
+        return await future;
+      } catch (e) {
+        if (kDebugMode) {
+          print('DataService: Preload error for $screenName: $e');
+        }
+      }
+    }));
+  }
+
+  /// Cache statistics for monitoring
+  Map<String, dynamic> getCacheStats() {
+    int activeEntries = 0;
+    int expiredEntries = 0;
+    
+    for (final entry in _cache.values) {
+      if (entry.isExpired) {
+        expiredEntries++;
+      } else {
+        activeEntries++;
+      }
+    }
+    
+    return {
+      'total_entries': _cache.length,
+      'active_entries': activeEntries,
+      'expired_entries': expiredEntries,
+      'cache_hit_potential': _cache.length > 0 ? activeEntries / _cache.length : 0.0,
+    };
+  }
+
   // Notification Management
   Future<List<Map<String, dynamic>>> getNotifications() async {
+    // Check cache first
+    final cached = _cacheGet<List<Map<String, dynamic>>>('notifications');
+    if (cached != null) return cached;
+    
+    List<Map<String, dynamic>> notifications;
     if (_useFirebase) {
       // TODO: Implement Firebase notification retrieval
       throw UnimplementedError('Firebase integration pending');
     }
 
     // Mock notifications
-    return [
+    notifications = [
       {
         'id': 'notif_1',
         'title': 'New Appointment Request',
@@ -309,6 +526,11 @@ class DataService {
         'type': 'system',
       },
     ];
+    
+    // Cache for 2 minutes - notifications need to be fresh
+    _cacheSet('notifications', notifications, expiry: Duration(minutes: 2));
+    
+    return notifications;
   }
 
   // Error Handling

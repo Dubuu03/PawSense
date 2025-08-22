@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
+import 'package:pawsense/core/utils/constants.dart';
 import '../../shared/content_container.dart';
 import 'service_card.dart';
 
@@ -29,11 +30,12 @@ class VetServicesSection extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Services Offered',
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: kFontSizeLarge,
                   fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
                 ),
               ),
               if (onAddService != null)
@@ -43,38 +45,71 @@ class VetServicesSection extends StatelessWidget {
                   label: const Text('Add Service'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
+                    foregroundColor: AppColors.white,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: kSpacingMedium,
+                      vertical: kSpacingSmall,
                     ),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(kBorderRadius),
                     ),
                   ),
                 ),
             ],
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: kSpacingLarge),
 
           // Two-column, auto-height layout
           LayoutBuilder(
             builder: (context, constraints) {
-              const double spacing = 16;
+              // Show message if no services
+              if (services.isEmpty) {
+                return Container(
+                  padding: EdgeInsets.symmetric(vertical: kSpacingLarge * 2),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.medical_services_outlined,
+                        size: kIconSizeLarge,
+                        color: AppColors.textSecondary,
+                      ),
+                      SizedBox(height: kSpacingMedium),
+                      Text(
+                        'No services available',
+                        style: TextStyle(
+                          fontSize: kFontSizeLarge,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      SizedBox(height: kSpacingSmall),
+                      Text(
+                        'Add your first service to get started',
+                        style: TextStyle(
+                          fontSize: kFontSizeRegular,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              const double spacing = kSpacingMedium;
               // Force two columns: each item takes half of the available width (minus spacing)
               final double itemWidth = (constraints.maxWidth - spacing) / 2;
 
               return Wrap(
                 spacing: spacing,
-                runSpacing: 16,
+                runSpacing: kSpacingMedium,
                 children: services.map((service) {
                   return SizedBox(
                     width: itemWidth,
                     child: ServiceCard(
                       title: service['title'],
                       description: service['description'],
-                      duration: service['duration'], // int
-                      price: service['price'],       // String
+                      duration: service['duration'], // String format: "30 minutes"
+                      price: service['price'],       // String format: "PHP 750.00"
                       category: service['category'],
                       isActive: service['isActive'] ?? true,
                       onToggle: onServiceToggle != null

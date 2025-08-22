@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../core/services/auth/auth_service_web.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/services/auth/auth_service.dart';
 import '../../../core/utils/app_colors.dart';
 import '../../../core/utils/constants.dart';
 import 'package:flutter/gestures.dart';
@@ -15,7 +16,7 @@ class _WebLoginPageState extends State<WebLoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _authService = AuthServiceWeb();
+  final _authService = AuthService();
 
   bool _obscurePassword = true;
   bool _isLoading = false;
@@ -43,10 +44,11 @@ class _WebLoginPageState extends State<WebLoginPage> {
       );
 
       if (result.success && result.role != null) {
-        // Navigate based on role - Both admin and super_admin go to admin_main
-        // The AdminMain component will handle the role-based UI differences
-        if (result.role == 'admin' || result.role == 'super_admin') {
-          Navigator.pushReplacementNamed(context, '/admin_main');
+        // Navigate based on role using go_router
+        if (result.role == 'admin') {
+          context.go('/admin/dashboard');
+        } else if (result.role == 'super_admin') {
+          context.go('/super-admin/dashboard');
         } else {
           setState(() {
             _errorMessage = 'Access denied. Insufficient permissions.';
@@ -407,7 +409,7 @@ class _WebLoginPageState extends State<WebLoginPage> {
                             ),
                             recognizer: TapGestureRecognizer()
                               ..onTap = () {
-                                Navigator.pushNamed(context, '/admin_signup');
+                                context.go('/admin_signup');
                               },
                           ),
                         ],

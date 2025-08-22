@@ -17,12 +17,10 @@ class AppointmentHeader extends StatelessWidget {
         children: [
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children:[
               Text(
                 'Appointment Management',
-                style: TextStyle(
-                  fontSize: kFontSizeTitle,
-                  fontWeight: FontWeight.bold,
+                style: kTextStyleTitle.copyWith(
                   color: AppColors.textPrimary,
                 ),
               ),

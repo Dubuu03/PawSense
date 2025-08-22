@@ -5,8 +5,8 @@ import '../../../utils/constants.dart';
 class ServiceCard extends StatelessWidget {
   final String title;
   final String description;
-  final int duration;      // keep as int
-  final String price;      // keep as String from your data
+  final String duration;      // Changed to String to match ClinicService model
+  final String price;         // keep as String from your data
   final String category;
   final bool isActive;
   final VoidCallback? onToggle;
@@ -29,16 +29,16 @@ class ServiceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(kSpacingMedium),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(kBorderRadius),
+        border: Border.all(color: AppColors.border),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.shade100,
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(kShadowOpacity),
+            blurRadius: kShadowBlurRadius / 2, // 5px
+            offset: kShadowOffset,
           ),
         ],
       ),
@@ -58,25 +58,28 @@ class ServiceCard extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: kTextStyleSmall.copyWith(
+                      style: TextStyle(
+                        fontSize: kFontSizeRegular,
                         fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: kSpacingSmall,
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
                         color: AppColors.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(kBorderRadiusLarge),
                       ),
                       child: Text(
                         category,
-                        style: kTextStyleSmall.copyWith(
+                        style: TextStyle(
+                          fontSize: kFontSizeSmall,
                           color: AppColors.primary,
                         ),
                         maxLines: 1,
@@ -101,20 +104,20 @@ class ServiceCard extends StatelessWidget {
                   ),
                   if (onEdit != null)
                     IconButton(
-                      icon: const Icon(Icons.edit_rounded, size: 20),
+                      icon: Icon(Icons.edit_rounded, size: kIconSizeMedium),
                       onPressed: onEdit,
                       color: AppColors.primary,
                       padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
+                      constraints: BoxConstraints(),
                       tooltip: 'Edit Service',
                     ),
                   if (onDelete != null)
                     IconButton(
-                      icon: const Icon(Icons.delete_rounded, size: 20),
+                      icon: Icon(Icons.delete_rounded, size: kIconSizeMedium),
                       onPressed: onDelete,
-                      color: Colors.red[400],
+                      color: AppColors.error,
                       padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
+                      constraints: BoxConstraints(),
                       tooltip: 'Delete Service',
                     ),
                 ],
@@ -122,49 +125,58 @@ class ServiceCard extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 12),
+          SizedBox(height: kSpacingSmall + 4), // 12px
 
           // Description
           Text(
             description,
-            style: kTextStyleSmall.copyWith(
-              color: Colors.grey[700],
+            style: TextStyle(
+              fontSize: kFontSizeSmall,
+              color: AppColors.textSecondary,
               height: 1.5,
             ),
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
           ),
 
-          const SizedBox(height: 12),
+          SizedBox(height: kSpacingSmall + 4), // 12px
 
           // Duration + Price row
           Row(
             children: [
               Row(
                 children: [
-                  Icon(Icons.schedule_rounded,
-                      size: 16, color: AppColors.primary),
-                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.schedule_rounded,
+                    size: kIconSizeSmall,
+                    color: AppColors.primary,
+                  ),
+                  SizedBox(width: 4),
                   Text(
-                    '$duration min',
-                    style: kTextStyleSmall.copyWith(
+                    duration,
+                    style: TextStyle(
+                      fontSize: kFontSizeSmall,
                       fontWeight: FontWeight.w500,
-                      color: Colors.grey[700],
+                      color: AppColors.textSecondary,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(width: 16),
+              SizedBox(width: kSpacingMedium),
               Row(
                 children: [
-                  Icon(Icons.payments_rounded,
-                      size: 16, color: AppColors.primary),
-                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.payments_rounded,
+                    size: kIconSizeSmall,
+                    color: AppColors.primary,
+                  ),
+                  SizedBox(width: 4),
                   Text(
                     price,
-                    style: kTextStyleSmall.copyWith(
+                    style: TextStyle(
+                      fontSize: kFontSizeSmall,
                       fontWeight: FontWeight.w600,
-                      color: Colors.grey[900],
+                      color: AppColors.textPrimary,
                     ),
                   ),
                 ],

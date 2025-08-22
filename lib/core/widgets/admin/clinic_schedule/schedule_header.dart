@@ -22,9 +22,7 @@ class ScheduleHeader extends StatelessWidget {
             children: [
               Text(
                 'Clinic Schedule',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
+                style: kTextStyleTitle.copyWith(
                   color: AppColors.textPrimary,
                 ),
               ),

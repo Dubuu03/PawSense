@@ -1,0 +1,195 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:pawsense/core/services/auth/auth_service.dart';
+import 'package:pawsense/core/utils/app_colors.dart';
+import 'package:pawsense/core/config/app_router.dart';
+import 'package:pawsense/core/services/optimization/role_manager.dart';
+import 'side_navigation.dart';
+import 'top_nav_bar.dart';
+
+class AdminShell extends StatefulWidget {
+  final Widget child;
+  
+  const AdminShell({
+    super.key,
+    required this.child,
+  });
+
+  @override
+  State<AdminShell> createState() => _AdminShellState();
+}
+
+class _AdminShellState extends State<AdminShell> {
+  String _userRole = 'admin';
+  bool _isLoading = true;
+  String _userName = 'User';
+  String _userInitials = 'U';
+
+  @override
+  void initState() {
+    super.initState();
+    _checkUserRole();
+  }
+
+  Future<void> _checkUserRole() async {
+    try {
+      final authService = AuthService();
+      
+      // Make a single call to get current user first
+      final currentUser = await authService.getCurrentUser();
+      
+      if (currentUser == null) {
+        // Redirect to login if no user
+        if (mounted) {
+          context.go('/web_login');
+          return;
+        }
+      }
+      
+      // Check roles based on the user data we already have
+      final userRole = currentUser!.role;
+      final hasAdminPrivileges = ['admin', 'super_admin'].contains(userRole);
+      
+      if (!hasAdminPrivileges) {
+        // Redirect to login if no admin privileges
+        if (mounted) {
+          context.go('/web_login');
+          return;
+        }
+      }
+      
+      if (mounted) {
+        setState(() {
+          _userRole = userRole == 'super_admin' ? 'super_admin' : 'admin';
+          _userName = currentUser.username;
+          _userInitials = _generateInitials(currentUser.username);
+          _isLoading = false;
+        });
+
+        // Redirect to appropriate dashboard if on wrong role path
+        _redirectIfNeeded();
+      }
+    } catch (e) {
+      if (mounted) {
+        context.go('/web_login');
+      }
+    }
+  }
+
+  void _redirectIfNeeded() {
+    final currentLocation = GoRouterState.of(context).uri.path;
+    
+    // Only redirect if user is on a completely wrong path
+    // Don't redirect if they're already on a valid path for their role
+    if (_userRole == 'super_admin' && currentLocation.startsWith('/admin/')) {
+      // Super admin trying to access admin routes - redirect to super admin dashboard
+      if (currentLocation != '/super-admin/dashboard') {
+        context.go('/super-admin/dashboard');
+      }
+    } else if (_userRole == 'admin' && currentLocation.startsWith('/super-admin/')) {
+      // Admin trying to access super admin routes - redirect to admin dashboard
+      if (currentLocation != '/admin/dashboard') {
+        context.go('/admin/dashboard');
+      }
+    } else if (currentLocation == '/admin' || currentLocation == '/super-admin') {
+      // On root admin path - redirect to appropriate dashboard
+      final dashboardPath = _userRole == 'super_admin' ? '/super-admin/dashboard' : '/admin/dashboard';
+      if (currentLocation != dashboardPath) {
+        context.go(dashboardPath);
+      }
+    }
+  }
+
+  int _getCurrentIndex() {
+    final currentLocation = GoRouterState.of(context).uri.path;
+    final routes = AppRouter.getRoutesForRole(_userRole);
+    
+    for (int i = 0; i < routes.length; i++) {
+      if (routes[i].path == currentLocation) {
+        return i;
+      }
+    }
+    return 0; // Default to first item (dashboard)
+  }
+
+  void _onNavItemSelected(int index) {
+    final routes = AppRouter.getRoutesForRole(_userRole);
+    if (index >= 0 && index < routes.length) {
+      final targetPath = routes[index].path;
+      final currentLocation = GoRouterState.of(context).uri.path;
+      
+      // Only navigate if we're not already on the target path
+      if (currentLocation != targetPath) {
+        context.go(targetPath);
+      }
+    }
+  }
+
+  String _generateInitials(String name) {
+    if (name.isEmpty) return 'U';
+    final parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    }
+    return name[0].toUpperCase();
+  }
+
+  Future<void> _handleSignOut() async {
+    try {
+      final authService = AuthService();
+      await authService.signOut();
+      if (mounted) {
+        context.go('/web_login');
+      }
+    } catch (e) {
+      // Handle sign out error
+      if (mounted) {
+        context.go('/web_login');
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    return Scaffold(
+      body: Row(
+        children: [
+          SideNavigation(
+            key: ValueKey(_userRole), // Prevent unnecessary rebuilds
+            selectedIndex: _getCurrentIndex(),
+            onItemSelected: _onNavItemSelected,
+            userRole: _userRole,
+          ),
+          Expanded(
+            child: Column(
+              children: [
+                TopNavBar(
+                  key: ValueKey('topnav_$_userRole'), // Prevent unnecessary rebuilds
+                  userInitials: _userInitials,
+                  userName: _userName,
+                  userRole: RoleManager.getRoleDisplayName(_userRole),
+                  onSignOut: _handleSignOut,
+                ),
+                Expanded(
+                  child: Container(
+                    color: AppColors.background,
+                    child: widget.child,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+

@@ -23,9 +23,7 @@ class PatientRecordsHeader extends StatelessWidget {
             children: [
               Text(
                 'Patient Records',
-                style: TextStyle(
-                  fontSize: kFontSizeTitle,
-                  fontWeight: FontWeight.bold,
+                style: kTextStyleTitle.copyWith(
                   color: AppColors.textPrimary,
                 ),
               ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
+import 'package:pawsense/core/utils/constants.dart';
 
 class CertificationCard extends StatelessWidget {
   final String title;
@@ -20,12 +21,12 @@ class CertificationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: EdgeInsets.only(bottom: 16),
-      padding: EdgeInsets.all(16),
+      margin: EdgeInsets.only(bottom: kSpacingMedium),
+      padding: EdgeInsets.all(kSpacingMedium),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(kBorderRadius),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
@@ -36,35 +37,36 @@ class CertificationCard extends StatelessWidget {
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: kFontSizeRegular,
                     fontWeight: FontWeight.w500,
+                    color: AppColors.textPrimary,
                   ),
                 ),
                 SizedBox(height: 4),
                 Text(
                   organization,
                   style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 14,
+                    color: AppColors.textSecondary,
+                    fontSize: kFontSizeRegular - 2, // 14px
                   ),
                 ),
-                SizedBox(height: 8),
+                SizedBox(height: kSpacingSmall),
                 Row(
                   children: [
                     Text(
                       'Issued: $issueDate',
                       style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                        fontSize: kFontSizeSmall,
                       ),
                     ),
                     if (expiryDate != null) ...[
-                      SizedBox(width: 16),
+                      SizedBox(width: kSpacingMedium),
                       Text(
                         'Expires: $expiryDate',
                         style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                          fontSize: kFontSizeSmall,
                         ),
                       ),
                     ],

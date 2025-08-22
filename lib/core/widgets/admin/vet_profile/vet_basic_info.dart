@@ -10,10 +10,6 @@ class VetProfileBasicInfo extends StatelessWidget {
   final String phone;
   final String address;
   final String website;
-  final bool isEmergencyAvailable;
-  final bool isTelemedicineEnabled;
-  final VoidCallback? onEmergencyToggle;
-  final VoidCallback? onTelemedicineToggle;
 
   const VetProfileBasicInfo({
     super.key,
@@ -23,10 +19,6 @@ class VetProfileBasicInfo extends StatelessWidget {
     required this.phone,
     required this.address,
     required this.website,
-    this.isEmergencyAvailable = false,
-    this.isTelemedicineEnabled = false,
-    this.onEmergencyToggle,
-    this.onTelemedicineToggle,
   });
 
   @override
@@ -45,25 +37,26 @@ class VetProfileBasicInfo extends StatelessWidget {
               color: AppColors.primary,
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: kSpacingMedium),
 
           // Clinic & Doctor Names
           Text(
             clinicName,
-            style: const TextStyle(
-              fontSize: 16,
+            style: TextStyle(
+              fontSize: kFontSizeLarge,
               fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
             ),
             textAlign: TextAlign.center,
           ),
           Text(
             doctorName,
             style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
+              fontSize: kFontSizeRegular,
+              color: AppColors.textSecondary,
             ),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: kSpacingMedium),
 
           // Contact Information
           ContactInfoTile(
@@ -81,26 +74,6 @@ class VetProfileBasicInfo extends StatelessWidget {
           ContactInfoTile(
             icon: Icons.language_outlined,
             text: website,
-          ),
-
-          const SizedBox(height: kSpacingSmall),
-          
-          Divider(
-            color: AppColors.textTertiary,
-            thickness: 1,           // line thickness
-            height: 1,             // space around the line
-          ),
-           const SizedBox(height: kSpacingSmall),
-          // Toggles
-          AvailabilityToggle(
-            title: 'Emergency Available',
-            value: isEmergencyAvailable,
-            onChanged: onEmergencyToggle,
-          ),
-          AvailabilityToggle(
-            title: 'Telemedicine',
-            value: isTelemedicineEnabled,
-            onChanged: onTelemedicineToggle,
           ),
         ],
       ),
@@ -121,48 +94,21 @@ class ContactInfoTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: Icon(icon, color: Colors.grey[600], size: 20),
-      title: Text(text, style: TextStyle(fontSize: 12, color: Colors.grey[600], fontWeight: FontWeight.w500)),
+      leading: Icon(
+        icon, 
+        color: AppColors.textSecondary, 
+        size: kIconSizeMedium,
+      ),
+      title: Text(
+        text, 
+        style: TextStyle(
+          fontSize: kFontSizeSmall, 
+          color: AppColors.textSecondary, 
+          fontWeight: FontWeight.w500,
+        ),
+      ),
       contentPadding: EdgeInsets.zero,
-      minLeadingWidth: 18,
-    );
-  }
-}
-
-class AvailabilityToggle extends StatelessWidget {
-  final String title;
-  final bool value;
-  final VoidCallback? onChanged;
-
-  const AvailabilityToggle({
-    super.key,
-    required this.title,
-    required this.value,
-    this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(title, style: kTextStyleSmall),
-              Transform.scale(
-                scale: 0.8, // 🔹 Smaller toggle
-                child: Switch(
-                  value: value,
-                  onChanged: onChanged != null ? (_) => onChanged!() : null,
-                ),
-              ),
-            ],
-          ),
-        )
-
-
-      ],
+      minLeadingWidth: kSpacingMedium + 2,
     );
   }
 }

@@ -1,0 +1,352 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/user_model.dart';
+import '../models/clinic_model.dart';
+import '../services/auth/token_manager.dart';
+
+/// Authentication and authorization guard for route protection
+class AuthGuard {
+  static final FirebaseAuth _auth = FirebaseAuth.instance;
+  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static final TokenManager _tokenManager = TokenManager();
+  
+  // User caching only (token caching moved to TokenManager)
+  static UserModel? _cachedUser;
+  static DateTime? _userCacheExpiresAt;
+  
+  // Request deduplication for getCurrentUser
+  static Future<UserModel?>? _getCurrentUserRequest;
+  
+  /// Clear cached data
+  static void _clearCache() {
+    _tokenManager.clearToken();
+    _cachedUser = null;
+    _userCacheExpiresAt = null;
+    _getCurrentUserRequest = null;
+    // Clear route validation cache
+    _validateRouteAccessRequest = null;
+    _lastValidatedRoute = null;
+    _routeValidationCacheTime = null;
+  }
+  
+  /// Check if user is authenticated and has valid token
+  static Future<bool> isAuthenticated() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return false;
+      
+      // Check if token is valid (use cached token, don't force refresh)
+      final token = await _tokenManager.getToken();
+      return token != null && token.isNotEmpty;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Get current authenticated user with full profile data
+  static Future<UserModel?> getCurrentUser() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return null;
+      
+      final now = DateTime.now();
+      
+      // Debug logging
+      print('AuthGuard.getCurrentUser() called at ${now.millisecondsSinceEpoch}');
+      
+      // Check if we have valid cached user data
+      if (_cachedUser != null && 
+          _userCacheExpiresAt != null && 
+          _userCacheExpiresAt!.isAfter(now) &&
+          _cachedUser!.uid == user.uid) {
+        print('AuthGuard: Using cached user data');
+        return _cachedUser;
+      }
+      
+      // If there's already a request in progress, wait for it instead of making a new one
+      if (_getCurrentUserRequest != null) {
+        print('AuthGuard: Waiting for existing request');
+        return await _getCurrentUserRequest!;
+      }
+      
+      print('AuthGuard: Making new user fetch request');
+      // Start a new request and cache the Future
+      _getCurrentUserRequest = _fetchCurrentUser(user);
+      
+      try {
+        final result = await _getCurrentUserRequest!;
+        return result;
+      } finally {
+        // Clear the request Future when done
+        _getCurrentUserRequest = null;
+      }
+    } catch (e) {
+      _getCurrentUserRequest = null;
+      return null;
+    }
+  }
+  
+  /// Internal method to fetch user data (separated for deduplication)
+  static Future<UserModel?> _fetchCurrentUser(User user) async {
+    try {
+      // Verify token is still valid (use cached token)
+      final token = await _tokenManager.getToken();
+      if (token == null) return null;
+      
+      // Fetch user data from Firestore
+      final doc = await _firestore.collection('users').doc(user.uid).get();
+      if (doc.exists) {
+        _cachedUser = UserModel.fromMap(doc.data()!);
+        // Cache user data for 5 minutes
+        _userCacheExpiresAt = DateTime.now().add(const Duration(minutes: 5));
+        return _cachedUser;
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Check if user has specific role
+  static Future<bool> hasRole(String role) async {
+    final user = await getCurrentUser();
+    return user?.role == role;
+  }
+
+  /// Check if user has any of the specified roles
+  static Future<bool> hasAnyRole(List<String> roles) async {
+    final user = await getCurrentUser();
+    return user != null && roles.contains(user.role);
+  }
+
+  /// Check if user has admin privileges (admin or super_admin)
+  static Future<bool> hasAdminPrivileges() async {
+    return hasAnyRole(['admin', 'super_admin']);
+  }
+
+  /// Check if user is super admin
+  static Future<bool> isSuperAdmin() async {
+    return hasRole('super_admin');
+  }
+
+  /// Get user's clinic data if they have access
+  static Future<Clinic?> getUserClinic(String userId) async {
+    try {
+      final doc = await _firestore.collection('clinics').doc(userId).get();
+      if (doc.exists) {
+        return Clinic.fromMap(doc.data()!);
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Check if user can access clinic data
+  static Future<bool> canAccessClinic(String clinicId) async {
+    final user = await getCurrentUser();
+    if (user == null) return false;
+    
+    // Super admin can access all clinics
+    if (user.role == 'super_admin') return true;
+    
+    // Admin can only access their own clinic
+    if (user.role == 'admin') return user.uid == clinicId;
+    
+    return false;
+  }
+
+  /// Check if user can manage clinic services
+  static Future<bool> canManageClinicServices(String clinicId) async {
+    final user = await getCurrentUser();
+    if (user == null) return false;
+    
+    // Super admin can manage all services
+    if (user.role == 'super_admin') return true;
+    
+    // Admin can only manage their own clinic services
+    if (user.role == 'admin') return user.uid == clinicId;
+    
+    return false;
+  }
+
+  /// Check if user can manage clinic certifications
+  static Future<bool> canManageCertifications() async {
+    final user = await getCurrentUser();
+    if (user == null) return false;
+    
+    // Only super admin can manage certifications
+    return user.role == 'super_admin';
+  }
+
+  // Request deduplication for validateRouteAccess
+  static Future<String?>? _validateRouteAccessRequest;
+  static String? _lastValidatedRoute;
+  static DateTime? _routeValidationCacheTime;
+  
+  /// Validate route access based on authentication and role
+  static Future<String?> validateRouteAccess(String routePath) async {
+    // Debug logging
+    print('AuthGuard.validateRouteAccess() called for: $routePath');
+    
+    // Public routes that don't require authentication
+    if (_isPublicRoute(routePath)) {
+      print('AuthGuard: Public route, skipping validation');
+      return null;
+    }
+
+    final now = DateTime.now();
+    
+    // Check if we have recent validation for the same route (cache for 10 seconds)
+    if (_lastValidatedRoute == routePath && 
+        _routeValidationCacheTime != null && 
+        now.difference(_routeValidationCacheTime!).inSeconds < 10) {
+      print('AuthGuard: Using cached route validation');
+      return null; // Route was recently validated successfully
+    }
+    
+    // If there's already a validation in progress, wait for it instead of making a new one
+    if (_validateRouteAccessRequest != null) {
+      print('AuthGuard: Waiting for existing route validation');
+      return await _validateRouteAccessRequest!;
+    }
+    
+    print('AuthGuard: Performing new route validation');
+    // Start a new validation request and cache the Future
+    _validateRouteAccessRequest = _performRouteValidation(routePath);
+    
+    try {
+      final result = await _validateRouteAccessRequest!;
+      
+      // Cache successful validation (null means access granted)
+      if (result == null) {
+        _lastValidatedRoute = routePath;
+        _routeValidationCacheTime = now;
+      }
+      
+      return result;
+    } finally {
+      // Clear the request Future when done
+      _validateRouteAccessRequest = null;
+    }
+  }
+  
+  /// Internal method to perform route validation (separated for deduplication)
+  static Future<String?> _performRouteValidation(String routePath) async {
+    // Get current user (this also validates authentication)
+    final user = await getCurrentUser();
+    if (user == null) {
+      return '/web_login';
+    }
+
+    // Check role-based access
+    return _validateRoleBasedAccess(routePath, user.role);
+  }
+
+  /// Check if route is public (no auth required)
+  static bool _isPublicRoute(String routePath) {
+    final publicRoutes = [
+      '/web_login',
+      '/admin_signup',
+      '/signin',
+      '/signup',
+      '/home',
+    ];
+    return publicRoutes.contains(routePath);
+  }
+
+  /// Validate role-based access to routes
+  static String? _validateRoleBasedAccess(String routePath, String userRole) {
+    // Admin routes
+    if (routePath.startsWith('/admin/')) {
+      if (userRole == 'super_admin') {
+        // Super admin trying to access admin routes - redirect to super admin dashboard
+        return '/super-admin/dashboard';
+      }
+      if (userRole != 'admin') {
+        return '/web_login';
+      }
+    }
+
+    // Super admin routes
+    if (routePath.startsWith('/super-admin/')) {
+      if (userRole != 'super_admin') {
+        // Non-super admin trying to access super admin routes - redirect to appropriate dashboard
+        return userRole == 'admin' ? '/admin/dashboard' : '/web_login';
+      }
+    }
+
+    // Root admin paths
+    if (routePath == '/admin' || routePath == '/super-admin') {
+      final dashboardPath = userRole == 'super_admin' ? '/super-admin/dashboard' : '/admin/dashboard';
+      return dashboardPath;
+    }
+
+    return null; // Access granted
+  }
+
+  /// Refresh user's Firebase token
+  static Future<bool> refreshToken() async {
+    try {
+      final token = await _tokenManager.refreshToken();
+      return token != null;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Sign out user and clear session
+  static Future<void> signOut() async {
+    try {
+      _clearCache(); // Clear cached data on sign out
+      await _auth.signOut();
+    } catch (e) {
+      // Handle sign out errors
+    }
+  }
+
+  /// Get user's permissions based on their role
+  static List<String> getUserPermissions(String role) {
+    switch (role) {
+      case 'super_admin':
+        return [
+          'manage_all_clinics',
+          'manage_all_users',
+          'manage_certifications',
+          'system_analytics',
+          'system_settings',
+        ];
+      case 'admin':
+        return [
+          'manage_own_clinic',
+          'manage_own_services',
+          'manage_patients',
+          'manage_appointments',
+          'view_analytics',
+        ];
+      case 'vet':
+        return [
+          'view_patients',
+          'manage_appointments',
+          'view_clinic_info',
+        ];
+      case 'staff':
+        return [
+          'view_patients',
+          'schedule_appointments',
+          'view_clinic_info',
+        ];
+      default:
+        return [];
+    }
+  }
+
+  /// Check if user has specific permission
+  static Future<bool> hasPermission(String permission) async {
+    final user = await getCurrentUser();
+    if (user == null) return false;
+    
+    final permissions = getUserPermissions(user.role);
+    return permissions.contains(permission);
+  }
+}

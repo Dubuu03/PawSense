@@ -15,9 +15,7 @@ class SettingsHeader extends StatelessWidget {
           children: [
             Text(
               'Settings',
-              style: TextStyle(
-                fontSize: kFontSizeLarge,
-                fontWeight: FontWeight.w700,
+              style: kTextStyleTitle.copyWith(
                 color: AppColors.textPrimary,
               ),
             ),

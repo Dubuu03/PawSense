@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
+import 'package:pawsense/core/utils/constants.dart';
 
 class SpecializationBadge extends StatelessWidget {
   final String title;
@@ -16,75 +17,79 @@ class SpecializationBadge extends StatelessWidget {
   Color _getLevelColor() {
     switch (level.toLowerCase()) {
       case 'expert':
-        return Colors.green;
+        return AppColors.success;
       case 'intermediate':
-        return Colors.orange;
+        return AppColors.warning;
       case 'basic':
-        return Colors.blue;
+        return AppColors.info;
       default:
-        return Colors.grey;
+        return AppColors.textSecondary;
     }
   }
 
   Color _getLevelBackgroundColor() {
     switch (level.toLowerCase()) {
       case 'expert':
-        return Colors.green.withOpacity(0.1);
+        return AppColors.success.withOpacity(0.1);
       case 'intermediate':
-        return Colors.orange.withOpacity(0.1);
+        return AppColors.warning.withOpacity(0.1);
       case 'basic':
-        return Colors.blue.withOpacity(0.1);
+        return AppColors.info.withOpacity(0.1);
       default:
-        return Colors.grey.withOpacity(0.1);
+        return AppColors.textSecondary.withOpacity(0.1);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: double.infinity, // makes the badge expand horizontally
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      width: double.infinity,
+      margin: EdgeInsets.only(bottom: kSpacingSmall + 4), // 12px equivalent
+      padding: EdgeInsets.all(kSpacingMedium),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(kBorderRadius),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start, // align text to the left
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 16,
+            style: TextStyle(
+              fontSize: kFontSizeRegular,
               fontWeight: FontWeight.w500,
+              color: AppColors.textPrimary,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: kSpacingSmall),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: EdgeInsets.symmetric(
+                  horizontal: kSpacingSmall + 4, // 12px
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: _getLevelBackgroundColor(),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(kBorderRadiusLarge),
                 ),
                 child: Text(
                   level,
                   style: TextStyle(
                     color: _getLevelColor(),
-                    fontSize: 12,
+                    fontSize: kFontSizeSmall,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
               if (hasCertification) ...[
-                const SizedBox(width: 8),
+                SizedBox(width: kSpacingSmall),
                 Icon(
                   Icons.verified,
                   color: AppColors.primary,
-                  size: 20,
+                  size: kIconSizeMedium,
                 ),
               ],
             ],

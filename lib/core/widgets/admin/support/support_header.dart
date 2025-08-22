@@ -12,11 +12,9 @@ class SupportHeader extends StatelessWidget {
       children: [
         Text(
           'Support Center',
-          style: TextStyle(
-            fontSize: kSpacingLarge,
-            fontWeight: FontWeight.bold,
-            color: AppColors.textPrimary,
-          ),
+          style: kTextStyleTitle.copyWith(
+              color: AppColors.textPrimary,
+            ),
         ),
         SizedBox(height: kSpacingSmall),
         Text(

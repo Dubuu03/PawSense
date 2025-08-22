@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants.dart';
+import 'package:pawsense/core/config/app_router.dart';
 import 'nav_item.dart';
 
 class SideNavigation extends StatelessWidget {
@@ -77,43 +78,18 @@ class SideNavigation extends StatelessWidget {
   }
 
   Widget _buildNavItems() {
-    // Different navigation items based on user role
-    List<Map<String, dynamic>> items;
-    
-    if (userRole == 'super_admin') {
-      items = [
-        {'icon': Icons.dashboard, 'title': 'Dashboard'},
-        {'icon': Icons.admin_panel_settings, 'title': 'Admin Management'},
-        {'icon': Icons.business, 'title': 'Clinic Management'},
-        {'icon': Icons.analytics, 'title': 'System Analytics'},
-        {'icon': Icons.people_outline, 'title': 'User Management'},
-        {'icon': Icons.notifications_outlined, 'title': 'Notifications'},
-        {'icon': Icons.help_outline, 'title': 'Support Center'},
-        {'icon': Icons.settings_outlined, 'title': 'System Settings'},
-      ];
-    } else {
-      // Default admin items
-      items = [
-        {'icon': Icons.dashboard, 'title': 'Dashboard'},
-        {'icon': Icons.calendar_today, 'title': 'Appointment\nManagement'},
-        {'icon': Icons.folder_open, 'title': 'Patient Records'},
-        {'icon': Icons.schedule, 'title': 'Clinic Schedule'},
-        {'icon': Icons.person_outline, 'title': 'Vet Profile & Services'},
-        {'icon': Icons.notifications_outlined, 'title': 'Notifications'},
-        {'icon': Icons.help_outline, 'title': 'Support'},
-        {'icon': Icons.settings_outlined, 'title': 'Settings'},
-      ];
-    }
+    // Get role-based routes from router configuration
+    final routes = AppRouter.getRoutesForRole(userRole);
 
     return Expanded(
       child: ListView.builder(
         padding: EdgeInsets.symmetric(horizontal: 16),
-        itemCount: items.length,
+        itemCount: routes.length,
         itemBuilder: (context, index) {
-          final item = items[index];
+          final route = routes[index];
           return NavItem(
-            icon: item['icon'] as IconData,
-            title: item['title'] as String,
+            icon: route.icon,
+            title: route.title,
             isActive: selectedIndex == index,
             onTap: () => onItemSelected(index),
           );

@@ -30,9 +30,7 @@ class DashboardHeader extends StatelessWidget {
       children: [
             Text(
               'Dashboard',
-              style: TextStyle(
-                fontSize: kFontSizeTitle,
-                fontWeight: FontWeight.bold,
+              style: kTextStyleTitle.copyWith(
                 color: AppColors.textPrimary,
               ),
             ),

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/models/clinic_model.dart';
-
-import '../../../core/services/auth/auth_service_web.dart';
+import '../../../core/models/clinic_details_model.dart';
+import '../../../core/models/clinic_service_model.dart';
+import '../../../core/models/clinic_certification_model.dart';
+import '../../../core/services/auth/auth_service.dart';
 import '../../../core/utils/app_colors.dart';
 import '../../../core/utils/constants.dart';
 
@@ -21,7 +24,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
     GlobalKey<FormState>(),
   ];
 
-  final _authService = AuthServiceWeb();
+  final _authService = AuthService();
   final PageController _pageController = PageController();
 
   int _currentStep = 0;
@@ -45,27 +48,26 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
   final _websiteController = TextEditingController();
 
   // Step 3: Services and Certifications - Dynamic lists
-  List<ClinicService> _services = [
-    ClinicService(
-      serviceName: '',
-      serviceDescription: '',
-      estimatedPrice: '',
-      duration: '',
-      category: ServiceCategory.consultation,
-    ),
-  ];
-  List<ClinicCertification> _certifications = [
-    ClinicCertification(
-      name: '',
-      issuer: '',
-      dateIssued: Timestamp.now(),
-      dateExpiry: null,
-    ),
-  ];
+  List<ClinicService> _services = [];
+  List<ClinicCertification> _certifications = [];
 
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _agreedToTerms = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeDefaultEntries();
+  }
+
+  /// Initialize with one empty service and certification entry
+  void _initializeDefaultEntries() {
+    // Add one empty service entry
+    _addService();
+    // Add one empty certification entry  
+    _addCertification();
+  }
 
   @override
   void dispose() {
@@ -85,6 +87,82 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
     super.dispose();
   }
 
+  /// Prepare services with dynamic data before signup
+  List<ClinicService> _prepareServicesForSignup() {
+    return _services.where((service) => _isServiceValid(service)).map((service) {
+      // Generate service name if empty but has description
+      String finalServiceName = service.serviceName.trim().isEmpty
+          ? _generateServiceNameFromDescription(service.serviceDescription, service.category.name)
+          : service.serviceName;
+
+      // Return updated service with generated name
+      return service.copyWith(
+        serviceName: finalServiceName,
+        // Ensure required fields are not empty
+        serviceDescription: service.serviceDescription.trim().isEmpty 
+            ? 'Professional veterinary service' 
+            : service.serviceDescription,
+        estimatedPrice: service.estimatedPrice.trim().isEmpty 
+            ? '0.00' 
+            : service.estimatedPrice,
+        duration: service.duration.trim().isEmpty 
+            ? '30 mins' 
+            : service.duration,
+      );
+    }).toList();
+  }
+
+  /// Prepare certifications with dynamic data before signup
+  List<ClinicCertification> _prepareCertificationsForSignup() {
+    return _certifications.where((cert) => _isCertificationValid(cert)).toList();
+  }
+
+  /// Check if service has enough data to be valid
+  bool _isServiceValid(ClinicService service) {
+    // At least service description OR service name should be provided
+    return service.serviceDescription.trim().isNotEmpty || service.serviceName.trim().isNotEmpty;
+  }
+
+  /// Check if certification has enough data to be valid
+  bool _isCertificationValid(ClinicCertification cert) {
+    // At least name AND issuer should be provided
+    return cert.name.trim().isNotEmpty && cert.issuer.trim().isNotEmpty;
+  }
+
+  /// Generate service name from description and category
+  String _generateServiceNameFromDescription(String description, String category) {
+    final desc = description.toLowerCase();
+    
+    // Pattern matching for common veterinary services
+    if (desc.contains('skin scraping') || desc.contains('microscopic examination')) {
+      return 'Skin Scraping & Analysis';
+    } else if (desc.contains('vaccination') || desc.contains('vaccine')) {
+      return 'Vaccination Package';
+    } else if (desc.contains('dental') || desc.contains('teeth cleaning')) {
+      return 'Dental Cleaning Service';
+    } else if (desc.contains('surgery') || desc.contains('operation')) {
+      return 'Surgical Procedure';
+    } else if (desc.contains('consultation') || desc.contains('check-up') || desc.contains('checkup')) {
+      return 'Veterinary Consultation';
+    } else if (desc.contains('grooming') || desc.contains('bath') || desc.contains('nail trim')) {
+      return 'Pet Grooming Service';
+    } else if (desc.contains('x-ray') || desc.contains('xray') || desc.contains('imaging')) {
+      return 'Diagnostic Imaging';
+    } else if (desc.contains('blood test') || desc.contains('lab work') || desc.contains('laboratory')) {
+      return 'Laboratory Testing';
+    } else if (desc.contains('emergency')) {
+      return 'Emergency Treatment';
+    } else if (desc.contains('spay') || desc.contains('neuter') || desc.contains('sterilization')) {
+      return 'Spay/Neuter Service';
+    } else if (desc.contains('deworming') || desc.contains('parasite')) {
+      return 'Parasite Treatment';
+    } else {
+      // Generate from category if no pattern matches
+      final categoryName = category[0].toUpperCase() + category.substring(1);
+      return '$categoryName Service';
+    }
+  }
+
   Future<void> _handleSignup() async {
     if (!_formKeys[2].currentState!.validate()) return;
     if (!_agreedToTerms) {
@@ -100,7 +178,11 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
     });
 
     try {
-      // Create the auth account with new field structure
+      // Prepare services and certifications with dynamic data before signup
+      final preparedServices = _prepareServicesForSignup();
+      final preparedCertifications = _prepareCertificationsForSignup();
+
+      // Create the auth account with dynamic field structure
       final result = await _authService.signUpClinicAdmin(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
@@ -120,13 +202,18 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
               : _websiteController.text.trim(),
           createdAt: DateTime.now(),
         ),
-        clinicDetails: ClinicDetails(
+        clinicDetailsData: ClinicDetails(
           id: '', // Will be generated
           clinicId: '', // Will be set to uid
-          services: _services,
-          certificationsAndLicenses: _certifications,
+          clinicName: _clinicNameController.text.trim(),
+          description: 'Veterinary clinic providing comprehensive pet care services',
+          address: _clinicAddressController.text.trim(),
+          phone: _clinicPhoneController.text.trim(),
+          email: _clinicEmailController.text.trim(),
+          services: preparedServices,
+          certifications: preparedCertifications,
           createdAt: DateTime.now(),
-        ),
+        ).toMap(),
       );
 
       if (result.success) {
@@ -171,7 +258,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
           ElevatedButton(
             onPressed: () {
               Navigator.of(context).pop();
-              Navigator.pushReplacementNamed(context, '/web_login');
+              context.go('/web_login');
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
@@ -189,11 +276,16 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
     setState(() {
       _services.add(
         ClinicService(
+          id: 'service_${DateTime.now().millisecondsSinceEpoch}', // Dynamic ID
+          clinicId: '', // Will be set to real clinic ID during signup
           serviceName: '',
           serviceDescription: '',
           estimatedPrice: '',
-          duration: '',
+          duration: '30 mins',
           category: ServiceCategory.consultation,
+          isActive: true, // Set to true so service is available when created
+          isVerified: false, // Set to false - needs admin verification
+          createdAt: DateTime.now(),
         ),
       );
     });
@@ -232,10 +324,13 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
     setState(() {
       _certifications.add(
         ClinicCertification(
+          id: 'cert_${DateTime.now().millisecondsSinceEpoch}', // Dynamic ID
+          clinicId: '', // Will be set to real clinic ID during signup
           name: '',
           issuer: '',
           dateIssued: Timestamp.now(),
           dateExpiry: null,
+          createdAt: DateTime.now(),
         ),
       );
     });
@@ -1304,10 +1399,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                           ),
                           recognizer: TapGestureRecognizer()
                             ..onTap = () {
-                              Navigator.pushReplacementNamed(
-                                context,
-                                '/web_login',
-                              );
+                              context.go('/web_login');
                             },
                         ),
                       ],

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pawsense/core/utils/constants.dart';
 import '../../../utils/app_colors.dart';
 
 class VetProfileHeader extends StatelessWidget {
@@ -17,11 +18,11 @@ class VetProfileHeader extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Vet Profile & Services',
-              style: TextStyle(
+              style: kTextStyleHeader.copyWith(
                 fontSize: 24,
-                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 8),

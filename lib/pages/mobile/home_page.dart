@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/services/auth/auth_service_mobile.dart';
 import '../../core/models/user_model.dart';
-import '../../core/services/user_services.dart';
+import '../../core/guards/auth_guard.dart';
 import '../../core/utils/app_colors.dart';
 import '../../core/utils/constants.dart';
 
@@ -15,7 +15,6 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final AuthService _authService = AuthService();
-  final UserServices _userServices = UserServices();
   UserModel? _userModel;
   bool _loading = true;
 
@@ -26,9 +25,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _fetchUser() async {
-    final user = _authService.currentUser;
-    if (user != null) {
-      final userModel = await _userServices.getUserByUid(user.uid);
+    // Use AuthGuard to get current user to leverage caching and deduplication
+    final userModel = await AuthGuard.getCurrentUser();
+    if (userModel != null) {
       setState(() {
         _userModel = userModel;
         _loading = false;
