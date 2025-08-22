@@ -67,31 +67,114 @@ class ClinicDetails {
 
   /// Create from Firestore Map
   factory ClinicDetails.fromMap(Map<String, dynamic> map) {
-    return ClinicDetails(
-      id: map['id'] ?? '',
-      clinicId: map['clinicId'] ?? '',
-      clinicName: map['clinicName'] ?? '',
-      description: map['description'] ?? '',
-      address: map['address'] ?? '',
-      phone: map['phone'] ?? '',
-      email: map['email'] ?? '',
-      operatingHours: map['operatingHours'],
-      specialties: List<String>.from(map['specialties'] ?? []),
-      services: (map['services'] as List<dynamic>? ?? [])
+    try {
+      print('DEBUG: Starting ClinicDetails.fromMap...');
+      print('DEBUG: Map keys: ${map.keys}');
+      
+      // Parse each field individually with error handling
+      final id = map['id'] ?? '';
+      print('DEBUG: id: $id');
+      
+      final clinicId = map['clinicId'] ?? '';
+      print('DEBUG: clinicId: $clinicId');
+      
+      final clinicName = map['clinicName'] ?? '';
+      print('DEBUG: clinicName: $clinicName');
+      
+      final description = map['description'] ?? '';
+      print('DEBUG: description: $description');
+      
+      final address = map['address'] ?? '';
+      print('DEBUG: address: $address');
+      
+      final phone = map['phone'] ?? '';
+      print('DEBUG: phone: $phone');
+      
+      final email = map['email'] ?? '';
+      print('DEBUG: email: $email');
+      
+      final operatingHours = map['operatingHours'];
+      print('DEBUG: operatingHours: $operatingHours (${operatingHours.runtimeType})');
+      
+      // Handle specialties - can be either strings or objects (check both 'specialties' and 'specializations')
+      final specialtiesRaw = map['specializations'] ?? map['specialties'] ?? [];
+      final List<String> specialties;
+      
+      if (specialtiesRaw is List) {
+        if (specialtiesRaw.isNotEmpty && specialtiesRaw.first is Map) {
+          // If specialties are stored as objects, extract the title
+          specialties = specialtiesRaw.map((spec) {
+            if (spec is Map<String, dynamic>) {
+              return spec['title']?.toString() ?? '';
+            }
+            return spec.toString();
+          }).where((title) => title.isNotEmpty).cast<String>().toList();
+        } else {
+          // If specialties are stored as simple strings
+          specialties = List<String>.from(specialtiesRaw);
+        }
+      } else {
+        specialties = [];
+      }
+      
+      print('DEBUG: specialties: $specialties');
+      
+      print('DEBUG: About to parse services...');
+      final services = (map['services'] as List<dynamic>? ?? [])
           .map((serviceMap) => ClinicService.fromMap(serviceMap as Map<String, dynamic>))
-          .toList(),
-      certifications: (map['certifications'] as List<dynamic>? ?? [])
+          .toList();
+      print('DEBUG: services: ${services.length} items');
+      
+      print('DEBUG: About to parse certifications...');
+      final certifications = (map['certifications'] as List<dynamic>? ?? [])
           .map((certMap) => ClinicCertification.fromMap(certMap as Map<String, dynamic>))
-          .toList(),
-      isVerified: map['isVerified'] ?? false,
-      isActive: map['isActive'] ?? true,
-      createdAt: DateTime.tryParse(map['createdAt'] ?? '') ?? DateTime.now(),
-      updatedAt: map['updatedAt'] != null 
+          .toList();
+      print('DEBUG: certifications: ${certifications.length} items');
+      
+      final isVerified = map['isVerified'] ?? false;
+      print('DEBUG: isVerified: $isVerified');
+      
+      final isActive = map['isActive'] ?? true;
+      print('DEBUG: isActive: $isActive');
+      
+      final createdAt = DateTime.tryParse(map['createdAt'] ?? '') ?? DateTime.now();
+      print('DEBUG: createdAt: $createdAt');
+      
+      final updatedAt = map['updatedAt'] != null 
           ? DateTime.tryParse(map['updatedAt']) 
-          : null,
-      updatedBy: map['updatedBy'],
-      socialMedia: map['socialMedia'],
-    );
+          : null;
+      print('DEBUG: updatedAt: $updatedAt');
+      
+      final updatedBy = map['updatedBy'];
+      print('DEBUG: updatedBy: $updatedBy');
+      
+      final socialMedia = map['socialMedia'];
+      print('DEBUG: socialMedia: $socialMedia');
+
+      return ClinicDetails(
+        id: id,
+        clinicId: clinicId,
+        clinicName: clinicName,
+        description: description,
+        address: address,
+        phone: phone,
+        email: email,
+        operatingHours: operatingHours,
+        specialties: specialties,
+        services: services,
+        certifications: certifications,
+        isVerified: isVerified,
+        isActive: isActive,
+        createdAt: createdAt,
+        updatedAt: updatedAt,
+        updatedBy: updatedBy,
+        socialMedia: socialMedia,
+      );
+    } catch (e, stackTrace) {
+      print('ERROR in ClinicDetails.fromMap: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
   }
 
   /// Create a copy with updated fields
@@ -201,3 +284,4 @@ class ClinicDetails {
         clinicName.hashCode;
   }
 }
+

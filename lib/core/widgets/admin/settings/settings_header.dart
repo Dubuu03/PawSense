@@ -29,60 +29,42 @@ class SettingsHeader extends StatelessWidget {
             ),
           ],
         ),
-        Row(
-          children: [
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.success.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Clinic Status:',
-                    style: TextStyle(
-                      fontSize: kFontSizeSmall,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  SizedBox(width: 6),
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: AppColors.success,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  SizedBox(width: 4),
-                  Text(
-                    'Online',
-                    style: TextStyle(
-                      fontSize: kFontSizeSmall,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.success,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(width: kSpacingMedium),
-            ElevatedButton.icon(
-              onPressed: (){},
-              icon: const Icon(Icons.save_outlined, size: 18),
-              label: const Text('Save Changes'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppColors.success.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Clinic Status:',
+                style: TextStyle(
+                  fontSize: kFontSizeSmall,
+                  color: AppColors.textSecondary,
                 ),
               ),
-            )
-          ],
+              SizedBox(width: 6),
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: AppColors.success,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              SizedBox(width: 4),
+              Text(
+                'Online',
+                style: TextStyle(
+                  fontSize: kFontSizeSmall,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.success,
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );

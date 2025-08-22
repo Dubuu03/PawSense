@@ -6,7 +6,6 @@ import '../../models/support_ticket.dart';
 import '../../models/faq_item_model.dart';
 import '../../models/ticket_status.dart';
 import 'cache_manager.dart';
-import '../auth/token_manager.dart';
 
 /// Optimized data service with comprehensive caching for fast navigation
 class OptimizedDataService {
@@ -15,7 +14,6 @@ class OptimizedDataService {
   OptimizedDataService._internal();
 
   final CacheManager _cache = CacheManager();
-  final TokenManager _tokenManager = TokenManager();
   bool _useFirebase = false;
 
   // Cache durations for different data types

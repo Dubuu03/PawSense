@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants.dart';
@@ -9,6 +10,7 @@ import '../../../core/widgets/admin/vet_profile/vet_services_section.dart';
 import '../../../core/widgets/admin/vet_profile/vet_profile_header.dart';
 import '../../../core/widgets/admin/vet_profile/add_service_modal.dart';
 import '../../../core/widgets/admin/vet_profile/edit_service_modal.dart';
+import '../../../core/widgets/admin/vet_profile/add_specialization_modal.dart';
 import '../../../core/services/vet_profile_service.dart';
 import '../../../core/utils/firestore_sample_data_util.dart';
 
@@ -22,6 +24,7 @@ class VetProfileScreen extends StatefulWidget {
 class _VetProfileScreenState extends State<VetProfileScreen> {
   bool _isLoading = true;
   String? _errorMessage;
+  Key _rebuildKey = UniqueKey(); // Add unique key for forcing rebuilds
 
   Map<String, dynamic> _vetProfile = {};
   List<Map<String, dynamic>> _specializations = [];
@@ -34,14 +37,24 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
     _loadVetProfile();
   }
 
-  Future<void> _loadVetProfile() async {
+  /// Force a complete UI rebuild by changing the key
+  void _forceRebuild() {
+    setState(() {
+      _rebuildKey = UniqueKey();
+      print('DEBUG VetProfileScreen: Force rebuild with new key: $_rebuildKey');
+    });
+  }
+
+  Future<void> _loadVetProfile({bool forceRefresh = false}) async {
+    print('DEBUG VetProfileScreen: _loadVetProfile called with forceRefresh: $forceRefresh');
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
     try {
-      final profileData = await VetProfileService.getVetProfile();
+      final profileData = await VetProfileService.getVetProfile(forceRefresh: forceRefresh);
+      print('DEBUG VetProfileScreen: profileData received, specializations: ${profileData?['specializations']}');
       print('DEBUG: Profile data received: $profileData');
       
       if (profileData != null) {
@@ -100,16 +113,42 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
           print('DEBUG: Mapped certifications: $_certifications');
           print('DEBUG: Certifications count: ${_certifications.length}');
 
-          // Extract specializations (convert from simple strings to format expected by UI)
-          final specialtiesData = profileData['specializations'] as List<dynamic>? ?? [];
-          _specializations = specialtiesData.map((specialty) => {
-            'title': specialty.toString(),
-            'level': 'Expert', // Default level - you can expand this later
-            'hasCertification': true, // Default - you can expand this later
-          }).toList();
+          // Extract specializations with backwards compatibility
+          final dynamic specializationsData = profileData['specializations'] ?? [];
+          
+          if (specializationsData is List<String>) {
+            // Old format: convert strings to maps
+            _specializations = specializationsData.map((specialty) => {
+              'title': specialty.toString(),
+              'level': 'Expert',
+              'hasCertification': true,
+            }).toList();
+          } else {
+            // New format: already maps
+            _specializations = List<Map<String, dynamic>>.from(specializationsData).map((spec) => {
+              'title': spec['title'] ?? '',
+              'level': spec['level'] ?? 'Expert',
+              'hasCertification': spec['hasCertification'] ?? true,
+            }).toList();
+          }
+          
+          print('DEBUG VetProfileScreen: Final specializations count: ${_specializations.length}');
+          print('DEBUG VetProfileScreen: Specializations titles: ${_specializations.map((s) => s['title']).toList()}');
 
 
           _isLoading = false;
+
+          print('DEBUG VetProfileScreen: setState completed, UI should refresh');
+          print('DEBUG VetProfileScreen: Current state - _specializations: ${_specializations.length} items');
+
+          // Force a rebuild to ensure UI updates
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              setState(() {
+                print('DEBUG VetProfileScreen: Force rebuild triggered');
+              });
+            }
+          });
         });
       } else {
         setState(() {
@@ -288,7 +327,7 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
         ),
       );
       // Reload the profile data
-      await _loadVetProfile();
+      await _loadVetProfile(forceRefresh: true);
     } else {
       setState(() {
         _errorMessage = 'Failed to add sample data';
@@ -313,12 +352,152 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
         ),
       );
       // Reload the profile data
-      await _loadVetProfile();
+      await _loadVetProfile(forceRefresh: true);
     } else {
       setState(() {
         _errorMessage = 'Failed to fix services';
         _isLoading = false;
       });
+    }
+  }
+
+  /// Show Add Specialization Modal
+  Future<void> _showAddSpecializationModal() async {
+    showDialog(
+      context: context,
+      builder: (context) => AddSpecializationModal(
+        onSpecializationAdded: () async {
+          print('DEBUG VetProfileScreen: Modal callback - specialization added, refreshing data...');
+
+          // Clear all existing state completely
+          if (mounted) {
+            setState(() {
+              _isLoading = true;
+              _errorMessage = null;
+              _vetProfile.clear();
+              _specializations.clear();
+              _services.clear();
+              _certifications.clear();
+              _rebuildKey = UniqueKey();
+              print('DEBUG VetProfileScreen: State cleared, new rebuild key: $_rebuildKey');
+            });
+          }
+
+          // Small delay to ensure modal is fully closed
+          await Future.delayed(Duration(milliseconds: 200));
+
+          // Reload the profile data with force refresh
+          await _loadVetProfile(forceRefresh: true);
+          print('DEBUG VetProfileScreen: Modal callback - data refresh completed');
+
+          // Show success message
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Specialization added successfully'),
+                backgroundColor: AppColors.success,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  /// Delete specialization
+  Future<void> _deleteSpecialization(String specialization) async {
+    print('DEBUG VetProfileScreen: Delete specialization called for: $specialization');
+
+    // Clear all existing state completely
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+        _vetProfile.clear();
+        _specializations.clear();
+        _services.clear();
+        _certifications.clear();
+        _rebuildKey = UniqueKey();
+        print('DEBUG VetProfileScreen: State cleared for deletion, new rebuild key: $_rebuildKey');
+      });
+    }
+
+    final success = await VetProfileService.deleteSpecialization(specialization);
+    print('DEBUG VetProfileScreen: Delete specialization result: $success');
+
+    if (success) {
+      // Small delay to ensure backend operation is complete
+      await Future.delayed(Duration(milliseconds: 300));
+
+      // Reload with force refresh to get updated data
+      await _loadVetProfile(forceRefresh: true);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Specialization deleted successfully'),
+            backgroundColor: AppColors.success,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } else {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete specialization'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Show delete confirmation for specialization
+  Future<void> _showDeleteSpecializationConfirmation(String specialization) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          'Delete Specialization',
+          style: TextStyle(
+            fontSize: kFontSizeLarge,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to remove "$specialization" from your specializations?',
+          style: TextStyle(
+            fontSize: kFontSizeRegular,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: AppColors.white,
+            ),
+            child: Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true) {
+      await _deleteSpecialization(specialization);
     }
   }
 
@@ -393,11 +572,13 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
                     ],
                   ),
                 )
-              : SingleChildScrollView(
-                  padding: EdgeInsets.all(kSpacingLarge),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                             : Container(
+                   key: _rebuildKey, // Force rebuild when key changes
+                   child: SingleChildScrollView(
+                     padding: EdgeInsets.all(kSpacingLarge),
+                     child: Column(
+                       crossAxisAlignment: CrossAxisAlignment.start,
+                       children: [
                       // Header
                       VetProfileHeader(
                         onEditProfile: () {
@@ -450,9 +631,7 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
                                             ),
                                           ),
                                           IconButton(
-                                            onPressed: () {
-                                              // Handle add specialization
-                                            },
+                                            onPressed: _showAddSpecializationModal,
                                             icon: const Icon(Icons.add),
                                             color: AppColors.primary,
                                           ),
@@ -475,6 +654,7 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
                                           title: spec['title'] ?? '',
                                           level: spec['level'] ?? 'Basic',
                                           hasCertification: spec['hasCertification'] ?? false,
+                                          onDelete: () => _showDeleteSpecializationConfirmation(spec['title'] ?? ''),
                                         )),
                                     ],
                                   ),
@@ -562,6 +742,7 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
                     ],
                   ),
                 ),
+               ),
     );
   }
 

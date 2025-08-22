@@ -6,12 +6,14 @@ class SpecializationBadge extends StatelessWidget {
   final String title;
   final String level;
   final bool hasCertification;
+  final VoidCallback? onDelete;
 
   const SpecializationBadge({
     super.key,
     required this.title,
     required this.level,
     this.hasCertification = false,
+    this.onDelete,
   });
 
   Color _getLevelColor() {
@@ -54,13 +56,32 @@ class SpecializationBadge extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: kFontSizeRegular,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textPrimary,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: kFontSizeRegular,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              if (onDelete != null)
+                IconButton(
+                  onPressed: onDelete,
+                  icon: Icon(
+                    Icons.delete_outline,
+                    color: AppColors.error,
+                    size: kIconSizeSmall,
+                  ),
+                  padding: EdgeInsets.zero,
+                  constraints: BoxConstraints(),
+                  splashRadius: 15,
+                ),
+            ],
           ),
           SizedBox(height: kSpacingSmall),
           Row(

@@ -67,6 +67,7 @@ class VetServicesSection extends StatelessWidget {
                 return Container(
                   padding: EdgeInsets.symmetric(vertical: kSpacingLarge * 2),
                   child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
                         Icons.medical_services_outlined,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../utils/app_colors.dart';
 import '../../../utils/constants.dart';
+import '../../../services/settings_service.dart';
 import 'settings_form_field.dart';
 
 class ClinicSettings extends StatefulWidget {
@@ -11,16 +12,114 @@ class ClinicSettings extends StatefulWidget {
 }
 
 class _ClinicSettingsState extends State<ClinicSettings> {
-  final _clinicNameController = TextEditingController(text: 'PawSense Veterinary Clinic');
-  final _addressController = TextEditingController(text: '123 Pet Care Lane, Animal City, AC 12345');
-  final _phoneController = TextEditingController(text: '+1 (555) 123-4567');
-  final _emailController = TextEditingController(text: 'info@pawsense.com');
-  final _websiteController = TextEditingController(text: 'www.pawsense.com');
-  final _defaultDurationController = TextEditingController(text: '30');
-  final _bufferTimeController = TextEditingController(text: '10');
-  final _advanceBookingController = TextEditingController(text: '60');
+  final _clinicNameController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _websiteController = TextEditingController();
+  final _defaultDurationController = TextEditingController();
+  final _bufferTimeController = TextEditingController();
+  final _advanceBookingController = TextEditingController();
 
   bool _autoApproveAppointments = true;
+  bool _isLoading = true;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadClinicData();
+  }
+
+  Future<void> _loadClinicData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final clinicData = await SettingsService.getClinicSettings();
+      
+      if (clinicData != null && mounted) {
+        setState(() {
+          _clinicNameController.text = clinicData['clinicName'] ?? '';
+          _addressController.text = clinicData['address'] ?? '';
+          _phoneController.text = clinicData['phone'] ?? '';
+          _emailController.text = clinicData['email'] ?? '';
+          _websiteController.text = clinicData['website'] ?? '';
+          _defaultDurationController.text = (clinicData['defaultAppointmentDuration'] ?? 30).toString();
+          _bufferTimeController.text = (clinicData['bufferTime'] ?? 10).toString();
+          _advanceBookingController.text = (clinicData['advanceBookingDays'] ?? 60).toString();
+          _autoApproveAppointments = clinicData['autoApproveAppointments'] ?? true;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading clinic data: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _saveClinicSettings() async {
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      final success = await SettingsService.updateClinicSettings({
+        'clinicName': _clinicNameController.text.trim(),
+        'address': _addressController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'email': _emailController.text.trim(),
+        'website': _websiteController.text.trim(),
+        'defaultAppointmentDuration': int.tryParse(_defaultDurationController.text) ?? 30,
+        'bufferTime': int.tryParse(_bufferTimeController.text) ?? 10,
+        'advanceBookingDays': int.tryParse(_advanceBookingController.text) ?? 60,
+        'autoApproveAppointments': _autoApproveAppointments,
+      });
+
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Clinic settings saved successfully!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save clinic settings'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving clinic settings: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -37,6 +136,14 @@ class _ClinicSettingsState extends State<ClinicSettings> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Center(
+        child: CircularProgressIndicator(
+          color: AppColors.primary,
+        ),
+      );
+    }
+
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -173,6 +280,34 @@ class _ClinicSettingsState extends State<ClinicSettings> {
                 ),
               ),
             ],
+          ),
+          SizedBox(height: kSpacingLarge),
+
+          // Save Clinic Settings Button
+          Align(
+            alignment: Alignment.centerRight,
+            child: ElevatedButton.icon(
+              onPressed: _isSaving ? null : _saveClinicSettings,
+              icon: _isSaving
+                  ? SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : Icon(Icons.save_outlined, size: 18),
+              label: Text(_isSaving ? 'Saving...' : 'Save Changes'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
           ),
         ],
       ),
