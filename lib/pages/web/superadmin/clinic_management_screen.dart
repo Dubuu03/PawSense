@@ -7,6 +7,7 @@ import '../../../core/widgets/super_admin/clinic_management/clinic_summary_cards
 import '../../../core/widgets/super_admin/clinic_management/clinic_search_and_filter.dart';
 import '../../../core/widgets/super_admin/clinic_management/clinics_list.dart';
 import '../../../core/widgets/shared/pagination_widget.dart';
+import '../../../core/services/super_admin/super_admin_service.dart';
 
 class ClinicManagementScreen extends StatefulWidget {
   const ClinicManagementScreen({Key? key}) : super(key: key);
@@ -17,17 +18,18 @@ class ClinicManagementScreen extends StatefulWidget {
 
 class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
   List<ClinicRegistration> _clinics = [];
-  List<ClinicRegistration> _filteredClinics = [];
   bool _isLoading = true;
+  Map<String, int> _clinicStats = {};
   
-  // Pagination
+  // Pagination - fixed at 5 items per page
   int _currentPage = 1;
-  int _itemsPerPage = 10;
-  int get _totalPages => (_filteredClinics.length / _itemsPerPage).ceil();
+  int _totalClinics = 0;
+  int _totalPages = 0;
+  final int _itemsPerPage = 5; // Fixed at 5 items per page
   
   // Filters
   String _searchQuery = '';
-  String _selectedStatus = 'All Status';
+  String _selectedStatus = ''; // Start with empty string to match "All Status" behavior
 
   @override
   void initState() {
@@ -38,11 +40,73 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
   Future<void> _loadClinics() async {
     setState(() => _isLoading = true);
     
-    // Simulate API call
-    await Future.delayed(Duration(seconds: 1));
-    
-    // Mock data
-    _clinics = [
+    try {
+      print('Loading paginated clinics from Firestore...');
+      print('Selected Status: "$_selectedStatus"');
+      
+      // Convert filter strings to API format
+      String? statusFilter;
+      if (_selectedStatus.isNotEmpty && _selectedStatus != 'All Status') {
+        statusFilter = _selectedStatus.toLowerCase();
+      }
+      
+      print('Filters - Status: $statusFilter, Search: $_searchQuery');
+      
+      // Load paginated data from Firestore
+      final result = await SuperAdminService.getPaginatedClinicRegistrations(
+        page: _currentPage,
+        itemsPerPage: _itemsPerPage,
+        statusFilter: statusFilter,
+        searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
+      );
+      
+      // Load clinic statistics
+      final stats = await SuperAdminService.getClinicStatistics();
+      
+      setState(() {
+        _clinics = result['clinics'] as List<ClinicRegistration>;
+        _totalClinics = result['totalClinics'] as int;
+        _totalPages = result['totalPages'] as int;
+        _currentPage = result['currentPage'] as int;
+        _clinicStats = stats;
+        _isLoading = false;
+      });
+      
+      print('Loaded ${_clinics.length} clinics for page $_currentPage of $_totalPages (Total: $_totalClinics)');
+    } catch (e) {
+      print('Error loading clinics: $e');
+      
+      // Fallback to mock data if Firebase fails
+      setState(() {
+        _clinics = _getMockClinics().take(_itemsPerPage).toList();
+        _totalClinics = _getMockClinics().length;
+        _totalPages = (_totalClinics / _itemsPerPage).ceil();
+        _clinicStats = {
+          'total': _totalClinics,
+          'pending': _getMockClinics().where((c) => c.status == ClinicStatus.pending).length,
+          'approved': _getMockClinics().where((c) => c.status == ClinicStatus.verified).length,
+          'rejected': _getMockClinics().where((c) => c.status == ClinicStatus.rejected).length,
+          'suspended': _getMockClinics().where((c) => c.status == ClinicStatus.suspended).length,
+        };
+        _isLoading = false;
+      });
+      
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load clinics from database. Showing sample data.'),
+            backgroundColor: AppColors.warning,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+  
+  /// Fallback mock data
+  List<ClinicRegistration> _getMockClinics() {
+    return [
       ClinicRegistration(
         id: '1',
         clinicName: 'Happy Paws Veterinary Clinic',
@@ -80,45 +144,29 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
         applicationDate: DateTime.now().subtract(Duration(days: 7)),
       ),
     ];
-    
-    _applyFilters();
-    setState(() => _isLoading = false);
-  }
-
-  void _applyFilters() {
-    _filteredClinics = _clinics.where((clinic) {
-      final matchesSearch = _searchQuery.isEmpty ||
-          clinic.clinicName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          clinic.email.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          clinic.licenseNumber.toLowerCase().contains(_searchQuery.toLowerCase());
-      
-      final matchesStatus = _selectedStatus.isEmpty || 
-          clinic.status.toString().split('.').last == _selectedStatus;
-      
-      return matchesSearch && matchesStatus;
-    }).toList();
-    
-    _currentPage = 1; // Reset to first page when filters change
-  }
-
-  List<ClinicRegistration> get _paginatedClinics {
-    final startIndex = (_currentPage - 1) * _itemsPerPage;
-    final endIndex = (startIndex + _itemsPerPage).clamp(0, _filteredClinics.length);
-    return _filteredClinics.sublist(startIndex, endIndex);
   }
 
   void _onSearchChanged(String query) {
     setState(() {
       _searchQuery = query;
-      _applyFilters();
+      _currentPage = 1; // Reset to first page
     });
+    _loadClinics(); // Reload with new search
   }
 
   void _onStatusFilterChanged(String status) {
     setState(() {
       _selectedStatus = status;
-      _applyFilters();
+      _currentPage = 1; // Reset to first page
     });
+    _loadClinics(); // Reload with new filter
+  }
+
+  void _onPageChanged(int page) {
+    setState(() {
+      _currentPage = page;
+    });
+    _loadClinics(); // Load new page
   }
 
   void _onViewDetails(ClinicRegistration clinic) {
@@ -128,44 +176,19 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
     );
   }
 
-  void _onApprove(ClinicRegistration clinic) {
-    showDialog(
+  void _onApprove(ClinicRegistration clinic) async {
+    final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Approve Clinic'),
         content: Text('Are you sure you want to approve ${clinic.clinicName}?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              setState(() {
-                // Find and update the clinic in the list
-                final index = _clinics.indexWhere((c) => c.id == clinic.id);
-                if (index != -1) {
-                  _clinics[index] = ClinicRegistration(
-                    id: clinic.id,
-                    clinicName: clinic.clinicName,
-                    adminName: clinic.adminName,
-                    adminId: clinic.adminId,
-                    email: clinic.email,
-                    phone: clinic.phone,
-                    address: clinic.address,
-                    licenseNumber: clinic.licenseNumber,
-                    status: ClinicStatus.verified,
-                    applicationDate: clinic.applicationDate,
-                    approvedDate: DateTime.now(),
-                  );
-                }
-                _applyFilters();
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('${clinic.clinicName} approved successfully')),
-              );
-            },
+            onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.success,
               foregroundColor: AppColors.white,
@@ -175,102 +198,190 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
         ],
       ),
     );
+    
+    if (result == true) {
+      try {
+        final success = await SuperAdminService.updateClinicStatus(
+          clinic.id, 
+          ClinicStatus.verified,
+        );
+        
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${clinic.clinicName} approved successfully'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+          _loadClinics(); // Reload to get updated data
+        } else {
+          throw Exception('Failed to approve clinic');
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to approve clinic: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
-  void _onReject(ClinicRegistration clinic) {
-    showDialog(
+  void _onReject(ClinicRegistration clinic) async {
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Reject Clinic'),
-        content: Text('Are you sure you want to reject ${clinic.clinicName}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel'),
+      builder: (context) {
+        final reasonController = TextEditingController();
+        return AlertDialog(
+          title: Text('Reject Clinic'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Are you sure you want to reject ${clinic.clinicName}?'),
+              SizedBox(height: 16),
+              Text('Reason for rejection:'),
+              SizedBox(height: 8),
+              TextField(
+                controller: reasonController,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  hintText: 'Enter reason for rejection...',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              setState(() {
-                final index = _clinics.indexWhere((c) => c.id == clinic.id);
-                if (index != -1) {
-                  _clinics[index] = ClinicRegistration(
-                    id: clinic.id,
-                    clinicName: clinic.clinicName,
-                    adminName: clinic.adminName,
-                    adminId: clinic.adminId,
-                    email: clinic.email,
-                    phone: clinic.phone,
-                    address: clinic.address,
-                    licenseNumber: clinic.licenseNumber,
-                    status: ClinicStatus.rejected,
-                    applicationDate: clinic.applicationDate,
-                    rejectionReason: 'Rejected by admin',
-                  );
-                }
-                _applyFilters();
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('${clinic.clinicName} rejected')),
-              );
-            },
-            style: ElevatedButton.styleFrom(
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, null),
+              child: Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, {
+                'confirmed': true,
+                'reason': reasonController.text.trim().isNotEmpty 
+                    ? reasonController.text.trim() 
+                    : 'Rejected by admin',
+              }),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.error,
+                foregroundColor: AppColors.white,
+              ),
+              child: Text('Reject'),
+            ),
+          ],
+        );
+      },
+    );
+    
+    if (result != null && result['confirmed'] == true) {
+      try {
+        final success = await SuperAdminService.updateClinicStatus(
+          clinic.id, 
+          ClinicStatus.rejected,
+          reason: result['reason'],
+        );
+        
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${clinic.clinicName} rejected'),
               backgroundColor: AppColors.error,
-              foregroundColor: AppColors.white,
             ),
-            child: Text('Reject'),
+          );
+          _loadClinics(); // Reload to get updated data
+        } else {
+          throw Exception('Failed to reject clinic');
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to reject clinic: $e'),
+            backgroundColor: AppColors.error,
           ),
-        ],
-      ),
-    );
+        );
+      }
+    }
   }
 
-  void _onSuspend(ClinicRegistration clinic) {
-    showDialog(
+  void _onSuspend(ClinicRegistration clinic) async {
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Suspend Clinic'),
-        content: Text('Are you sure you want to suspend ${clinic.clinicName}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel'),
+      builder: (context) {
+        final reasonController = TextEditingController();
+        return AlertDialog(
+          title: Text('Suspend Clinic'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Are you sure you want to suspend ${clinic.clinicName}?'),
+              SizedBox(height: 16),
+              Text('Reason for suspension:'),
+              SizedBox(height: 8),
+              TextField(
+                controller: reasonController,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  hintText: 'Enter reason for suspension...',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              setState(() {
-                final index = _clinics.indexWhere((c) => c.id == clinic.id);
-                if (index != -1) {
-                  _clinics[index] = ClinicRegistration(
-                    id: clinic.id,
-                    clinicName: clinic.clinicName,
-                    adminName: clinic.adminName,
-                    adminId: clinic.adminId,
-                    email: clinic.email,
-                    phone: clinic.phone,
-                    address: clinic.address,
-                    licenseNumber: clinic.licenseNumber,
-                    status: ClinicStatus.suspended,
-                    applicationDate: clinic.applicationDate,
-                    suspensionReason: 'Suspended by admin',
-                  );
-                }
-                _applyFilters();
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('${clinic.clinicName} suspended')),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.warning,
-              foregroundColor: AppColors.white,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, null),
+              child: Text('Cancel'),
             ),
-            child: Text('Suspend'),
-          ),
-        ],
-      ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, {
+                'confirmed': true,
+                'reason': reasonController.text.trim().isNotEmpty 
+                    ? reasonController.text.trim() 
+                    : 'Suspended by admin',
+              }),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.warning,
+                foregroundColor: AppColors.white,
+              ),
+              child: Text('Suspend'),
+            ),
+          ],
+        );
+      },
     );
+    
+    if (result != null && result['confirmed'] == true) {
+      try {
+        final success = await SuperAdminService.updateClinicStatus(
+          clinic.id, 
+          ClinicStatus.suspended,
+          reason: result['reason'],
+        );
+        
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${clinic.clinicName} suspended'),
+              backgroundColor: AppColors.warning,
+            ),
+          );
+          _loadClinics(); // Reload to get updated data
+        } else {
+          throw Exception('Failed to suspend clinic');
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to suspend clinic: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -292,10 +403,10 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
             
             // Summary Cards
             ClinicSummaryCards(
-              totalClinics: _clinics.length,
-              pendingClinics: _clinics.where((c) => c.status == ClinicStatus.pending).length,
-              approvedClinics: _clinics.where((c) => c.status == ClinicStatus.verified).length,
-              rejectedClinics: _clinics.where((c) => c.status == ClinicStatus.rejected).length,
+              totalClinics: _clinicStats['total'] ?? _clinics.length,
+              pendingClinics: _clinicStats['pending'] ?? _clinics.where((c) => c.status == ClinicStatus.pending).length,
+              approvedClinics: _clinicStats['approved'] ?? _clinics.where((c) => c.status == ClinicStatus.verified).length,
+              rejectedClinics: _clinicStats['rejected'] ?? _clinics.where((c) => c.status == ClinicStatus.rejected).length,
             ),
             
             SizedBox(height: kSpacingLarge),
@@ -318,7 +429,8 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
             
             // Clinics List
             ClinicsList(
-              clinics: _paginatedClinics,
+              clinics: _clinics,
+              totalClinics: _totalClinics,
               isLoading: _isLoading,
               onViewDetails: _onViewDetails,
               onApprove: _onApprove,
@@ -326,20 +438,15 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
               onSuspend: _onSuspend,
             ),
             
-            if (!_isLoading && _filteredClinics.isNotEmpty) ...[
+            if (!_isLoading && _clinics.isNotEmpty) ...[
               SizedBox(height: kSpacingLarge),
               
               // Pagination
               PaginationWidget(
                 currentPage: _currentPage,
                 totalPages: _totalPages,
-                itemsPerPage: _itemsPerPage,
-                totalItems: _filteredClinics.length,
-                onPageChanged: (page) => setState(() => _currentPage = page),
-                onItemsPerPageChanged: (items) => setState(() {
-                  _itemsPerPage = items;
-                  _currentPage = 1;
-                }),
+                totalItems: _totalClinics,
+                onPageChanged: _onPageChanged,
               ),
             ],
           ],

@@ -5,8 +5,9 @@ import 'package:pawsense/core/utils/constants.dart';
 import 'user_card.dart';
 
 class UsersList extends StatelessWidget {
-  final List<UserModel> users;
+  final List<Map<String, dynamic>> users; // Changed to support user with status
   final bool isLoading;
+  final int totalUsers; // Add total users count
   final Function(UserModel) onEditUser;
   final Function(UserModel) onDeleteUser;
   final Function(UserModel, bool) onStatusToggle;
@@ -15,6 +16,7 @@ class UsersList extends StatelessWidget {
     Key? key,
     required this.users,
     required this.isLoading,
+    required this.totalUsers,
     required this.onEditUser,
     required this.onDeleteUser,
     required this.onStatusToggle,
@@ -110,7 +112,7 @@ class UsersList extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Users (${users.length})',
+            'Users ($totalUsers)',
             style: kTextStyleLarge.copyWith(
               fontWeight: FontWeight.bold,
               color: AppColors.textPrimary,
@@ -122,12 +124,14 @@ class UsersList extends StatelessWidget {
             physics: const NeverScrollableScrollPhysics(),
             itemCount: users.length,
             itemBuilder: (context, index) {
-              final user = users[index];
+              final userWithStatus = users[index];
+              final user = userWithStatus['user'] as UserModel;
+              
               return UserCard(
                 user: user,
                 onEdit: () => onEditUser(user),
                 onDelete: () => onDeleteUser(user),
-                onStatusToggle: (isActive) => onStatusToggle(user, isActive),
+                onStatusToggle: (newStatus) => onStatusToggle(user, newStatus),
               );
             },
           ),

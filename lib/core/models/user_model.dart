@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 /// Model class representing a user in the app.
 class UserModel {
   final String uid;
@@ -14,6 +16,11 @@ class UserModel {
   // New admin fields - nullable for mobile compatibility
   final String? firstName;
   final String? lastName;
+  // Suspension fields
+  final bool isActive;
+  final String? suspensionReason;
+  final DateTime? suspendedAt;
+  final DateTime? updatedAt;
 
   /// Creates a new UserModel instance.
   const UserModel({
@@ -31,6 +38,11 @@ class UserModel {
     // New admin fields - nullable for mobile compatibility
     this.firstName,
     this.lastName,
+    // Suspension fields with defaults
+    this.isActive = true,
+    this.suspensionReason,
+    this.suspendedAt,
+    this.updatedAt,
   });
 
   /// Converts the UserModel to a map for Firestore storage.
@@ -48,6 +60,11 @@ class UserModel {
     'address': address,
     'firstName': firstName,
     'lastName': lastName,
+    // Suspension fields
+    'isActive': isActive,
+    'suspensionReason': suspensionReason,
+    'suspendedAt': suspendedAt?.toIso8601String(),
+    'updatedAt': updatedAt?.toIso8601String(),
   };
 
   /// Creates a UserModel from a Firestore map.
@@ -59,17 +76,37 @@ class UserModel {
       profileImageUrl: map['profileImageUrl'],
       darkTheme: map['darkTheme'] ?? false,
       role: map['role'] ?? 'user',
-      createdAt: DateTime.tryParse(map['createdAt'] ?? '') ?? DateTime.now(),
+      createdAt: _parseDateTime(map['createdAt']) ?? DateTime.now(),
       // After
-      dateOfBirth: map['dateOfBirth'] != null
-          ? DateTime.tryParse(map['dateOfBirth'])
-          : null,
+      dateOfBirth: _parseDateTime(map['dateOfBirth']),
       contactNumber: map['contactNumber'],
       agreedToTerms: map['agreedToTerms'] ?? true,
       address: map['address'],
       firstName: map['firstName'],
       lastName: map['lastName'],
+      // Suspension fields
+      isActive: map['isActive'] ?? true,
+      suspensionReason: map['suspensionReason'],
+      suspendedAt: _parseDateTime(map['suspendedAt']),
+      updatedAt: _parseDateTime(map['updatedAt']),
     );
+  }
+
+  /// Helper method to parse DateTime from Firestore data (handles both Timestamp and String)
+  static DateTime? _parseDateTime(dynamic value) {
+    if (value == null) return null;
+    
+    // Handle Firestore Timestamp
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+    
+    // Handle String
+    if (value is String) {
+      return DateTime.tryParse(value);
+    }
+    
+    return null;
   }
 
   /// Returns a copy of this UserModel with updated fields.
@@ -87,6 +124,10 @@ class UserModel {
     String? address,
     String? firstName,
     String? lastName,
+    bool? isActive,
+    String? suspensionReason,
+    DateTime? suspendedAt,
+    DateTime? updatedAt,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
@@ -102,6 +143,10 @@ class UserModel {
       address: address ?? this.address,
       firstName: firstName ?? this.firstName,
       lastName: lastName ?? this.lastName,
+      isActive: isActive ?? this.isActive,
+      suspensionReason: suspensionReason ?? this.suspensionReason,
+      suspendedAt: suspendedAt ?? this.suspendedAt,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 }

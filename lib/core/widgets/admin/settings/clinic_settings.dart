@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../utils/app_colors.dart';
 import '../../../utils/constants.dart';
-import '../../../services/settings_service.dart';
+import '../../../services/shared/settings_service.dart';
 import 'settings_form_field.dart';
 
 class ClinicSettings extends StatefulWidget {

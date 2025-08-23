@@ -10,7 +10,7 @@ import '../../../core/widgets/admin/vet_profile/vet_profile_header.dart';
 import '../../../core/widgets/admin/vet_profile/add_service_modal.dart';
 import '../../../core/widgets/admin/vet_profile/edit_service_modal.dart';
 import '../../../core/widgets/admin/vet_profile/add_specialization_modal.dart';
-import '../../../core/services/vet_profile_service.dart';
+import '../../../core/services/vet_profile/vet_profile_service.dart';
 import '../../../core/utils/firestore_sample_data_util.dart';
 
 class VetProfileScreen extends StatefulWidget {
@@ -34,14 +34,6 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
   void initState() {
     super.initState();
     _loadVetProfile();
-  }
-
-  /// Force a complete UI rebuild by changing the key
-  void _forceRebuild() {
-    setState(() {
-      _rebuildKey = UniqueKey();
-      print('DEBUG VetProfileScreen: Force rebuild with new key: $_rebuildKey');
-    });
   }
 
   Future<void> _loadVetProfile({bool forceRefresh = false}) async {

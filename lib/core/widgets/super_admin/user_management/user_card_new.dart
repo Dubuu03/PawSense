@@ -5,6 +5,8 @@ import 'package:pawsense/core/utils/constants.dart';
 
 class UserCard extends StatelessWidget {
   final UserModel user;
+  final bool? isActive; // New field for suspension status
+  final String? suspensionReason; // New field for suspension reason
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final Function(bool) onStatusToggle;
@@ -12,6 +14,8 @@ class UserCard extends StatelessWidget {
   const UserCard({
     Key? key,
     required this.user,
+    this.isActive,
+    this.suspensionReason,
     required this.onEdit,
     required this.onDelete,
     required this.onStatusToggle,
@@ -65,16 +69,15 @@ class UserCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(
-                      _getDisplayName(),
-                      style: kTextStyleRegular.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                    Expanded(
+                      child: Text(
+                        _getDisplayName(),
+                        style: kTextStyleRegular.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                     ),
-                    SizedBox(width: kSpacingSmall),
-                    // Role chip close to the name
-                    _buildRoleChip(),
                   ],
                 ),
                 SizedBox(height: kSpacingSmall),
@@ -85,11 +88,17 @@ class UserCard extends StatelessWidget {
                   ),
                 ),
                 SizedBox(height: kSpacingSmall),
-                Text(
-                  'Joined: ${_formatDate(user.createdAt)}',
-                  style: kTextStyleSmall.copyWith(
-                    color: AppColors.textTertiary,
-                  ),
+                Row(
+                  children: [
+                    _buildRoleChip(),
+                    SizedBox(width: kSpacingSmall),
+                    Text(
+                      'Joined: ${_formatDate(user.createdAt)}',
+                      style: kTextStyleSmall.copyWith(
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -112,89 +121,172 @@ class UserCard extends StatelessWidget {
 
   Widget _buildStatusBadge() {
     final userIsActive = _isActive();
+    final isVerified = true; // You can add verification logic here based on your data
     
     // Determine status based on active state and verification
     String statusText;
+    IconData statusIcon;
     Color statusColor;
     Color bgColor;
     
     if (!userIsActive) {
       statusText = 'Suspended';
+      statusIcon = Icons.block;
       statusColor = AppColors.error;
       bgColor = AppColors.statusOpenBg;
-    } else {
+    } else if (isVerified) {
       statusText = 'Verified';
+      statusIcon = Icons.verified;
       statusColor = AppColors.success;
       bgColor = AppColors.statusResolvedBg;
+    } else {
+      statusText = 'Pending';
+      statusIcon = Icons.pending;
+      statusColor = AppColors.warning;
+      bgColor = AppColors.statusInProgressBg;
     }
     
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: EdgeInsets.symmetric(horizontal: kSpacingSmall + 2, vertical: 6),
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        statusText,
-        style: TextStyle(
-          color: statusColor,
-          fontWeight: FontWeight.w500,
-          fontSize: 12,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: statusColor.withOpacity(0.3),
+          width: 1,
         ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            statusIcon,
+            size: 14,
+            color: statusColor,
+          ),
+          SizedBox(width: 4),
+          Text(
+            statusText,
+            style: kTextStyleSmall.copyWith(
+              color: statusColor,
+              fontWeight: FontWeight.w500,
+              fontSize: 11,
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildActionButtons() {
     final userIsActive = _isActive();
+    final isVerified = true; // You can add verification logic here
     
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         // View/Info Icon
-        IconButton(
-          onPressed: onEdit,
-          icon: Icon(Icons.visibility_outlined, size: 18),
-          color: AppColors.info,
-          tooltip: 'View Details',
-          padding: EdgeInsets.all(6),
-          constraints: BoxConstraints(minWidth: 32, minHeight: 32),
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.info.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: IconButton(
+            onPressed: onEdit,
+            icon: Icon(Icons.visibility_outlined, size: 18),
+            color: AppColors.info,
+            tooltip: 'View Details',
+            padding: EdgeInsets.all(6),
+            constraints: BoxConstraints(minWidth: 32, minHeight: 32),
+          ),
         ),
         SizedBox(width: kSpacingSmall),
         
-        // Status Action Icon (Suspend/Activate)
+        // Status Action Icon (Suspend/Activate or Approve/Reject)
         if (!userIsActive) ...[
           // Activate button for suspended users
-          IconButton(
-            onPressed: () => onStatusToggle(true),
-            icon: Icon(Icons.check_circle, size: 18),
-            color: AppColors.success,
-            tooltip: 'Activate User',
-            padding: EdgeInsets.all(6),
-            constraints: BoxConstraints(minWidth: 32, minHeight: 32),
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.success.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: IconButton(
+              onPressed: () => onStatusToggle(true),
+              icon: Icon(Icons.check_circle, size: 18),
+              color: AppColors.success,
+              tooltip: 'Activate User',
+              padding: EdgeInsets.all(6),
+              constraints: BoxConstraints(minWidth: 32, minHeight: 32),
+            ),
+          ),
+        ] else if (!isVerified) ...[
+          // Approve button for pending users
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.success.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: IconButton(
+              onPressed: () => onStatusToggle(true),
+              icon: Icon(Icons.check, size: 18),
+              color: AppColors.success,
+              tooltip: 'Approve User',
+              padding: EdgeInsets.all(6),
+              constraints: BoxConstraints(minWidth: 32, minHeight: 32),
+            ),
+          ),
+          SizedBox(width: kSpacingSmall),
+          // Reject button for pending users  
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.error.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: IconButton(
+              onPressed: () => onStatusToggle(false),
+              icon: Icon(Icons.close, size: 18),
+              color: AppColors.error,
+              tooltip: 'Reject User',
+              padding: EdgeInsets.all(6),
+              constraints: BoxConstraints(minWidth: 32, minHeight: 32),
+            ),
           ),
         ] else ...[
           // Suspend button for active verified users
-          IconButton(
-            onPressed: () => onStatusToggle(false),
-            icon: Icon(Icons.block, size: 18),
-            color: AppColors.warning,
-            tooltip: 'Suspend User',
-            padding: EdgeInsets.all(6),
-            constraints: BoxConstraints(minWidth: 32, minHeight: 32),
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.warning.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: IconButton(
+              onPressed: () => onStatusToggle(false),
+              icon: Icon(Icons.block, size: 18),
+              color: AppColors.warning,
+              tooltip: 'Suspend User',
+              padding: EdgeInsets.all(6),
+              constraints: BoxConstraints(minWidth: 32, minHeight: 32),
+            ),
           ),
         ],
         
-        SizedBox(width: kSpacingSmall),
-        // Delete Icon
-        IconButton(
-          onPressed: onDelete,
-          icon: Icon(Icons.delete_outline, size: 18),
-          color: AppColors.error,
-          tooltip: 'Delete User',
-          padding: EdgeInsets.all(6),
-          constraints: BoxConstraints(minWidth: 32, minHeight: 32),
-        ),
+        if (userIsActive || !isVerified) ...[
+          SizedBox(width: kSpacingSmall),
+          // Delete Icon
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.error.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: IconButton(
+              onPressed: onDelete,
+              icon: Icon(Icons.delete_outline, size: 18),
+              color: AppColors.error,
+              tooltip: 'Delete User',
+              padding: EdgeInsets.all(6),
+              constraints: BoxConstraints(minWidth: 32, minHeight: 32),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -274,8 +366,8 @@ class UserCard extends StatelessWidget {
   }
 
   bool _isActive() {
-    // Use the UserModel's isActive field
-    return user.isActive;
+    // Use the provided isActive status, default to true if not provided
+    return isActive ?? true;
   }
 
   String _formatDate(DateTime date) {

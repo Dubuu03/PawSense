@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:pawsense/core/utils/app_theme.dart';
 import 'package:pawsense/core/config/firebase_options.dart';
 import 'package:pawsense/core/config/app_router.dart';
-import 'package:pawsense/core/services/data_service.dart';
+import 'package:pawsense/core/services/shared/data_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

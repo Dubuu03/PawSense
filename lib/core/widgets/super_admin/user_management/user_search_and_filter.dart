@@ -129,16 +129,16 @@ class _UserSearchAndFilterState extends State<UserSearchAndFilter> {
                 fillColor: AppColors.white,
               ),
               style: kTextStyleRegular.copyWith(color: AppColors.textPrimary),
-              items: ['All Status', 'active', 'inactive', 'suspended'].map((status) {
+              items: ['All Status', 'Active', 'Suspended'].map((status) {
                 return DropdownMenuItem(
                   value: status,
                   child: Text(
-                    status == 'All Status' ? status : status.toUpperCase(),
+                    status,
                     style: kTextStyleRegular.copyWith(color: AppColors.textPrimary),
                   ),
                 );
               }).toList(),
-              onChanged: (value) => widget.onStatusChanged(value == 'All Status' ? '' : (value ?? '')),
+              onChanged: (value) => widget.onStatusChanged(value ?? ''),
             ),
           ),
           SizedBox(width: kSpacingMedium),

@@ -5,19 +5,15 @@ import 'package:pawsense/core/utils/constants.dart';
 class PaginationWidget extends StatelessWidget {
   final int currentPage;
   final int totalPages;
-  final int itemsPerPage;
   final int totalItems;
   final Function(int) onPageChanged;
-  final Function(int) onItemsPerPageChanged;
 
   const PaginationWidget({
     Key? key,
     required this.currentPage,
     required this.totalPages,
-    required this.itemsPerPage,
     required this.totalItems,
     required this.onPageChanged,
-    required this.onItemsPerPageChanged,
   }) : super(key: key);
 
   @override
@@ -42,42 +38,6 @@ class PaginationWidget extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Items per page selector
-          Row(
-            children: [
-              Text(
-                'Items per page:',
-                style: kTextStyleRegular.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              SizedBox(width: kSpacingSmall),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: kSpacingSmall),
-                decoration: BoxDecoration(
-                  border: Border.all(color: AppColors.border),
-                  borderRadius: BorderRadius.circular(kBorderRadiusSmall),
-                ),
-                child: DropdownButton<int>(
-                  value: itemsPerPage,
-                  underline: SizedBox(),
-                  style: kTextStyleRegular.copyWith(color: AppColors.textPrimary),
-                  items: [10, 25, 50, 100].map((int value) {
-                    return DropdownMenuItem<int>(
-                      value: value,
-                      child: Text(value.toString()),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      onItemsPerPageChanged(value);
-                    }
-                  },
-                ),
-              ),
-            ],
-          ),
-          
           // Page info
           Text(
             'Showing ${_getStartItem()}-${_getEndItem()} of $totalItems items',
@@ -148,10 +108,12 @@ class PaginationWidget extends StatelessWidget {
   }
 
   int _getStartItem() {
+    const itemsPerPage = 5; // Fixed at 5 items per page
     return ((currentPage - 1) * itemsPerPage) + 1;
   }
 
   int _getEndItem() {
+    const itemsPerPage = 5; // Fixed at 5 items per page
     final endItem = currentPage * itemsPerPage;
     return endItem > totalItems ? totalItems : endItem;
   }

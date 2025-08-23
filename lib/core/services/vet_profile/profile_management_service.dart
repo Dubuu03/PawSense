@@ -1,7 +1,7 @@
 
 import 'package:pawsense/core/guards/auth_guard.dart';
-import 'package:pawsense/core/services/clinic_details_service.dart';
-import 'package:pawsense/core/services/clinic_service.dart';
+import 'package:pawsense/core/services/clinic/clinic_details_service.dart';
+import 'package:pawsense/core/services/clinic/clinic_service.dart';
 import 'package:pawsense/core/services/vet_profile/specialization_service.dart';
 
 /// Service for managing vet profile data with caching

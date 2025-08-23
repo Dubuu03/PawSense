@@ -7,6 +7,7 @@ import 'clinic_card.dart';
 class ClinicsList extends StatelessWidget {
   final List<ClinicRegistration> clinics;
   final bool isLoading;
+  final int totalClinics; // Add total clinics count
   final Function(ClinicRegistration) onViewDetails;
   final Function(ClinicRegistration) onApprove;
   final Function(ClinicRegistration) onReject;
@@ -16,6 +17,7 @@ class ClinicsList extends StatelessWidget {
     Key? key,
     required this.clinics,
     required this.isLoading,
+    required this.totalClinics,
     required this.onViewDetails,
     required this.onApprove,
     required this.onReject,
@@ -120,7 +122,7 @@ class ClinicsList extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Clinic Registrations (${clinics.length})',
+            'Clinic Registrations ($totalClinics)',
             style: kTextStyleLarge.copyWith(
               fontWeight: FontWeight.bold,
               color: AppColors.textPrimary,

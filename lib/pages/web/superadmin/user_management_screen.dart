@@ -7,6 +7,7 @@ import '../../../core/widgets/super_admin/user_management/user_summary_cards.dar
 import '../../../core/widgets/super_admin/user_management/user_search_and_filter.dart';
 import '../../../core/widgets/super_admin/user_management/users_list.dart';
 import '../../../core/widgets/shared/pagination_widget.dart';
+import '../../../core/services/super_admin/super_admin_service.dart';
 
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({Key? key}) : super(key: key);
@@ -16,14 +17,15 @@ class UserManagementScreen extends StatefulWidget {
 }
 
 class _UserManagementScreenState extends State<UserManagementScreen> {
-  List<UserModel> _users = [];
-  List<UserModel> _filteredUsers = [];
+  List<Map<String, dynamic>> _usersWithStatus = [];
   bool _isLoading = true;
+  Map<String, int> _userStats = {};
   
   // Pagination
   int _currentPage = 1;
-  int _itemsPerPage = 10;
-  int get _totalPages => (_filteredUsers.length / _itemsPerPage).ceil();
+  int _itemsPerPage = 5; // Changed to 5 items per page
+  int _totalUsers = 0;
+  int _totalPages = 0;
   
   // Filters
   String _searchQuery = '';
@@ -39,11 +41,74 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   Future<void> _loadUsers() async {
     setState(() => _isLoading = true);
     
-    // Simulate API call
-    await Future.delayed(Duration(seconds: 1));
-    
-    // Mock data
-    _users = [
+    try {
+      // Convert filter strings to API format
+      String? roleFilter;
+      if (_selectedRole != 'All Roles' && _selectedRole.isNotEmpty) {
+        roleFilter = _selectedRole.toLowerCase().replaceAll(' ', '_');
+      }
+      
+      String? statusFilter;
+      if (_selectedStatus != 'All Status' && _selectedStatus.isNotEmpty) {
+        if (_selectedStatus == 'Active') statusFilter = 'active';
+        else if (_selectedStatus == 'Suspended') statusFilter = 'suspended';
+      }
+      
+      // Load paginated data from Firestore
+      final result = await SuperAdminService.getPaginatedUsersWithStatus(
+        page: _currentPage,
+        itemsPerPage: _itemsPerPage,
+        roleFilter: roleFilter,
+        statusFilter: statusFilter,
+        searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
+      );
+      
+      // Load user statistics
+      final stats = await SuperAdminService.getUserStatistics();
+      
+      setState(() {
+        _usersWithStatus = result['users'] as List<Map<String, dynamic>>;
+        _totalUsers = result['totalUsers'] as int;
+        _totalPages = result['totalPages'] as int;
+        _currentPage = result['currentPage'] as int;
+        _userStats = stats;
+        _isLoading = false;
+      });
+      
+        print('Loaded ${_usersWithStatus.length} users for page $_currentPage of $_totalPages (Total: $_totalUsers)');
+    } catch (e) {
+      print('Error loading users: $e');
+      
+      // Fallback to mock data if Firebase fails
+      setState(() {
+        _usersWithStatus = _getMockUsersWithStatus().take(_itemsPerPage).toList();
+        _totalUsers = _getMockUsersWithStatus().length;
+        _totalPages = (_totalUsers / _itemsPerPage).ceil();
+        _userStats = {
+          'total': _totalUsers,
+          'active': _getMockUsersWithStatus().where((u) => u['isActive'] == true).length,
+          'suspended': _getMockUsersWithStatus().where((u) => u['isActive'] == false).length,
+          'admins': _getMockUsersWithStatus().where((u) => (u['user'] as UserModel).role == 'admin' || (u['user'] as UserModel).role == 'super_admin').length,
+          'users': _getMockUsersWithStatus().where((u) => (u['user'] as UserModel).role == 'user').length,
+        };
+        _isLoading = false;
+      });
+      
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load users from database. Showing sample data.'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+  
+  /// Fallback mock data with suspension status
+  List<Map<String, dynamic>> _getMockUsersWithStatus() {
+    final mockUsers = [
       UserModel(
         uid: '1',
         username: 'johndoe',
@@ -76,56 +141,42 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       ),
     ];
     
-    _applyFilters();
-    setState(() => _isLoading = false);
-  }
-
-  void _applyFilters() {
-    _filteredUsers = _users.where((user) {
-      final fullName = '${user.firstName ?? ''} ${user.lastName ?? ''}'.trim();
-      final matchesSearch = _searchQuery.isEmpty ||
-          fullName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          user.email.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          user.username.toLowerCase().contains(_searchQuery.toLowerCase());
-      
-      final matchesRole = _selectedRole.isEmpty || 
-          user.role == _selectedRole;
-      
-      // Since the UserModel doesn't have an isActive field, we'll handle status filtering differently
-      // Show all users regardless of status filter since we don't have real status data
-      final matchesStatus = true; // Always true since we don't have real status data
-      
-      return matchesSearch && matchesRole && matchesStatus;
+    return mockUsers.map((user) => {
+      'user': user,
+      'isActive': true, // All mock users are active by default
+      'suspensionReason': null,
     }).toList();
-    
-    _currentPage = 1; // Reset to first page when filters change
-  }
-
-  List<UserModel> get _paginatedUsers {
-    final startIndex = (_currentPage - 1) * _itemsPerPage;
-    final endIndex = (startIndex + _itemsPerPage).clamp(0, _filteredUsers.length);
-    return _filteredUsers.sublist(startIndex, endIndex);
   }
 
   void _onSearchChanged(String query) {
     setState(() {
       _searchQuery = query;
-      _applyFilters();
+      _currentPage = 1; // Reset to first page
     });
+    _loadUsers(); // Reload with new search
   }
 
   void _onRoleFilterChanged(String? role) {
     setState(() {
       _selectedRole = role ?? '';
-      _applyFilters();
+      _currentPage = 1; // Reset to first page
     });
+    _loadUsers(); // Reload with new filter
   }
 
   void _onStatusFilterChanged(String? status) {
     setState(() {
       _selectedStatus = status ?? '';
-      _applyFilters();
+      _currentPage = 1; // Reset to first page
     });
+    _loadUsers(); // Reload with new filter
+  }
+
+  void _onPageChanged(int page) {
+    setState(() {
+      _currentPage = page;
+    });
+    _loadUsers(); // Load new page
   }
 
   void _onEditUser(UserModel user) {
@@ -135,25 +186,20 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
   }
 
-  void _onDeleteUser(UserModel user) {
+  void _onDeleteUser(UserModel user) async {
     final fullName = '${user.firstName ?? ''} ${user.lastName ?? ''}'.trim();
-    showDialog(
+    final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Delete User'),
-        content: Text('Are you sure you want to delete $fullName?'),
+        content: Text('Are you sure you want to delete $fullName? This action cannot be undone.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('User $fullName deleted')),
-              );
-            },
+            onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,
               foregroundColor: AppColors.white,
@@ -163,16 +209,180 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         ],
       ),
     );
+    
+    if (result == true) {
+      try {
+        final success = await SuperAdminService.deleteUser(user.uid);
+        if (success) {
+          _loadUsers(); // Reload users after deletion
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('User $fullName deleted successfully'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        } else {
+          throw Exception('Failed to delete user');
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete user: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
-  void _onToggleUserStatus(UserModel user) {
-    // Since isActive is not available in the model, we'll just show a message
+  void _onToggleUserStatus(UserModel user) async {
+    // Find current status from our data
+    final userWithStatus = _usersWithStatus.firstWhere(
+      (u) => (u['user'] as UserModel).uid == user.uid,
+      orElse: () => {'user': user, 'isActive': true, 'suspensionReason': null},
+    );
+    
+    final currentStatus = userWithStatus['isActive'] as bool;
+    final newStatus = !currentStatus;
+    
+    if (!newStatus) {
+      // Suspending user - show reason dialog
+      await _showSuspendDialog(user);
+    } else {
+      // Activating user
+      await _activateUser(user);
+    }
+  }
+
+  Future<void> _showSuspendDialog(UserModel user) async {
+    final reasonController = TextEditingController();
     final fullName = '${user.firstName ?? ''} ${user.lastName ?? ''}'.trim();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('User status toggle for $fullName (Feature not implemented)'),
+    
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Suspend User'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Are you sure you want to suspend $fullName?'),
+            SizedBox(height: kSpacingMedium),
+            Text(
+              'Reason for suspension:',
+              style: kTextStyleSmall.copyWith(fontWeight: FontWeight.w500),
+            ),
+            SizedBox(height: kSpacingSmall),
+            TextField(
+              controller: reasonController,
+              decoration: InputDecoration(
+                hintText: 'Enter reason for suspension...',
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.all(kSpacingMedium),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (reasonController.text.trim().isNotEmpty) {
+                Navigator.pop(context, true);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Please provide a reason for suspension'),
+                    backgroundColor: AppColors.warning,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.warning,
+              foregroundColor: AppColors.white,
+            ),
+            child: Text('Suspend'),
+          ),
+        ],
       ),
     );
+    
+    if (result == true && reasonController.text.trim().isNotEmpty) {
+      await _suspendUser(user, reasonController.text.trim());
+    }
+  }
+
+  Future<void> _suspendUser(UserModel user, String reason) async {
+    final fullName = '${user.firstName ?? ''} ${user.lastName ?? ''}'.trim();
+    
+    try {
+      final success = await SuperAdminService.suspendUser(user.uid, reason);
+      
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('User $fullName suspended successfully'),
+            backgroundColor: AppColors.warning,
+          ),
+        );
+        
+        // Reload users to get updated data
+        _loadUsers();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to suspend user'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to suspend user: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _activateUser(UserModel user) async {
+    final fullName = '${user.firstName ?? ''} ${user.lastName ?? ''}'.trim();
+    
+    try {
+      final success = await SuperAdminService.activateUser(user.uid);
+      
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('User $fullName activated successfully'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        
+        // Reload users to get updated data
+        _loadUsers();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to activate user'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to activate user: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   @override
@@ -214,10 +424,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             
             // Summary Cards
             UserSummaryCards(
-              totalUsers: _users.length,
-              activeUsers: _users.length, // All users considered active since isActive not available
-              inactiveUsers: 0, // No inactive users since isActive not available
-              adminUsers: _users.where((u) => u.role == 'admin' || u.role == 'super_admin').length,
+              totalUsers: _userStats['total'] ?? _usersWithStatus.length,
+              activeUsers: _userStats['active'] ?? _usersWithStatus.where((u) => u['isActive'] == true).length,
+              inactiveUsers: _userStats['suspended'] ?? _usersWithStatus.where((u) => u['isActive'] == false).length,
+              adminUsers: _userStats['admins'] ?? _usersWithStatus.where((u) {
+                final user = u['user'] as UserModel;
+                return user.role == 'admin' || user.role == 'super_admin';
+              }).length,
             ),
             
             SizedBox(height: kSpacingLarge),
@@ -242,27 +455,23 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             
             // Users List
             UsersList(
-              users: _paginatedUsers,
+              users: _usersWithStatus,
               isLoading: _isLoading,
+              totalUsers: _totalUsers,
               onEditUser: _onEditUser,
               onDeleteUser: _onDeleteUser,
               onStatusToggle: (user, status) => _onToggleUserStatus(user),
             ),
             
-            if (!_isLoading && _filteredUsers.isNotEmpty) ...[
+            if (!_isLoading && _totalUsers > 0) ...[
               SizedBox(height: kSpacingLarge),
               
               // Pagination
               PaginationWidget(
                 currentPage: _currentPage,
                 totalPages: _totalPages,
-                itemsPerPage: _itemsPerPage,
-                totalItems: _filteredUsers.length,
-                onPageChanged: (page) => setState(() => _currentPage = page),
-                onItemsPerPageChanged: (items) => setState(() {
-                  _itemsPerPage = items;
-                  _currentPage = 1;
-                }),
+                totalItems: _totalUsers,
+                onPageChanged: _onPageChanged,
               ),
             ],
           ],

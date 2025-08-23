@@ -205,22 +205,26 @@ class ClinicCard extends StatelessWidget {
 
   Widget _buildStatusChip() {
     final statusColor = _getStatusColor();
-    final statusBgColor = _getStatusBackgroundColor();
+    final statusText = clinic.status.displayName;
+    final bgColor = _getStatusBackgroundColor();
+
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: kSpacingSmall, vertical: 4),
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: statusBgColor,
-        borderRadius: BorderRadius.circular(kBorderRadius),
+        color: bgColor,
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        clinic.status.displayName,
-        style: kTextStyleSmall.copyWith(
+        statusText,
+        style: TextStyle(
           color: statusColor,
           fontWeight: FontWeight.w500,
+          fontSize: 12,
         ),
       ),
     );
   }
+
 
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants.dart';
 import '../../../models/clinic_service_model.dart';
-import '../../../services/vet_profile_service.dart';
+import '../../../services/vet_profile/vet_profile_service.dart';
 
 class AddServiceModal extends StatefulWidget {
   final VoidCallback onServiceAdded;

@@ -5,7 +5,7 @@ import 'package:pawsense/core/utils/constants.dart';
 class UserSummaryCards extends StatelessWidget {
   final int totalUsers;
   final int activeUsers;
-  final int inactiveUsers;
+  final int inactiveUsers; // Keep parameter name for compatibility
   final int adminUsers;
 
   const UserSummaryCards({
@@ -42,11 +42,11 @@ class UserSummaryCards extends StatelessWidget {
         SizedBox(width: kSpacingMedium),
         Expanded(
           child: _buildSummaryCard(
-            title: 'Inactive Users',
+            title: 'Suspended Users',
             count: inactiveUsers,
-            color: AppColors.warning,
-            icon: Icons.person_remove_outlined,
-            bgColor: AppColors.statusInProgressBg,
+            color: AppColors.error,
+            icon: Icons.person_off_outlined,
+            bgColor: AppColors.statusOpenBg,
           ),
         ),
         SizedBox(width: kSpacingMedium),
