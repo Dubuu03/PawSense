@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../core/utils/app_colors.dart';
+import '../../../core/utils/constants.dart';
 
 /// Terms and Conditions Modal
 ///
@@ -312,9 +314,8 @@ class _TermsAndConditionsModalState extends State<TermsAndConditionsModal>
                       const SizedBox(height: 16),
                       Text(
                         'Terms and Conditions',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey[800],
+                        style: kTextStyleTitle.copyWith(
+                          color: AppColors.textPrimary,
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -461,39 +462,21 @@ class _TermsAndConditionsModalState extends State<TermsAndConditionsModal>
                       Expanded(
                         flex: 2,
                         child: ElevatedButton(
-                          onPressed: _checked
-                              ? () => Navigator.pop(context, true)
-                              : null,
+                          onPressed: () => Navigator.pop(context, true),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _checked
-                                ? Colors.blue.shade600
-                                : Colors.grey.shade300,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: AppColors.white,
+                            padding: const EdgeInsets.symmetric(vertical: kSpacingMedium),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(kBorderRadius),
                             ),
-                            elevation: _checked ? 2 : 0,
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              if (_checked) ...[
-                                Icon(
-                                  Icons.check_circle,
-                                  size: 18,
-                                  color: Colors.white,
-                                ),
-                                const SizedBox(width: 8),
-                              ],
-                              Text(
-                                'Accept & Continue',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 15,
-                                ),
-                              ),
-                            ],
+                          child: Text(
+                            'Accept',
+                            style: kTextStyleRegular.copyWith(
+                              color: AppColors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ),

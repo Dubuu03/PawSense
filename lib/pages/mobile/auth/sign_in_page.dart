@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/services/auth/auth_service_mobile.dart';
 import 'forgot_password_page.dart';
 import '../../../core/utils/constants.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/utils/errors.dart';
+import '../../../core/utils/app_colors.dart';
 
 /// Sign In Page
 ///
@@ -129,7 +131,7 @@ class _SignInPageState extends State<SignInPage>
             duration: const Duration(seconds: 2),
           ),
         );
-        Navigator.pushReplacementNamed(context, '/home');
+        context.go('/home');
       }
     } on FirebaseAuthException catch (e) {
       final mapped = AuthErrorMapper.mapSignInError(e.code);
@@ -185,7 +187,7 @@ class _SignInPageState extends State<SignInPage>
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: Colors.blue.shade600, width: 2),
+              borderSide: BorderSide(color: AppColors.primary, width: 2),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
@@ -195,12 +197,12 @@ class _SignInPageState extends State<SignInPage>
               margin: const EdgeInsets.all(12),
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: AppColors.primary.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
                 Icons.email_outlined,
-                color: Colors.blue.shade600,
+                color: AppColors.primary,
                 size: 20,
               ),
             ),
@@ -260,7 +262,7 @@ class _SignInPageState extends State<SignInPage>
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: Colors.blue.shade600, width: 2),
+              borderSide: BorderSide(color: AppColors.primary, width: 2),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
@@ -270,12 +272,12 @@ class _SignInPageState extends State<SignInPage>
               margin: const EdgeInsets.all(12),
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: AppColors.primary.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
                 Icons.lock_outline,
-                color: Colors.blue.shade600,
+                color: AppColors.primary,
                 size: 20,
               ),
             ),
@@ -319,14 +321,14 @@ class _SignInPageState extends State<SignInPage>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Colors.blue.shade600,
-                Colors.blue.shade700,
+                AppColors.primary,
+                AppColors.primary.withOpacity(0.8),
               ],
             ),
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: Colors.blue.shade200,
+                color: AppColors.primary.withOpacity(0.3),
                 blurRadius: 20,
                 offset: const Offset(0, 8),
               ),
@@ -341,9 +343,8 @@ class _SignInPageState extends State<SignInPage>
         const SizedBox(height: 32),
         Text(
           'Welcome Back!',
-          style: kTextStyleLarge.copyWith(
-            fontWeight: FontWeight.bold,
-            color: Colors.grey[800],
+          style: kTextStyleHeader.copyWith(
+            color: AppColors.textPrimary,
           ),
           textAlign: TextAlign.center,
         ),
@@ -448,7 +449,7 @@ class _SignInPageState extends State<SignInPage>
                                   );
                                 },
                                 style: TextButton.styleFrom(
-                                  foregroundColor: Colors.blue.shade600,
+                                  foregroundColor: AppColors.primary,
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 16,
                                     vertical: 8,
@@ -458,7 +459,7 @@ class _SignInPageState extends State<SignInPage>
                                   'Forgot Password?',
                                   style: kTextStyleRegular.copyWith(
                                     fontWeight: FontWeight.w600,
-                                    color: Colors.blue.shade600,
+                                    color: AppColors.primary,
                                   ),
                                 ),
                               ),
@@ -467,21 +468,18 @@ class _SignInPageState extends State<SignInPage>
                             ElevatedButton(
                               onPressed: _signIn,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue.shade600,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 18),
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: AppColors.white,
+                                padding: const EdgeInsets.symmetric(vertical: kSpacingMedium),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
+                                  borderRadius: BorderRadius.circular(kBorderRadius),
                                 ),
-                                elevation: 0,
-                                shadowColor: Colors.blue.withOpacity(0.3),
                               ),
                               child: Text(
                                 'Sign In',
                                 style: kTextStyleRegular.copyWith(
-                                  color: Colors.white,
+                                  color: AppColors.white,
                                   fontWeight: FontWeight.w600,
-                                  fontSize: 16,
                                 ),
                               ),
                             ),
@@ -497,14 +495,11 @@ class _SignInPageState extends State<SignInPage>
                                   ),
                                 ),
                                 GestureDetector(
-                                  onTap: () => Navigator.pushReplacementNamed(
-                                    context,
-                                    '/signup',
-                                  ),
+                                  onTap: () => context.go('/signup'),
                                   child: Text(
                                     'Sign Up',
                                     style: kTextStyleRegular.copyWith(
-                                      color: Colors.blue.shade600,
+                                      color: AppColors.primary,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),

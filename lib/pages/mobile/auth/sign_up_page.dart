@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/services/auth/auth_service_mobile.dart';
 import 'verify_email_page.dart';
 import 'terms_and_conditions_modal.dart';
 import '../../../core/utils/constants.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/utils/errors.dart';
+import '../../../core/utils/app_colors.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -221,14 +223,14 @@ class _SignUpPageState extends State<SignUpPage>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Colors.blue.shade600,
-                Colors.blue.shade700,
+                AppColors.primary,
+                AppColors.primary.withOpacity(0.8),
               ],
             ),
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: Colors.blue.shade200,
+                color: AppColors.primary.withOpacity(0.3),
                 blurRadius: 20,
                 offset: const Offset(0, 8),
               ),
@@ -243,9 +245,8 @@ class _SignUpPageState extends State<SignUpPage>
         const SizedBox(height: 24),
         Text(
           'Join Us Today!',
-          style: kTextStyleLarge.copyWith(
-            fontWeight: FontWeight.bold,
-            color: Colors.grey[800],
+          style: kTextStyleHeader.copyWith(
+            color: AppColors.textPrimary,
           ),
           textAlign: TextAlign.center,
         ),
@@ -309,7 +310,7 @@ class _SignUpPageState extends State<SignUpPage>
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide(
-                color: _fieldErrors[keyName] != null ? Colors.red : Colors.blue.shade600,
+                color: _fieldErrors[keyName] != null ? Colors.red : AppColors.primary,
                 width: 2,
               ),
             ),
@@ -321,12 +322,12 @@ class _SignUpPageState extends State<SignUpPage>
               margin: const EdgeInsets.all(12),
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: AppColors.primary.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
                 icon,
-                color: Colors.blue.shade600,
+                color: AppColors.primary,
                 size: 20,
               ),
             ),
@@ -445,18 +446,18 @@ class _SignUpPageState extends State<SignUpPage>
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: Colors.blue.shade600, width: 2),
+                  borderSide: BorderSide(color: AppColors.primary, width: 2),
                 ),
                 prefixIcon: Container(
                   margin: const EdgeInsets.all(12),
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
+                    color: AppColors.primary.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
                     Icons.cake_outlined,
-                    color: Colors.blue.shade600,
+                    color: AppColors.primary,
                     size: 20,
                   ),
                 ),
@@ -519,7 +520,7 @@ class _SignUpPageState extends State<SignUpPage>
                       setState(() => _agreedToTerms = false);
                     }
                   },
-                  activeColor: Colors.blue.shade600,
+                  activeColor: AppColors.primary,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(4),
                   ),
@@ -550,7 +551,7 @@ class _SignUpPageState extends State<SignUpPage>
                         TextSpan(
                           text: 'Terms and Conditions',
                           style: kTextStyleRegular.copyWith(
-                            color: Colors.blue.shade600,
+                            color: AppColors.primary,
                             fontWeight: FontWeight.w600,
                             decoration: TextDecoration.underline,
                           ),
@@ -559,7 +560,7 @@ class _SignUpPageState extends State<SignUpPage>
                         TextSpan(
                           text: 'Privacy Policy',
                           style: kTextStyleRegular.copyWith(
-                            color: Colors.blue.shade600,
+                            color: AppColors.primary,
                             fontWeight: FontWeight.w600,
                             decoration: TextDecoration.underline,
                           ),
@@ -708,24 +709,20 @@ class _SignUpPageState extends State<SignUpPage>
                                   const SizedBox(height: 24),
                                 ],
                                 ElevatedButton(
-                                  onPressed: _agreedToTerms ? _register : null,
+                                  onPressed: _register,
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: _agreedToTerms
-                                        ? Colors.blue.shade600
-                                        : Colors.grey.shade400,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 18),
+                                    backgroundColor: AppColors.primary,
+                                    foregroundColor: AppColors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: kSpacingMedium),
                                     shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
+                                      borderRadius: BorderRadius.circular(kBorderRadius),
                                     ),
-                                    elevation: 0,
                                   ),
                                   child: Text(
                                     'Create Account',
                                     style: kTextStyleRegular.copyWith(
-                                      color: Colors.white,
+                                      color: AppColors.white,
                                       fontWeight: FontWeight.w600,
-                                      fontSize: 16,
                                     ),
                                   ),
                                 ),
@@ -740,14 +737,11 @@ class _SignUpPageState extends State<SignUpPage>
                                       ),
                                     ),
                                     GestureDetector(
-                                      onTap: () => Navigator.pushReplacementNamed(
-                                        context,
-                                        '/signin',
-                                      ),
+                                      onTap: () => context.pushReplacement('/signin'),
                                       child: Text(
                                         'Sign In',
                                         style: kTextStyleRegular.copyWith(
-                                          color: Colors.blue.shade600,
+                                          color: AppColors.primary,
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),

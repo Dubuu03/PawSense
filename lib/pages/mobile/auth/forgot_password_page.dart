@@ -5,6 +5,7 @@ import '../../../core/utils/constants.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/services/user/user_services.dart';
 import '../../../core/utils/errors.dart';
+import '../../../core/utils/app_colors.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -213,7 +214,7 @@ Widget _buildEmailField(void Function() onChanged) {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(color: Colors.blue.shade600, width: 2),
+            borderSide: BorderSide(color: AppColors.primary, width: 2),
           ),
           errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
@@ -223,12 +224,12 @@ Widget _buildEmailField(void Function() onChanged) {
             margin: const EdgeInsets.all(12),
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.blue.shade50,
+              color: AppColors.primary.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
               Icons.email_outlined,
-              color: Colors.blue.shade600,
+              color: AppColors.primary,
               size: 20,
             ),
           ),
@@ -254,15 +255,15 @@ Widget _buildEmailField(void Function() onChanged) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.blue.shade50,
+        color: AppColors.primary.withOpacity(0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.blue.shade100),
+        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
       ),
       child: Column(
         children: [
           Icon(
             Icons.info_outline_rounded,
-            color: Colors.blue.shade600,
+            color: AppColors.primary,
             size: 28,
           ),
           const SizedBox(height: 12),
@@ -270,14 +271,14 @@ Widget _buildEmailField(void Function() onChanged) {
             'Having trouble?',
             style: kTextStyleRegular.copyWith(
               fontWeight: FontWeight.w600,
-              color: Colors.blue.shade800,
+              color: AppColors.primary,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             'If you dont receive an email within a few minutes, check your spam folder or contact support.',
             style: kTextStyleRegular.copyWith(
-              color: Colors.blue.shade700,
+              color: AppColors.primary.withOpacity(0.8),
               fontSize: 13,
             ),
             textAlign: TextAlign.center,
@@ -300,7 +301,7 @@ Widget _buildEmailField(void Function() onChanged) {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       CircularProgressIndicator(
-                        color: Colors.blue.shade600,
+                        color: AppColors.primary,
                         strokeWidth: 3,
                       ),
                       const SizedBox(height: 16),
@@ -332,22 +333,21 @@ Widget _buildEmailField(void Function() onChanged) {
                           child: Container(
                             padding: const EdgeInsets.all(24),
                             decoration: BoxDecoration(
-                              color: Colors.blue.shade50,
+                              color: AppColors.primary.withOpacity(0.1),
                               shape: BoxShape.circle,
                             ),
                             child: Icon(
                               Icons.lock_reset_rounded,
                               size: 64,
-                              color: Colors.blue.shade600,
+                              color: AppColors.primary,
                             ),
                           ),
                         ),
                         const SizedBox(height: 32),
                         Text(
-                          'Forgot Your Password?',
-                          style: kTextStyleLarge.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey[800],
+                          'Forgot Password',
+                          style: kTextStyleHeader.copyWith(
+                            color: AppColors.textPrimary,
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -410,21 +410,18 @@ Widget _buildEmailField(void Function() onChanged) {
                         ElevatedButton(
                           onPressed: _sendReset,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue.shade600,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 18),
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: AppColors.white,
+                            padding: const EdgeInsets.symmetric(vertical: kSpacingMedium),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(kBorderRadius),
                             ),
-                            elevation: 0,
-                            shadowColor: Colors.blue.withOpacity(0.3),
                           ),
                           child: Text(
-                            'Send Reset Email',
+                            'Reset Password',
                             style: kTextStyleRegular.copyWith(
-                              color: Colors.white,
+                              color: AppColors.white,
                               fontWeight: FontWeight.w600,
-                              fontSize: 16,
                             ),
                           ),
                         ),
@@ -445,7 +442,7 @@ Widget _buildEmailField(void Function() onChanged) {
                               child: Text(
                                 'Sign In',
                                 style: kTextStyleRegular.copyWith(
-                                  color: Colors.blue.shade600,
+                                  color:AppColors.primary,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),

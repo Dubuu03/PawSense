@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/utils/app_colors.dart';
 import '../../core/utils/constants.dart';
 
@@ -65,7 +66,7 @@ class _SignupState extends State<Signup> {
     });
 
     // TODO: Navigate to appropriate screen after successful signup
-    Navigator.pushReplacementNamed(context, '/signin');
+    context.go('/signin');
   }
 
   @override
@@ -309,7 +310,7 @@ class _SignupState extends State<Signup> {
                     ),
                     TextButton(
                       onPressed: () {
-                        Navigator.pushReplacementNamed(context, '/signin');
+                        context.go('/signin');
                       },
                       child: Text(
                         'Sign In',

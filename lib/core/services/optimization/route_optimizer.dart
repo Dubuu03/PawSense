@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:go_router/go_router.dart';
 import 'navigation_preloader.dart';
 import 'optimized_data_service.dart';
 
@@ -33,23 +34,18 @@ class RouteOptimizer {
     // Start preloading if not already done
     await _preloadForRoute(routeName, arguments);
     
-    // Perform navigation
+    // Perform navigation using GoRouter
     if (clearStack) {
-      return Navigator.of(context).pushNamedAndRemoveUntil(
-        routeName,
-        (route) => false,
-        arguments: arguments,
-      );
+      // For clearing the stack, we'll use go which replaces the entire stack
+      context.go(routeName);
+      return null; // GoRouter go() doesn't return a value
     } else if (replace) {
-      return Navigator.of(context).pushReplacementNamed(
-        routeName,
-        arguments: arguments,
-      );
+      // Use pushReplacement equivalent in GoRouter
+      context.pushReplacement(routeName);
+      return null; // GoRouter pushReplacement() doesn't return a value
     } else {
-      return Navigator.of(context).pushNamed(
-        routeName,
-        arguments: arguments,
-      );
+      // Use regular push navigation
+      return context.push(routeName);
     }
   }
 
