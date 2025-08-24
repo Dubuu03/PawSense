@@ -4,6 +4,7 @@ import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/widgets/admin/patient_records/patient_card.dart';
 import 'package:pawsense/core/widgets/admin/patient_records/patient_filters.dart';
 import 'package:pawsense/core/widgets/admin/patient_records/patient_header.dart';
+import 'package:pawsense/core/widgets/admin/patient_records/add_patient_modal.dart';
 import 'package:pawsense/core/widgets/admin/patient_records/patient_status.dart';
 import 'dart:math';
 
@@ -154,7 +155,15 @@ class _PatientRecordsScreenState extends State<PatientRecordsScreen> {
             // Header
             PatientRecordsHeader(
               onAddPatient: () {
-                print('Add new patient pressed');
+                showDialog(
+                  context: context,
+                  builder: (_) => AddPatientModal(
+                    onCreate: (patient) {
+                      // TODO: insert patient into data source
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Created ${patient['petName']}')));
+                    },
+                  ),
+                );
               },
             ),
 

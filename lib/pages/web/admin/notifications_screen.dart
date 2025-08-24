@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/widgets/admin/notifications/notification_header.dart';
 import '../../../core/widgets/admin/notifications/notification_tabs.dart';
 import '../../../core/widgets/admin/notifications/notification_item.dart';
+import '../../../core/widgets/admin/notifications/notification_settings_modal.dart';
 import '../../../core/utils/app_colors.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -134,7 +135,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               });
             },
             onSettings: () {
-              // TODO: Navigate to notification settings
+              showDialog(
+                context: context,
+                builder: (context) => const NotificationSettingsModal(),
+              );
             },
           ),
           NotificationTabs(

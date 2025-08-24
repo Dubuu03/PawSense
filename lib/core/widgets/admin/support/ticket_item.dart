@@ -3,6 +3,7 @@ import '../../../models/support_ticket.dart';
 import '../../../models/ticket_status.dart';
 import '../../../utils/app_colors.dart';
 import '../../../utils/constants.dart';
+import 'ticket_details_modal.dart';
 
 class TicketItem extends StatelessWidget {
   final SupportTicket ticket;
@@ -79,19 +80,47 @@ class TicketItem extends StatelessWidget {
           ),
         ),
         SizedBox(width: kSpacingSmall),
-        ElevatedButton(
-          onPressed: () {},
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            foregroundColor: AppColors.white,
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(kBorderRadiusSmall),
+        Builder(
+          builder: (context) => ElevatedButton(
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => TicketDetailsModal(
+                  ticketData: {
+                    'title': ticket.title,
+                    'status': ticket.status.displayName,
+                    'category': ticket.category,
+                    'userName': ticket.submitterName,
+                    'userEmail': ticket.submitterEmail,
+                    'messages': [
+                      {
+                        'sender': 'user',
+                        'text': ticket.description,
+                        'timestamp': ticket.formattedCreatedAt,
+                      },
+                      if (ticket.status != TicketStatus.open)
+                        {
+                          'sender': 'admin',
+                          'text': 'I understand this is urgent. Let me check our emergency slots and get back to you within 15 minutes.',
+                          'timestamp': ticket.formattedLastReply,
+                        },
+                    ],
+                  },
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.white,
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(kBorderRadiusSmall),
+              ),
             ),
-          ),
-          child: Text(
-            'View Details',
-            style: TextStyle(fontSize: kFontSizeSmall),
+            child: Text(
+              'View Details',
+              style: TextStyle(fontSize: kFontSizeSmall),
+            ),
           ),
         ),
       ],

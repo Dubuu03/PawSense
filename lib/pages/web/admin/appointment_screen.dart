@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/utils/app_colors.dart';
 import '../../../core/models/appointment_models.dart';
 import '../../../core/widgets/admin/appointments/appointment_header.dart';
+import '../../../core/widgets/admin/appointments/new_appointment_modal.dart';
 import '../../../core/widgets/admin/appointments/appointment_filters.dart';
 import '../../../core/widgets/admin/appointments/appointment_table.dart';
 import '../../../core/widgets/admin/appointments/appointment_summary.dart';
@@ -80,8 +81,16 @@ class _AppointmentManagementScreenState extends State<AppointmentManagementScree
             // Header uses full list
             AppointmentHeader(
               onNewAppointment: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('New Appointment clicked')),
+                showDialog(
+                  context: context,
+                  builder: (_) => NewAppointmentModal(
+                    onSchedule: (appointment) {
+                      // for now, just show a confirmation snackbar
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Scheduled ${appointment['petName']} on ${appointment['date']}')),
+                      );
+                    },
+                  ),
                 );
               },
             ),

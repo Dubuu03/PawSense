@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants.dart';
 import 'package:pawsense/core/widgets/admin/clinic_schedule/schedule_header.dart';
+import 'package:pawsense/core/widgets/admin/clinic_schedule/schedule_settings_modal.dart';
 import 'package:pawsense/core/widgets/admin/clinic_schedule/schedule_stats.dart';
 import 'package:pawsense/core/widgets/admin/clinic_schedule/time_slot_list.dart';
 import 'package:pawsense/core/widgets/admin/clinic_schedule/week_days_grid.dart';
@@ -29,13 +30,41 @@ class _ClinicScheduleScreenState extends State<ClinicScheduleScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ScheduleHeader(
-                  selectedView: selectedView,
-                  onViewChanged: (view) {
-                    setState(() {
-                    selectedView = view;
-                });
-              },
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Clinic Schedule',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => ScheduleSettingsModal(
+                        onSave: (settings) {
+                          // TODO: Handle settings update
+                          print('New settings: $settings');
+                        },
+                      ),
+                    );
+                  },
+                  icon: Icon(Icons.settings, size: 18),
+                  label: Text('Settings'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ],
             ),
             SizedBox(height: kSpacingLarge),
 

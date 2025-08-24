@@ -134,13 +134,41 @@ class _AddServiceModalState extends State<AddServiceModal> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Add New Service',
-                  style: TextStyle(
-                    fontSize: kFontSizeLarge,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
+                Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Color(0xFFF3EEFF),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Center(
+                        child: Icon(Icons.medical_services, color: AppColors.primary, size: 20),
+                      ),
+                    ),
+                    SizedBox(width: kSpacingSmall),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Add New Service',
+                          style: TextStyle(
+                            fontSize: kFontSizeLarge,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          'Create a new service offering',
+                          style: TextStyle(
+                            fontSize: kFontSizeSmall,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
                 IconButton(
                   onPressed: () => Navigator.of(context).pop(),

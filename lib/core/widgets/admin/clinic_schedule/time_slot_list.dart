@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../../utils/app_colors.dart';
-import '../../../utils/constants.dart';
-import '../../../models/time_slot.dart';
-import 'time_slot_item.dart';
+import 'package:pawsense/core/utils/app_colors.dart';
+import 'package:pawsense/core/utils/constants.dart';
+import 'package:pawsense/core/models/time_slot.dart';
+import 'package:pawsense/core/widgets/admin/clinic_schedule/time_slot_item.dart';
+import 'package:pawsense/core/widgets/admin/clinic_schedule/add_time_slot_modal.dart';
 
 class TimeSlotList extends StatelessWidget {
   final String selectedDay;
@@ -53,8 +54,16 @@ class TimeSlotList extends StatelessWidget {
                 ),
                 ElevatedButton.icon(
                   onPressed: () {
-                    // TODO: Add time slot functionality
-                    print('Add Time Slot for ${dayInfo['dayName']}');
+                    showDialog(
+                      context: context,
+                      builder: (context) => AddTimeSlotModal(
+                        selectedDay: selectedDay,
+                        onCreate: (timeSlot) {
+                          // TODO: Handle time slot creation
+                          print('New time slot: $timeSlot');
+                        },
+                      ),
+                    );
                   },
                   icon: Icon(Icons.add, size: 18),
                   label: Text('Add Time Slot'),
