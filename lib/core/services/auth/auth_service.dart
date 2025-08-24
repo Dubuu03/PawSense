@@ -87,22 +87,30 @@ class AuthService {
       );
 
       if (result.user != null) {
-        // Get user data from Firestore
-        final userData = await AuthGuard.getCurrentUser();
-        if (userData != null) {
-          return AuthResult(
-            success: true, 
-            role: userData.role,
-            user: userData,
-          );
-        } else {
-          // User exists in Auth but not in Firestore
+        // Get user data from Firestore first to determine role
+        final userDoc = await _firestore.collection('users').doc(result.user!.uid).get();
+        if (!userDoc.exists) {
           await _auth.signOut();
           return AuthResult(
             success: false, 
             error: 'Account data not found. Please contact support.',
           );
         }
+        
+        final userData = UserModel.fromMap(userDoc.data()!);
+        
+        // Check Firestore approval status after successful Firebase authentication
+        // Skip approval validation for super admin users
+        if (userData.role == 'admin') {
+          await _validateClinicApprovalStatus(result.user!.uid);
+        }
+        
+        // Return user data based on role
+        return AuthResult(
+          success: true, 
+          role: userData.role,
+          user: userData,
+        );
       } else {
         return AuthResult(success: false, error: 'Sign in failed. Please try again.');
       }
@@ -133,7 +141,60 @@ class AuthService {
       }
       return AuthResult(success: false, error: errorMessage);
     } catch (e) {
+      // Handle custom approval-related exceptions
+      final errorString = e.toString();
+      if (errorString.contains('account-pending-approval')) {
+        return AuthResult(success: false, error: 'Your registration has been submitted. Please wait for admin approval before logging in.');
+      } else if (errorString.contains('account-suspended')) {
+        return AuthResult(success: false, error: 'Your clinic has been suspended. Please contact support for assistance.');
+      } else if (errorString.contains('account-rejected')) {
+        return AuthResult(success: false, error: 'Your clinic registration has been rejected. Please contact support for more information.');
+      } else if (errorString.contains('account-not-verified')) {
+        return AuthResult(success: false, error: 'Your account is not yet verified. Please wait for admin approval.');
+      }
       return AuthResult(success: false, error: 'An unexpected error occurred. Please try again.');
+    }
+  }
+
+  /// Validates clinic approval status from Firestore
+  /// Throws custom exceptions for approval-related issues
+  Future<void> _validateClinicApprovalStatus(String userId) async {
+    try {
+      // Check clinic status directly from clinics collection
+      final clinicQuery = await _firestore
+          .collection('clinics')
+          .where('userId', isEqualTo: userId)
+          .limit(1)
+          .get();
+
+      if (clinicQuery.docs.isEmpty) {
+        throw Exception('account-not-verified');
+      }
+
+      final clinicData = clinicQuery.docs.first.data();
+      final String status = clinicData['status'] ?? 'pending';
+
+      switch (status) {
+        case 'pending':
+          throw Exception('account-pending-approval');
+        case 'suspended':
+          throw Exception('account-suspended');
+        case 'rejected':
+          throw Exception('account-rejected');
+        case 'approved':
+          // Account is approved - allow access
+          print('✅ Clinic account verified: $userId (status: approved)');
+          break;
+        default:
+          // Unknown status - treat as pending
+          throw Exception('account-pending-approval');
+      }
+    } catch (e) {
+      // Re-throw custom exceptions, wrap others
+      if (e.toString().contains('account-')) {
+        rethrow;
+      }
+      throw Exception('account-not-verified');
     }
   }
 
@@ -181,13 +242,21 @@ class AuthService {
           throw Exception('Failed to create clinic data');
         }
 
-        // Step 5: Create clinic details with proper ID assignment and services
+        // Step 5: Create clinic details with proper ID assignment, services, and default approval status
         final createdClinicDetails = await _createClinicDetails(uid, clinicDetailsData);
         if (!createdClinicDetails) {
           throw Exception('Failed to create clinic details');
         }
 
-        return AuthResult(success: true, role: 'admin', user: userModel);
+        // Step 6: Sign out user immediately after account creation for admin users only
+        // This prevents auto-login and enforces the approval workflow for admin users
+        // Super admin users (if created through this flow) would skip this
+        if (userModel.role == 'admin') {
+          await _auth.signOut();
+          _tokenManager.clearToken();
+        }
+
+        return AuthResult(success: true, role: userModel.role, user: userModel);
       } else {
         return AuthResult(success: false, error: 'Failed to create account.');
       }
@@ -233,19 +302,21 @@ class AuthService {
     }
   }
 
-  /// Create clinic document with proper ID assignment
+  /// Create clinic document with proper ID assignment and default approval status
   Future<bool> _createClinic(String uid, Clinic clinic) async {
     try {
-      // Create clinic with uid as both id and userId
+      // Create clinic with uid as both id and userId, and set status to pending
       final clinicWithId = clinic.copyWith(
         id: uid,
         userId: uid,
+        status: 'pending', // Default status for approval system
       );
 
       await _firestore.collection('clinics').doc(uid).set(clinicWithId.toMap());
       print('✅ Clinic created successfully for: $uid');
       print('   Clinic Name: ${clinic.clinicName}');
       print('   Clinic ID: $uid');
+      print('   Status: pending (awaiting admin approval)');
       
       return true;
     } catch (e) {
@@ -254,17 +325,18 @@ class AuthService {
     }
   }
 
-  /// Create clinic details with proper ID assignment and services
+  /// Create clinic details with proper ID assignment, services, and default approval status
   Future<bool> _createClinicDetails(String uid, Map<String, dynamic> clinicDetailsData) async {
     try {
       // Generate unique clinic details document ID
       final clinicDetailsId = _firestore.collection('clinicDetails').doc().id;
       
-      // Prepare clinic details with proper IDs
+      // Prepare clinic details with proper IDs and default approval status
       final clinicDetailsWithIds = {
         ...clinicDetailsData,
         'id': clinicDetailsId,
         'clinicId': uid, // Set proper clinic ID
+        'isVerified': false, // Default to false for approval system
         'createdAt': DateTime.now().toIso8601String(),
         'updatedAt': DateTime.now().toIso8601String(),
       };
@@ -293,6 +365,7 @@ class AuthService {
       print('✅ Clinic details created successfully');
       print('   Clinic Details ID: $clinicDetailsId');
       print('   Linked to Clinic ID: $uid');
+      print('   Verification Status: false (awaiting admin approval)');
       print('   Services count: ${(clinicDetailsWithIds['services'] as List?)?.length ?? 0}');
       print('   Certifications count: ${(clinicDetailsWithIds['certifications'] as List?)?.length ?? 0}');
       

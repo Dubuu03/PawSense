@@ -109,7 +109,7 @@ class ClinicDetailsDialog extends StatelessWidget {
                     child: const Text('Approve'),
                   ),
                 ],
-                if (clinic.status == ClinicStatus.verified)
+                if (clinic.status == ClinicStatus.approved)
                   ElevatedButton(
                     onPressed: () {
                       Navigator.of(context).pop('suspend');
@@ -190,7 +190,7 @@ class ClinicDetailsDialog extends StatelessWidget {
     switch (clinic.status) {
       case ClinicStatus.pending:
         return Colors.orange;
-      case ClinicStatus.verified:
+      case ClinicStatus.approved:
         return Colors.green;
       case ClinicStatus.rejected:
         return Colors.red;

@@ -84,7 +84,7 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
         _clinicStats = {
           'total': _totalClinics,
           'pending': _getMockClinics().where((c) => c.status == ClinicStatus.pending).length,
-          'approved': _getMockClinics().where((c) => c.status == ClinicStatus.verified).length,
+          'approved': _getMockClinics().where((c) => c.status == ClinicStatus.approved).length,
           'rejected': _getMockClinics().where((c) => c.status == ClinicStatus.rejected).length,
           'suspended': _getMockClinics().where((c) => c.status == ClinicStatus.suspended).length,
         };
@@ -128,7 +128,7 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
         phone: '+1234567891',
         address: '456 Oak Avenue, City, State',
         licenseNumber: 'VET-2024-002',
-        status: ClinicStatus.verified,
+        status: ClinicStatus.approved,
         applicationDate: DateTime.now().subtract(Duration(days: 15)),
       ),
       ClinicRegistration(
@@ -177,11 +177,17 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
   }
 
   void _onApprove(ClinicRegistration clinic) async {
+    final isReapproval = clinic.status == ClinicStatus.suspended;
+    final actionText = isReapproval ? 'Re-approve' : 'Approve';
+    final messageText = isReapproval 
+        ? 'Are you sure you want to re-approve ${clinic.clinicName}? This will restore their access.'
+        : 'Are you sure you want to approve ${clinic.clinicName}?';
+        
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Approve Clinic'),
-        content: Text('Are you sure you want to approve ${clinic.clinicName}?'),
+        title: Text('$actionText Clinic'),
+        content: Text(messageText),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -193,7 +199,7 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
               backgroundColor: AppColors.success,
               foregroundColor: AppColors.white,
             ),
-            child: Text('Approve'),
+            child: Text(actionText),
           ),
         ],
       ),
@@ -201,15 +207,20 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
     
     if (result == true) {
       try {
+        final isReapproval = clinic.status == ClinicStatus.suspended;
         final success = await SuperAdminService.updateClinicStatus(
-          clinic.id, 
-          ClinicStatus.verified,
+          clinic.id,
+          ClinicStatus.approved,
         );
         
         if (success) {
+          final successMessage = isReapproval 
+              ? '${clinic.clinicName} re-approved successfully'
+              : '${clinic.clinicName} approved successfully';
+              
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('${clinic.clinicName} approved successfully'),
+              content: Text(successMessage),
               backgroundColor: AppColors.success,
             ),
           );
@@ -405,8 +416,9 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
             ClinicSummaryCards(
               totalClinics: _clinicStats['total'] ?? _clinics.length,
               pendingClinics: _clinicStats['pending'] ?? _clinics.where((c) => c.status == ClinicStatus.pending).length,
-              approvedClinics: _clinicStats['approved'] ?? _clinics.where((c) => c.status == ClinicStatus.verified).length,
+              approvedClinics: _clinicStats['approved'] ?? _clinics.where((c) => c.status == ClinicStatus.approved).length,
               rejectedClinics: _clinicStats['rejected'] ?? _clinics.where((c) => c.status == ClinicStatus.rejected).length,
+              suspendedClinics: _clinicStats['suspended'] ?? _clinics.where((c) => c.status == ClinicStatus.suspended).length,
             ),
             
             SizedBox(height: kSpacingLarge),

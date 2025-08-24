@@ -7,6 +7,7 @@ class ClinicSummaryCards extends StatelessWidget {
   final int pendingClinics;
   final int approvedClinics;
   final int rejectedClinics;
+  final int suspendedClinics;
 
   const ClinicSummaryCards({
     Key? key,
@@ -14,6 +15,7 @@ class ClinicSummaryCards extends StatelessWidget {
     required this.pendingClinics,
     required this.approvedClinics,
     required this.rejectedClinics,
+    required this.suspendedClinics,
   }) : super(key: key);
 
   @override
@@ -57,6 +59,16 @@ class ClinicSummaryCards extends StatelessWidget {
             color: AppColors.clinicRejected,
             icon: Icons.cancel_outlined,
             bgColor: AppColors.clinicRejectedBg,
+          ),
+        ),
+        SizedBox(width: kSpacingMedium),
+        Expanded(
+          child: _buildSummaryCard(
+            title: 'Suspended',
+            count: suspendedClinics,
+            color: AppColors.clinicSuspended,
+            icon: Icons.block_outlined,
+            bgColor: AppColors.clinicSuspendedBg,
           ),
         ),
       ],

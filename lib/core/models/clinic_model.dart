@@ -7,6 +7,7 @@ class Clinic {
   final String phone;
   final String email;
   final String? website;
+  final String status; // pending, approved, suspended, rejected
   final DateTime createdAt;
 
   Clinic({
@@ -17,6 +18,7 @@ class Clinic {
     required this.phone,
     required this.email,
     this.website,
+    this.status = 'pending',
     required this.createdAt,
   });
 
@@ -28,6 +30,7 @@ class Clinic {
     'phone': phone,
     'email': email,
     'website': website,
+    'status': status,
     'createdAt': createdAt.toIso8601String(),
   };
 
@@ -40,6 +43,7 @@ class Clinic {
       phone: map['phone'] ?? '',
       email: map['email'] ?? '',
       website: map['website'],
+      status: map['status'] ?? 'pending',
       createdAt: DateTime.parse(map['createdAt']),
     );
   }
@@ -52,6 +56,7 @@ class Clinic {
     String? phone,
     String? email,
     String? website,
+    String? status,
     DateTime? createdAt,
   }) {
     return Clinic(
@@ -62,13 +67,14 @@ class Clinic {
       phone: phone ?? this.phone,
       email: email ?? this.email,
       website: website ?? this.website,
+      status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
     );
   }
 
   @override
   String toString() {
-    return 'Clinic(id: $id, userId: $userId, clinicName: $clinicName, address: $address, phone: $phone, email: $email, website: $website, createdAt: $createdAt)';
+    return 'Clinic(id: $id, userId: $userId, clinicName: $clinicName, address: $address, phone: $phone, email: $email, website: $website, status: $status, createdAt: $createdAt)';
   }
 
   @override
@@ -82,6 +88,7 @@ class Clinic {
         other.phone == phone &&
         other.email == email &&
         other.website == website &&
+        other.status == status &&
         other.createdAt == createdAt;
   }
 
@@ -94,6 +101,7 @@ class Clinic {
         phone.hashCode ^
         email.hashCode ^
         website.hashCode ^
+        status.hashCode ^
         createdAt.hashCode;
   }
 }

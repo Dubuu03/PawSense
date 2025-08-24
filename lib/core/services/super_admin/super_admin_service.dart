@@ -349,43 +349,125 @@ class SuperAdminService {
     );
   }
   
-  /// Update clinic status
+  /// Update clinic status and verification status
   static Future<bool> updateClinicStatus(
     String clinicId, 
     ClinicStatus status, {
     String? reason,
   }) async {
     try {
-      final updateData = <String, dynamic>{
-        'status': status.toString().split('.').last,
+      // Prepare clinic collection update
+      final clinicUpdateData = <String, dynamic>{
         'updatedAt': FieldValue.serverTimestamp(),
       };
       
       switch (status) {
-        case ClinicStatus.verified:
-          updateData['approvedAt'] = FieldValue.serverTimestamp();
-          updateData['rejectionReason'] = null;
-          updateData['suspensionReason'] = null;
+        case ClinicStatus.approved:
+          // Clinic approved - set status to 'approved'
+          clinicUpdateData['status'] = 'approved'; // Use 'approved' to match auth validation
+          clinicUpdateData['approvedAt'] = FieldValue.serverTimestamp();
+          clinicUpdateData['rejectionReason'] = null;
+          clinicUpdateData['suspensionReason'] = null;
           break;
+          
         case ClinicStatus.rejected:
-          updateData['rejectionReason'] = reason ?? 'Rejected by admin';
-          updateData['approvedAt'] = null;
+          clinicUpdateData['status'] = 'rejected';
+          clinicUpdateData['rejectionReason'] = reason ?? 'Rejected by admin';
+          clinicUpdateData['approvedAt'] = null;
           break;
+          
         case ClinicStatus.suspended:
-          updateData['suspensionReason'] = reason ?? 'Suspended by admin';
+          clinicUpdateData['status'] = 'suspended';
+          clinicUpdateData['suspensionReason'] = reason ?? 'Suspended by admin';
           break;
+          
         case ClinicStatus.pending:
-          updateData['rejectionReason'] = null;
-          updateData['suspensionReason'] = null;
-          updateData['approvedAt'] = null;
+          clinicUpdateData['status'] = 'pending';
+          clinicUpdateData['rejectionReason'] = null;
+          clinicUpdateData['suspensionReason'] = null;
+          clinicUpdateData['approvedAt'] = null;
           break;
       }
       
-      await _firestore.collection('clinics').doc(clinicId).update(updateData);
+      // Update clinic collection only (no longer updating clinicDetails.isVerified)
+      await _firestore.collection('clinics').doc(clinicId).update(clinicUpdateData);
+      
+      print('✅ Clinic status updated successfully: $clinicId -> ${clinicUpdateData['status']}');
+      
+      // Send notification to clinic admin about status change
+      await _sendClinicStatusNotification(clinicId, status, reason);
+      
       return true;
     } catch (e) {
-      print('Error updating clinic status: $e');
+      print('❌ Error updating clinic status: $e');
       return false;
+    }
+  }
+
+  /// Send notification to clinic admin about status change
+  static Future<void> _sendClinicStatusNotification(
+    String clinicId, 
+    ClinicStatus status, 
+    String? reason,
+  ) async {
+    try {
+      // Get clinic details
+      final clinicDoc = await _firestore.collection('clinics').doc(clinicId).get();
+      
+      if (!clinicDoc.exists) return;
+      
+      final clinicData = clinicDoc.data()!;
+      
+      String title;
+      String message;
+      String type = 'system';
+      
+      switch (status) {
+        case ClinicStatus.approved:
+          title = 'Clinic Application Approved!';
+          message = 'Congratulations! Your clinic "${clinicData['clinicName']}" has been approved. You can now access all features.';
+          type = 'approval';
+          break;
+          
+        case ClinicStatus.rejected:
+          title = 'Clinic Application Rejected';
+          message = 'Your clinic application has been rejected. ${reason != null ? 'Reason: $reason' : 'Please contact support for more information.'}';
+          type = 'rejection';
+          break;
+          
+        case ClinicStatus.suspended:
+          title = 'Clinic Account Suspended';
+          message = 'Your clinic account has been suspended. ${reason != null ? 'Reason: $reason' : 'Please contact support for assistance.'}';
+          type = 'suspension';
+          break;
+          
+        case ClinicStatus.pending:
+          title = 'Clinic Status Updated';
+          message = 'Your clinic application is now under review.';
+          break;
+      }
+      
+      // Create notification document
+      await _firestore.collection('notifications').add({
+        'recipientId': clinicId,
+        'recipientType': 'admin',
+        'title': title,
+        'message': message,
+        'type': type,
+        'isRead': false,
+        'createdAt': FieldValue.serverTimestamp(),
+        'data': {
+          'clinicId': clinicId,
+          'clinicName': clinicData['clinicName'],
+          'status': status.toString().split('.').last,
+          'reason': reason,
+        },
+      });
+      
+      print('✅ Notification sent to clinic admin: $clinicId');
+    } catch (e) {
+      print('⚠️ Failed to send notification: $e');
+      // Don't throw error as this is not critical for the approval process
     }
   }
   
@@ -493,8 +575,8 @@ class SuperAdminService {
     
     final statusString = status.toString().toLowerCase();
     switch (statusString) {
-      case 'verified':
-        return ClinicStatus.verified;
+      case 'approved':
+        return ClinicStatus.approved;
       case 'rejected':
         return ClinicStatus.rejected;
       case 'suspended':

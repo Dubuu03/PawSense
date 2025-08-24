@@ -23,6 +23,7 @@ class ClinicCertification {
   final DateTime createdAt;
   final DateTime? updatedAt;
   final String? documentUrl;
+  final String? documentFileId; // Google Drive file ID
   final String? verificationNotes;
 
   const ClinicCertification({
@@ -37,6 +38,7 @@ class ClinicCertification {
     required this.createdAt,
     this.updatedAt,
     this.documentUrl,
+    this.documentFileId,
     this.verificationNotes,
   });
 
@@ -54,6 +56,7 @@ class ClinicCertification {
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
       'documentUrl': documentUrl,
+      'documentFileId': documentFileId,
       'verificationNotes': verificationNotes,
     };
   }
@@ -77,6 +80,7 @@ class ClinicCertification {
           ? DateTime.tryParse(map['updatedAt']) 
           : null,
       documentUrl: map['documentUrl'],
+      documentFileId: map['documentFileId'],
       verificationNotes: map['verificationNotes'],
     );
   }
@@ -94,6 +98,7 @@ class ClinicCertification {
     DateTime? createdAt,
     DateTime? updatedAt,
     String? documentUrl,
+    String? documentFileId,
     String? verificationNotes,
   }) {
     return ClinicCertification(
@@ -108,6 +113,7 @@ class ClinicCertification {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       documentUrl: documentUrl ?? this.documentUrl,
+      documentFileId: documentFileId ?? this.documentFileId,
       verificationNotes: verificationNotes ?? this.verificationNotes,
     );
   }

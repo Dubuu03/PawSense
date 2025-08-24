@@ -1,7 +1,7 @@
 /// Enum representing the possible statuses of a clinic registration
 enum ClinicStatus {
   pending('Pending', 'Application is under review'),
-  verified('Verified', 'Clinic is approved and active'),
+  approved('Approved', 'Clinic is approved and active'),
   rejected('Rejected', 'Application was rejected'),
   suspended('Suspended', 'Clinic access is temporarily suspended');
 
@@ -15,8 +15,8 @@ enum ClinicStatus {
     switch (status.toLowerCase()) {
       case 'pending':
         return ClinicStatus.pending;
-      case 'verified':
-        return ClinicStatus.verified;
+      case 'approved':
+        return ClinicStatus.approved;
       case 'rejected':
         return ClinicStatus.rejected;
       case 'suspended':

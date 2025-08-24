@@ -89,7 +89,7 @@ class _ClinicSearchAndFilterState extends State<ClinicSearchAndFilter> {
                 fillColor: AppColors.white,
               ),
               style: kTextStyleRegular.copyWith(color: AppColors.textPrimary),
-              items: ['All Status', 'pending', 'verified', 'rejected', 'suspended'].map((status) {
+              items: ['All Status', 'pending', 'approved', 'rejected', 'suspended'].map((status) {
                 return DropdownMenuItem(
                   value: status,
                   child: Text(
@@ -130,8 +130,8 @@ class _ClinicSearchAndFilterState extends State<ClinicSearchAndFilter> {
     switch (status) {
       case 'pending':
         return 'Pending';
-      case 'verified':
-        return 'Verified';
+      case 'approved':
+        return 'Approved';
       case 'rejected':
         return 'Rejected';
       case 'suspended':

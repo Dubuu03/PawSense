@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:typed_data';
 import '../../../core/models/clinic_model.dart';
 import '../../../core/models/clinic_details_model.dart';
 import '../../../core/models/clinic_service_model.dart';
 import '../../../core/models/clinic_certification_model.dart';
+import '../../../core/models/clinic_license_model.dart';
 import '../../../core/services/auth/auth_service.dart';
 import '../../../core/utils/app_colors.dart';
 import '../../../core/utils/constants.dart';
@@ -47,9 +50,16 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
   final _clinicEmailController = TextEditingController();
   final _websiteController = TextEditingController();
 
-  // Step 3: Services and Certifications - Dynamic lists
+  // Step 3: Services, Certifications, and Licenses - Dynamic lists
   final List<ClinicService> _services = [];
   final List<ClinicCertification> _certifications = [];
+  final List<ClinicLicense> _licenses = [];
+
+  // Image data for certifications and licenses
+  final Map<int, Uint8List?> _certificationImages = {};
+  final Map<int, String?> _certificationImageNames = {};
+  final Map<int, Uint8List?> _licenseImages = {};
+  final Map<int, String?> _licenseImageNames = {};
 
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -61,12 +71,14 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
     _initializeDefaultEntries();
   }
 
-  /// Initialize with one empty service and certification entry
+  /// Initialize with one empty service, certification, and license entry
   void _initializeDefaultEntries() {
     // Add one empty service entry
     _addService();
     // Add one empty certification entry  
     _addCertification();
+    // Add one empty license entry
+    _addLicense();
   }
 
   @override
@@ -125,8 +137,82 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
 
   /// Check if certification has enough data to be valid
   bool _isCertificationValid(ClinicCertification cert) {
-    // At least name AND issuer should be provided
-    return cert.name.trim().isNotEmpty && cert.issuer.trim().isNotEmpty;
+    // Certification name, issuer should be provided (image is optional for backend flexibility)
+    return cert.name.trim().isNotEmpty && 
+           cert.issuer.trim().isNotEmpty;
+  }
+
+  /// Preview image in a dialog
+  void _previewImage(Uint8List imageBytes, String title) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.8,
+            maxHeight: MediaQuery.of(context).size.height * 0.8,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(12),
+                    topRight: Radius.circular(12),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      title,
+                      style: kTextStyleRegular.copyWith(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: Icon(Icons.close),
+                      color: AppColors.textSecondary,
+                    ),
+                  ],
+                ),
+              ),
+              // Image
+              Flexible(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(12),
+                      bottomRight: Radius.circular(12),
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(12),
+                      bottomRight: Radius.circular(12),
+                    ),
+                    child: Image.memory(
+                      imageBytes,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   /// Generate service name from description and category
@@ -172,6 +258,24 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
       return;
     }
 
+    // Validate that at least one certification and one license are provided
+    final validCertifications = _certifications.where((cert) => _isCertificationValid(cert)).toList();
+    final validLicenses = _licenses.where((license) => _isLicenseValid(license)).toList();
+
+    if (validCertifications.isEmpty) {
+      setState(() {
+        _errorMessage = 'At least one certification is required';
+      });
+      return;
+    }
+
+    if (validLicenses.isEmpty) {
+      setState(() {
+        _errorMessage = 'At least one license is required';
+      });
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -181,6 +285,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
       // Prepare services and certifications with dynamic data before signup
       final preparedServices = _prepareServicesForSignup();
       final preparedCertifications = _prepareCertificationsForSignup();
+      // Note: License preparation skipped for now due to Google Drive limitations
 
       // Create the auth account with dynamic field structure
       final result = await _authService.signUpClinicAdmin(
@@ -216,7 +321,12 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
         ).toMap(),
       );
 
-      if (result.success) {
+      if (result.success && result.user != null) {
+        // Skip document upload for now due to Google Drive service account limitations
+        // Documents can be uploaded later through admin panel or profile management
+        print('✅ Account created successfully: ${result.user!.uid}');
+        print('   Note: Document upload skipped due to service account limitations');
+        
         // Show success message and navigate to login
         _showSuccessDialog();
       } else {
@@ -241,16 +351,16 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        icon: Icon(Icons.check_circle, color: AppColors.success, size: 64),
+        icon: Icon(Icons.pending_actions, color: AppColors.warning, size: 64),
         title: Text(
-          'Account Created Successfully!',
+          'Registration Submitted!',
           style: kTextStyleRegular.copyWith(
             fontWeight: FontWeight.bold,
             color: AppColors.textPrimary,
           ),
         ),
         content: Text(
-          'Your admin account has been created. You can now sign in to access the admin panel.',
+          'Your registration has been submitted. Please wait for admin approval before logging in.\n\nNote: Document uploads will be available in your profile after approval.',
           style: kTextStyleRegular.copyWith(color: AppColors.textSecondary),
           textAlign: TextAlign.center,
         ),
@@ -384,6 +494,155 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
         }
       });
     }
+  }
+
+  // License management methods
+  void _addLicense() {
+    setState(() {
+      _licenses.add(
+        ClinicLicense(
+          id: 'license_${DateTime.now().millisecondsSinceEpoch}', // Dynamic ID
+          clinicId: '', // Will be set to real clinic ID during signup
+          licenseId: '', // License ID to be entered by user
+          licensePictureUrl: '', // Required - will be set after image upload
+          licensePictureFileId: '', // Required - will be set after image upload
+          issueDate: Timestamp.now(),
+          expiryDate: Timestamp.fromDate(DateTime.now().add(const Duration(days: 365))), // Default 1 year
+          createdAt: DateTime.now(),
+        ),
+      );
+    });
+  }
+
+  void _removeLicense(int index) {
+    setState(() {
+      if (_licenses.length > 1) {
+        _licenses.removeAt(index);
+        // Remove associated image data
+        _licenseImages.remove(index);
+        _licenseImageNames.remove(index);
+      }
+    });
+  }
+
+  void _updateLicense(
+    int index, {
+    String? licenseId,
+    Timestamp? issueDate,
+    Timestamp? expiryDate,
+  }) {
+    setState(() {
+      _licenses[index] = _licenses[index].copyWith(
+        licenseId: licenseId ?? _licenses[index].licenseId,
+        issueDate: issueDate ?? _licenses[index].issueDate,
+        expiryDate: expiryDate ?? _licenses[index].expiryDate,
+      );
+    });
+  }
+
+  Future<void> _selectLicenseDate(int index, bool isIssued) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: isIssued
+          ? _licenses[index].issueDate.toDate()
+          : _licenses[index].expiryDate.toDate(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+
+    if (picked != null) {
+      setState(() {
+        if (isIssued) {
+          _licenses[index] = _licenses[index].copyWith(
+            issueDate: Timestamp.fromDate(picked),
+          );
+        } else {
+          _licenses[index] = _licenses[index].copyWith(
+            expiryDate: Timestamp.fromDate(picked),
+          );
+        }
+      });
+    }
+  }
+
+  // Image management methods for certifications
+  Future<void> _pickCertificationImage(int index) async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+        maxWidth: 1920,
+        maxHeight: 1080,
+      );
+
+      if (image != null) {
+        final bytes = await image.readAsBytes();
+        setState(() {
+          _certificationImages[index] = bytes;
+          _certificationImageNames[index] = image.name;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error picking image: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _removeCertificationImage(int index) {
+    setState(() {
+      _certificationImages.remove(index);
+      _certificationImageNames.remove(index);
+    });
+  }
+
+  // Image management methods for licenses
+  Future<void> _pickLicenseImage(int index) async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+        maxWidth: 1920,
+        maxHeight: 1080,
+      );
+
+      if (image != null) {
+        final bytes = await image.readAsBytes();
+        setState(() {
+          _licenseImages[index] = bytes;
+          _licenseImageNames[index] = image.name;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error picking image: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _removeLicenseImage(int index) {
+    setState(() {
+      _licenseImages.remove(index);
+      _licenseImageNames.remove(index);
+    });
+  }
+
+  /// Check if license has enough data to be valid
+  bool _isLicenseValid(ClinicLicense license) {
+    // License ID should be provided (image is optional for backend flexibility)
+    return license.licenseId.trim().isNotEmpty;
   }
 
   void _nextStep() {
@@ -753,7 +1012,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Services & Certifications',
+            'Services, Certifications & Licenses',
             style: kTextStyleTitle.copyWith(
               fontSize: 24,
               color: AppColors.textPrimary,
@@ -762,7 +1021,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Add your clinic services and certifications',
+            'Add your clinic services, certifications, and licenses',
             style: kTextStyleRegular.copyWith(color: AppColors.textSecondary),
           ),
           const SizedBox(height: 32),
@@ -775,9 +1034,13 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
           _buildCertificationsSection(),
           const SizedBox(height: 32),
 
+          // Licenses Section
+          _buildLicensesSection(),
+          const SizedBox(height: 32),
+
           // Terms and Conditions
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Checkbox(
                 value: _agreedToTerms,
@@ -990,7 +1253,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Certifications & Licenses',
+              'Certifications',
               style: kTextStyleRegular.copyWith(
                 fontSize: 18,
                 color: AppColors.textPrimary,
@@ -1093,6 +1356,345 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                     onTap: () => _selectCertificationDate(index, false),
                   ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            
+            // Image upload section - RECOMMENDED
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Certification Document',
+                      style: kTextStyleSmall.copyWith(
+                        fontSize: 14,
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    SizedBox(width: 4),
+                    Text(
+                      '(Recommended)',
+                      style: kTextStyleSmall.copyWith(
+                        fontSize: 14,
+                        color: AppColors.error,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (_certificationImages[index] != null)
+                  GestureDetector(
+                    onTap: () => _previewImage(_certificationImages[index]!, 'Certification ${index + 1}'),
+                    child: Container(
+                      height: 100,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AppColors.success, width: 2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.memory(
+                              _certificationImages[index]!,
+                              width: double.infinity,
+                              height: 100,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          Positioned(
+                            top: 4,
+                            right: 4,
+                            child: IconButton(
+                              onPressed: () => _removeCertificationImage(index),
+                              icon: Icon(Icons.close),
+                              style: IconButton.styleFrom(
+                                backgroundColor: Colors.black54,
+                                foregroundColor: Colors.white,
+                                padding: EdgeInsets.all(4),
+                                minimumSize: Size(24, 24),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: _certificationImages[index] == null 
+                          ? AppColors.primary.withOpacity(0.5) 
+                          : AppColors.border,
+                        width: 2,
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.upload_file,
+                          size: 32,
+                          color: AppColors.textTertiary,
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Upload Certification Document',
+                          style: kTextStyleSmall.copyWith(
+                            color: AppColors.textSecondary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Recommended for faster verification',
+                          style: kTextStyleSmall.copyWith(
+                            color: AppColors.primary,
+                            fontSize: 12,
+                          ),
+                        ),
+                        SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: () => _pickCertificationImage(index),
+                          icon: Icon(Icons.upload_file, size: 16),
+                          label: Text('Choose File'),
+                          style: OutlinedButton.styleFrom(
+                            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            side: BorderSide(color: AppColors.primary),
+                            foregroundColor: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Add licenses section builder
+  Widget _buildLicensesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Licenses',
+              style: kTextStyleRegular.copyWith(
+                fontSize: 18,
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: _addLicense,
+              icon: Icon(Icons.add, size: 16),
+              label: Text('Add License'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.white,
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                textStyle: kTextStyleSmall.copyWith(fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        ..._licenses.asMap().entries.map((entry) {
+          final index = entry.key;
+          return _buildLicenseCard(index);
+        }),
+      ],
+    );
+  }
+
+  Widget _buildLicenseCard(int index) {
+    return Card(
+      margin: EdgeInsets.only(bottom: 16),
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'License ${index + 1}',
+                  style: kTextStyleRegular.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                if (_licenses.length > 1)
+                  IconButton(
+                    onPressed: () => _removeLicense(index),
+                    icon: Icon(Icons.delete_outline, color: AppColors.error),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              initialValue: _licenses[index].licenseId,
+              onChanged: (value) =>
+                  _updateLicense(index, licenseId: value),
+              decoration: InputDecoration(
+                labelText: 'License ID *',
+                border: OutlineInputBorder(),
+                hintText: 'e.g. VET-2024-001',
+              ),
+              validator: (value) =>
+                  value?.isEmpty ?? true ? 'License ID is required' : null,
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildTimestampDateField(
+                    label: 'Issue Date',
+                    value: _licenses[index].issueDate,
+                    onTap: () => _selectLicenseDate(index, true),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildTimestampDateField(
+                    label: 'Expiry Date',
+                    value: _licenses[index].expiryDate,
+                    onTap: () => _selectLicenseDate(index, false),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            
+            // Image upload section - RECOMMENDED
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'License Document',
+                      style: kTextStyleSmall.copyWith(
+                        fontSize: 14,
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    SizedBox(width: 4),
+                    Text(
+                      '(Recommended)',
+                      style: kTextStyleSmall.copyWith(
+                        fontSize: 14,
+                        color: AppColors.error,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (_licenseImages[index] != null)
+                  GestureDetector(
+                    onTap: () => _previewImage(_licenseImages[index]!, 'License ${index + 1}'),
+                    child: Container(
+                      height: 100,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AppColors.success, width: 2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.memory(
+                              _licenseImages[index]!,
+                              width: double.infinity,
+                              height: 100,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          Positioned(
+                            top: 4,
+                            right: 4,
+                            child: IconButton(
+                              onPressed: () => _removeLicenseImage(index),
+                              icon: Icon(Icons.close),
+                              style: IconButton.styleFrom(
+                                backgroundColor: Colors.black54,
+                                foregroundColor: Colors.white,
+                                padding: EdgeInsets.all(4),
+                                minimumSize: Size(24, 24),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: _licenseImages[index] == null 
+                          ? AppColors.primary.withOpacity(0.5) 
+                          : AppColors.border,
+                        width: 2,
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.upload_file,
+                          size: 32,
+                          color: AppColors.textTertiary,
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Upload License Document',
+                          style: kTextStyleSmall.copyWith(
+                            color: AppColors.textSecondary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Recommended for faster verification',
+                          style: kTextStyleSmall.copyWith(
+                            color: AppColors.primary,
+                            fontSize: 12,
+                          ),
+                        ),
+                        SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: () => _pickLicenseImage(index),
+                          icon: Icon(Icons.upload_file, size: 16),
+                          label: Text('Choose File'),
+                          style: OutlinedButton.styleFrom(
+                            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            side: BorderSide(color: AppColors.primary),
+                            foregroundColor: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ],

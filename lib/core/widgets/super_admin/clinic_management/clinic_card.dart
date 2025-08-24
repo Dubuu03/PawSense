@@ -151,12 +151,21 @@ class ClinicCard extends StatelessWidget {
                       constraints: BoxConstraints(),
                     ),
                   ],
-                  if (clinic.status == ClinicStatus.verified)
+                  if (clinic.status == ClinicStatus.approved)
                     IconButton(
                       onPressed: onSuspend,
                       icon: Icon(Icons.block_outlined, size: kIconSizeMedium),
                       color: AppColors.warning,
                       tooltip: 'Suspend',
+                      padding: EdgeInsets.all(kSpacingSmall),
+                      constraints: BoxConstraints(),
+                    ),
+                  if (clinic.status == ClinicStatus.suspended)
+                    IconButton(
+                      onPressed: onApprove,
+                      icon: Icon(Icons.check_circle_outlined, size: kIconSizeMedium),
+                      color: AppColors.success,
+                      tooltip: 'Re-approve',
                       padding: EdgeInsets.all(kSpacingSmall),
                       constraints: BoxConstraints(),
                     ),
@@ -181,7 +190,7 @@ class ClinicCard extends StatelessWidget {
     switch (clinic.status) {
       case ClinicStatus.pending:
         return AppColors.clinicPending;
-      case ClinicStatus.verified:
+      case ClinicStatus.approved:
         return AppColors.clinicApproved;
       case ClinicStatus.rejected:
         return AppColors.clinicRejected;
@@ -194,7 +203,7 @@ class ClinicCard extends StatelessWidget {
     switch (clinic.status) {
       case ClinicStatus.pending:
         return AppColors.clinicPendingBg;
-      case ClinicStatus.verified:
+      case ClinicStatus.approved:
         return AppColors.clinicApprovedBg;
       case ClinicStatus.rejected:
         return AppColors.clinicRejectedBg;

@@ -23,7 +23,18 @@ class AuthErrorMapper {
   }
 
   static ({String? field, String? message, String? generalMessage}) mapSignInError(String error) {
-    if (error.contains('user-not-found')) {
+    // Custom approval-related errors
+    if (error.contains('account-pending-approval')) {
+      return (field: null, message: null, generalMessage: 'Your registration has been submitted. Please wait for admin approval before logging in.');
+    } else if (error.contains('account-suspended')) {
+      return (field: null, message: null, generalMessage: 'Your clinic has been suspended. Please contact support for assistance.');
+    } else if (error.contains('account-rejected')) {
+      return (field: null, message: null, generalMessage: 'Your clinic registration has been rejected. Please contact support for more information.');
+    } else if (error.contains('account-not-verified')) {
+      return (field: null, message: null, generalMessage: 'Your account is not yet verified. Please wait for admin approval.');
+    }
+    // Firebase authentication errors
+    else if (error.contains('user-not-found')) {
       return (field: 'email', message: 'Account not found.', generalMessage: null);
     } else if (error.contains('wrong-password')) {
       return (field: 'password', message: 'Incorrect password. Please try again.', generalMessage: null);

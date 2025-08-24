@@ -96,14 +96,67 @@ class AuthGuard {
       // Fetch user data from Firestore
       final doc = await _firestore.collection('users').doc(user.uid).get();
       if (doc.exists) {
-        _cachedUser = UserModel.fromMap(doc.data()!);
+        final userData = UserModel.fromMap(doc.data()!);
+        
+        // For admin users, check Firestore approval status on session restoration
+        // Skip approval validation for super admin users
+        if (userData.role == 'admin') {
+          await _validateClinicApprovalStatusForSession(user.uid);
+        }
+        
+        _cachedUser = userData;
         // Cache user data for 5 minutes
         _userCacheExpiresAt = DateTime.now().add(const Duration(minutes: 5));
         return _cachedUser;
       }
       return null;
     } catch (e) {
+      // If approval validation fails, sign out the user
+      if (e.toString().contains('account-')) {
+        await _auth.signOut();
+        _clearCache();
+      }
       return null;
+    }
+  }
+
+  /// Validates clinic approval status during session restoration
+  /// Throws custom exceptions for approval-related issues
+  static Future<void> _validateClinicApprovalStatusForSession(String userId) async {
+    try {
+      // Check clinic status directly from clinics collection only
+      final clinicQuery = await _firestore
+          .collection('clinics')
+          .where('userId', isEqualTo: userId)
+          .limit(1)
+          .get();
+
+      if (clinicQuery.docs.isEmpty) {
+        throw Exception('account-not-verified');
+      }
+
+      final clinicData = clinicQuery.docs.first.data();
+      final String status = clinicData['status'] ?? 'pending';
+
+      switch (status) {
+        case 'pending':
+          throw Exception('account-pending-approval');
+        case 'suspended':
+          throw Exception('account-suspended');
+        case 'rejected':
+          throw Exception('account-rejected');
+        case 'approved':
+          // Allow access
+          break;
+        default:
+          throw Exception('account-pending-approval');
+      }
+    } catch (e) {
+      // Re-throw custom exceptions, wrap others
+      if (e.toString().contains('account-')) {
+        rethrow;
+      }
+      throw Exception('account-not-verified');
     }
   }
 

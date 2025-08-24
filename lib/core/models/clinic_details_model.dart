@@ -1,5 +1,6 @@
 import 'clinic_service_model.dart';
 import 'clinic_certification_model.dart';
+import 'clinic_license_model.dart';
 
 /// Model representing detailed clinic information
 class ClinicDetails {
@@ -14,6 +15,7 @@ class ClinicDetails {
   final List<String> specialties;
   final List<ClinicService> services;
   final List<ClinicCertification> certifications;
+  final List<ClinicLicense> licenses;
   final bool isVerified;
   final bool isActive;
   final DateTime createdAt;
@@ -33,6 +35,7 @@ class ClinicDetails {
     this.specialties = const [],
     this.services = const [],
     this.certifications = const [],
+    this.licenses = const [],
     this.isVerified = false,
     this.isActive = true,
     required this.createdAt,
@@ -56,6 +59,7 @@ class ClinicDetails {
       'specialties': specialties,
       'services': services.map((service) => service.toMap()).toList(),
       'certifications': certifications.map((cert) => cert.toMap()).toList(),
+      'licenses': licenses.map((license) => license.toMap()).toList(),
       'isVerified': isVerified,
       'isActive': isActive,
       'createdAt': createdAt.toIso8601String(),
@@ -131,6 +135,12 @@ class ClinicDetails {
           .toList();
       print('DEBUG: certifications: ${certifications.length} items');
       
+      print('DEBUG: About to parse licenses...');
+      final licenses = (map['licenses'] as List<dynamic>? ?? [])
+          .map((licenseMap) => ClinicLicense.fromMap(licenseMap as Map<String, dynamic>))
+          .toList();
+      print('DEBUG: licenses: ${licenses.length} items');
+      
       final isVerified = map['isVerified'] ?? false;
       print('DEBUG: isVerified: $isVerified');
       
@@ -163,6 +173,7 @@ class ClinicDetails {
         specialties: specialties,
         services: services,
         certifications: certifications,
+        licenses: licenses,
         isVerified: isVerified,
         isActive: isActive,
         createdAt: createdAt,
@@ -190,6 +201,7 @@ class ClinicDetails {
     List<String>? specialties,
     List<ClinicService>? services,
     List<ClinicCertification>? certifications,
+    List<ClinicLicense>? licenses,
     bool? isVerified,
     bool? isActive,
     DateTime? createdAt,
@@ -214,6 +226,7 @@ class ClinicDetails {
       specialties: specialties ?? this.specialties,
       services: services ?? this.services,
       certifications: certifications ?? this.certifications,
+      licenses: licenses ?? this.licenses,
       isVerified: isVerified ?? this.isVerified,
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
@@ -242,6 +255,21 @@ class ClinicDetails {
   /// Get expired certifications
   List<ClinicCertification> get expiredCertifications {
     return certifications.where((cert) => cert.isExpired).toList();
+  }
+
+  /// Get active licenses
+  List<ClinicLicense> get activeLicenses {
+    return licenses.where((license) => license.isActive).toList();
+  }
+
+  /// Get pending licenses
+  List<ClinicLicense> get pendingLicenses {
+    return licenses.where((license) => license.status == LicenseStatus.pending).toList();
+  }
+
+  /// Get expired licenses
+  List<ClinicLicense> get expiredLicenses {
+    return licenses.where((license) => license.isExpired).toList();
   }
 
   /// Check if clinic has specific specialty
