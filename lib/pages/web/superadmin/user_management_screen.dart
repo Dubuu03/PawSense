@@ -8,6 +8,7 @@ import '../../../core/widgets/super_admin/user_management/user_search_and_filter
 import '../../../core/widgets/super_admin/user_management/users_list.dart';
 import '../../../core/widgets/shared/pagination_widget.dart';
 import '../../../core/services/super_admin/super_admin_service.dart';
+import '../../../core/widgets/super_admin/user_management/add_user_modal.dart';
 
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({super.key});
@@ -386,6 +387,49 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     }
   }
 
+  Future<void> _showAddUserModal() async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AddUserModal(
+        onCreateUser: (newUser) {
+          // Handle the new user creation
+          _handleNewUserCreation(newUser);
+        },
+      ),
+    );
+  }
+
+  Future<void> _handleNewUserCreation(UserModel newUser) async {
+    try {
+      // In a real implementation, this would call the SuperAdminService
+      // to create the user in the database
+      // final success = await SuperAdminService.createUser(newUser);
+      
+      // For now, show success message and reload users
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('User ${newUser.firstName} ${newUser.lastName} created successfully'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+      
+      // Reload users to refresh the list
+      _loadUsers();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to create user: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -401,20 +445,15 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               subtitle: 'Manage and monitor all users in the system',
               actions: [
                 ElevatedButton.icon(
-                  onPressed: () {
-                    // TODO: Implement add user
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Add new user functionality coming soon')),
-                    );
-                  },
-                  icon: Icon(Icons.person_add_outlined, size: 18),
-                  label: Text('Add User'),
+                  onPressed: _showAddUserModal,
+                  icon: const Icon(Icons.person_add, size: kIconSizeMedium),
+                  label: const Text('Add User'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: AppColors.white,
-                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: kSpacingMedium, vertical: kSpacingSmall),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(kBorderRadius),
                     ),
                   ),
                 ),

@@ -5,6 +5,7 @@ import 'package:pawsense/core/widgets/admin/patient_records/patient_card.dart';
 import 'package:pawsense/core/widgets/admin/patient_records/patient_filters.dart';
 import 'package:pawsense/core/widgets/admin/patient_records/patient_header.dart';
 import 'package:pawsense/core/widgets/admin/patient_records/add_patient_modal.dart';
+import 'package:pawsense/core/widgets/admin/patient_records/patient_details_modal.dart';
 import 'package:pawsense/core/widgets/admin/patient_records/patient_status.dart';
 import 'dart:math';
 
@@ -250,7 +251,12 @@ class _PatientRecordsScreenState extends State<PatientRecordsScreen> {
                                   diseaseDetection: patient.diseaseDetection,
                                   cardColor: patient.cardColor,
                                   onViewDetails: () {
-                                    print('View details for ${patient.name}');
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) => PatientDetailsModal(
+                                        patient: patient,
+                                      ),
+                                    );
                                   },
                                   onEdit: () {
                                     print('Edit ${patient.name}');
