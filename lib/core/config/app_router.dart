@@ -13,7 +13,6 @@ import 'package:pawsense/pages/web/admin/vet_profile_screen.dart';
 import 'package:pawsense/pages/web/admin/notifications_screen.dart';
 import 'package:pawsense/pages/web/admin/support_screen.dart';
 import 'package:pawsense/pages/web/admin/settings_screen.dart';
-import 'package:pawsense/pages/web/superadmin/admin_management_screen.dart';
 import 'package:pawsense/pages/web/superadmin/clinic_management_screen.dart';
 import 'package:pawsense/pages/web/superadmin/system_analytics_screen.dart';
 import 'package:pawsense/pages/web/superadmin/user_management_screen.dart';
@@ -121,13 +120,6 @@ class AppRouter {
             builder: (context, state) => DashboardScreen(),
             pageBuilder: (context, state) => NoTransitionPage(
               child: DashboardScreen(),
-            ),
-          ),
-          GoRoute(
-            path: '/super-admin/admin-management',
-            builder: (context, state) => const AdminManagementScreen(),
-            pageBuilder: (context, state) => NoTransitionPage(
-              child: const AdminManagementScreen(),
             ),
           ),
           GoRoute(

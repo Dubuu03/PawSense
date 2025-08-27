@@ -23,6 +23,7 @@ dependencies:
   googleapis_auth: ^1.6.0
   http: ^1.2.2
   image_picker: ^1.1.2
+  fl_chart: ^0.69.0
 
 dev_dependencies:
   flutter_test:
