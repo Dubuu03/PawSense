@@ -35,24 +35,31 @@ class SimpleUserAppBar extends StatelessWidget implements PreferredSizeWidget {
               size: 24,
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 8), 
           // PawSense logo and text
           Expanded(
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Paw icon
+                // Paw icon replaced with logo
                 Container(
-                  width: 24,
-                  height: 24,
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
-                    color: AppColors.primary,
+                    color: AppColors.background,
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: const Icon(
-                    Icons.pets,
-                    color: Colors.white,
-                    size: 16,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: Image.asset(
+                      'assets/img/logo.png',
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) => const Icon(
+                        Icons.pets,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),

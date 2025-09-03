@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pawsense/core/models/user/user_model.dart';
 import 'package:pawsense/core/guards/auth_guard.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
+import 'package:pawsense/core/utils/constants_mobile.dart';
 import 'package:pawsense/core/widgets/user/shared/navigation/simple_user_app_bar.dart';
 import 'package:pawsense/core/widgets/user/shared/navigation/user_bottom_nav_bar.dart';
 import 'package:pawsense/core/widgets/user/shared/tab_toggle.dart';
@@ -162,7 +163,7 @@ class _UserHomePageState extends State<UserHomePage> {
           children: [
             // Tab Toggle
             Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              margin: const EdgeInsets.symmetric(horizontal: kMobileMarginHorizontal, vertical: kMobileSizedBoxXLarge),
               child: TabToggle(
                 selectedIndex: _currentTabIndex,
                 onTabChanged: (index) {
@@ -191,7 +192,7 @@ class _UserHomePageState extends State<UserHomePage> {
               ),
               
               // Add space between pets and health snapshot
-              const SizedBox(height: 24),
+              const SizedBox(height: kMobileSizedBoxHuge),
               
               HealthSnapshot(
                 healthData: _healthData,
@@ -222,19 +223,12 @@ class _UserHomePageState extends State<UserHomePage> {
 
   Widget _buildHistoryContent() {
     return Container(
-      margin: const EdgeInsets.all(20),
-      padding: const EdgeInsets.all(24),
+      margin: kMobileMarginContainer,
+      padding: const EdgeInsets.all(kMobilePaddingLarge),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-            spreadRadius: 0,
-          ),
-        ],
+        borderRadius: kMobileBorderRadiusCardPreset,
+        boxShadow: kMobileCardShadow,
       ),
       child: const Column(
         children: [

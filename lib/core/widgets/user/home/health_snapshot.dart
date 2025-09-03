@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
+import 'package:pawsense/core/utils/constants_mobile.dart';
 
 class HealthData {
   final String condition;
@@ -26,50 +27,37 @@ class HealthSnapshot extends StatelessWidget {
     final total = healthData.fold<int>(0, (sum, item) => sum + item.count);
     
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      padding: const EdgeInsets.all(16),
+      margin: kMobileMarginCard,
+      padding: kMobilePaddingCard,
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-            spreadRadius: 0,
-          ),
-        ],
+        borderRadius: kMobileBorderRadiusCardPreset,
+        boxShadow: kMobileCardShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'This Week Snapshot',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
+            style: kMobileTextStyleTitle.copyWith(
               color: AppColors.textPrimary,
-              height: 1.3,
             ),
           ),
-          const SizedBox(height: 4),
-          const Text(
+          const SizedBox(height: kMobileSizedBoxSmall),
+          Text(
             'Most common detections',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w400,
+            style: kMobileTextStyleSubtitle.copyWith(
               color: AppColors.textSecondary,
-              height: 1.2,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: kMobileSizedBoxXLarge),
           
           Row(
             children: [
               // Donut Chart
               SizedBox(
-                width: 90,
-                height: 90,
+                width: kMobileDonutChartSize,
+                height: kMobileDonutChartSize,
                 child: Stack(
                   children: [
                     _buildDonutChart(total),
@@ -79,20 +67,14 @@ class HealthSnapshot extends StatelessWidget {
                         children: [
                           Text(
                             '$total',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
+                            style: kMobileTextStyleChartTotal.copyWith(
                               color: AppColors.textPrimary,
-                              height: 1.0,
                             ),
                           ),
-                          const Text(
+                          Text(
                             'Total',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w400,
+                            style: kMobileTextStyleChartLabel.copyWith(
                               color: AppColors.textSecondary,
-                              height: 1.0,
                             ),
                           ),
                         ],
@@ -102,7 +84,7 @@ class HealthSnapshot extends StatelessWidget {
                 ),
               ),
               
-              const SizedBox(width: 20),
+              const SizedBox(width: kMobileSizedBoxXXLarge),
               
               // Legend
               Expanded(
@@ -125,7 +107,7 @@ class HealthSnapshot extends StatelessWidget {
     double startAngle = -90;
     
     return CustomPaint(
-      size: const Size(90, 90),
+      size: const Size(kMobileDonutChartSize, kMobileDonutChartSize),
       painter: DonutChartPainter(
         data: healthData,
         total: total,
@@ -136,18 +118,18 @@ class HealthSnapshot extends StatelessWidget {
 
   Widget _buildLegendItem(HealthData data) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: kMobileLegendPadding,
       child: Row(
         children: [
           Container(
-            width: 8,
-            height: 8,
+            width: kMobileLegendDotSize,
+            height: kMobileLegendDotSize,
             decoration: BoxDecoration(
               color: data.color,
               shape: BoxShape.circle,
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: kMobileLegendSpacing),
           Expanded(
             child: Text(
               data.condition,

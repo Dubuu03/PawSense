@@ -105,7 +105,7 @@ class _WebLoginPageState extends State<WebLoginPage> {
                           width: 120,
                           height: 120,
                           child: Image.asset(
-                            'assets/img/image1.png',
+                            'assets/img/logo.png',
                             fit: BoxFit.contain,
                             errorBuilder: (context, error, stackTrace) {
                               return Container(
