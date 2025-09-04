@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
+import 'package:pawsense/core/utils/constants_mobile.dart';
 
 class PetAssessmentModal extends StatefulWidget {
   const PetAssessmentModal({super.key});
@@ -14,11 +16,11 @@ class _PetAssessmentModalState extends State<PetAssessmentModal> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(kMobileBorderRadiusCard),
+          topRight: Radius.circular(kMobileBorderRadiusCard),
         ),
       ),
       child: Column(
@@ -37,24 +39,22 @@ class _PetAssessmentModalState extends State<PetAssessmentModal> {
           
           // Content
           Padding(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(kMobilePaddingLarge),
             child: Column(
               children: [
                 // Header
-                const Text(
+                Text(
                   'Select Pet Type',
-                  style: TextStyle(
+                  style: kMobileTextStyleTitle.copyWith(
                     fontSize: 24,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'Choose the pet you\'re assessing.',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w400,
+                  style: kMobileTextStyleTitle.copyWith(
                     color: AppColors.textSecondary,
                   ),
                 ),
@@ -158,9 +158,7 @@ class _PetAssessmentModalState extends State<PetAssessmentModal> {
             const SizedBox(height: 12),
             Text(
               type,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+              style: kMobileTextStyleTitle.copyWith(
                 color: isSelected ? AppColors.primary : AppColors.textPrimary,
               ),
             ),
@@ -171,114 +169,9 @@ class _PetAssessmentModalState extends State<PetAssessmentModal> {
   }
 
   void _onContinue() {
-    // Close modal and proceed with camera
+    // Close modal and navigate to assessment
     Navigator.of(context).pop();
-    // Here you would typically navigate to camera or show camera modal
-    _showCameraModal();
-  }
-
-  void _showCameraModal() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        contentPadding: const EdgeInsets.all(24),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Camera icon
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(40),
-              ),
-              child: const Icon(
-                Icons.camera_alt,
-                color: AppColors.primary,
-                size: 40,
-              ),
-            ),
-            const SizedBox(height: 24),
-            
-            const Text(
-              'AI Pet Health Assessment',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            
-            const Text(
-              'Take a photo of your pet to get instant health insights powered by AI technology.',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-                color: AppColors.textSecondary,
-                height: 1.4,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-            
-            // Buttons
-            Row(
-              children: [
-                Expanded(
-                  child: TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text(
-                      'Cancel',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      // TODO: Open camera functionality
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: const Text(
-                      'Open Camera',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
+    // Navigate to assessment page with selected pet type
+    context.push('/assessment', extra: {'selectedPetType': selectedPetType});
   }
 }

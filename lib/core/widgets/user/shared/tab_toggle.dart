@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
+import 'package:pawsense/core/utils/constants_mobile.dart';
 
 class TabToggle extends StatelessWidget {
   final int selectedIndex;
@@ -19,7 +20,7 @@ class TabToggle extends StatelessWidget {
       height: 36,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: kMobileBorderRadiusIconPreset,
         border: Border.all(
           color: AppColors.border.withValues(alpha: 0.3),
           width: 1,
@@ -37,13 +38,12 @@ class TabToggle extends StatelessWidget {
                   color: selectedIndex == index 
                       ? AppColors.primary 
                       : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: kMobileBorderRadiusButtonPreset,
                 ),
                 child: Center(
                   child: Text(
                     tabs[index],
-                    style: TextStyle(
-                      fontSize: 13,
+                    style: kMobileTextStyleSubtitle.copyWith(
                       fontWeight: FontWeight.w500,
                       color: selectedIndex == index 
                           ? Colors.white

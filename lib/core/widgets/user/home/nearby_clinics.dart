@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
+import 'package:pawsense/core/utils/constants_mobile.dart';
 
 class ClinicInfo {
   final String name;
@@ -28,19 +29,12 @@ class NearbyClinics extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.all(20),
-      padding: const EdgeInsets.all(16),
+      margin: kMobileMarginContainer,
+      padding: kMobilePaddingCard,
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-            spreadRadius: 0,
-          ),
-        ],
+        borderRadius: kMobileBorderRadiusCardPreset,
+        boxShadow: kMobileCardShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

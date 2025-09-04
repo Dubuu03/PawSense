@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
+import 'package:pawsense/core/utils/constants_mobile.dart';
 
 class PetInfo {
   final String name;
@@ -30,19 +31,12 @@ class PetInfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      padding: const EdgeInsets.all(16),
+      margin: kMobileMarginCard,
+      padding: kMobilePaddingCard,
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-            spreadRadius: 0,
-          ),
-        ],
+        borderRadius: kMobileBorderRadiusCardPreset,
+        boxShadow: kMobileCardShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -51,13 +45,10 @@ class PetInfoCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Your Pets',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
+                style: kMobileTextStyleTitle.copyWith(
                   color: AppColors.textPrimary,
-                  height: 1.3,
                 ),
               ),
               if (pets.length > 2)
@@ -66,23 +57,20 @@ class PetInfoCard extends StatelessWidget {
                     // Handle view all pets
                   },
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: kMobileButtonPadding,
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
-                  child: const Text(
+                  child: Text(
                     'View All',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                    style: kMobileTextStyleViewAll.copyWith(
                       color: AppColors.primary,
-                      height: 1.2,
                     ),
                   ),
                 ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: kMobileSizedBoxLarge),
           
           // Pets and appointment row
           IntrinsicHeight(
