@@ -2,16 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:pawsense/core/models/user/user_model.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/widgets/shared/profile_avatar.dart';
+import 'package:pawsense/core/widgets/user/shared/drawers/menu_drawer.dart';
+import 'package:pawsense/core/widgets/user/shared/drawers/profile_drawer.dart';
 
-class SimpleUserAppBar extends StatelessWidget implements PreferredSizeWidget {
-  final VoidCallback? onMenuTap;
-  final VoidCallback? onProfileTap;
+class UserAppBar extends StatelessWidget implements PreferredSizeWidget {
   final UserModel? user;
 
-  const SimpleUserAppBar({
+  const UserAppBar({
     super.key,
-    this.onMenuTap,
-    this.onProfileTap,
     this.user,
   });
 
@@ -24,11 +22,15 @@ class SimpleUserAppBar extends StatelessWidget implements PreferredSizeWidget {
       backgroundColor: AppColors.white,
       elevation: 0,
       automaticallyImplyLeading: false,
+      leading: null,
+      actions: null,
       title: Row(
         children: [
           // Hamburger menu
           IconButton(
-            onPressed: onMenuTap ?? () {},
+            onPressed: () {
+              _showMenuDrawer(context);
+            },
             icon: const Icon(
               Icons.menu,
               color: AppColors.textPrimary,
@@ -93,7 +95,9 @@ class SimpleUserAppBar extends StatelessWidget implements PreferredSizeWidget {
           ),
           // Profile avatar
           GestureDetector(
-            onTap: onProfileTap ?? () {},
+            onTap: () {
+              _showProfileDrawer(context);
+            },
             child: Container(
               margin: const EdgeInsets.only(right: 8),
               child: ProfileAvatar(
@@ -104,6 +108,86 @@ class SimpleUserAppBar extends StatelessWidget implements PreferredSizeWidget {
           ),
         ],
       ),
+    );
+  }
+
+  void _showMenuDrawer(BuildContext context) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: '',
+      barrierColor: Colors.black.withOpacity(0.5),
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              width: MediaQuery.of(context).size.width * 0.85,
+              height: MediaQuery.of(context).size.height,
+              child: MenuDrawer(
+                user: user,
+                onClose: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(-1.0, 0.0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeInOut,
+          )),
+          child: child,
+        );
+      },
+    );
+  }
+
+  void _showProfileDrawer(BuildContext context) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: '',
+      barrierColor: Colors.black.withOpacity(0.5),
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return Align(
+          alignment: Alignment.centerRight,
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              width: MediaQuery.of(context).size.width * 0.85,
+              height: MediaQuery.of(context).size.height,
+              child: ProfileDrawer(
+                user: user,
+                onClose: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1.0, 0.0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeInOut,
+          )),
+          child: child,
+        );
+      },
     );
   }
 }
