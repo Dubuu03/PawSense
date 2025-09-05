@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pawsense/core/utils/constants_mobile.dart';
 import '../../../core/services/auth/auth_service_mobile.dart';
 import 'terms_and_conditions_modal.dart';
 import '../../../core/utils/constants.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/utils/errors.dart';
 import '../../../core/utils/app_colors.dart';
+import '../../../core/utils/text_utils.dart'; // Import TextUtils
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -25,40 +27,27 @@ class _SignUpPageState extends State<SignUpPage>
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final _contactController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
 
-  DateTime? _dateOfBirth;
-  bool _agreedToTerms = false;
+  bool _acceptTerms = false;
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
-  String? _errorMessage;
 
   late AnimationController _fadeController;
   late AnimationController _slideController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
-  final Map<String, bool> _fieldTouched = {
-    'firstName': false,
-    'lastName': false,
-    'email': false,
-    'contact': false,
-    'address': false,
-    'password': false,
-    'confirmPassword': false,
-  };
-
   final Map<String, String?> _fieldErrors = {
     'firstName': null,
     'lastName': null,
     'email': null,
-    'contact': null,
+    'phone': null,
     'address': null,
     'password': null,
     'confirmPassword': null,
-    'dateOfBirth': null,
     'terms': null,
   };
 
@@ -97,7 +86,7 @@ class _SignUpPageState extends State<SignUpPage>
       _emailController,
       _passwordController,
       _confirmPasswordController,
-      _contactController,
+      _phoneController,
       _addressController,
     ]) {
       c.dispose();
@@ -107,86 +96,179 @@ class _SignUpPageState extends State<SignUpPage>
     super.dispose();
   }
 
-  Future<void> _register() async {
+  Future<void> _handleSignup() async {
+    // Close any existing snackbar to prevent stacking
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    
     setState(() {
-      _errorMessage = null;
       _fieldErrors.updateAll((key, value) => null);
     });
 
     bool hasError = false;
-    if (!_formKey.currentState!.validate()) {
+    List<String> errorMessages = [];
+
+    // Validate fields using validators
+    String? firstNameError = requiredValidator(_firstNameController.text.trim(), 'first name');
+    if (firstNameError != null) {
+      _fieldErrors['firstName'] = firstNameError;
+      errorMessages.add(firstNameError);
       hasError = true;
     }
 
-    if (_firstNameController.text.trim().isEmpty) {
-      _fieldErrors['firstName'] = 'Enter First Name';
-      hasError = true;
-    }
-    if (_lastNameController.text.trim().isEmpty) {
-      _fieldErrors['lastName'] = 'Enter Last Name';
-      hasError = true;
-    }
-    if (_emailController.text.trim().isEmpty) {
-      _fieldErrors['email'] = 'Enter Email Address';
-      hasError = true;
-    }
-    if (_contactController.text.trim().isEmpty) {
-      _fieldErrors['contact'] = 'Enter Contact Number';
-      hasError = true;
-    }
-    if (_addressController.text.trim().isEmpty) {
-      _fieldErrors['address'] = 'Enter Address';
-      hasError = true;
-    }
-    if (_passwordController.text.isEmpty) {
-      _fieldErrors['password'] = 'Enter Password';
-      hasError = true;
-    }
-    if (_confirmPasswordController.text.isEmpty) {
-      _fieldErrors['confirmPassword'] = 'Confirm your password';
+    String? lastNameError = requiredValidator(_lastNameController.text.trim(), 'last name');
+    if (lastNameError != null) {
+      _fieldErrors['lastName'] = lastNameError;
+      errorMessages.add(lastNameError);
       hasError = true;
     }
 
-    if (_dateOfBirth == null) {
-      _fieldErrors['dateOfBirth'] = 'Please select your date of birth';
-      hasError = true;
-    }
-    if (!_agreedToTerms) {
-      _fieldErrors['terms'] = 'You must agree to the terms and conditions';
-      hasError = true;
-    }
-    if (_passwordController.text != _confirmPasswordController.text) {
-      _fieldErrors['confirmPassword'] = 'Passwords do not match';
-      setState(() => _errorMessage = 'Passwords do not match');
+    String? emailError = emailValidator(_emailController.text.trim());
+    if (emailError != null) {
+      _fieldErrors['email'] = emailError;
+      errorMessages.add(emailError);
       hasError = true;
     }
 
-    setState(() {});
-    if (hasError) return;
+    String? phoneError = phoneValidator(_phoneController.text.trim());
+    if (phoneError != null) {
+      _fieldErrors['phone'] = phoneError;
+      errorMessages.add(phoneError);
+      hasError = true;
+    }
+
+    String? addressError = requiredValidator(_addressController.text.trim(), 'address');
+    if (addressError != null) {
+      _fieldErrors['address'] = addressError;
+      errorMessages.add(addressError);
+      hasError = true;
+    }
+
+    String? passwordError = passwordValidator(_passwordController.text.trim());
+    if (passwordError != null) {
+      _fieldErrors['password'] = passwordError;
+      errorMessages.add(passwordError);
+      hasError = true;
+    }
+
+    String? confirmPasswordError = confirmPasswordValidator(_confirmPasswordController.text.trim(), _passwordController.text.trim());
+    if (confirmPasswordError != null) {
+      _fieldErrors['confirmPassword'] = confirmPasswordError;
+      errorMessages.add(confirmPasswordError);
+      hasError = true;
+    }
+
+    if (!_acceptTerms) {
+      _fieldErrors['terms'] = 'You must agree to the Terms and Conditions';
+      errorMessages.add('You must agree to the Terms and Conditions');
+      hasError = true;
+    }
+
+    if (hasError) {
+      String snackMessage;
+
+      if (errorMessages.length == 1) {
+        snackMessage = errorMessages.first; // Show specific error
+      } else {
+        // Check for empty/null fields first (priority)
+        bool hasEmptyFields = false;
+        bool hasInvalidInputs = false;
+        
+        if (_firstNameController.text.trim().isEmpty && _fieldErrors['firstName'] != null) hasEmptyFields = true;
+        if (_lastNameController.text.trim().isEmpty && _fieldErrors['lastName'] != null) hasEmptyFields = true;
+        if (_emailController.text.trim().isEmpty && _fieldErrors['email'] != null) hasEmptyFields = true;
+        if (_phoneController.text.trim().isEmpty && _fieldErrors['phone'] != null) hasEmptyFields = true;
+        if (_addressController.text.trim().isEmpty && _fieldErrors['address'] != null) hasEmptyFields = true;
+        if (_passwordController.text.trim().isEmpty && _fieldErrors['password'] != null) hasEmptyFields = true;
+        if (_confirmPasswordController.text.trim().isEmpty && _fieldErrors['confirmPassword'] != null) hasEmptyFields = true;
+        if (!_acceptTerms && _fieldErrors['terms'] != null) hasEmptyFields = true;
+        
+        if (!hasEmptyFields) {
+          // Only check for invalid inputs if no empty fields
+          if (_firstNameController.text.trim().isNotEmpty && _fieldErrors['firstName'] != null) hasInvalidInputs = true;
+          if (_lastNameController.text.trim().isNotEmpty && _fieldErrors['lastName'] != null) hasInvalidInputs = true;
+          if (_emailController.text.trim().isNotEmpty && _fieldErrors['email'] != null) hasInvalidInputs = true;
+          if (_phoneController.text.trim().isNotEmpty && _fieldErrors['phone'] != null) hasInvalidInputs = true;
+          if (_addressController.text.trim().isNotEmpty && _fieldErrors['address'] != null) hasInvalidInputs = true;
+          if (_passwordController.text.trim().isNotEmpty && _fieldErrors['password'] != null) hasInvalidInputs = true;
+          if (_confirmPasswordController.text.trim().isNotEmpty && _fieldErrors['confirmPassword'] != null) hasInvalidInputs = true;
+        }
+        
+        if (hasEmptyFields) {
+          snackMessage = 'Fill up required fields'; // Priority: Empty/null fields
+        } else if (hasInvalidInputs) {
+          snackMessage = 'Invalid inputs'; // Secondary: Invalid inputs
+        } else {
+          snackMessage = 'Please check your inputs'; // Fallback
+        }
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.error,
+          duration: const Duration(seconds: 5),
+          behavior: SnackBarBehavior.floating,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), 
+          content: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  snackMessage,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    height: 1.2,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 18), 
+                padding: EdgeInsets.zero,   
+                constraints: const BoxConstraints(),
+                onPressed: () {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+
+      return;
+    }
 
     setState(() => _isLoading = true);
 
     try {
+      final formattedFirstName = TextUtils.capitalizeWords(_firstNameController.text.trim());
+      final formattedLastName = TextUtils.capitalizeWords(_lastNameController.text.trim());
+      final fullName = TextUtils.formatFullName(
+        _firstNameController.text.trim(), 
+        _lastNameController.text.trim()
+      );
+
       final uid = await _authService.signUpWithEmail(
-        email: _emailController.text.trim(),
+        email: _emailController.text.trim().toLowerCase(),
         password: _passwordController.text.trim(),
-        firstName: _firstNameController.text.trim(),
-        lastName: _lastNameController.text.trim(),
-        contactNumber: _contactController.text.trim(),
-        dateOfBirth: _dateOfBirth!,
-        agreedToTerms: _agreedToTerms,
+        firstName: formattedFirstName,
+        lastName: formattedLastName,
+        contactNumber: _phoneController.text.trim(),
+        dateOfBirth: null,
+        agreedToTerms: _acceptTerms,
         address: _addressController.text.trim(),
       );
 
       if (uid != null && mounted) {
         context.pushReplacement('/verify-email', extra: {
-          'firstName': _firstNameController.text.trim(),
-          'lastName': _lastNameController.text.trim(),
-          'email': _emailController.text.trim(),
+          'firstName': formattedFirstName,
+          'lastName': formattedLastName,
+          'username': fullName,
+          'email': _emailController.text.trim().toLowerCase(),
           'uid': uid,
-          'contactNumber': _contactController.text.trim(),
-          'dateOfBirth': _dateOfBirth!,
-          'agreedToTerms': _agreedToTerms,
+          'contactNumber': _phoneController.text.trim(),
+          'agreedToTerms': _acceptTerms,
           'address': _addressController.text.trim(),
         });
       }
@@ -197,567 +279,439 @@ class _SignUpPageState extends State<SignUpPage>
         if (mapped.field != null && mapped.message != null) {
           _fieldErrors[mapped.field!] = mapped.message;
         }
-        _errorMessage = mapped.generalMessage;
       });
+      
+      // Show general error message in snackbar (no auto-close)
+      if (mapped.generalMessage != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.error,
+            duration: const Duration(days: 365), // Effectively no auto-close
+            behavior: SnackBarBehavior.floating,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), 
+            content: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    mapped.generalMessage!,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      height: 1.2,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white, size: 18), 
+                  padding: EdgeInsets.zero,   
+                  constraints: const BoxConstraints(),
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      }
     } catch (e) {
-      setState(() => _errorMessage = 'Sign up failed: ${e.toString()}');
+      // Show general error message in snackbar (no auto-close)
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.error,
+          duration: const Duration(days: 365), // Effectively no auto-close
+          behavior: SnackBarBehavior.floating,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), 
+          content: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  'Sign up failed: ${e.toString()}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    height: 1.2,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 18), 
+                padding: EdgeInsets.zero,   
+                constraints: const BoxConstraints(),
+                onPressed: () {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                },
+              ),
+            ],
+          ),
+        ),
+      );
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
-  Widget _buildWelcomeSection() {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AppColors.primary,
-                AppColors.primary.withOpacity(0.8),
-              ],
-            ),
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withOpacity(0.3),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: const Icon(
-            Icons.person_add_rounded,
-            size: 48,
-            color: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 24),
-        Text(
-          'Join Us Today!',
-          style: kTextStyleHeader.copyWith(
-            color: AppColors.textPrimary,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Create your account to get started',
-          style: kTextStyleRegular.copyWith(
-            color: Colors.grey[600],
-          ),
-          textAlign: TextAlign.center,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTextField({
-    required String keyName,
-    required TextEditingController controller,
-    required String label,
-    required String hintText,
-    bool obscureText = false,
-    TextInputType keyboardType = TextInputType.text,
-    String? Function(String?)? validator,
-    required IconData icon,
-    Widget? suffixIcon,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: kTextStyleRegular.copyWith(
-            fontWeight: FontWeight.w600,
-            color: Colors.grey[700],
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: controller,
-          obscureText: obscureText,
-          keyboardType: keyboardType,
-          autovalidateMode: _fieldTouched[keyName]!
-              ? AutovalidateMode.onUserInteraction
-              : AutovalidateMode.disabled,
-          decoration: InputDecoration(
-            hintText: hintText,
-            hintStyle: TextStyle(
-              color: Colors.grey[500],
-              fontWeight: FontWeight.normal,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: Colors.grey.shade300),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(
-                color: _fieldErrors[keyName] != null ? Colors.red : Colors.grey.shade300,
-              ),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(
-                color: _fieldErrors[keyName] != null ? Colors.red : AppColors.primary,
-                width: 2,
-              ),
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: Colors.red),
-            ),
-            prefixIcon: Container(
-              margin: const EdgeInsets.all(12),
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                icon,
-                color: AppColors.primary,
-                size: 20,
-              ),
-            ),
-            suffixIcon: suffixIcon,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 16,
-            ),
-            filled: true,
-            fillColor: Colors.grey.shade50,
-            errorText: _fieldErrors[keyName],
-          ),
-          validator: validator ?? (v) => v == null || v.isEmpty ? 'Enter $label' : null,
-          onChanged: (_) {
-            if (!_fieldTouched[keyName]!) {
-              setState(() => _fieldTouched[keyName] = true);
-            }
-            if (_fieldErrors[keyName] != null) {
-              setState(() => _fieldErrors[keyName] = null);
-            }
-          },
-          style: kTextStyleRegular.copyWith(
-            fontWeight: FontWeight.normal,
-          ),
-        ),
-        const SizedBox(height: 20),
-      ],
-    );
-  }
-
-  Widget _buildPasswordField({
-    required String keyName,
-    required TextEditingController controller,
-    required String label,
-    required String hintText,
-    required String? Function(String?) validator,
-  }) {
-    bool isObscure = keyName == 'password'
-        ? _obscurePassword
-        : _obscureConfirmPassword;
-
-    return _buildTextField(
-      keyName: keyName,
-      controller: controller,
-      label: label,
-      hintText: hintText,
-      obscureText: isObscure,
-      validator: validator,
-      icon: Icons.lock_outline,
-      suffixIcon: IconButton(
-        icon: Icon(
-          isObscure ? Icons.visibility_off : Icons.visibility,
-          color: Colors.grey[600],
-        ),
-        onPressed: () => setState(() {
-          if (keyName == 'password') {
-            _obscurePassword = !_obscurePassword;
-          } else {
-            _obscureConfirmPassword = !_obscureConfirmPassword;
-          }
-        }),
-      ),
-    );
-  }
-
-  Widget _buildDOBPicker() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Date of Birth',
-          style: kTextStyleRegular.copyWith(
-            fontWeight: FontWeight.w600,
-            color: Colors.grey[700],
-          ),
-        ),
-        const SizedBox(height: 8),
-        GestureDetector(
-          onTap: () async {
-            final picked = await showDatePicker(
-              context: context,
-              initialDate: DateTime(2000, 1, 1),
-              firstDate: DateTime(1900),
-              lastDate: DateTime.now(),
-              builder: (context, child) {
-                return Theme(
-                  data: Theme.of(context).copyWith(
-                    colorScheme: ColorScheme.light(
-                      primary: Colors.blue.shade600,
-                      onPrimary: Colors.white,
-                      surface: Colors.white,
-                      onSurface: Colors.grey.shade700,
-                    ),
-                  ),
-                  child: child!,
-                );
-              },
-            );
-            if (picked != null) setState(() => _dateOfBirth = picked);
-          },
-          child: AbsorbPointer(
-            child: TextFormField(
-              decoration: InputDecoration(
-                hintText: 'Select your date of birth',
-                 hintStyle: TextStyle(
-                  color: Colors.grey[500],
-                  fontWeight: FontWeight.normal,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: AppColors.primary, width: 2),
-                ),
-                prefixIcon: Container(
-                  margin: const EdgeInsets.all(12),
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    Icons.cake_outlined,
-                    color: AppColors.primary,
-                    size: 20,
-                  ),
-                ),
-                suffixIcon: Icon(
-                  Icons.calendar_today,
-                  color: Colors.grey[600],
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 16,
-                ),
-                filled: true,
-                fillColor: Colors.grey.shade50,
-                errorText: _fieldErrors['dateOfBirth'],
-              ),
-              controller: TextEditingController(
-                text: _dateOfBirth == null
-                    ? ''
-                    : '${_dateOfBirth!.day.toString().padLeft(2, '0')}/${_dateOfBirth!.month.toString().padLeft(2, '0')}/${_dateOfBirth!.year}',
-              ),
-              readOnly: true,
-              style: kTextStyleRegular.copyWith(
-                fontWeight: FontWeight.normal,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 20),
-      ],
-    );
-  }
-
-  Widget _buildTermsCheckbox() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.grey.shade50,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade200),
-          ),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 24,
-                height: 24,
-                child: Checkbox(
-                  value: _agreedToTerms,
-                  onChanged: (val) async {
-                    if (val == true && !_agreedToTerms) {
-                      final agreed = await showDialog<bool>(
-                        context: context,
-                        barrierDismissible: false,
-                        builder: (context) => const TermsAndConditionsModal(),
-                      );
-                      setState(() => _agreedToTerms = agreed == true);
-                    } else if (val == false) {
-                      setState(() => _agreedToTerms = false);
-                    }
-                  },
-                  activeColor: AppColors.primary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () async {
-                    if (!_agreedToTerms) {
-                      final agreed = await showDialog<bool>(
-                        context: context,
-                        barrierDismissible: false,
-                        builder: (context) => const TermsAndConditionsModal(),
-                      );
-                      setState(() => _agreedToTerms = agreed == true);
-                    } else {
-                      setState(() => _agreedToTerms = false);
-                    }
-                  },
-                  child: RichText(
-                    text: TextSpan(
-                      style: kTextStyleRegular.copyWith(
-                        color: Colors.grey[700],
-                      ),
-                      children: [
-                        const TextSpan(text: 'I agree to the '),
-                        TextSpan(
-                          text: 'Terms and Conditions',
-                          style: kTextStyleRegular.copyWith(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w600,
-                            decoration: TextDecoration.underline,
-                          ),
-                        ),
-                        const TextSpan(text: ' and '),
-                        TextSpan(
-                          text: 'Privacy Policy',
-                          style: kTextStyleRegular.copyWith(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w600,
-                            decoration: TextDecoration.underline,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (_fieldErrors['terms'] != null)
-          Padding(
-            padding: const EdgeInsets.only(left: 8, top: 6),
-            child: Text(
-              _fieldErrors['terms']!,
-              style: TextStyle(color: Colors.red.shade700, fontSize: 13),
-            ),
-          ),
-      ],
-    );
-  }
-
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFEFDFF9),
       body: SafeArea(
+        bottom: false,
         child: FadeTransition(
           opacity: _fadeAnimation,
           child: SlideTransition(
             position: _slideAnimation,
-            child: _isLoading
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(
-                          color: Colors.blue.shade600,
-                          strokeWidth: 3,
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: kSpacingLarge),
+              child: Form(
+                key: _formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      SizedBox(height: 40),
+                      Image.asset('assets/img/logo.png', height: 80),
+                      SizedBox(height: 12),
+                      Text(
+                        'PawSense.',
+                        style: kMobileTextStyleTitle.copyWith(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 20,
                         ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Creating your account...',
-                          style: kTextStyleRegular.copyWith(
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : CustomScrollView(
-                    slivers: [
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(24,44,24,24),
-                          child: Form(
-                            key: _formKey,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                _buildWelcomeSection(),
-                                const SizedBox(height: 32),
-                                _buildTextField(
-                                  keyName: 'firstName',
-                                  controller: _firstNameController,
-                                  label: 'First Name',
-                                  hintText: 'Enter your first name',
-                                  validator: (v) => requiredValidator(v, 'First Name'),
-                                  icon: Icons.person_outline,
-                                ),
-                                _buildTextField(
-                                  keyName: 'lastName',
-                                  controller: _lastNameController,
-                                  label: 'Last Name',
-                                  hintText: 'Enter your last name',
-                                  validator: (v) => requiredValidator(v, 'Last Name'),
-                                  icon: Icons.person_outline,
-                                ),
-                                _buildTextField(
-                                  keyName: 'email',
-                                  controller: _emailController,
-                                  label: 'Email Address',
-                                  hintText: 'Enter your email address',
-                                  validator: emailValidator,
-                                  icon: Icons.email_outlined,
-                                  keyboardType: TextInputType.emailAddress,
-                                ),
-                                _buildTextField(
-                                  keyName: 'contact',
-                                  controller: _contactController,
-                                  label: 'Contact Number',
-                                  hintText: 'Enter your phone number',
-                                  keyboardType: TextInputType.phone,
-                                  validator: phoneValidator,
-                                  icon: Icons.phone_outlined,
-                                ),
-                                _buildTextField(
-                                  keyName: 'address',
-                                  controller: _addressController,
-                                  label: 'Address',
-                                  hintText: 'Enter your complete address',
-                                  validator: (v) => requiredValidator(v, 'Address'),
-                                  icon: Icons.home_outlined,
-                                ),
-                                _buildDOBPicker(),
-                                _buildPasswordField(
-                                  keyName: 'password',
-                                  controller: _passwordController,
-                                  label: 'Password',
-                                  hintText: 'Create a strong password',
-                                  validator: passwordValidator,
-                                ),
-                                _buildPasswordField(
-                                  keyName: 'confirmPassword',
-                                  controller: _confirmPasswordController,
-                                  label: 'Confirm Password',
-                                  hintText: 'Re-enter your password',
-                  validator: (v) =>
-                    confirmPasswordValidator(v, _passwordController.text),
-                                ),
-                                _buildTermsCheckbox(),
-                                const SizedBox(height: 24),
-                                if (_errorMessage != null) ...[
-                                  Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: Colors.red.shade50,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: Colors.red.shade200),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.error_outline,
-                                          color: Colors.red.shade600,
-                                          size: 20,
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Text(
-                                            _errorMessage!,
-                                            style: TextStyle(
-                                              color: Colors.red.shade700,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 24),
-                                ],
-                                ElevatedButton(
-                                  onPressed: _register,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.primary,
-                                    foregroundColor: AppColors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: kSpacingMedium),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(kBorderRadius),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'Create Account',
-                                    style: kTextStyleRegular.copyWith(
-                                      color: AppColors.white,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 32),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      'Already have an account? ',
-                                      style: kTextStyleRegular.copyWith(
-                                        color: Colors.grey[600],
-                                      ),
-                                    ),
-                                    GestureDetector(
-                                      onTap: () => context.pushReplacement('/signin'),
-                                      child: Text(
-                                        'Sign In',
-                                        style: kTextStyleRegular.copyWith(
-                                          color: AppColors.primary,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 40),
-                              ],
-                            ),
+                      ),
+                      SizedBox(height: 32),
+
+                      _buildCompactTextFormField(
+                        keyName: 'firstName',
+                        controller: _firstNameController,
+                        label: 'First Name',
+                      ),
+                      SizedBox(height: 12),
+
+                      _buildCompactTextFormField(
+                        keyName: 'lastName',
+                        controller: _lastNameController,
+                        label: 'Last Name',
+                      ),
+                      SizedBox(height: 16),
+
+                      _buildCompactTextFormField(
+                        keyName: 'email',
+                        controller: _emailController,
+                        label: 'Email',
+                        keyboardType: TextInputType.emailAddress,
+                      ),
+                      SizedBox(height: 12),
+
+                      _buildCompactTextFormField(
+                        keyName: 'phone',
+                        controller: _phoneController,
+                        label: 'Contact number',
+                        keyboardType: TextInputType.phone,
+                      ),
+                      SizedBox(height: 12),
+
+                      _buildCompactTextFormField(
+                        keyName: 'address',
+                        controller: _addressController,
+                        label: 'Address',
+                      ),
+                      SizedBox(height: 12),
+
+                      _buildCompactTextFormField(
+                        keyName: 'password',
+                        controller: _passwordController,
+                        label: 'Password',
+                        obscureText: _obscurePassword,
+                        suffixIcon: IconButton(
+                          onPressed: () {
+                            setState(() {
+                              _obscurePassword = !_obscurePassword;
+                            });
+                          },
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                            color: AppColors.textSecondary,
+                            size: 20,
                           ),
                         ),
                       ),
+                      SizedBox(height: 12),
+
+                      _buildCompactTextFormField(
+                        keyName: 'confirmPassword',
+                        controller: _confirmPasswordController,
+                        label: 'Confirm Password',
+                        obscureText: _obscureConfirmPassword,
+                        suffixIcon: IconButton(
+                          onPressed: () {
+                            setState(() {
+                              _obscureConfirmPassword = !_obscureConfirmPassword;
+                            });
+                          },
+                          icon: Icon(
+                            _obscureConfirmPassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                            color: AppColors.textSecondary,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: 12),
+
+                      // Terms and conditions checkbox
+                      Container(
+                        width: double.infinity,
+                        alignment: Alignment.centerLeft,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Checkbox(
+                              value: _acceptTerms,
+                              side: BorderSide(
+                                color: _fieldErrors['terms'] != null 
+                                  ? AppColors.error 
+                                  : AppColors.textTertiary,
+                                width: 2,
+                              ),
+                              onChanged: (value) async {
+                                if (value == true && !_acceptTerms) {
+                                  final agreed = await showDialog<bool>(
+                                    context: context,
+                                    barrierDismissible: false,
+                                    builder: (context) => const TermsAndConditionsModal(),
+                                  );
+                                  setState(() {
+                                    _acceptTerms = agreed == true;
+                                    if (_acceptTerms) {
+                                      _fieldErrors['terms'] = null;
+                                    }
+                                  });
+                                } else if (value == false) {
+                                  setState(() => _acceptTerms = false);
+                                }
+                              },
+                              activeColor: AppColors.primary,
+                              checkColor: AppColors.background,
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+
+                            GestureDetector(
+                              onTap: () async {
+                                if (!_acceptTerms) {
+                                  final agreed = await showDialog<bool>(
+                                    context: context,
+                                    barrierDismissible: false,
+                                    builder: (context) => const TermsAndConditionsModal(),
+                                  );
+                                  setState(() {
+                                    _acceptTerms = agreed == true;
+                                    if (_acceptTerms) {
+                                      _fieldErrors['terms'] = null;
+                                    }
+                                  });
+                                } else {
+                                  setState(() => _acceptTerms = false);
+                                }
+                              },
+                              child: Text(
+                                'I agree to the Terms and Conditions',
+                                textAlign: TextAlign.center,
+                                style: kTextStyleSmall.copyWith(
+                                  color: _fieldErrors['terms'] != null 
+                                    ? AppColors.error 
+                                    : AppColors.textSecondary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      SizedBox(height: 12),
+
+                      // Sign up button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 40,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: AppColors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(kButtonRadius),
+                            ),
+                            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            elevation: 2,
+                            shadowColor: Colors.black.withOpacity(0.1),
+                            disabledBackgroundColor: AppColors.primary.withOpacity(0.6),
+                          ),
+                          onPressed: _isLoading ? null : _handleSignup,
+                          child: _isLoading
+                              ? SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      AppColors.white,
+                                    ),
+                                  ),
+                                )
+                              : Text(
+                                  'Sign Up',
+                                  style: kTextStyleRegular.copyWith(
+                                    fontSize: 14,
+                                    color: AppColors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                        ),
+                      ),
+
+                      SizedBox(height: 16),
+
+                      // Sign in link
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Already have an account? ',
+                            style: kTextStyleSmall.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              context.pushReplacement('/signin');
+                            },
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: Size(0, 0),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: Text(
+                              'Sign In',
+                              style: kTextStyleSmall.copyWith(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 30),
+
+                      Image.asset(
+                        'assets/img/image 9.png',
+                        height: 108,
+                        fit: BoxFit.contain,
+                      ),
                     ],
                   ),
+                ),
+              ),
+            ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompactTextFormField({
+    required String keyName,
+    required TextEditingController controller,
+    required String label,
+    TextInputType? keyboardType,
+    bool obscureText = false,
+    bool readOnly = false,
+    Widget? suffixIcon,
+    VoidCallback? onTap,
+  }) {
+    return Container(
+      height: 48,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 6,
+            offset: Offset(0, 2),
+            spreadRadius: 1,
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: keyboardType,
+        obscureText: obscureText,
+        readOnly: readOnly,
+        onTap: onTap,
+        onChanged: (_) {
+          if (_fieldErrors[keyName] != null) {
+            setState(() => _fieldErrors[keyName] = null);
+          }
+        },
+        style: kTextStyleSmall.copyWith(
+          color: AppColors.textPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: kTextStyleSmall.copyWith(
+            color: AppColors.textPrimary,
+            fontSize: 14,
+          ),
+          filled: true,
+          fillColor: AppColors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(
+              color: _fieldErrors[keyName] != null ? AppColors.error : AppColors.border,
+              width: _fieldErrors[keyName] != null ? 1.5 : 0.5,
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(
+              color: _fieldErrors[keyName] != null ? AppColors.error : AppColors.primary,
+              width: 1.5,
+            ),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: AppColors.error, width: 2.0),
+          ),
+          focusedErrorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: AppColors.error, width: 1.5),
+          ),
+          suffixIcon: suffixIcon,
+          suffixIconConstraints: suffixIcon != null 
+            ? BoxConstraints(minWidth: 48, maxWidth: 48, minHeight: 32, maxHeight: 32)
+            : null,
+          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          isDense: true,
         ),
       ),
     );

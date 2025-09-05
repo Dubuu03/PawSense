@@ -5,6 +5,7 @@ import 'package:pawsense/pages/mobile/auth/sign_up_page.dart';
 import 'package:pawsense/pages/mobile/auth/verify_email_page.dart';
 import 'package:pawsense/pages/mobile/home_page.dart';
 import 'package:pawsense/pages/mobile/assessment_page.dart';
+import 'package:pawsense/pages/mobile/signup.dart';
 import 'package:pawsense/pages/web/auth/web_login_page.dart';
 import 'package:pawsense/pages/web/auth/admin_signup_page.dart';
 import 'package:pawsense/pages/web/admin/dashboard_screen.dart';
@@ -52,7 +53,7 @@ class AppRouter {
             email: extra['email'] as String,
             uid: extra['uid'] as String,
             contactNumber: extra['contactNumber'] as String,
-            dateOfBirth: extra['dateOfBirth'] as DateTime,
+            dateOfBirth: extra['dateOfBirth'] as DateTime?,
             agreedToTerms: extra['agreedToTerms'] as bool,
             address: extra['address'] as String,
           );

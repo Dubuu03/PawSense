@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/services/auth/auth_service_mobile.dart';
 import '../../../core/models/user/user_model.dart';
-import '../../../core/utils/constants.dart';
+import '../../../core/utils/constants_mobile.dart';
 import '../../../core/utils/errors.dart';
 import '../../../core/utils/app_colors.dart';
 import '../../../core/utils/text_utils.dart';
@@ -19,7 +19,7 @@ class VerifyEmailPage extends StatefulWidget {
   final String email;
   final String uid;
   final String contactNumber;
-  final DateTime dateOfBirth;
+  final DateTime? dateOfBirth;
   final bool agreedToTerms;
   final String address;
 
@@ -30,7 +30,7 @@ class VerifyEmailPage extends StatefulWidget {
     required this.email,
     required this.uid,
     required this.contactNumber,
-    required this.dateOfBirth,
+    this.dateOfBirth,
     required this.agreedToTerms,
     required this.address,
   });
@@ -164,13 +164,13 @@ class _VerifyEmailPageState extends State<VerifyEmailPage>
             Icon(
               Icons.check_circle,
               color: Colors.white,
-              size: 20,
+              size: 18,
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: kMobileSizedBoxLarge),
             Expanded(
               child: Text(
                 message,
-                style: TextStyle(
+                style: kMobileTextStyleSubtitle.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w500,
                 ),
@@ -178,12 +178,12 @@ class _VerifyEmailPageState extends State<VerifyEmailPage>
             ),
           ],
         ),
-        backgroundColor: Colors.green.shade600,
+        backgroundColor: AppColors.success,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(kMobileBorderRadiusSmall),
         ),
-        margin: const EdgeInsets.all(16),
+        margin: EdgeInsets.all(kMobilePaddingMedium),
       ),
     );
   }
@@ -196,13 +196,13 @@ class _VerifyEmailPageState extends State<VerifyEmailPage>
             Icon(
               Icons.error_outline,
               color: Colors.white,
-              size: 20,
+              size: 18,
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: kMobileSizedBoxLarge),
             Expanded(
               child: Text(
                 message,
-                style: TextStyle(
+                style: kMobileTextStyleSubtitle.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w500,
                 ),
@@ -210,12 +210,12 @@ class _VerifyEmailPageState extends State<VerifyEmailPage>
             ),
           ],
         ),
-        backgroundColor: Colors.red.shade600,
+        backgroundColor: AppColors.error,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(kMobileBorderRadiusSmall),
         ),
-        margin: const EdgeInsets.all(16),
+        margin: EdgeInsets.all(kMobilePaddingMedium),
       ),
     );
   }
@@ -231,44 +231,44 @@ class _VerifyEmailPageState extends State<VerifyEmailPage>
 
   Widget _buildEmailCard() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(kMobilePaddingMedium),
       decoration: BoxDecoration(
-        color: Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.blue.shade100),
+        color: AppColors.primary.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(kMobileBorderRadiusCard),
+        border: Border.all(color: AppColors.primary.withOpacity(0.1)),
       ),
       child: Column(
         children: [
           Icon(
             Icons.mark_email_read_outlined,
-            color: Colors.blue.shade600,
-            size: 28,
+            color: AppColors.primary,
+            size: 24,
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: kMobileSizedBoxLarge),
           Text(
             'Verification email sent to:',
-            style: kTextStyleRegular.copyWith(
-              color: Colors.blue.shade700,
+            style: kMobileTextStyleSubtitle.copyWith(
+              color: AppColors.primary,
               fontWeight: FontWeight.w500,
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: kMobileSizedBoxMedium),
           Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 6,
+            padding: EdgeInsets.symmetric(
+              horizontal: kMobilePaddingSmall,
+              vertical: kMobileSizedBoxSmall,
             ),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.blue.shade200),
+              borderRadius: BorderRadius.circular(kMobileBorderRadiusButton),
+              border: Border.all(color: AppColors.primary.withOpacity(0.2)),
             ),
             child: Text(
               widget.email,
-              style: kTextStyleRegular.copyWith(
+              style: kMobileTextStyleSubtitle.copyWith(
                 fontWeight: FontWeight.w600,
-                color: Colors.blue.shade800,
+                color: AppColors.primary,
               ),
               textAlign: TextAlign.center,
             ),
@@ -281,16 +281,15 @@ class _VerifyEmailPageState extends State<VerifyEmailPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-
+      backgroundColor: AppColors.background,
       body: FadeTransition(
         opacity: _fadeAnimation,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24,104,24,24),
+          padding: EdgeInsets.fromLTRB(kMobilePaddingLarge, 90, kMobilePaddingLarge, kMobilePaddingLarge),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 20),
+              SizedBox(height: kMobileSizedBoxXXLarge),
               
               // Email verification icon with animation
               Center(
@@ -300,22 +299,16 @@ class _VerifyEmailPageState extends State<VerifyEmailPage>
                     return Transform.scale(
                       scale: _pulseAnimation.value,
                       child: Container(
-                        padding: const EdgeInsets.all(32),
+                        padding: EdgeInsets.all(kMobilePaddingLarge),
                         decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
+                          color: AppColors.primary.withOpacity(0.1),
                           shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.blue.withOpacity(0.1),
-                              blurRadius: 20,
-                              spreadRadius: 5,
-                            ),
-                          ],
+                          boxShadow: kMobileCardShadow,
                         ),
                         child: Icon(
                           Icons.mark_email_unread_rounded,
-                          size: 64,
-                          color: Colors.blue.shade600,
+                          size: 48,
+                          color: AppColors.primary,
                         ),
                       ),
                     );
@@ -323,34 +316,34 @@ class _VerifyEmailPageState extends State<VerifyEmailPage>
                 ),
               ),
               
-              const SizedBox(height: 32),
+              SizedBox(height: kMobileSizedBoxHuge),
               
               Text(
                 'Verify Your Email',
-                style: kTextStyleHeader.copyWith(
+                style: kMobileTextStyleTitle.copyWith(
                   color: AppColors.textPrimary,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
                 ),
                 textAlign: TextAlign.center,
               ),
               
-              const SizedBox(height: 12),
+              SizedBox(height: kMobileSizedBoxLarge),
               
               Text(
                 'We\'ve sent a verification link to your email address. Click the link to verify your account and get started.',
-                style: kTextStyleRegular.copyWith(
-                  color: Colors.grey[600],
-                  height: 1.5,
+                style: kMobileTextStyleSubtitle.copyWith(
+                  color: AppColors.textSecondary,
+                  height: 1.4,
                 ),
                 textAlign: TextAlign.center,
               ),
               
-              const SizedBox(height: 32),
+              SizedBox(height: kMobileSizedBoxHuge),
               
               _buildEmailCard(),
               
-              const SizedBox(height: 24),
-              
-            
+              SizedBox(height: kMobileSizedBoxXXLarge),
               
               // Resend button
               SizedBox(
@@ -360,14 +353,14 @@ class _VerifyEmailPageState extends State<VerifyEmailPage>
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: AppColors.white,
-                    padding: const EdgeInsets.symmetric(vertical: kSpacingMedium),
+                    padding: EdgeInsets.symmetric(vertical: kMobilePaddingSmall),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(kBorderRadius),
+                      borderRadius: BorderRadius.circular(kMobileBorderRadiusSmall),
                     ),
                   ),
                   child: Text(
                     'Resend Email',
-                    style: kTextStyleRegular.copyWith(
+                    style: kMobileTextStyleSubtitle.copyWith(
                       color: AppColors.white,
                       fontWeight: FontWeight.w600,
                     ),
@@ -375,14 +368,14 @@ class _VerifyEmailPageState extends State<VerifyEmailPage>
                 ),
               ),
               
-              const SizedBox(height: 24),
+              SizedBox(height: kMobileSizedBoxXXLarge),
               
               // Help text
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.all(kMobilePaddingMedium),
                 decoration: BoxDecoration(
                   color: AppColors.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(kMobileBorderRadiusSmall),
                   border: Border.all(color: AppColors.primary.withOpacity(0.2)),
                 ),
                 child: Row(
@@ -390,15 +383,15 @@ class _VerifyEmailPageState extends State<VerifyEmailPage>
                     Icon(
                       Icons.help_outline,
                       color: AppColors.primary,
-                      size: 20,
+                      size: 18,
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: kMobileSizedBoxLarge),
                     Expanded(
                       child: Text(
                         'Still having trouble? Contact our support team for assistance.',
-                        style: kTextStyleRegular.copyWith(
+                        style: kMobileTextStyleSubtitle.copyWith(
                           color: AppColors.primary.withOpacity(0.8),
-                          fontSize: 13,
+                          fontSize: 12,
                         ),
                       ),
                     ),
@@ -406,22 +399,22 @@ class _VerifyEmailPageState extends State<VerifyEmailPage>
                 ),
               ),
               
-              const SizedBox(height: 24),
+              SizedBox(height: kMobileSizedBoxXXLarge),
 
                Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
                           'Use a different email? ',
-                            style: kTextStyleRegular.copyWith(
-                              color: Colors.grey[600],
+                            style: kMobileTextStyleSubtitle.copyWith(
+                              color: AppColors.textSecondary,
                             ),
                           ),
                       GestureDetector(
                         onTap: () => context.push('/signup'),
                             child: Text(
                               'Sign Up',
-                              style: kTextStyleRegular.copyWith(
+                              style: kMobileTextStyleSubtitle.copyWith(
                                 color: AppColors.primary,
                                 fontWeight: FontWeight.w600,
                               ),

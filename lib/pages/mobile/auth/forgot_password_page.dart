@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/services/auth/auth_service_mobile.dart';
-import '../../../core/utils/constants.dart';
+import '../../../core/utils/constants_mobile.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/services/user/user_services.dart';
 import '../../../core/utils/errors.dart';
@@ -90,74 +90,74 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage>
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(kMobileBorderRadiusCard),
         ),
         backgroundColor: Colors.white,
         elevation: 8,
-        contentPadding: const EdgeInsets.all(32),
+        contentPadding: EdgeInsets.all(kMobilePaddingLarge),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(kMobilePaddingSmall),
               decoration: BoxDecoration(
-                color: Colors.green.shade50,
+                color: AppColors.success.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 Icons.mark_email_read_rounded,
-                color: Colors.blue.shade600,
-                size: 48,
+                color: AppColors.primary,
+                size: 36,
               ),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: kMobileSizedBoxXXLarge),
             Text(
               'Check Your Email',
-              style: kTextStyleTitle.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Colors.grey[800],
+              style: kMobileTextStyleTitle.copyWith(
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+                fontSize: 18,
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: kMobileSizedBoxLarge),
             Text(
               'Weve sent a password reset link to:',
-              style: kTextStyleRegular.copyWith(
-                color: Colors.grey[600],
+              style: kMobileTextStyleSubtitle.copyWith(
+                color: AppColors.textSecondary,
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: kMobileSizedBoxMedium),
             Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 8,
+              padding: EdgeInsets.symmetric(
+                horizontal: kMobilePaddingMedium,
+                vertical: kMobileSizedBoxMedium,
               ),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(8),
+                color: AppColors.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(kMobileBorderRadiusButton),
               ),
               child: Text(
                 _emailController.text.trim(),
-                style: kTextStyleRegular.copyWith(
+                style: kMobileTextStyleSubtitle.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: Colors.blue.shade700,
+                  color: AppColors.primary,
                 ),
                 textAlign: TextAlign.center,
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: kMobilePaddingMedium),
             Text(
               'Click the link in the email to reset your password. The link will expire in 24 hours.',
-              style: kTextStyleRegular.copyWith(
-                color: Colors.grey[600],
-                fontSize: 13,
+              style: kMobileTextStyleSubtitle.copyWith(
+                color: AppColors.textSecondary,
+                fontSize: 12,
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 32),
+            SizedBox(height: kMobileSizedBoxHuge),
             Row(
               children: [
-
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () {
@@ -165,15 +165,21 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage>
                       Navigator.pop(context); // back to login
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue.shade600,
+                      backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      padding: EdgeInsets.symmetric(vertical: kMobilePaddingSmall),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(kMobileBorderRadiusSmall),
                       ),
                       elevation: 0,
                     ),
-                    child: const Text('Back to Login'),
+                    child: Text(
+                      'Back to Login',
+                      style: kMobileTextStyleSubtitle.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -190,60 +196,64 @@ Widget _buildEmailField(void Function() onChanged) {
     children: [
       Text(
         'Email Address',
-        style: kTextStyleRegular.copyWith(
+        style: kMobileTextStyleSubtitle.copyWith(
           fontWeight: FontWeight.w600,
-          color: Colors.grey[700],
+          color: AppColors.textPrimary,
         ),
       ),
-      const SizedBox(height: 8),
+      SizedBox(height: kMobileSizedBoxMedium),
       TextFormField(
         controller: _emailController,
         decoration: InputDecoration(
           hintText: 'Enter your email address',
-          hintStyle: kTextStyleRegular.copyWith(
+          hintStyle: kMobileTextStyleSubtitle.copyWith(
             fontWeight: FontWeight.normal,
-            color: Colors.grey[500],
+            color: AppColors.textTertiary,
           ),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(kMobileBorderRadiusCard),
+            borderSide: BorderSide(color: AppColors.textTertiary, width: 1),
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(kMobileBorderRadiusCard),
+            borderSide: BorderSide(color: AppColors.textTertiary, width: 1),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(kMobileBorderRadiusCard),
             borderSide: BorderSide(color: AppColors.primary, width: 2),
           ),
           errorBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: Colors.red),
+            borderRadius: BorderRadius.circular(kMobileBorderRadiusCard),
+            borderSide: BorderSide(color: AppColors.error, width: 1),
+          ),
+          focusedErrorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(kMobileBorderRadiusCard),
+            borderSide: BorderSide(color: AppColors.error, width: 2),
           ),
           prefixIcon: Container(
-            margin: const EdgeInsets.all(12),
-            padding: const EdgeInsets.all(8),
+            margin: EdgeInsets.all(kMobilePaddingSmall),
+            padding: EdgeInsets.all(kMobileSizedBoxMedium),
             decoration: BoxDecoration(
               color: AppColors.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(kMobileBorderRadiusButton),
             ),
             child: Icon(
               Icons.email_outlined,
               color: AppColors.primary,
-              size: 20,
+              size: 18,
             ),
           ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 16,
+          contentPadding: EdgeInsets.symmetric(
+            horizontal: kMobilePaddingMedium,
+            vertical: kMobilePaddingMedium,
           ),
           filled: true,
-          fillColor: Colors.grey.shade50,
+          fillColor: AppColors.background,
         ),
         validator: emailValidator,
         keyboardType: TextInputType.emailAddress,
         autofillHints: const [AutofillHints.email],
-        style: kTextStyleRegular.copyWith(
+        style: kMobileTextStyleSubtitle.copyWith(
           fontWeight: FontWeight.normal,
         ),
         onChanged: (_) => onChanged(),
@@ -253,10 +263,10 @@ Widget _buildEmailField(void Function() onChanged) {
 }
   Widget _buildInfoCard() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(kMobilePaddingMedium),
       decoration: BoxDecoration(
         color: AppColors.primary.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(kMobileBorderRadiusCard),
         border: Border.all(color: AppColors.primary.withOpacity(0.2)),
       ),
       child: Column(
@@ -264,22 +274,22 @@ Widget _buildEmailField(void Function() onChanged) {
           Icon(
             Icons.info_outline_rounded,
             color: AppColors.primary,
-            size: 28,
+            size: 24,
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: kMobileSizedBoxLarge),
           Text(
             'Having trouble?',
-            style: kTextStyleRegular.copyWith(
+            style: kMobileTextStyleSubtitle.copyWith(
               fontWeight: FontWeight.w600,
               color: AppColors.primary,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: kMobileSizedBoxMedium),
           Text(
             'If you dont receive an email within a few minutes, check your spam folder or contact support.',
-            style: kTextStyleRegular.copyWith(
+            style: kMobileTextStyleSubtitle.copyWith(
               color: AppColors.primary.withOpacity(0.8),
-              fontSize: 13,
+              fontSize: 12,
             ),
             textAlign: TextAlign.center,
           ),
@@ -291,9 +301,8 @@ Widget _buildEmailField(void Function() onChanged) {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-
-      backgroundColor: Colors.white,
-      body:FadeTransition(
+      backgroundColor: AppColors.background,
+      body: FadeTransition(
           opacity: _fadeAnimation,
           child: _isLoading
               ? Center(
@@ -304,11 +313,11 @@ Widget _buildEmailField(void Function() onChanged) {
                         color: AppColors.primary,
                         strokeWidth: 3,
                       ),
-                      const SizedBox(height: 16),
+                      SizedBox(height: kMobileSizedBoxXLarge),
                       Text(
                         'Sending reset link...',
-                        style: kTextStyleRegular.copyWith(
-                          color: Colors.grey[600],
+                        style: kMobileTextStyleSubtitle.copyWith(
+                          color: AppColors.textSecondary,
                         ),
                       ),
                     ],
@@ -316,51 +325,53 @@ Widget _buildEmailField(void Function() onChanged) {
                 )
               : SingleChildScrollView(
                   padding: EdgeInsets.fromLTRB(
-                      24,
-                      _errorMessage != null ? 74 : 94,
-                      24,
-                      24,
+                      kMobilePaddingLarge,
+                      _errorMessage != null ? 70 : 85,
+                      kMobilePaddingLarge,
+                      kMobilePaddingLarge,
                     ),
                   child: Form(
                     key: _formKey,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const SizedBox(height: 20),
+                        SizedBox(height: kMobileSizedBoxXXLarge),
                         // Illustration/Icon
                         Container(
                           alignment: Alignment.center,
                           child: Container(
-                            padding: const EdgeInsets.all(24),
+                            padding: EdgeInsets.all(kMobilePaddingLarge),
                             decoration: BoxDecoration(
                               color: AppColors.primary.withOpacity(0.1),
                               shape: BoxShape.circle,
                             ),
                             child: Icon(
                               Icons.lock_reset_rounded,
-                              size: 64,
+                              size: 48,
                               color: AppColors.primary,
                             ),
                           ),
                         ),
-                        const SizedBox(height: 32),
+                        SizedBox(height: kMobileSizedBoxHuge),
                         Text(
                           'Forgot Password',
-                          style: kTextStyleHeader.copyWith(
+                          style: kMobileTextStyleTitle.copyWith(
                             color: AppColors.textPrimary,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
                           ),
                           textAlign: TextAlign.center,
                         ),
-                        const SizedBox(height: 12),
+                        SizedBox(height: kMobileSizedBoxLarge),
                         Text(
                           'Dont worry! Enter your email address below and well send you a link to reset your password.',
-                          style: kTextStyleRegular.copyWith(
-                            color: Colors.grey[600],
-                            height: 1.5,
+                          style: kMobileTextStyleSubtitle.copyWith(
+                            color: AppColors.textSecondary,
+                            height: 1.4,
                           ),
                           textAlign: TextAlign.center,
                         ),
-                        const SizedBox(height: 40),
+                        SizedBox(height: kMobileSizedBoxHuge + kMobileSizedBoxMedium),
                         _buildEmailField(() {
                           final email = _emailController.text.trim();
                           // Hide custom error if any
@@ -376,28 +387,28 @@ Widget _buildEmailField(void Function() onChanged) {
                             }
                           }
                         }),
-                        const SizedBox(height: 24),
+                        SizedBox(height: kMobileSizedBoxXXLarge),
                         if (_errorMessage != null) ...[
                           Container(
-                            padding: const EdgeInsets.all(12),
+                            padding: EdgeInsets.all(kMobilePaddingSmall),
                             decoration: BoxDecoration(
-                              color: Colors.red.shade50,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.red.shade200),
+                              color: AppColors.error.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(kMobileBorderRadiusSmall),
+                              border: Border.all(color: AppColors.error.withOpacity(0.2)),
                             ),
                             child: Row(
                               children: [
                                 Icon(
                                   Icons.error_outline,
-                                  color: Colors.red.shade600,
-                                  size: 20,
+                                  color: AppColors.error,
+                                  size: 18,
                                 ),
-                                const SizedBox(width: 12),
+                                SizedBox(width: kMobileSizedBoxLarge),
                                 Expanded(
                                   child: Text(
                                     _errorMessage!,
-                                    style: TextStyle(
-                                      color: Colors.red.shade700,
+                                    style: kMobileTextStyleSubtitle.copyWith(
+                                      color: AppColors.error,
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
@@ -405,51 +416,51 @@ Widget _buildEmailField(void Function() onChanged) {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 24),
+                          SizedBox(height: kMobileSizedBoxXXLarge),
                         ],
                         ElevatedButton(
                           onPressed: _sendReset,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primary,
                             foregroundColor: AppColors.white,
-                            padding: const EdgeInsets.symmetric(vertical: kSpacingMedium),
+                            padding: EdgeInsets.symmetric(vertical: kMobilePaddingSmall),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(kBorderRadius),
+                              borderRadius: BorderRadius.circular(kMobileBorderRadiusSmall),
                             ),
                           ),
                           child: Text(
                             'Reset Password',
-                            style: kTextStyleRegular.copyWith(
+                            style: kMobileTextStyleSubtitle.copyWith(
                               color: AppColors.white,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
-                        const SizedBox(height: 32),
+                        SizedBox(height: kMobileSizedBoxHuge),
                         _buildInfoCard(),
-                        const SizedBox(height: 24),
+                        SizedBox(height: kMobileSizedBoxXXLarge),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
                               'Remember your password? ',
-                              style: kTextStyleRegular.copyWith(
-                                color: Colors.grey[600],
+                              style: kMobileTextStyleSubtitle.copyWith(
+                                color: AppColors.textSecondary,
                               ),
                             ),
                             GestureDetector(
                               onTap: () => Navigator.pop(context),
                               child: Text(
                                 'Sign In',
-                                style: kTextStyleRegular.copyWith(
-                                  color:AppColors.primary,
+                                style: kMobileTextStyleSubtitle.copyWith(
+                                  color: AppColors.primary,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 40),
+                        SizedBox(height: kMobileSizedBoxHuge),
                       ],
                     ),
                   ),

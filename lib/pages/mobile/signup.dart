@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/utils/app_colors.dart';
 import '../../core/utils/constants.dart';
+import '../../core/services/auth/auth_service_mobile.dart';
+import 'auth/terms_and_conditions_modal.dart';
+import '../../core/utils/errors.dart';
 
 class Signup extends StatefulWidget {
   const Signup({super.key});
@@ -10,63 +13,171 @@ class Signup extends StatefulWidget {
   State<Signup> createState() => _SignupState();
 }
 
-class _SignupState extends State<Signup> {
+class _SignupState extends State<Signup> with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
-  final _usernameController = TextEditingController();
+  final _authService = AuthService();
+
+  // Controllers - updated to match sign_up_page.dart naming
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
-  final _dobController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
+  DateTime? _dateOfBirth;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
-  bool _acceptTerms = false;
+  bool _agreedToTerms = false;
   bool _isLoading = false;
+  String? _errorMessage;
+
+  // Animation controllers
+  late AnimationController _fadeController;
+  late AnimationController _slideController;
+
+  // Field tracking for validation
+  final Map<String, String?> _fieldErrors = {
+    'firstName': null,
+    'lastName': null,
+    'email': null,
+    'phone': null,
+    'address': null,
+    'password': null,
+    'confirmPassword': null,
+    'dateOfBirth': null,
+    'terms': null,
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _slideController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    
+    _fadeController.forward();
+    _slideController.forward();
+  }
 
   @override
   void dispose() {
-    _usernameController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
-    _dobController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _fadeController.dispose();
+    _slideController.dispose();
     super.dispose();
   }
 
-  void _handleSignup() async {
-    if (!_formKey.currentState!.validate() || !_acceptTerms) {
-      if (!_acceptTerms) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Please accept the Terms and Conditions',
-              style: kTextStyleRegular.copyWith(color: AppColors.white),
-            ),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-      return;
+  Future<void> _handleSignup() async {
+    setState(() {
+      _errorMessage = null;
+      _fieldErrors.updateAll((key, value) => null);
+    });
+
+    bool hasError = false;
+    if (!_formKey.currentState!.validate()) {
+      hasError = true;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    // Comprehensive validation
+    if (_firstNameController.text.trim().isEmpty) {
+      _fieldErrors['firstName'] = 'Enter First Name';
+      hasError = true;
+    }
+    if (_lastNameController.text.trim().isEmpty) {
+      _fieldErrors['lastName'] = 'Enter Last Name';
+      hasError = true;
+    }
+    if (_emailController.text.trim().isEmpty) {
+      _fieldErrors['email'] = 'Enter Email Address';
+      hasError = true;
+    }
+    if (_phoneController.text.trim().isEmpty) {
+      _fieldErrors['phone'] = 'Enter Contact Number';
+      hasError = true;
+    }
+    if (_addressController.text.trim().isEmpty) {
+      _fieldErrors['address'] = 'Enter Address';
+      hasError = true;
+    }
+    if (_passwordController.text.isEmpty) {
+      _fieldErrors['password'] = 'Enter Password';
+      hasError = true;
+    }
+    if (_confirmPasswordController.text.isEmpty) {
+      _fieldErrors['confirmPassword'] = 'Confirm your password';
+      hasError = true;
+    }
 
-    // TODO: Integrate with Firebase Auth
-    // Here you would call your auth service to create the user
-    await Future.delayed(Duration(seconds: 2)); // Simulate network call
+    if (_dateOfBirth == null) {
+      _fieldErrors['dateOfBirth'] = 'Please select your date of birth';
+      hasError = true;
+    }
+    if (!_agreedToTerms) {
+      _fieldErrors['terms'] = 'You must agree to the terms and conditions';
+      hasError = true;
+    }
+    if (_passwordController.text != _confirmPasswordController.text) {
+      _fieldErrors['confirmPassword'] = 'Passwords do not match';
+      setState(() => _errorMessage = 'Passwords do not match');
+      hasError = true;
+    }
 
-    setState(() {
-      _isLoading = false;
-    });
+    setState(() {});
+    if (hasError) return;
 
-    // TODO: Navigate to appropriate screen after successful signup
-    context.go('/signin');
+    setState(() => _isLoading = true);
+
+    try {
+      final uid = await _authService.signUpWithEmail(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+        firstName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
+        contactNumber: _phoneController.text.trim(),
+        dateOfBirth: _dateOfBirth!,
+        agreedToTerms: _agreedToTerms,
+        address: _addressController.text.trim(),
+      );
+
+      if (uid != null && mounted) {
+        context.pushReplacement('/verify-email', extra: {
+          'firstName': _firstNameController.text.trim(),
+          'lastName': _lastNameController.text.trim(),
+          'email': _emailController.text.trim(),
+          'uid': uid,
+          'contactNumber': _phoneController.text.trim(),
+          'dateOfBirth': _dateOfBirth!,
+          'agreedToTerms': _agreedToTerms,
+          'address': _addressController.text.trim(),
+        });
+      }
+    } on Exception catch (e) {
+      final error = e.toString();
+      final mapped = AuthErrorMapper.mapSignUpError(error);
+      setState(() {
+        if (mapped.field != null && mapped.message != null) {
+          _fieldErrors[mapped.field!] = mapped.message;
+        }
+        _errorMessage = mapped.generalMessage;
+      });
+    } catch (e) {
+      setState(() => _errorMessage = 'Sign up failed: ${e.toString()}');
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -82,7 +193,7 @@ class _SignupState extends State<Signup> {
               children: [
                 SizedBox(height: kSpacingLarge),
                 // Logo and title
-                Image.asset('assets/img/image1.png', height: 60),
+                Image.asset('assets/img/logo.png', height: 60),
                 SizedBox(height: kSpacingSmall),
                 Text(
                   'PawSense.',
@@ -93,13 +204,34 @@ class _SignupState extends State<Signup> {
                 ),
                 SizedBox(height: kSpacingMedium),
 
+                // Error message display
+                if (_errorMessage != null)
+                  Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.all(kSpacingMedium),
+                    margin: EdgeInsets.only(bottom: kSpacingMedium),
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(kBorderRadius),
+                      border: Border.all(color: AppColors.error),
+                    ),
+                    child: Text(
+                      _errorMessage!,
+                      style: kTextStyleSmall.copyWith(color: AppColors.error),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+
                 // Form fields
                 _buildTextFormField(
-                  controller: _usernameController,
-                  label: 'Username',
+                  controller: _firstNameController,
+                  label: 'First Name',
                   validator: (value) {
+                    if (_fieldErrors['firstName'] != null) {
+                      return _fieldErrors['firstName'];
+                    }
                     if (value == null || value.isEmpty) {
-                      return 'Username is required';
+                      return 'First name is required';
                     }
                     return null;
                   },
@@ -107,10 +239,29 @@ class _SignupState extends State<Signup> {
                 SizedBox(height: kSpacingMedium),
 
                 _buildTextFormField(
+                  controller: _lastNameController,
+                  label: 'Last Name',
+                  validator: (value) {
+                    if (_fieldErrors['lastName'] != null) {
+                      return _fieldErrors['lastName'];
+                    }
+                    if (value == null || value.isEmpty) {
+                      return 'Last name is required';
+                    }
+                    return null;
+                  },
+                ),
+                SizedBox(height: kSpacingMedium),
+
+
+                _buildTextFormField(
                   controller: _emailController,
                   label: 'Email',
                   keyboardType: TextInputType.emailAddress,
                   validator: (value) {
+                    if (_fieldErrors['email'] != null) {
+                      return _fieldErrors['email'];
+                    }
                     if (value == null || value.isEmpty) {
                       return 'Email is required';
                     }
@@ -129,6 +280,9 @@ class _SignupState extends State<Signup> {
                   label: 'Contact number',
                   keyboardType: TextInputType.phone,
                   validator: (value) {
+                    if (_fieldErrors['phone'] != null) {
+                      return _fieldErrors['phone'];
+                    }
                     if (value == null || value.isEmpty) {
                       return 'Contact number is required';
                     }
@@ -141,6 +295,9 @@ class _SignupState extends State<Signup> {
                   controller: _addressController,
                   label: 'Address',
                   validator: (value) {
+                    if (_fieldErrors['address'] != null) {
+                      return _fieldErrors['address'];
+                    }
                     if (value == null || value.isEmpty) {
                       return 'Address is required';
                     }
@@ -150,7 +307,11 @@ class _SignupState extends State<Signup> {
                 SizedBox(height: kSpacingMedium),
 
                 _buildTextFormField(
-                  controller: _dobController,
+                  controller: TextEditingController(
+                    text: _dateOfBirth != null 
+                      ? "${_dateOfBirth!.day}/${_dateOfBirth!.month}/${_dateOfBirth!.year}"
+                      : ''
+                  ),
                   label: 'Date of birth',
                   readOnly: true,
                   suffixIcon: Icon(
@@ -161,18 +322,33 @@ class _SignupState extends State<Signup> {
                   onTap: () async {
                     final date = await showDatePicker(
                       context: context,
-                      initialDate: DateTime.now(),
+                      initialDate: DateTime.now().subtract(Duration(days: 6570)), // 18 years ago
                       firstDate: DateTime(1900),
                       lastDate: DateTime.now(),
+                      builder: (context, child) {
+                        return Theme(
+                          data: Theme.of(context).copyWith(
+                            colorScheme: ColorScheme.light(
+                              primary: AppColors.primary,
+                              onPrimary: AppColors.white,
+                              surface: AppColors.white,
+                              onSurface: AppColors.textPrimary,
+                            ),
+                          ),
+                          child: child!,
+                        );
+                      },
                     );
                     if (date != null) {
-                      _dobController.text =
-                          '${date.day}/${date.month}/${date.year}';
+                      setState(() {
+                        _dateOfBirth = date;
+                        _fieldErrors['dateOfBirth'] = null;
+                      });
                     }
                   },
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Date of birth is required';
+                    if (_dateOfBirth == null) {
+                      return _fieldErrors['dateOfBirth'] ?? 'Date of birth is required';
                     }
                     return null;
                   },
@@ -198,6 +374,9 @@ class _SignupState extends State<Signup> {
                     ),
                   ),
                   validator: (value) {
+                    if (_fieldErrors['password'] != null) {
+                      return _fieldErrors['password'];
+                    }
                     if (value == null || value.isEmpty) {
                       return 'Password is required';
                     }
@@ -228,6 +407,9 @@ class _SignupState extends State<Signup> {
                     ),
                   ),
                   validator: (value) {
+                    if (_fieldErrors['confirmPassword'] != null) {
+                      return _fieldErrors['confirmPassword'];
+                    }
                     if (value == null || value.isEmpty) {
                       return 'Please confirm your password';
                     }
@@ -240,28 +422,96 @@ class _SignupState extends State<Signup> {
                 SizedBox(height: kSpacingMedium),
 
                 // Terms and conditions checkbox
-                Row(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Transform.scale(
-                      scale: 0.8,
-                      child: Checkbox(
-                        value: _acceptTerms,
-                        onChanged: (value) {
-                          setState(() {
-                            _acceptTerms = value ?? false;
-                          });
-                        },
-                        activeColor: AppColors.primary,
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: Checkbox(
+                              value: _agreedToTerms,
+                              onChanged: (val) async {
+                                if (val == true && !_agreedToTerms) {
+                                  final agreed = await showDialog<bool>(
+                                    context: context,
+                                    barrierDismissible: false,
+                                    builder: (context) => const TermsAndConditionsModal(),
+                                  );
+                                  setState(() => _agreedToTerms = agreed == true);
+                                } else if (val == false) {
+                                  setState(() => _agreedToTerms = false);
+                                }
+                              },
+                              activeColor: AppColors.primary,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () async {
+                                if (!_agreedToTerms) {
+                                  final agreed = await showDialog<bool>(
+                                    context: context,
+                                    barrierDismissible: false,
+                                    builder: (context) => const TermsAndConditionsModal(),
+                                  );
+                                  setState(() => _agreedToTerms = agreed == true);
+                                } else {
+                                  setState(() => _agreedToTerms = false);
+                                }
+                              },
+                              child: RichText(
+                                text: TextSpan(
+                                  style: kTextStyleRegular.copyWith(
+                                    color: Colors.grey[700],
+                                  ),
+                                  children: [
+                                    const TextSpan(text: 'I agree to the '),
+                                    TextSpan(
+                                      text: 'Terms and Conditions',
+                                      style: kTextStyleRegular.copyWith(
+                                        color: AppColors.primary,
+                                        fontWeight: FontWeight.w600,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                    const TextSpan(text: ' and '),
+                                    TextSpan(
+                                      text: 'Privacy Policy',
+                                      style: kTextStyleRegular.copyWith(
+                                        color: AppColors.primary,
+                                        fontWeight: FontWeight.w600,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    Expanded(
-                      child: Text(
-                        'I agree to the Terms and Conditions',
-                        style: kTextStyleSmall.copyWith(
-                          color: AppColors.textSecondary,
+                    if (_fieldErrors['terms'] != null)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8, top: 6),
+                        child: Text(
+                          _fieldErrors['terms']!,
+                          style: TextStyle(color: Colors.red.shade700, fontSize: 13),
                         ),
                       ),
-                    ),
                   ],
                 ),
                 SizedBox(height: kSpacingLarge),
