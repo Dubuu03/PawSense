@@ -205,7 +205,7 @@ class _SignUpPageState extends State<SignUpPage>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           backgroundColor: AppColors.error,
-          duration: const Duration(seconds: 2),
+          duration: const Duration(seconds: 5),
           behavior: SnackBarBehavior.floating,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), 
           content: Row(
@@ -610,7 +610,7 @@ class _SignUpPageState extends State<SignUpPage>
                           ),
                         ],
                       ),
-                      SizedBox(height: 20),
+                      SizedBox(height: 30),
 
                       Image.asset(
                         'assets/img/image 9.png',

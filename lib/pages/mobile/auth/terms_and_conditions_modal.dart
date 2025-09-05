@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/utils/app_colors.dart';
-import '../../../core/utils/constants.dart';
+import '../../../core/utils/constants_mobile.dart';
 
 /// Terms and Conditions Modal
 ///
@@ -85,19 +85,19 @@ class _TermsAndConditionsModalState extends State<TermsAndConditionsModal>
             _scrollController.position.maxScrollExtent;
         
         return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-          height: 4,
+          margin: EdgeInsets.symmetric(horizontal: kMobilePaddingSmall, vertical: 2),
+          height: 2,
           decoration: BoxDecoration(
-            color: Colors.grey.shade200,
-            borderRadius: BorderRadius.circular(2),
+            color: AppColors.border,
+            borderRadius: BorderRadius.circular(1),
           ),
           child: FractionallySizedBox(
             alignment: Alignment.centerLeft,
             widthFactor: progress.clamp(0.0, 1.0),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.blue.shade600,
-                borderRadius: BorderRadius.circular(2),
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(1),
               ),
             ),
           ),
@@ -109,11 +109,10 @@ class _TermsAndConditionsModalState extends State<TermsAndConditionsModal>
   Widget _buildTermsContent() {
     return RichText(
       text: TextSpan(
-        style: const TextStyle(
-          fontSize: 14,
-          color: Colors.black87,
-          height: 1.6,
-          fontWeight: FontWeight.normal,
+        style: kMobileTextStyleSubtitle.copyWith(
+          color: AppColors.textPrimary,
+          height: 1.4,
+          fontSize: 12,
         ),
         children: [
           const TextSpan(
@@ -122,10 +121,10 @@ class _TermsAndConditionsModalState extends State<TermsAndConditionsModal>
           ),
           TextSpan(
             text: '1. Acceptance of Terms\n',
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 15.5,
-              color: Colors.black,
+            style: kMobileTextStyleSubtitle.copyWith(
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              color: AppColors.textPrimary,
             ),
           ),
           const TextSpan(
@@ -133,10 +132,10 @@ class _TermsAndConditionsModalState extends State<TermsAndConditionsModal>
           ),
           TextSpan(
             text: '2. Purpose of the App\n',
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 15.5,
-              color: Colors.black,
+            style: kMobileTextStyleSubtitle.copyWith(
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              color: AppColors.textPrimary,
             ),
           ),
           const TextSpan(
@@ -148,10 +147,10 @@ class _TermsAndConditionsModalState extends State<TermsAndConditionsModal>
           ),
           TextSpan(
             text: '3. User Responsibilities\n',
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 15.5,
-              color: Colors.black,
+            style: kMobileTextStyleSubtitle.copyWith(
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              color: AppColors.textPrimary,
             ),
           ),
           const TextSpan(
@@ -162,10 +161,10 @@ class _TermsAndConditionsModalState extends State<TermsAndConditionsModal>
           ),
           TextSpan(
             text: '4. AI Detection Limitations\n',
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 15.5,
-              color: Colors.black,
+            style: kMobileTextStyleSubtitle.copyWith(
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              color: AppColors.textPrimary,
             ),
           ),
           const TextSpan(
@@ -175,10 +174,10 @@ class _TermsAndConditionsModalState extends State<TermsAndConditionsModal>
           ),
           TextSpan(
             text: '5. Data Collection and Privacy\n',
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 15.5,
-              color: Colors.black,
+            style: kMobileTextStyleSubtitle.copyWith(
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              color: AppColors.textPrimary,
             ),
           ),
           const TextSpan(
@@ -188,10 +187,10 @@ class _TermsAndConditionsModalState extends State<TermsAndConditionsModal>
           ),
           TextSpan(
             text: '6. Intellectual Property\n',
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 15.5,
-              color: Colors.black,
+            style: kMobileTextStyleSubtitle.copyWith(
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              color: AppColors.textPrimary,
             ),
           ),
           const TextSpan(
@@ -199,10 +198,10 @@ class _TermsAndConditionsModalState extends State<TermsAndConditionsModal>
           ),
           TextSpan(
             text: '7. Third-Party Services\n',
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 15.5,
-              color: Colors.black,
+            style: kMobileTextStyleSubtitle.copyWith(
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              color: AppColors.textPrimary,
             ),
           ),
           const TextSpan(
@@ -210,10 +209,10 @@ class _TermsAndConditionsModalState extends State<TermsAndConditionsModal>
           ),
           TextSpan(
             text: '8. Disclaimers\n',
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 15.5,
-              color: Colors.black,
+            style: kMobileTextStyleSubtitle.copyWith(
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              color: AppColors.textPrimary,
             ),
           ),
           const TextSpan(
@@ -223,10 +222,10 @@ class _TermsAndConditionsModalState extends State<TermsAndConditionsModal>
           ),
           TextSpan(
             text: '9. Limitation of Liability\n',
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 15.5,
-              color: Colors.black,
+            style: kMobileTextStyleSubtitle.copyWith(
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              color: AppColors.textPrimary,
             ),
           ),
           const TextSpan(
@@ -237,10 +236,10 @@ class _TermsAndConditionsModalState extends State<TermsAndConditionsModal>
           ),
           TextSpan(
             text: '10. Modifications to Terms\n',
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 15.5,
-              color: Colors.black,
+            style: kMobileTextStyleSubtitle.copyWith(
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              color: AppColors.textPrimary,
             ),
           ),
           const TextSpan(
@@ -248,10 +247,10 @@ class _TermsAndConditionsModalState extends State<TermsAndConditionsModal>
           ),
           TextSpan(
             text: '11. Governing Law\n',
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 15.5,
-              color: Colors.black,
+            style: kMobileTextStyleSubtitle.copyWith(
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              color: AppColors.textPrimary,
             ),
           ),
           const TextSpan(
@@ -272,59 +271,62 @@ class _TermsAndConditionsModalState extends State<TermsAndConditionsModal>
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
-          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+          insetPadding: EdgeInsets.symmetric(horizontal: kMobilePaddingMedium, vertical: 30),
           backgroundColor: Colors.white,
           elevation: 10,
           child: Container(
-            constraints: const BoxConstraints(maxHeight: 700),
+            constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Header
+                // Header (full width background)
                 Container(
-                  padding: const EdgeInsets.all(24),
+                  width: double.infinity,
+                  padding: EdgeInsets.fromLTRB(kMobilePaddingMedium, kMobilePaddingMedium, kMobilePaddingMedium, kMobilePaddingSmall),
                   decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
+                    color: AppColors.primary.withOpacity(0.15),
                     borderRadius: const BorderRadius.only(
                       topLeft: Radius.circular(24),
                       topRight: Radius.circular(24),
+                    ),
+                    border: Border(
+                      bottom: BorderSide(
+                        color: AppColors.primary.withOpacity(0.3),
+                        width: 1,
+                      ),
                     ),
                   ),
                   child: Column(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(16),
+                        padding: EdgeInsets.all(kMobilePaddingSmall),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.blue.withOpacity(0.1),
-                              blurRadius: 10,
-                              spreadRadius: 2,
-                            ),
-                          ],
+                          boxShadow: kMobileCardShadowSmall,
                         ),
                         child: Icon(
                           Icons.pets_rounded,
-                          size: 32,
-                          color: Colors.blue.shade600,
+                          size: 20,
+                          color: AppColors.primary,
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      SizedBox(height: kMobileSizedBoxMedium),
                       Text(
                         'Terms and Conditions',
-                        style: kTextStyleTitle.copyWith(
+                        style: kMobileTextStyleTitle.copyWith(
                           color: AppColors.textPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: kMobileSizedBoxSmall),
                       Text(
                         'Please read and accept our terms to continue',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
+                        style: kMobileTextStyleSubtitle.copyWith(
+                          color: AppColors.textSecondary,
+                          fontSize: 11,
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -335,23 +337,22 @@ class _TermsAndConditionsModalState extends State<TermsAndConditionsModal>
                 // Progress indicator
                 if (!_scrolledToBottom) ...[
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    color: Colors.amber.shade50,
+                    padding: EdgeInsets.symmetric(horizontal: kMobilePaddingSmall, vertical: kMobileSizedBoxSmall),
+                    color: AppColors.warning.withOpacity(0.1),
                     child: Row(
                       children: [
                         Icon(
                           Icons.swipe,
-                          color: Colors.amber.shade700,
-                          size: 18,
+                          color: AppColors.warning,
+                          size: 14,
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: kMobileSizedBoxSmall),
                         Expanded(
                           child: Text(
                             'Please scroll to the bottom to accept terms',
-                            style: TextStyle(
-                              color: Colors.amber.shade800,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
+                            style: kMobileTextStyleSubtitle.copyWith(
+                              color: AppColors.warning,
+                              fontSize: 10,
                             ),
                           ),
                         ),
@@ -361,37 +362,45 @@ class _TermsAndConditionsModalState extends State<TermsAndConditionsModal>
                   _buildScrollProgress(),
                 ],
                 
+                SizedBox(height: 12),
                 // Content
-                Flexible(
+                Expanded(
                   child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    margin: EdgeInsets.symmetric(horizontal: kMobilePaddingSmall),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.grey.shade200),
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(kMobileBorderRadiusSmall),
+                      border: Border.all(color: AppColors.border),
                     ),
                     child: Scrollbar(
                       controller: _scrollController,
                       thumbVisibility: true,
-                      radius: const Radius.circular(8),
+                      radius: Radius.circular(kMobileBorderRadiusButton),
                       child: SingleChildScrollView(
                         controller: _scrollController,
-                        padding: const EdgeInsets.all(20),
+                        padding: EdgeInsets.all(kMobilePaddingSmall),
                         child: _buildTermsContent(),
                       ),
                     ),
                   ),
                 ),
                 
-            // Agreement checkbox (smaller version)
+                // Extra spacing before checkbox
+                SizedBox(height: kMobileSizedBoxLarge),
+                
+            
             Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              margin: EdgeInsets.symmetric(horizontal: kMobilePaddingSmall, vertical: 2),
+              padding: EdgeInsets.symmetric(horizontal: kMobilePaddingSmall, vertical: 10),
               decoration: BoxDecoration(
-                color: _scrolledToBottom ? Colors.green.shade50 : Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(8),
+                color: _scrolledToBottom
+                    ? AppColors.primary.withOpacity(0.1)
+                    : AppColors.border.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(kMobileBorderRadiusButton),
                 border: Border.all(
-                  color: _scrolledToBottom ? Colors.green.shade200 : Colors.grey.shade300,
+                  color: _scrolledToBottom
+                      ? AppColors.primary.withOpacity(0.3)
+                      : AppColors.textTertiary.withOpacity(0.5),
                 ),
               ),
               child: Row(
@@ -406,20 +415,20 @@ class _TermsAndConditionsModalState extends State<TermsAndConditionsModal>
                       child: Icon(
                         _checked ? Icons.check_box : Icons.check_box_outline_blank,
                         color: _scrolledToBottom
-                            ? (_checked ? Colors.blue.shade600 : Colors.grey[600])
-                            : Colors.grey[400],
-                        size: 20, // smaller icon
+                            ? (_checked ? AppColors.primary : AppColors.textSecondary)
+                            : AppColors.textTertiary,
+                        size: 18, // smaller icon
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: kMobileSizedBoxMedium - 2),
                   Expanded(
                     child: Text(
                       'I agree to the Terms and Conditions',
-                      style: TextStyle(
-                        fontSize: 12, // smaller text
-                        color: _scrolledToBottom ? Colors.grey[800] : Colors.grey[500],
-                        fontWeight: FontWeight.w400, // lighter weight
+                      style: kMobileTextStyleSubtitle.copyWith(
+                        fontSize: 13, // slightly smaller text
+                        color: _scrolledToBottom ? AppColors.primary : AppColors.textTertiary,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -427,11 +436,12 @@ class _TermsAndConditionsModalState extends State<TermsAndConditionsModal>
               ),
             ),
 
+
                 // Action buttons
                 Container(
-                  padding: const EdgeInsets.all(20),
+                  padding: EdgeInsets.all(kMobilePaddingSmall),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
+                    color: AppColors.background,
                     borderRadius: const BorderRadius.only(
                       bottomLeft: Radius.circular(24),
                       bottomRight: Radius.circular(24),
@@ -443,37 +453,41 @@ class _TermsAndConditionsModalState extends State<TermsAndConditionsModal>
                         child: OutlinedButton(
                           onPressed: () => Navigator.pop(context, false),
                           style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            padding: EdgeInsets.symmetric(vertical: 6),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(kMobileBorderRadiusSmall),
                             ),
-                            side: BorderSide(color: Colors.grey.shade300),
+                            side: BorderSide(color: AppColors.textTertiary),
                           ),
                           child: Text(
                             'Cancel',
-                            style: TextStyle(
-                              color: Colors.grey[700],
+                            style: kMobileTextStyleSubtitle.copyWith(
+                              fontSize: 11,
+                              color: AppColors.textSecondary,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: kMobileSizedBoxMedium),
                       Expanded(
                         flex: 2,
                         child: ElevatedButton(
-                          onPressed: () => Navigator.pop(context, true),
+                          onPressed: (_scrolledToBottom && _checked) 
+                              ? () => Navigator.pop(context, true)
+                              : null,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primary,
                             foregroundColor: AppColors.white,
-                            padding: const EdgeInsets.symmetric(vertical: kSpacingMedium),
+                            padding: EdgeInsets.symmetric(vertical: 6),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(kBorderRadius),
+                              borderRadius: BorderRadius.circular(kMobileBorderRadiusSmall),
                             ),
                           ),
                           child: Text(
                             'Accept',
-                            style: kTextStyleRegular.copyWith(
+                            style: kMobileTextStyleSubtitle.copyWith(
+                              fontSize: 11,
                               color: AppColors.white,
                               fontWeight: FontWeight.w600,
                             ),
