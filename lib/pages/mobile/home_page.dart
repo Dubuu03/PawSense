@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:pawsense/core/models/user/user_model.dart';
 import 'package:pawsense/core/guards/auth_guard.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
@@ -11,6 +12,9 @@ import 'package:pawsense/core/widgets/user/home/pet_info_card.dart';
 import 'package:pawsense/core/widgets/user/home/health_snapshot.dart';
 import 'package:pawsense/core/widgets/user/home/nearby_clinics.dart';
 import 'package:pawsense/core/widgets/user/home/services_grid.dart';
+import 'package:pawsense/core/widgets/user/home/history_section.dart';
+import 'package:pawsense/core/widgets/user/home/ai_history_list.dart';
+import 'package:pawsense/core/widgets/user/home/appointment_history_list.dart';
 import 'package:pawsense/core/widgets/user/shared/modals/pet_assessment_modal.dart';
 
 class UserHomePage extends StatefulWidget {
@@ -44,6 +48,49 @@ class _UserHomePageState extends State<UserHomePage> {
     ClinicInfo(name: 'Downtown Animal Care', distance: '1.3 km • (555) 555-1234', phone: '555-555-1234'),
     ClinicInfo(name: 'City Vet Clinic', distance: '2.1 km • (555) 987-6543', phone: '555-987-6543'),
     ClinicInfo(name: 'Pet Health Center', distance: '2.5 km • (555) 111-2222', phone: '555-111-2222'),
+  ];
+
+  // Sample AI history data
+  final List<AIHistoryData> _aiHistory = [
+    AIHistoryData(
+      title: 'Localized mange detected',
+      subtitle: 'Today • 10:34 AM',
+      type: AIDetectionType.mange,
+      timestamp: DateTime.now(),
+      confidence: 0.85,
+    ),
+    AIHistoryData(
+      title: 'Possible ringworm lesion',
+      subtitle: 'Tue • 2:05 PM',
+      type: AIDetectionType.ringworm,
+      timestamp: DateTime.now().subtract(const Duration(days: 1)),
+      confidence: 0.73,
+    ),
+    AIHistoryData(
+      title: 'Severe hot spot indicative of ...',
+      subtitle: 'Mon • 6:10 AM',
+      type: AIDetectionType.pyoderma,
+      timestamp: DateTime.now().subtract(const Duration(days: 2)),
+      confidence: 0.91,
+    ),
+  ];
+
+  // Sample appointment history data
+  final List<AppointmentHistoryData> _appointmentHistory = [
+    AppointmentHistoryData(
+      title: 'Confirmed',
+      subtitle: 'Sep 20 • 11:00 AM',
+      status: AppointmentStatus.confirmed,
+      timestamp: DateTime.now().add(const Duration(days: 14)),
+      clinicName: 'Happy Paws Vet',
+    ),
+    AppointmentHistoryData(
+      title: 'Pending',
+      subtitle: 'Oct 02 • 2:30 PM',
+      status: AppointmentStatus.pending,
+      timestamp: DateTime.now().add(const Duration(days: 26)),
+      clinicName: 'Downtown Animal Care',
+    ),
   ];
 
   @override
@@ -87,9 +134,14 @@ class _UserHomePageState extends State<UserHomePage> {
       bottomNavigationBar: UserBottomNavBar(
         currentIndex: _currentNavIndex,
         onIndexChanged: (index) {
-          setState(() {
-            _currentNavIndex = index;
-          });
+          if (index == 2) {
+            // Navigate to alerts page
+            context.push('/alerts');
+          } else {
+            setState(() {
+              _currentNavIndex = index;
+            });
+          }
         },
         onCameraPressed: _showCameraDialog,
       ),
@@ -197,42 +249,12 @@ class _UserHomePageState extends State<UserHomePage> {
   }
 
   Widget _buildHistoryContent() {
-    return Container(
-      margin: kMobileMarginContainer,
-      padding: const EdgeInsets.all(kMobilePaddingLarge),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: kMobileBorderRadiusCardPreset,
-        boxShadow: kMobileCardShadow,
-      ),
-      child: const Column(
-        children: [
-          Icon(
-            Icons.history,
-            size: 48,
-            color: AppColors.textSecondary,
-          ),
-          SizedBox(height: 16),
-          Text(
-            'History Coming Soon',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'View your past appointments, scans, and activities here.',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: AppColors.textSecondary,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
+    return HistorySection(
+      aiHistory: _aiHistory,
+      appointmentHistory: _appointmentHistory,
+      onViewAllPressed: () {
+        // Handle view all history
+      },
     );
   }
 

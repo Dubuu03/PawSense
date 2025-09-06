@@ -5,6 +5,7 @@ import 'package:pawsense/pages/mobile/auth/sign_up_page.dart';
 import 'package:pawsense/pages/mobile/auth/verify_email_page.dart';
 import 'package:pawsense/pages/mobile/home_page.dart';
 import 'package:pawsense/pages/mobile/assessment_page.dart';
+import 'package:pawsense/pages/mobile/alerts_page.dart';
 import 'package:pawsense/pages/mobile/signup.dart';
 import 'package:pawsense/pages/web/auth/web_login_page.dart';
 import 'package:pawsense/pages/web/auth/admin_signup_page.dart';
@@ -62,6 +63,10 @@ class AppRouter {
       GoRoute(
         path: '/home',
         builder: (context, state) => const UserHomePage(),
+      ),
+      GoRoute(
+        path: '/alerts',
+        builder: (context, state) => const AlertsPage(),
       ),
       GoRoute(
         path: '/assessment',
