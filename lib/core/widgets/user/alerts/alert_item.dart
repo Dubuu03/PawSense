@@ -83,6 +83,7 @@ class AlertItem extends StatelessWidget {
                         style: kMobileTextStyleTitle.copyWith(
                           color: AppColors.textPrimary,
                           fontWeight: alert.isRead ? FontWeight.w500 : FontWeight.w600,
+                          fontSize: 14,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -90,6 +91,7 @@ class AlertItem extends StatelessWidget {
                         alert.subtitle,
                         style: kMobileTextStyleSubtitle.copyWith(
                           color: AppColors.textSecondary,
+                          fontSize: 12,
                         ),
                       ),
                     ],

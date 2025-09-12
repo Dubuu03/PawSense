@@ -2,18 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import '../../../../../core/utils/constants.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
-import 'package:pawsense/core/widgets/shared/forms/custom_text_field.dart';
+import 'package:flutter/services.dart';
+import 'package:pawsense/core/utils/breed_options.dart';
 
 class AssessmentStepOne extends StatefulWidget {
   final Map<String, dynamic> assessmentData;
   final Function(String, dynamic) onDataUpdate;
   final VoidCallback onNext;
+  final VoidCallback? onValidationTrigger;
 
   const AssessmentStepOne({
     super.key,
     required this.assessmentData,
     required this.onDataUpdate,
     required this.onNext,
+    this.onValidationTrigger,
   });
 
   @override
@@ -33,12 +36,33 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
   final _durationController = TextEditingController();
   final _notesController = TextEditingController();
 
+  // Breed dropdown state
+  bool _showBreedDropdown = false;
+  List<String> _filteredBreeds = [];
+  final FocusNode _breedFocusNode = FocusNode();
+
+  // Validation state tracking
+  bool _showValidationErrors = false;
+  Map<String, bool> _fieldErrors = {
+    'name': false,
+    'age': false,
+    'weight': false,
+    'breed': false,
+  };
+
   // Sample existing pets (in real app, this would come from a service)
-  final List<Map<String, String>> existingPets = [
-    {'id': '1', 'name': 'Buddy', 'breed': 'Golden Retriever', 'age': '3'},
-    {'id': '2', 'name': 'Luna', 'breed': 'Labrador', 'age': '2'},
-    {'id': '3', 'name': 'Max', 'breed': 'German Shepherd', 'age': '5'},
-  ];
+  final Map<String, List<Map<String, String>>> existingPetsByType = {
+    'Dog': [
+      {'id': '1', 'name': 'Buddy', 'breed': 'Golden Retriever', 'age': '3', 'type': 'Dog'},
+      {'id': '2', 'name': 'Luna', 'breed': 'Labrador', 'age': '2', 'type': 'Dog'},
+      {'id': '3', 'name': 'Max', 'breed': 'German Shepherd', 'age': '5', 'type': 'Dog'},
+    ],
+    'Cat': [
+      {'id': '4', 'name': 'Whiskers', 'breed': 'Persian', 'age': '2', 'type': 'Cat'},
+      {'id': '5', 'name': 'Shadow', 'breed': 'Maine Coon', 'age': '4', 'type': 'Cat'},
+      {'id': '6', 'name': 'Mittens', 'breed': 'Siamese', 'age': '1', 'type': 'Cat'},
+    ],
+  };
 
   // Observed behaviors
   final Map<String, bool> behaviors = {
@@ -57,10 +81,36 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
     // Add fake pets data for testing
     _initializeFakeData();
     
+    // Initialize breed functionality
+    _breedController.addListener(_onBreedTextChanged);
+    _breedFocusNode.addListener(_onBreedFocusChanged);
+    
+    // Add listeners to update assessment data in real-time
+    _nameController.addListener(_updatePetData);
+    _ageController.addListener(_updatePetData);
+    _weightController.addListener(_updatePetData);
+    _notesController.addListener(_updateNotesData);
+    
+    _filteredBreeds = BreedOptions.getBreedsForPetType(
+      widget.assessmentData['selectedPetType'] ?? 'Dog'
+    );
+    
     // Initialize with existing data if available
     if (widget.assessmentData['selectedPet'] != null) {
       selectedPet = widget.assessmentData['selectedPet'];
     }
+    
+    // Initialize the tab mode based on existing data
+    final currentMode = widget.assessmentData['petSelectionMode'] ?? 'existing';
+    if (currentMode == 'new') {
+      isNewPet = true;
+    }
+    
+    // Ensure the parent knows the current mode (defer to avoid setState during build)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.onDataUpdate('petSelectionMode', isNewPet ? 'new' : 'existing');
+    });
+    
     if (widget.assessmentData['newPetData'] != null) {
       final newPetData = Map<String, dynamic>.from(widget.assessmentData['newPetData'] as Map);
       _nameController.text = newPetData['name'] ?? '';
@@ -83,6 +133,43 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
   }
 
   @override
+  void didUpdateWidget(AssessmentStepOne oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // Check if selectedPetType has changed and update accordingly
+    final oldPetType = oldWidget.assessmentData['selectedPetType'];
+    final newPetType = widget.assessmentData['selectedPetType'];
+    
+    if (oldPetType != newPetType) {
+      // Reset selected pet when pet type changes
+      setState(() {
+        selectedPet = null;
+      });
+      
+      // Defer the update to avoid setState during build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        widget.onDataUpdate('selectedPet', null);
+      });
+      
+      // Update breed options for the new pet type
+      _filteredBreeds = BreedOptions.getBreedsForPetType(newPetType ?? 'Dog');
+      
+      // Clear breed field if it was filled
+      if (_breedController.text.isNotEmpty) {
+        _breedController.clear();
+        
+        // Defer the update to avoid setState during build
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          widget.onDataUpdate('newPetData', {
+            ...widget.assessmentData['newPetData'] ?? {},
+            'breed': '',
+          });
+        });
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _nameController.dispose();
     _ageController.dispose();
@@ -90,6 +177,7 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
     _breedController.dispose();
     _durationController.dispose();
     _notesController.dispose();
+    _breedFocusNode.dispose();
     super.dispose();
   }
 
@@ -97,6 +185,194 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
     // Fake data is already initialized in existingPets list
     // This method is here for future expansion if needed
   }
+
+  void _onBreedTextChanged() {
+    final petType = widget.assessmentData['selectedPetType'] ?? 'Dog';
+    setState(() {
+      _filteredBreeds = BreedOptions.filterBreeds(_breedController.text, petType);
+      _showBreedDropdown = _breedController.text.isNotEmpty && _breedFocusNode.hasFocus;
+    });
+    
+    // Update validation state when text changes
+    if (_showValidationErrors) {
+      _updateValidationState();
+    }
+  }
+
+  void _onBreedFocusChanged() {
+    setState(() {
+      _showBreedDropdown = _breedController.text.isNotEmpty && _breedFocusNode.hasFocus;
+    });
+  }
+
+  void _selectBreed(String breed) {
+    print('_selectBreed called with: $breed');
+    _breedController.text = breed;
+    setState(() {
+      _showBreedDropdown = false;
+    });
+    _breedFocusNode.unfocus();
+    
+    // Update validation state when breed is selected
+    if (_showValidationErrors) {
+      _updateValidationState();
+    }
+    
+    // Defer the update to avoid setState during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.onDataUpdate('newPetData', {
+        ...widget.assessmentData['newPetData'] ?? {},
+        'breed': breed,
+      });
+    });
+    print('Breed controller text set to: ${_breedController.text}');
+  }
+
+  void _updatePetData() {
+    final newPetData = {
+      'name': _nameController.text,
+      'age': _ageController.text,
+      'weight': _weightController.text,
+      'breed': _breedController.text,
+    };
+    
+    // Update validation state for visual feedback
+    _updateValidationState();
+    
+    // Defer the update to avoid setState during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.onDataUpdate('newPetData', newPetData);
+    });
+  }
+
+  void _updateNotesData() {
+    // Defer the update to avoid setState during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.onDataUpdate('notes', _notesController.text);
+    });
+  }
+
+  void _updateValidationState() {
+    if (!isNewPet) return; // Only validate for new pet form
+    
+    setState(() {
+      _fieldErrors['name'] = _showValidationErrors && _nameController.text.trim().isEmpty;
+      _fieldErrors['age'] = _showValidationErrors && _ageController.text.trim().isEmpty;
+      _fieldErrors['weight'] = _showValidationErrors && _weightController.text.trim().isEmpty;
+      _fieldErrors['breed'] = _showValidationErrors && (_breedController.text.trim().isEmpty || !_isValidBreed());
+    });
+  }
+
+  bool _isValidBreed() {
+    final breed = _breedController.text.trim();
+    if (breed.isEmpty) return false;
+    
+    final petType = widget.assessmentData['selectedPetType']?.toString() ?? 'Dog';
+    final validBreeds = BreedOptions.getBreedsForPetType(petType);
+    return validBreeds.contains(breed);
+  }
+
+  void _triggerValidation() {
+    setState(() {
+      _showValidationErrors = true;
+    });
+    _updateValidationState();
+  }
+
+  // Public method that can be called from parent widget
+  void triggerValidation() {
+    _triggerValidation();
+  }
+
+  List<Widget> _buildBreedOptions() {
+    return _filteredBreeds.map((breed) => 
+      Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            print('Breed option tapped: $breed');
+            _selectBreed(breed);
+          },
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            child: Text(
+              breed,
+              style: const TextStyle(fontSize: 14),
+            ),
+          ),
+        ),
+      ),
+    ).toList();
+  }
+
+  Widget _buildPetBreedField() {
+    final hasError = _showValidationErrors && isNewPet && _fieldErrors['breed'] == true;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Breed",
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+        ),
+        const SizedBox(height: 6),
+        Column(
+          children: [
+            TextField(
+              controller: _breedController,
+              focusNode: _breedFocusNode,
+              decoration: InputDecoration(
+                hintText: "Type to search breed...",
+                fillColor: Colors.grey.shade100,
+                filled: true,
+                suffixIcon: Icon(
+                  _showBreedDropdown ? Icons.arrow_drop_up : Icons.arrow_drop_down,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(
+                    color: hasError ? Colors.red : AppColors.border,
+                    width: hasError ? 2 : 1,
+                  ),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(
+                    color: hasError ? Colors.red : AppColors.border,
+                    width: hasError ? 2 : 1,
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(
+                    color: hasError ? Colors.red : AppColors.primary,
+                    width: 2,
+                  ),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
+            ),
+            if (_showBreedDropdown && _filteredBreeds.isNotEmpty)
+              Container(
+                margin: const EdgeInsets.only(top: 4),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300, width: 1),
+                  color: Colors.white,
+                ),
+                constraints: const BoxConstraints(maxHeight: 200),
+                child: ListView(
+                  shrinkWrap: true,
+                  physics: const BouncingScrollPhysics(),
+                  children: _buildBreedOptions(),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+  // Breed search dialog logic has been inlined into the breed field builder.
 
 
   @override
@@ -149,7 +425,18 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
                     children: [
                       Expanded(
                         child: GestureDetector(
-                          onTap: () => setState(() => isNewPet = false),
+                          onTap: () {
+                            setState(() {
+                              isNewPet = false;
+                              // Clear validation errors when switching tabs
+                              _showValidationErrors = false;
+                              _fieldErrors.updateAll((key, value) => false);
+                            });
+                            // Defer the update to avoid setState during build
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              widget.onDataUpdate('petSelectionMode', 'existing');
+                            });
+                          },
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: kSpacingMedium,
@@ -176,7 +463,21 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
                       const SizedBox(width: kSpacingSmall),
                       Expanded(
                         child: GestureDetector(
-                          onTap: () => setState(() => isNewPet = true),
+                          onTap: () {
+                            setState(() {
+                              isNewPet = true;
+                              // Deselect any selected existing pet when switching to new pet
+                              selectedPet = null;
+                              // Clear validation errors when switching tabs
+                              _showValidationErrors = false;
+                              _fieldErrors.updateAll((key, value) => false);
+                            });
+                            // Defer the updates to avoid setState during build
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              widget.onDataUpdate('selectedPet', null);
+                              widget.onDataUpdate('petSelectionMode', 'new');
+                            });
+                          },
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: kSpacingMedium,
@@ -236,7 +537,7 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
                   ),
                    const SizedBox(height: kSpacingSmall),
                   Text(
-                    'Which of the following itchy skin behaviours does your dog experience?',
+                    'Which of the following itchy skin behaviours does your ${widget.assessmentData['selectedPetType']?.toLowerCase() ?? 'pet'} experience?',
                     style: kMobileTextStyleSubtitle.copyWith(
                       color: AppColors.textSecondary,
                     ),
@@ -252,11 +553,7 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
                     ),
                   ),
                   const SizedBox(height: kSpacingSmall),
-                  CustomTextField(
-                    controller: _notesController,
-                    hintText: 'Symptoms, duration...',
-                    maxLines: 4,
-                  ),
+                  _buildNotesField(),
                 ],
               ),
             ),
@@ -286,19 +583,16 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
   }
 
   Widget _buildExistingPetSelector() {
+    // Get pets for the selected pet type
+    final selectedPetType = widget.assessmentData['selectedPetType'] ?? 'Dog';
+    final existingPets = existingPetsByType[selectedPetType] ?? [];
+    
     return Container(
       padding: const EdgeInsets.all(kSpacingMedium),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(kBorderRadius),
         border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -308,7 +602,7 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
               Icon(Icons.pets_outlined, color: AppColors.primary, size: 18),
               const SizedBox(width: kSpacingSmall),
               Text(
-                'Select Your Pet',
+                'Select Your $selectedPetType',
                 style: kMobileTextStyleServiceTitle.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
@@ -316,29 +610,48 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
             ],
           ),
           const SizedBox(height: kSpacingSmall),
-          ...existingPets.map((pet) => Container(
-            margin: const EdgeInsets.only(bottom: 0),
-            child: RadioListTile<String>(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 10),
-              title: Text(
-                pet['name']!,
-                style: kMobileTextStyleServiceTitle.copyWith(
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              subtitle: Text(
-                '${pet['breed']} • ${pet['age']} years old',
+          if (existingPets.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(kSpacingMedium),
+              child: Text(
+                'No $selectedPetType pets found. Please add a new pet.',
                 style: kMobileTextStyleViewAll.copyWith(
                   color: AppColors.textSecondary,
+                  fontStyle: FontStyle.italic,
                 ),
+                textAlign: TextAlign.center,
               ),
-              value: pet['id']!,
-              groupValue: selectedPet,
-              onChanged: (value) => setState(() => selectedPet = value),
-              activeColor: AppColors.primary,
-              dense: true,
-            ),
-          )).toList(),
+            )
+          else
+            ...existingPets.map((pet) => Container(
+              margin: const EdgeInsets.only(bottom: 0),
+              child: RadioListTile<String>(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+                title: Text(
+                  pet['name']!,
+                  style: kMobileTextStyleServiceTitle.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                subtitle: Text(
+                  '${pet['breed']} • ${pet['age']} years old',
+                  style: kMobileTextStyleViewAll.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                value: pet['id']!,
+                groupValue: selectedPet,
+                onChanged: (value) {
+                  setState(() => selectedPet = value);
+                  // Defer the update to avoid setState during build
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    widget.onDataUpdate('selectedPet', value);
+                  });
+                },
+                activeColor: AppColors.primary,
+                dense: true,
+              ),
+            )).toList(),
         ],
       ),
     );
@@ -351,11 +664,11 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
         color: AppColors.white,
         borderRadius: BorderRadius.circular(kBorderRadius),
         border: Border.all(color: AppColors.border),
-
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Title Row
           Row(
             children: [
               Icon(Icons.add_circle_outline, color: AppColors.primary, size: 18),
@@ -369,63 +682,29 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
             ],
           ),
           const SizedBox(height: kSpacingMedium),
-          CustomTextField(
-            controller: _nameController,
-            labelText: "Pet's Name",
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter pet name';
-              }
-              return null;
-            },
-          ),
+
+          // Pet's Name
+          _buildPetNameField(_nameController),
           const SizedBox(height: kSpacingSmall),
+
+          // Age & Weight Row
           Row(
             children: [
-              Expanded(
-                child: CustomTextField(
-                  controller: _ageController,
-                  labelText: 'Age (years)',
-                  keyboardType: TextInputType.number,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter age';
-                    }
-                    return null;
-                  },
-                ),
-              ),
+              Expanded(child: _buildPetAgeField(_ageController)),
               const SizedBox(width: kSpacingSmall),
-              Expanded(
-                child: CustomTextField(
-                  controller: _weightController,
-                  labelText: 'Weight (kg)',
-                  keyboardType: TextInputType.number,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter weight';
-                    }
-                    return null;
-                  },
-                ),
-              ),
+              Expanded(child: _buildPetWeightField(_weightController)),
             ],
           ),
           const SizedBox(height: kSpacingSmall),
-          CustomTextField(
-            controller: _breedController,
-            labelText: 'Breed',
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter breed';
-              }
-              return null;
-            },
-          ),
+
+          // Breed
+          _buildPetBreedField(),
+          const SizedBox(height: kSpacingSmall),
         ],
       ),
     );
   }
+
 
   Widget _buildBehaviorCheckboxes() {
     // Custom images for each behavior (you can replace these with actual image paths)
@@ -455,7 +734,23 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
         final isSelected = behavior.value;
         
         return GestureDetector(
-          onTap: () => setState(() => behaviors[behavior.key] = !behavior.value),
+          onTap: () {
+            debugPrint('🎯 Behavior tapped: ${behavior.key}');
+            setState(() {
+              behaviors[behavior.key] = !behavior.value;
+            });
+            
+            // Update assessment data with selected symptoms (defer to avoid setState during build)
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              final selectedSymptoms = behaviors.entries
+                  .where((entry) => entry.value)
+                  .map((entry) => entry.key)
+                  .toList();
+              
+              debugPrint('🎯 Selected symptoms after tap: $selectedSymptoms');
+              widget.onDataUpdate('symptoms', selectedSymptoms);
+            });
+          },
           child: Container(
             decoration: BoxDecoration(
               color: AppColors.white,
@@ -542,6 +837,166 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildNotesField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: _notesController,
+          keyboardType: TextInputType.multiline,
+          maxLines: 4,
+          decoration: InputDecoration(
+            hintText: "Symptoms, duration...",
+            fillColor: Colors.grey.shade100,
+            filled: true,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPetNameField(TextEditingController controller) {
+    final hasError = _showValidationErrors && isNewPet && _fieldErrors['name'] == true;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Pet's Name",
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          keyboardType: TextInputType.text,
+          decoration: InputDecoration(
+            hintText: "Enter pet's name",
+            fillColor: Colors.grey.shade100,
+            filled: true,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(
+                color: hasError ? Colors.red : AppColors.border,
+                width: hasError ? 1.5 : 1,
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(
+                color: hasError ? Colors.red : AppColors.border,
+                width: hasError ? 1.5 : 1,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(
+                color: hasError ? Colors.red : AppColors.primary,
+                width: 2,
+              ),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPetAgeField(TextEditingController controller) {
+    final hasError = _showValidationErrors && isNewPet && _fieldErrors['age'] == true;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Age",
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: InputDecoration(
+            hintText: "Enter age",
+            fillColor: Colors.grey.shade100,
+            filled: true,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(
+                color: hasError ? Colors.red : AppColors.border,
+                width: hasError ? 1.5 : 1,
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(
+                color: hasError ? Colors.red : AppColors.border,
+                width: hasError ? 1.5 : 1,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(
+                color: hasError ? Colors.red : AppColors.primary,
+                width: 2,
+              ),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          ),
+        ),
+      ],
+    );
+  }  Widget _buildPetWeightField(TextEditingController controller) {
+    final hasError = _showValidationErrors && isNewPet && _fieldErrors['weight'] == true;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Weight (kg)",
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: InputDecoration(
+            hintText: "Enter weight",
+            fillColor: Colors.grey.shade100,
+            filled: true,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(
+                color: hasError ? Colors.red : AppColors.border,
+                width: hasError ? 1.5 : 1,
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(
+                color: hasError ? Colors.red : AppColors.border,
+                width: hasError ? 1.5 : 1,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(
+                color: hasError ? Colors.red : AppColors.primary,
+                width: 1,
+              ),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          ),
+        ),
+      ],
     );
   }
 }

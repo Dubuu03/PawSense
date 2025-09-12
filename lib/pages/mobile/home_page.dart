@@ -53,6 +53,7 @@ class _UserHomePageState extends State<UserHomePage> {
   // Sample AI history data
   final List<AIHistoryData> _aiHistory = [
     AIHistoryData(
+      id: 'ai_001',
       title: 'Localized mange detected',
       subtitle: 'Today • 10:34 AM',
       type: AIDetectionType.mange,
@@ -60,6 +61,7 @@ class _UserHomePageState extends State<UserHomePage> {
       confidence: 0.85,
     ),
     AIHistoryData(
+      id: 'ai_002',
       title: 'Possible ringworm lesion',
       subtitle: 'Tue • 2:05 PM',
       type: AIDetectionType.ringworm,
@@ -67,6 +69,7 @@ class _UserHomePageState extends State<UserHomePage> {
       confidence: 0.73,
     ),
     AIHistoryData(
+      id: 'ai_003',
       title: 'Severe hot spot indicative of ...',
       subtitle: 'Mon • 6:10 AM',
       type: AIDetectionType.pyoderma,
@@ -78,6 +81,7 @@ class _UserHomePageState extends State<UserHomePage> {
   // Sample appointment history data
   final List<AppointmentHistoryData> _appointmentHistory = [
     AppointmentHistoryData(
+      id: 'apt_001',
       title: 'Confirmed',
       subtitle: 'Sep 20 • 11:00 AM',
       status: AppointmentStatus.confirmed,
@@ -85,6 +89,7 @@ class _UserHomePageState extends State<UserHomePage> {
       clinicName: 'Happy Paws Vet',
     ),
     AppointmentHistoryData(
+      id: 'apt_002',
       title: 'Pending',
       subtitle: 'Oct 02 • 2:30 PM',
       status: AppointmentStatus.pending,
@@ -97,6 +102,21 @@ class _UserHomePageState extends State<UserHomePage> {
   void initState() {
     super.initState();
     _fetchUser();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    
+    // Check for query parameters to set initial tab
+    final uri = GoRouterState.of(context).uri;
+    final tabParam = uri.queryParameters['tab'];
+    
+    if (tabParam == 'history') {
+      setState(() {
+        _currentTabIndex = 1; // History tab index
+      });
+    }
   }
 
   Future<void> _fetchUser() async {
@@ -205,37 +225,44 @@ class _UserHomePageState extends State<UserHomePage> {
             // Content based on selected tab
             if (_currentTabIndex == 0) ...[
               // Dashboard Tab
-              ProfileHeader(
-                user: _userModel!,
-                onManagePressed: () {
-                  // Handle manage profile
-                },
-              ),
-              
-              PetInfoCard(
-                pets: _pets,
-                nextAppointmentDate: 'Tomorrow',
-                nextAppointmentTime: '2:30 PM',
-              ),
-              
-              // Add space between pets and health snapshot
-              const SizedBox(height: kMobileSizedBoxHuge),
-              
-              HealthSnapshot(
-                healthData: _healthData,
-              ),
-              
-              NearbyClinics(
-                clinics: _nearByClinics,
-                onViewMapPressed: () {
-                  // Handle view map
-                },
-              ),
-              
-              // Services moved below nearby clinics
-              ServicesGrid(
-                services: _getServices(),
-              ),
+                Transform.translate(
+                  offset: Offset(0, -kMobileSizedBoxXLarge),
+                  child: Column(
+                    children: [
+                      ProfileHeader(
+                        user: _userModel!,
+                        onManagePressed: () {
+                          // Handle manage profile
+                        },
+                      ),
+
+                      PetInfoCard(
+                        pets: _pets,
+                        nextAppointmentDate: 'Tomorrow',
+                        nextAppointmentTime: '2:30 PM',
+                      ),
+
+                      // Add space between pets and health snapshot
+                      const SizedBox(height: kMobileSizedBoxHuge),
+
+                      HealthSnapshot(
+                        healthData: _healthData,
+                      ),
+
+                      NearbyClinics(
+                        clinics: _nearByClinics,
+                        onViewMapPressed: () {
+                          // Handle view map
+                        },
+                      ),
+
+                      // Services moved below nearby clinics
+                      ServicesGrid(
+                        services: _getServices(),
+                      ),
+                    ],
+                  ),
+                ),
             ] else ...[
               // History Tab
               _buildHistoryContent(),

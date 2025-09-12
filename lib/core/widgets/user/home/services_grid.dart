@@ -29,12 +29,13 @@ class ServicesGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: kMobileMarginContainer,
+      // keep horizontal and bottom spacing but reduce the top gap to bring the grid closer
+      margin: const EdgeInsets.fromLTRB(kMobileMarginHorizontal, 0, kMobileMarginHorizontal, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: kMobileSizedBoxLarge),
+            padding: const EdgeInsets.only(left: 4, bottom: kMobileSizedBoxMedium),
             child: Text(
               'Services',
               style: kMobileTextStyleTitle.copyWith(

@@ -455,7 +455,7 @@ class _SignInPageState extends State<SignInPage>
                             'Forgot Password?',
                             style: kTextStyleSmall.copyWith(
                               color: AppColors.primary,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ),

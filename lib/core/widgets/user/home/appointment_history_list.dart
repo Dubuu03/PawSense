@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
 
@@ -10,6 +11,7 @@ enum AppointmentStatus {
 }
 
 class AppointmentHistoryData {
+  final String id; // Added ID field for navigation
   final String title;
   final String subtitle;
   final AppointmentStatus status;
@@ -17,6 +19,7 @@ class AppointmentHistoryData {
   final String? clinicName;
 
   AppointmentHistoryData({
+    required this.id,
     required this.title,
     required this.subtitle,
     required this.status,
@@ -44,10 +47,10 @@ class AppointmentHistoryList extends StatelessWidget {
         ...appointmentHistory.take(3).map((item) => AppointmentHistoryItem(
           data: item,
           onTap: () {
-            // Handle appointment history item tap
+            context.go('/appointment-history/${item.id}');
           },
           onDetailsPressed: () {
-            // Handle details button tap
+            context.go('/appointment-history/${item.id}');
           },
         )),
         if (appointmentHistory.length > 3) ...[
@@ -103,6 +106,13 @@ class AppointmentHistoryItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: kMobileSizedBoxMedium),
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: AppColors.border,
+          width: 1,
+        ),
+        borderRadius: kMobileBorderRadiusSmallPreset,
+      ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(

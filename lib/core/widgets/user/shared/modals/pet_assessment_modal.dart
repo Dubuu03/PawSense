@@ -12,6 +12,7 @@ class PetAssessmentModal extends StatefulWidget {
 
 class _PetAssessmentModalState extends State<PetAssessmentModal> {
   String? selectedPetType;
+  bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +69,7 @@ class _PetAssessmentModalState extends State<PetAssessmentModal> {
                         type: 'Dog',
                         icon: '🐶',
                         isSelected: selectedPetType == 'Dog',
-                        onTap: () => setState(() => selectedPetType = 'Dog'),
+                        onTap: _isLoading ? () {} : () => setState(() => selectedPetType = 'Dog'),
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -77,7 +78,7 @@ class _PetAssessmentModalState extends State<PetAssessmentModal> {
                         type: 'Cat',
                         icon: '🐱',
                         isSelected: selectedPetType == 'Cat',
-                        onTap: () => setState(() => selectedPetType = 'Cat'),
+                        onTap: _isLoading ? () {} : () => setState(() => selectedPetType = 'Cat'),
                       ),
                     ),
                   ],
@@ -89,7 +90,7 @@ class _PetAssessmentModalState extends State<PetAssessmentModal> {
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: selectedPetType != null ? _onContinue : null,
+                    onPressed: selectedPetType != null && !_isLoading ? _onContinue : null,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.3),
@@ -99,13 +100,22 @@ class _PetAssessmentModalState extends State<PetAssessmentModal> {
                       ),
                       elevation: 0,
                     ),
-                    child: const Text(
-                      'Continue',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Text(
+                            'Continue',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -129,7 +139,7 @@ class _PetAssessmentModalState extends State<PetAssessmentModal> {
       ),
     );
   }
-
+  
   Widget _buildPetTypeCard({
     required String type,
     required String icon,
@@ -148,30 +158,74 @@ class _PetAssessmentModalState extends State<PetAssessmentModal> {
           ),
           borderRadius: BorderRadius.circular(16),
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Stack(
           children: [
-            Text(
-              icon,
-              style: const TextStyle(fontSize: 40),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              type,
-              style: kMobileTextStyleTitle.copyWith(
-                color: isSelected ? AppColors.primary : AppColors.textPrimary,
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    icon,
+                    style: TextStyle(
+                      fontSize: 40,
+                      color: _isLoading ? Colors.grey : null,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    type,
+                    style: kMobileTextStyleTitle.copyWith(
+                      color: _isLoading
+                          ? Colors.grey
+                          : (isSelected ? AppColors.primary : AppColors.textPrimary),
+                    ),
+                  ),
+                ],
               ),
             ),
+            
+            // Loading overlay for cards
+            if (_isLoading)
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.7),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
           ],
         ),
       ),
     );
   }
+  void _onContinue() async {
+    if (_isLoading) return;
+    
+    setState(() {
+      _isLoading = true;
+    });
 
-  void _onContinue() {
-    // Close modal and navigate to assessment
-    Navigator.of(context).pop();
-    // Navigate to assessment page with selected pet type
-    context.push('/assessment', extra: {'selectedPetType': selectedPetType});
+    try {
+      // Simulate loading time and prepare navigation
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      // Close modal first
+      Navigator.of(context).pop();
+      
+      // Navigate to assessment page with selected pet type and from parameter
+      context.go('/assessment?from=/home', extra: {'selectedPetType': selectedPetType});
+    } catch (e) {
+      // Handle any errors
+      setState(() {
+        _isLoading = false;
+      });
+      
+      // Show error message if needed
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error navigating to assessment: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 }

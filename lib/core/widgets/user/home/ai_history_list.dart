@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
 
@@ -11,6 +12,7 @@ enum AIDetectionType {
 }
 
 class AIHistoryData {
+  final String id; // Added ID field for navigation
   final String title;
   final String subtitle;
   final AIDetectionType type;
@@ -18,6 +20,7 @@ class AIHistoryData {
   final double? confidence;
 
   AIHistoryData({
+    required this.id,
     required this.title,
     required this.subtitle,
     required this.type,
@@ -45,7 +48,7 @@ class AIHistoryList extends StatelessWidget {
         ...aiHistory.take(3).map((item) => AIHistoryItem(
           data: item,
           onTap: () {
-            // Handle AI history item tap
+            context.go('/ai-history/${item.id}');
           },
         )),
         if (aiHistory.length > 3) ...[
@@ -99,6 +102,13 @@ class AIHistoryItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: kMobileSizedBoxMedium),
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: AppColors.border,
+          width: 1,
+        ),
+        borderRadius: kMobileBorderRadiusSmallPreset,
+      ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(

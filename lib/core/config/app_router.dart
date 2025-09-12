@@ -6,7 +6,8 @@ import 'package:pawsense/pages/mobile/auth/verify_email_page.dart';
 import 'package:pawsense/pages/mobile/home_page.dart';
 import 'package:pawsense/pages/mobile/assessment_page.dart';
 import 'package:pawsense/pages/mobile/alerts_page.dart';
-import 'package:pawsense/pages/mobile/signup.dart';
+import 'package:pawsense/pages/mobile/history/ai_history_detail_page.dart';
+import 'package:pawsense/pages/mobile/history/appointment_history_detail_page.dart';
 import 'package:pawsense/pages/web/auth/web_login_page.dart';
 import 'package:pawsense/pages/web/auth/admin_signup_page.dart';
 import 'package:pawsense/pages/web/admin/dashboard_screen.dart';
@@ -73,8 +74,22 @@ class AppRouter {
         builder: (context, state) {
           final extra = state.extra as Map<String, dynamic>?;
           return AssessmentPage(
-            selectedPetType: extra?['petType'] as String?,
+            selectedPetType: extra?['selectedPetType'] as String?,
           );
+        },
+      ),
+      GoRoute(
+        path: '/ai-history/:id',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return AIHistoryDetailPage(aiHistoryId: id);
+        },
+      ),
+      GoRoute(
+        path: '/appointment-history/:id',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return AppointmentHistoryDetailPage(appointmentId: id);
         },
       ),
 
