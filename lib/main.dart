@@ -36,3 +36,8 @@ class PawSenseApp extends StatelessWidget {
     );
   }
 }
+
+  // runApp(const MaterialApp(
+  //   debugShowCheckedModeBanner: false,
+  //   home: ImageDisplayPage(),
+  // ));

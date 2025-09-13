@@ -1,15 +1,18 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:typed_data';
 import '../../models/user/user_model.dart';
 import '../../models/clinic/clinic_model.dart';
 import '../../guards/auth_guard.dart';
 import 'token_manager.dart';
+import '../cloudinary/cloudinary_service.dart';
 
 /// Comprehensive authentication service that integrates with all models
 class AuthService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final TokenManager _tokenManager = TokenManager();
+  static final CloudinaryService _cloudinaryService = CloudinaryService();
 
   // Singleton pattern
   static final AuthService _instance = AuthService._internal();
@@ -99,13 +102,10 @@ class AuthService {
         
         final userData = UserModel.fromMap(userDoc.data()!);
         
-        // Check Firestore approval status after successful Firebase authentication
-        // Skip approval validation for super admin users
         if (userData.role == 'admin') {
           await _validateClinicApprovalStatus(result.user!.uid);
         }
         
-        // Return user data based on role
         return AuthResult(
           success: true, 
           role: userData.role,
@@ -141,7 +141,6 @@ class AuthService {
       }
       return AuthResult(success: false, error: errorMessage);
     } catch (e) {
-      // Handle custom approval-related exceptions
       final errorString = e.toString();
       if (errorString.contains('account-pending-approval')) {
         return AuthResult(success: false, error: 'Your registration has been submitted. Please wait for admin approval before logging in.');
@@ -156,11 +155,8 @@ class AuthService {
     }
   }
 
-  /// Validates clinic approval status from Firestore
-  /// Throws custom exceptions for approval-related issues
   Future<void> _validateClinicApprovalStatus(String userId) async {
     try {
-      // Check clinic status directly from clinics collection
       final clinicQuery = await _firestore
           .collection('clinics')
           .where('userId', isEqualTo: userId)
@@ -182,15 +178,12 @@ class AuthService {
         case 'rejected':
           throw Exception('account-rejected');
         case 'approved':
-          // Account is approved - allow access
           print('✅ Clinic account verified: $userId (status: approved)');
           break;
         default:
-          // Unknown status - treat as pending
           throw Exception('account-pending-approval');
       }
     } catch (e) {
-      // Re-throw custom exceptions, wrap others
       if (e.toString().contains('account-')) {
         rethrow;
       }
@@ -198,7 +191,6 @@ class AuthService {
     }
   }
 
-  /// Sign up clinic admin with separated clinic and clinic details creation
   Future<AuthResult> signUpClinicAdmin({
     required String email,
     required String password,
@@ -208,9 +200,13 @@ class AuthService {
     required String? contactNumber,
     required Clinic clinic,
     required Map<String, dynamic> clinicDetailsData,
+    // Add image data parameters
+    Map<int, Uint8List>? certificationImages,
+    Map<int, String>? certificationImageNames,
+    Map<int, Uint8List>? licenseImages,
+    Map<int, String>? licenseImageNames,
   }) async {
     try {
-      // Step 1: Create Firebase Auth user
       final UserCredential result = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
@@ -219,7 +215,6 @@ class AuthService {
       if (result.user != null) {
         final uid = result.user!.uid;
 
-        // Step 2: Create user document with admin role
         final userModel = UserModel(
           uid: uid,
           username: username,
@@ -233,24 +228,25 @@ class AuthService {
           lastName: lastName,
         );
 
-        // Step 3: Create basic user profile first
         await _createUserProfile(uid, userModel);
 
-        // Step 4: Create clinic with proper clinic ID assignment
         final createdClinic = await _createClinic(uid, clinic);
         if (!createdClinic) {
           throw Exception('Failed to create clinic data');
         }
 
-        // Step 5: Create clinic details with proper ID assignment, services, and default approval status
-        final createdClinicDetails = await _createClinicDetails(uid, clinicDetailsData);
+        final createdClinicDetails = await _createClinicDetails(
+          uid, 
+          clinicDetailsData,
+          certificationImages: certificationImages,
+          certificationImageNames: certificationImageNames,
+          licenseImages: licenseImages,
+          licenseImageNames: licenseImageNames,
+        );
         if (!createdClinicDetails) {
           throw Exception('Failed to create clinic details');
         }
 
-        // Step 6: Sign out user immediately after account creation for admin users only
-        // This prevents auto-login and enforces the approval workflow for admin users
-        // Super admin users (if created through this flow) would skip this
         if (userModel.role == 'admin') {
           await _auth.signOut();
           _tokenManager.clearToken();
@@ -281,7 +277,6 @@ class AuthService {
       }
       return AuthResult(success: false, error: errorMessage);
     } catch (e) {
-      // Cleanup: Delete auth user if Firestore operations failed
       try {
         await _auth.currentUser?.delete();
       } catch (cleanupError) {
@@ -291,7 +286,6 @@ class AuthService {
     }
   }
 
-  /// Create user profile document
   Future<void> _createUserProfile(String uid, UserModel userModel) async {
     try {
       await _firestore.collection('users').doc(uid).set(userModel.toMap());
@@ -302,14 +296,12 @@ class AuthService {
     }
   }
 
-  /// Create clinic document with proper ID assignment and default approval status
   Future<bool> _createClinic(String uid, Clinic clinic) async {
     try {
-      // Create clinic with uid as both id and userId, and set status to pending
       final clinicWithId = clinic.copyWith(
         id: uid,
         userId: uid,
-        status: 'pending', // Default status for approval system
+        status: 'pending',
       );
 
       await _firestore.collection('clinics').doc(uid).set(clinicWithId.toMap());
@@ -325,60 +317,105 @@ class AuthService {
     }
   }
 
-  /// Create clinic details with proper ID assignment, services, and default approval status
-  Future<bool> _createClinicDetails(String uid, Map<String, dynamic> clinicDetailsData) async {
+  Future<bool> _createClinicDetails(
+    String uid, 
+    Map<String, dynamic> clinicDetailsData, {
+    Map<int, Uint8List>? certificationImages,
+    Map<int, String>? certificationImageNames,
+    Map<int, Uint8List>? licenseImages,
+    Map<int, String>? licenseImageNames,
+  }) async {
     try {
-      // Generate unique clinic details document ID
+  print('DEBUG: _createClinicDetails called for uid=$uid');
+  print('  certifications present: ${clinicDetailsData['certifications'] != null}');
+  print('  licenses present: ${clinicDetailsData['licenses'] != null}');
+  print('  certificationImages keys: ${certificationImages?.keys.toList()}');
+  print('  certificationImageNames keys: ${certificationImageNames?.keys.toList()}');
+  print('  licenseImages keys: ${licenseImages?.keys.toList()}');
+  print('  licenseImageNames keys: ${licenseImageNames?.keys.toList()}');
+
       final clinicDetailsId = _firestore.collection('clinicDetails').doc().id;
-      
-      // Prepare clinic details with proper IDs and default approval status
+
+      // Upload certification images to Cloudinary
+      if (clinicDetailsData['certifications'] != null && certificationImages != null) {
+        final certifications = List<Map<String, dynamic>>.from(clinicDetailsData['certifications']);
+        
+        for (int i = 0; i < certifications.length; i++) {
+          final imageBytes = certificationImages[i];
+          final imageName = certificationImageNames?[i];
+          
+          if (imageBytes != null && imageName != null) {
+            try {
+              print('📤 Uploading certification image ${i + 1}/${ certifications.length}...');
+              final uploadedUrl = await _cloudinaryService.uploadImageFromBytes(
+                imageBytes,
+                'cert_${uid}_${i}_$imageName',
+                folder: 'certifications',
+              );
+              
+              // Save URL into the field expected by ClinicCertification model
+              certifications[i]['documentUrl'] = uploadedUrl;
+              certifications[i]['documentFileId'] = null;
+              certifications[i]['fileName'] = imageName; // keep original name if needed
+              print('✅ Certification image uploaded: ${uploadedUrl}');
+            } catch (e) {
+              print('❌ Failed to upload certification image $i: $e');
+              // Continue without the image - will be marked as needing upload later
+            }
+          }
+          
+          certifications[i]['clinicId'] = uid;
+        }
+        
+        clinicDetailsData['certifications'] = certifications;
+      }
+
+      // Upload license images to Cloudinary
+      if (clinicDetailsData['licenses'] != null && licenseImages != null) {
+        final licenses = List<Map<String, dynamic>>.from(clinicDetailsData['licenses']);
+        
+        for (int i = 0; i < licenses.length; i++) {
+          final imageBytes = licenseImages[i];
+          final imageName = licenseImageNames?[i];
+          
+          if (imageBytes != null && imageName != null) {
+            try {
+              print('📤 Uploading license image ${i + 1}/${licenses.length}...');
+              final uploadedUrl = await _cloudinaryService.uploadImageFromBytes(
+                imageBytes,
+                'license_${uid}_${i}_$imageName',
+                folder: 'licenses',
+              );
+              
+              // Save URL into the field expected by ClinicLicense model
+              licenses[i]['licensePictureUrl'] = uploadedUrl;
+              licenses[i]['licensePictureFileId'] = null;
+              licenses[i]['fileName'] = imageName; // keep original name if needed
+              print('✅ License image uploaded: ${uploadedUrl}');
+            } catch (e) {
+              print('❌ Failed to upload license image $i: $e');
+              // Continue without the image - will be marked as needing upload later
+            }
+          }
+          
+          licenses[i]['clinicId'] = uid;
+        }
+        
+        clinicDetailsData['licenses'] = licenses;
+      }
+
       final clinicDetailsWithIds = {
         ...clinicDetailsData,
         'id': clinicDetailsId,
-        'clinicId': uid, // Set proper clinic ID
-        'isVerified': false, // Default to false for approval system
+        'clinicId': uid,
+        'isVerified': false,
         'createdAt': DateTime.now().toIso8601String(),
         'updatedAt': DateTime.now().toIso8601String(),
       };
 
-      // Update services and certifications with proper clinic ID
-      if (clinicDetailsWithIds['services'] != null) {
-        final services = List<Map<String, dynamic>>.from(clinicDetailsWithIds['services']);
-        for (int i = 0; i < services.length; i++) {
-          services[i]['clinicId'] = uid; // Set proper clinic ID for each service
-          print('   Service ${i + 1}: ${services[i]['serviceName']} (ID: ${services[i]['id']})');
-        }
-        clinicDetailsWithIds['services'] = services;
-      }
-
-      if (clinicDetailsWithIds['certifications'] != null) {
-        final certifications = List<Map<String, dynamic>>.from(clinicDetailsWithIds['certifications']);
-        for (int i = 0; i < certifications.length; i++) {
-          certifications[i]['clinicId'] = uid; // Set proper clinic ID for each certification
-          print('   Certification ${i + 1}: ${certifications[i]['name']} (ID: ${certifications[i]['id']})');
-        }
-        clinicDetailsWithIds['certifications'] = certifications;
-      }
-
-      if (clinicDetailsWithIds['licenses'] != null) {
-        final licenses = List<Map<String, dynamic>>.from(clinicDetailsWithIds['licenses']);
-        for (int i = 0; i < licenses.length; i++) {
-          licenses[i]['clinicId'] = uid; // Set proper clinic ID for each license
-          print('   License ${i + 1}: ${licenses[i]['licenseId']} (ID: ${licenses[i]['id']})');
-        }
-        clinicDetailsWithIds['licenses'] = licenses;
-      }
-
       await _firestore.collection('clinicDetails').doc(clinicDetailsId).set(clinicDetailsWithIds);
       
       print('✅ Clinic details created successfully');
-      print('   Clinic Details ID: $clinicDetailsId');
-      print('   Linked to Clinic ID: $uid');
-      print('   Verification Status: false (awaiting admin approval)');
-      print('   Services count: ${(clinicDetailsWithIds['services'] as List?)?.length ?? 0}');
-      print('   Certifications count: ${(clinicDetailsWithIds['certifications'] as List?)?.length ?? 0}');
-      print('   Licenses count: ${(clinicDetailsWithIds['licenses'] as List?)?.length ?? 0}');
-      
       return true;
     } catch (e) {
       print('❌ Failed to create clinic details: $e');
@@ -386,7 +423,6 @@ class AuthService {
     }
   }
 
-  /// Get user data by ID
   Future<UserModel?> getUserData(String userId) async {
     try {
       final DocumentSnapshot doc = await _firestore
@@ -404,7 +440,6 @@ class AuthService {
     }
   }
 
-  /// Get clinic data by clinic ID
   Future<Clinic?> getClinicData(String clinicId) async {
     try {
       final DocumentSnapshot doc = await _firestore
@@ -421,7 +456,6 @@ class AuthService {
     }
   }
 
-  /// Get clinic details by clinic ID
   Future<Map<String, dynamic>?> getClinicDetails(String clinicId) async {
     try {
       final QuerySnapshot query = await _firestore
@@ -439,10 +473,8 @@ class AuthService {
     }
   }
 
-  /// Update clinic data
   Future<bool> updateClinicData(Clinic clinic) async {
     try {
-      // Check if user has permission to update this clinic
       if (!await canAccessClinic(clinic.id)) {
         return false;
       }
@@ -457,15 +489,12 @@ class AuthService {
     }
   }
 
-  /// Update clinic details
   Future<bool> updateClinicDetails(String clinicId, Map<String, dynamic> data) async {
     try {
-      // Check if user has permission to update this clinic
       if (!await canAccessClinic(clinicId)) {
         return false;
       }
 
-      // Find the clinic details document
       final query = await _firestore
           .collection('clinicDetails')
           .where('clinicId', isEqualTo: clinicId)
@@ -482,24 +511,19 @@ class AuthService {
     }
   }
 
-  /// Get auth state stream
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-  /// Check if user is signed in
   bool get isSignedIn => currentUser != null;
 
-  /// Get authentication token
   Future<String?> getAuthToken({bool forceRefresh = false}) async {
     return await _tokenManager.getToken(forceRefresh: forceRefresh);
   }
 
-  /// Make authenticated API call
   Future<T?> authenticatedApiCall<T>({required Future<T> Function(String) apiCall}) async {
     return await _tokenManager.authenticatedApiCall(apiCall: apiCall);
   }
 }
 
-/// Authentication result class
 class AuthResult {
   final bool success;
   final String? error;

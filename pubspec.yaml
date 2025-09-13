@@ -26,6 +26,7 @@ dependencies:
   fl_chart: ^0.69.0
   flutter_dotenv: ^5.1.0
   dropdown_search: ^6.0.2
+  cloudinary_public: ^0.23.1
 
 dev_dependencies:
   flutter_test:
