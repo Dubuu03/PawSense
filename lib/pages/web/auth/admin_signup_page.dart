@@ -294,6 +294,32 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
       final preparedCertifications = _prepareCertificationsForSignup();
       final preparedLicenses = _prepareLicensesForSignup();
 
+      // Re-key image maps to match prepared lists and filter nulls
+      final certImagesFiltered = <int, Uint8List>{};
+      final certNamesFiltered = <int, String>{};
+      for (int i = 0; i < preparedCertifications.length; i++) {
+        // original UI index might differ; we map by order
+        final uiIndex = i; // assume prepared lists follow the same ordering as _certifications
+        final bytes = _certificationImages[uiIndex];
+        final name = _certificationImageNames[uiIndex];
+        if (bytes != null && name != null) {
+          certImagesFiltered[i] = bytes;
+          certNamesFiltered[i] = name;
+        }
+      }
+
+      final licenseImagesFiltered = <int, Uint8List>{};
+      final licenseNamesFiltered = <int, String>{};
+      for (int i = 0; i < preparedLicenses.length; i++) {
+        final uiIndex = i;
+        final bytes = _licenseImages[uiIndex];
+        final name = _licenseImageNames[uiIndex];
+        if (bytes != null && name != null) {
+          licenseImagesFiltered[i] = bytes;
+          licenseNamesFiltered[i] = name;
+        }
+      }
+
       // Create the auth account with dynamic field structure
       final result = await _authService.signUpClinicAdmin(
         email: _emailController.text.trim(),
@@ -328,7 +354,11 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
           certifications: preparedCertifications,
           licenses: preparedLicenses,
           createdAt: DateTime.now(),
-        ).toMap(),
+  ).toMap(),
+  certificationImages: certImagesFiltered.isEmpty ? null : certImagesFiltered,
+  certificationImageNames: certNamesFiltered.isEmpty ? null : certNamesFiltered,
+  licenseImages: licenseImagesFiltered.isEmpty ? null : licenseImagesFiltered,
+  licenseImageNames: licenseNamesFiltered.isEmpty ? null : licenseNamesFiltered,
       );
 
       if (result.success && result.user != null) {
@@ -1415,7 +1445,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                     ),
                     SizedBox(width: 4),
                     Text(
-                      '(Recommended)',
+                      '(Required)',
                       style: kTextStyleSmall.copyWith(
                         fontSize: 14,
                         color: AppColors.error,
@@ -1635,7 +1665,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                     ),
                     SizedBox(width: 4),
                     Text(
-                      '(Recommended)',
+                      '(Reqiuired)',
                       style: kTextStyleSmall.copyWith(
                         fontSize: 14,
                         color: AppColors.error,

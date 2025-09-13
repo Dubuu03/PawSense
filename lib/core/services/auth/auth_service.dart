@@ -326,6 +326,14 @@ class AuthService {
     Map<int, String>? licenseImageNames,
   }) async {
     try {
+  print('DEBUG: _createClinicDetails called for uid=$uid');
+  print('  certifications present: ${clinicDetailsData['certifications'] != null}');
+  print('  licenses present: ${clinicDetailsData['licenses'] != null}');
+  print('  certificationImages keys: ${certificationImages?.keys.toList()}');
+  print('  certificationImageNames keys: ${certificationImageNames?.keys.toList()}');
+  print('  licenseImages keys: ${licenseImages?.keys.toList()}');
+  print('  licenseImageNames keys: ${licenseImageNames?.keys.toList()}');
+
       final clinicDetailsId = _firestore.collection('clinicDetails').doc().id;
 
       // Upload certification images to Cloudinary
@@ -345,8 +353,10 @@ class AuthService {
                 folder: 'certifications',
               );
               
-              certifications[i]['fileUrl'] = uploadedUrl;
-              certifications[i]['fileName'] = imageName;
+              // Save URL into the field expected by ClinicCertification model
+              certifications[i]['documentUrl'] = uploadedUrl;
+              certifications[i]['documentFileId'] = null;
+              certifications[i]['fileName'] = imageName; // keep original name if needed
               print('✅ Certification image uploaded: ${uploadedUrl}');
             } catch (e) {
               print('❌ Failed to upload certification image $i: $e');
@@ -377,8 +387,10 @@ class AuthService {
                 folder: 'licenses',
               );
               
+              // Save URL into the field expected by ClinicLicense model
               licenses[i]['licensePictureUrl'] = uploadedUrl;
-              licenses[i]['fileName'] = imageName;
+              licenses[i]['licensePictureFileId'] = null;
+              licenses[i]['fileName'] = imageName; // keep original name if needed
               print('✅ License image uploaded: ${uploadedUrl}');
             } catch (e) {
               print('❌ Failed to upload license image $i: $e');
