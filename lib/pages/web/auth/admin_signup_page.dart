@@ -144,9 +144,13 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
 
   /// Check if certification has enough data to be valid
   bool _isCertificationValid(ClinicCertification cert) {
-    // Certification name, issuer should be provided (image is optional for backend flexibility)
+    // Get the index of the certification to check its image
+    final index = _certifications.indexOf(cert);
+    // Certification name, issuer, expiry date, and image should be provided
     return cert.name.trim().isNotEmpty && 
-           cert.issuer.trim().isNotEmpty;
+           cert.issuer.trim().isNotEmpty &&
+           cert.dateExpiry != null &&
+           _certificationImages[index] != null; // Image is required
   }
 
   /// Preview image in a dialog
@@ -432,7 +436,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
           serviceName: '',
           serviceDescription: '',
           estimatedPrice: '',
-          duration: '30 mins',
+          duration: '',
           category: ServiceCategory.consultation,
           isActive: true, // Set to true so service is available when created
           isVerified: false, // Set to false - needs admin verification
@@ -480,7 +484,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
           name: '',
           issuer: '',
           dateIssued: Timestamp.now(),
-          dateExpiry: null,
+          dateExpiry: Timestamp.fromDate(DateTime.now().add(const Duration(days: 365))), // Default 1 year expiry
           createdAt: DateTime.now(),
         ),
       );
@@ -682,8 +686,11 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
 
   /// Check if license has enough data to be valid
   bool _isLicenseValid(ClinicLicense license) {
-    // License ID should be provided (image is optional for backend flexibility)
-    return license.licenseId.trim().isNotEmpty;
+    // Get the index of the license to check its image
+    final index = _licenses.indexOf(license);
+    // License ID and image should be provided
+    return license.licenseId.trim().isNotEmpty &&
+           _licenseImages[index] != null; // Image is now required
   }
 
   void _nextStep() {
@@ -1229,10 +1236,14 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                 Expanded(
                   flex: 3,
                   child: TextFormField(
+                    initialValue: _services[index].serviceName,
+                    onChanged: (value) => _updateService(index, serviceName: value),
                     decoration: const InputDecoration(
-                      labelText: 'Service Name',
+                      labelText: 'Service Name *',
                       border: OutlineInputBorder(),
+                      hintText: 'Enter service name',
                     ),
+                    validator: (value) => value?.trim().isEmpty ?? true ? 'Service name is required' : null,
                   ),
                 ),
                 const SizedBox(width: 8), // spacing between
@@ -1257,6 +1268,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                         child: Text(category.name.toUpperCase()),
                       );
                     }).toList(),
+                    validator: (value) => value == null ? 'Category is required' : null,
                   ),
                 ),
               ],
@@ -1287,8 +1299,12 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                       prefixText: '₱ ',
                     ),
                     keyboardType: TextInputType.number,
-                    validator: (value) =>
-                        value?.isEmpty ?? true ? 'Required' : null,
+                    validator: (value) {
+                      if (value?.isEmpty ?? true) return 'Required';
+                      if (double.tryParse(value!) == null) return 'Enter a valid price';
+                      if (double.parse(value) <= 0) return 'Price must be greater than 0';
+                      return null;
+                    },
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -1298,12 +1314,17 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                     onChanged: (value) =>
                         _updateService(index, duration: value),
                     decoration: InputDecoration(
-                      labelText: 'Duration',
+                      labelText: 'Duration *',
                       border: OutlineInputBorder(),
                       hintText: 'e.g. 30 mins',
                     ),
-                    validator: (value) =>
-                        value?.isEmpty ?? true ? 'Required' : null,
+                    validator: (value) {
+                      if (value?.isEmpty ?? true) return 'Required';
+                      if (!value!.toLowerCase().contains('min') && !value.toLowerCase().contains('hour')) {
+                        return 'Specify min/hour';
+                      }
+                      return null;
+                    },
                   ),
                 ),
               ],
@@ -1420,7 +1441,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _buildTimestampDateField(
-                    label: 'Expiry Date (Optional)',
+                    label: 'Expiry Date *',
                     value: _certifications[index].dateExpiry,
                     onTap: () => _selectCertificationDate(index, false),
                   ),
