@@ -463,11 +463,12 @@ class _WebLoginPageState extends State<WebLoginPage> {
                       'For registered admin accounts only',
                       style: kTextStyleSmall.copyWith(
                         fontSize: 14,
-                        color: AppColors.textSecondary,
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w700
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 14),
                     RichText(
                       textAlign: TextAlign.center,
                       text: TextSpan(

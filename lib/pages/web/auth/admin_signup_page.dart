@@ -888,12 +888,12 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
           Text(
             'Account Information',
             style: kTextStyleTitle.copyWith(
-              fontSize: 24,
+              fontSize: 20,
               color: AppColors.textPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Text(
             'Create your admin account credentials',
             style: kTextStyleRegular.copyWith(color: AppColors.textSecondary),
@@ -1063,12 +1063,12 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
           Text(
             'Clinic Information',
             style: kTextStyleTitle.copyWith(
-              fontSize: 24,
+              fontSize: 20,
               color: AppColors.textPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Text(
             'Tell us about your veterinary clinic',
             style: kTextStyleRegular.copyWith(color: AppColors.textSecondary),
@@ -1207,12 +1207,12 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
           Text(
             'Services, Certifications & Licenses',
             style: kTextStyleTitle.copyWith(
-              fontSize: 24,
+              fontSize: 20,
               color: AppColors.textPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Text(
             'Add your clinic services, certifications, and licenses',
             style: kTextStyleRegular.copyWith(color: AppColors.textSecondary),
@@ -2103,15 +2103,14 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
         ),
         child: SafeArea(
           child: Center(
-            child: SingleChildScrollView(
+            child: Container(
               padding: const EdgeInsets.all(16),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: 650,
-                  minHeight: 500,
-                ),
-                child: SizedBox(
-                  height: 900,
+              constraints: const BoxConstraints(
+                maxWidth: 650,
+                minHeight: 900, // Set minimum height to match SizedBox
+              ),
+              child: SizedBox(
+                height: 900,
                   child: Card(
                     elevation: 20,
                     shadowColor: AppColors.primary.withOpacity(0.15),
@@ -2212,7 +2211,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                   
                             // Form Content Container - Bigger for better field visibility
                             Container(
-                              height: MediaQuery.of(context).size.height * 0.79, // Increased from 0.45
+                              height: 680, // Fixed height for all devices
                               decoration: BoxDecoration(
                                 color: AppColors.white.withOpacity(0.3),
                                 borderRadius: BorderRadius.circular(12),
@@ -2250,19 +2249,19 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                                         physics: const NeverScrollableScrollPhysics(),
                                   children: [
                                     Padding(
-                                      padding: const EdgeInsets.all(20), // Increased padding for more space
+                                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 0), // Increased padding for more space
                                       child: SingleChildScrollView(
                                         child: _buildAccountInfoStep(),
                                       ),
                                     ),
                                     Padding(
-                                      padding: const EdgeInsets.all(20), // Increased padding for more space
+                                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
                                       child: SingleChildScrollView(
                                         child: _buildClinicInfoStep(),
                                       ),
                                     ),
                                     Padding(
-                                      padding: const EdgeInsets.all(20), // Increased padding for more space
+                                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
                                       child: SingleChildScrollView(
                                         child: _buildClinicDetailsStep(),
                                       ),
@@ -2271,7 +2270,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                                 ),
                               ),
                   
-                            const SizedBox(height: 20),
+                            const SizedBox(height: 32),
                   
                             // Navigation Buttons - More Compact
                             Row(
@@ -2355,26 +2354,25 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                                 ),
                               ],
                             ),
-                  
-                            const SizedBox(height: 16),
-                  
+
+                            const SizedBox(height: 24),
+
                             // Footer - More Compact
                             RichText(
                               textAlign: TextAlign.center,
                               text: TextSpan(
                                 style: kTextStyleSmall.copyWith(
-                                  fontSize: 12,
+                                  fontSize: 14,
                                   color: AppColors.textSecondary,
                                 ),
                                 children: [
-                                  const TextSpan(text: 'Already have an account? '),
+                                  const TextSpan(text: "Already have an account? "),
                                   TextSpan(
                                     text: 'Sign in here',
                                     style: kTextStyleSmall.copyWith(
-                                      fontSize: 12,
+                                      fontSize: 14,
                                       color: AppColors.primary,
-                                      fontWeight: FontWeight.w600,
-                                      decoration: TextDecoration.underline,
+                                      fontWeight: FontWeight.w500,
                                     ),
                                     recognizer: TapGestureRecognizer()
                                       ..onTap = () {
@@ -2388,18 +2386,17 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                         ),
                       ),
                     ),
-                    ],
-                  ),
-                  
-                                ),
-                              ),
-                            ),
+                  ],
                 ),
-        ),
-      ),
+              ),
+            ),
+            ),
           ),
         ),
       ),
+        ),
+      ),
+
     );
   }
 }
