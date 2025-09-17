@@ -6,8 +6,10 @@ import 'package:pawsense/pages/mobile/auth/verify_email_page.dart';
 import 'package:pawsense/pages/mobile/home_page.dart';
 import 'package:pawsense/pages/mobile/assessment_page.dart';
 import 'package:pawsense/pages/mobile/alerts_page.dart';
+import 'package:pawsense/pages/mobile/edit_profile_page.dart';
 import 'package:pawsense/pages/mobile/history/ai_history_detail_page.dart';
 import 'package:pawsense/pages/mobile/history/appointment_history_detail_page.dart';
+import 'package:pawsense/core/models/user/user_model.dart';
 import 'package:pawsense/pages/web/auth/web_login_page.dart';
 import 'package:pawsense/pages/web/auth/admin_signup_page.dart';
 import 'package:pawsense/pages/web/admin/dashboard_screen.dart';
@@ -75,6 +77,18 @@ class AppRouter {
           final extra = state.extra as Map<String, dynamic>?;
           return AssessmentPage(
             selectedPetType: extra?['selectedPetType'] as String?,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/edit-profile',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          if (extra == null || extra['user'] == null) {
+            return const SignInPage(); // Redirect if no user data
+          }
+          return EditProfilePage(
+            user: extra['user'] as UserModel,
           );
         },
       ),

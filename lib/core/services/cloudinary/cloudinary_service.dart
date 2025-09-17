@@ -1,11 +1,12 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class CloudinaryService {
-  // Replace with your Cloudinary cloud name and unsigned upload preset
-  static const String _cloudName = 'dpygofris';
-  static const String _uploadPreset = 'dht7ahxh';
+  // Load environment variables
+  static final String _cloudName = dotenv.env['CLOUDINARY_CLOUD_NAME'] ?? 'default_cloud_name';
+  static final String _uploadPreset = dotenv.env['CLOUDINARY_UPLOAD_PRESET'] ?? 'default_upload_preset';
 
   /// Upload image from bytes (web)
   Future<String> uploadImageFromBytes(

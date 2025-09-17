@@ -84,7 +84,7 @@ class ProfileHeader extends StatelessWidget {
                 ),
               ),
               
-              // Manage button
+              // Edit Profile button
               TextButton(
                 onPressed: onManagePressed,
                 style: TextButton.styleFrom(
@@ -101,7 +101,7 @@ class ProfileHeader extends StatelessWidget {
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 child: const Text(
-                  'Manage',
+                  'Edit Profile',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,

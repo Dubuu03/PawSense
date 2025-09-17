@@ -145,6 +145,11 @@ class _UserHomePageState extends State<UserHomePage> {
       backgroundColor: AppColors.background,
       appBar: UserAppBar(
         user: _userModel,
+        onUserUpdated: (updatedUser) {
+          setState(() {
+            _userModel = updatedUser;
+          });
+        },
       ),
       body: _loading 
           ? _buildLoadingState()
@@ -231,8 +236,21 @@ class _UserHomePageState extends State<UserHomePage> {
                     children: [
                       ProfileHeader(
                         user: _userModel!,
-                        onManagePressed: () {
-                          // Handle manage profile
+                        onManagePressed: () async {
+                          // Navigate to edit profile page
+                          final updatedUser = await context.push('/edit-profile', extra: {
+                            'user': _userModel!,
+                          });
+                          
+                          // If user data was updated, refresh the page
+                          if (updatedUser != null && updatedUser is UserModel) {
+                            setState(() {
+                              _userModel = updatedUser;
+                            });
+                          } else {
+                            // Fallback: refresh user data from server
+                            _fetchUser();
+                          }
                         },
                       ),
 

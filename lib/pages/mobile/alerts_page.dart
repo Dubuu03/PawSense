@@ -130,6 +130,11 @@ class _AlertsPageState extends State<AlertsPage> {
       backgroundColor: AppColors.background,
       appBar: UserAppBar(
         user: _userModel,
+        onUserUpdated: (updatedUser) {
+          setState(() {
+            _userModel = updatedUser;
+          });
+        },
       ),
       body: _loading 
           ? _buildLoadingState()

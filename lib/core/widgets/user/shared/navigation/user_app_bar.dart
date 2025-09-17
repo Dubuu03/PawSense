@@ -7,10 +7,12 @@ import 'package:pawsense/core/widgets/user/shared/drawers/profile_drawer.dart';
 
 class UserAppBar extends StatelessWidget implements PreferredSizeWidget {
   final UserModel? user;
+  final Function(UserModel)? onUserUpdated;
 
   const UserAppBar({
     super.key,
     this.user,
+    this.onUserUpdated,
   });
 
   @override
@@ -171,6 +173,7 @@ class UserAppBar extends StatelessWidget implements PreferredSizeWidget {
                 onClose: () {
                   Navigator.of(context).pop();
                 },
+                onUserUpdated: onUserUpdated,
               ),
             ),
           ),
