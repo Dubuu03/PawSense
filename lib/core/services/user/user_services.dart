@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
 import 'package:pawsense/core/models/user/user_model.dart';
+import 'package:pawsense/core/guards/auth_guard.dart';
 
 class UserServices {
   final _firestore = FirebaseFirestore.instance;
@@ -28,6 +29,8 @@ class UserServices {
   // Update user
   Future<void> updateUser(UserModel user) async {
     await _firestore.collection('users').doc(user.uid).update(user.toMap());
+    // Clear AuthGuard cache to ensure fresh data is loaded
+    AuthGuard.clearUserCache();
   }
 
   // Delete user
@@ -69,6 +72,8 @@ class UserServices {
         'profileImageUrl': imageUrl,
         'updatedAt': FieldValue.serverTimestamp(),
       });
+      // Clear AuthGuard cache to ensure fresh data is loaded
+      AuthGuard.clearUserCache();
     } catch (e) {
       print('Error updating profile image URL: $e');
       throw e;
@@ -82,6 +87,8 @@ class UserServices {
         'profileImageUrl': FieldValue.delete(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
+      // Clear AuthGuard cache to ensure fresh data is loaded
+      AuthGuard.clearUserCache();
     } catch (e) {
       print('Error removing profile image: $e');
       throw e;

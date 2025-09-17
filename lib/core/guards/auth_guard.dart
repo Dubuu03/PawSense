@@ -349,6 +349,19 @@ class AuthGuard {
     }
   }
 
+  /// Clear user cache (public method for cache invalidation)
+  static void clearUserCache() {
+    _cachedUser = null;
+    _userCacheExpiresAt = null;
+    _getCurrentUserRequest = null;
+  }
+
+  /// Force refresh user data from Firestore
+  static Future<UserModel?> refreshUserData() async {
+    clearUserCache(); // Clear existing cache
+    return await getCurrentUser(); // Fetch fresh data
+  }
+
   /// Sign out user and clear session
   static Future<void> signOut() async {
     try {

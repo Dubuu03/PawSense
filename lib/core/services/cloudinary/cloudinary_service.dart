@@ -18,7 +18,10 @@ class CloudinaryService {
 
     try {
       final sanitizedFileName = _sanitizeFileName(fileName);
-      final publicId = '${folder.trim()}/$sanitizedFileName';
+      
+      // Add timestamp to ensure uniqueness and prevent overwriting
+      final uniqueFileName = '${sanitizedFileName}_${DateTime.now().millisecondsSinceEpoch}';
+      final publicId = '${folder.trim()}/$uniqueFileName';
 
       final request = http.MultipartRequest('POST', url)
         ..fields['upload_preset'] = _uploadPreset
@@ -57,9 +60,12 @@ class CloudinaryService {
 
     try {
       final pathParts = filePath.split('/');
-      final baseName = pathParts.isNotEmpty ? pathParts.last.split('.').first : 'file_${DateTime.now().millisecondsSinceEpoch}';
-      final sanitizedFileName = _sanitizeFileName(baseName);
-      final publicId = '${folder.trim()}/$sanitizedFileName';
+      final originalFileName = pathParts.isNotEmpty ? pathParts.last.split('.').first : 'file';
+      final sanitizedFileName = _sanitizeFileName(originalFileName);
+      
+      // Add timestamp to ensure uniqueness and prevent overwriting
+      final uniqueFileName = '${sanitizedFileName}_${DateTime.now().millisecondsSinceEpoch}';
+      final publicId = '${folder.trim()}/$uniqueFileName';
 
       final request = http.MultipartRequest('POST', url)
         ..fields['upload_preset'] = _uploadPreset

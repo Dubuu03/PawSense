@@ -108,6 +108,9 @@ class SettingsService {
             'updatedAt': DateTime.now().toIso8601String(),
           });
       
+      // Clear AuthGuard cache to ensure fresh data is loaded
+      AuthGuard.clearUserCache();
+      
       return true;
     } catch (e) {
       print('Error updating account settings: $e');
