@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants.dart';
 import 'package:pawsense/core/models/user/user_model.dart';
 import 'package:pawsense/core/widgets/shared/profile_avatar.dart';
 import 'package:pawsense/core/utils/user_utils.dart';
 import 'package:pawsense/core/services/auth/auth_service_mobile.dart';
+import 'package:pawsense/core/services/cloudinary/cloudinary_service.dart';
+import 'package:pawsense/core/services/user/user_services.dart';
 
-class ProfileDrawer extends StatelessWidget {
+class ProfileDrawer extends StatefulWidget {
   final UserModel? user;
   final VoidCallback? onClose;
   final Function(UserModel)? onUserUpdated;
@@ -18,6 +21,29 @@ class ProfileDrawer extends StatelessWidget {
     this.onClose,
     this.onUserUpdated,
   });
+
+  @override
+  State<ProfileDrawer> createState() => _ProfileDrawerState();
+}
+
+class _ProfileDrawerState extends State<ProfileDrawer> {
+  late UserModel? currentUser;
+
+  @override
+  void initState() {
+    super.initState();
+    currentUser = widget.user;
+  }
+
+  @override
+  void didUpdateWidget(ProfileDrawer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.user != oldWidget.user) {
+      setState(() {
+        currentUser = widget.user;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,7 +92,7 @@ class ProfileDrawer extends StatelessWidget {
                         ),
                       ),
                       IconButton(
-                        onPressed: onClose ?? () => Navigator.of(context).pop(),
+                        onPressed: widget.onClose ?? () => Navigator.of(context).pop(),
                         icon: const Icon(
                           Icons.close,
                           color: AppColors.textSecondary,
@@ -82,28 +108,37 @@ class ProfileDrawer extends StatelessWidget {
                   // Profile Avatar
                   Stack(
                     children: [
-                      ProfileAvatar(
-                        user: user,
-                        size: 80,
+                      GestureDetector(
+                        onTap: () => _pickProfileImage(context, currentUser),
+                        child: ProfileAvatar(
+                          user: currentUser,
+                          size: 80,
+                          showBorder: currentUser?.profileImageUrl?.isEmpty ?? true,
+                          borderColor: AppColors.primary.withOpacity(0.3),
+                          borderWidth: 2,
+                        ),
                       ),
                       // Edit button
                       Positioned(
                         bottom: -2,
                         right: -2,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: AppColors.white,
-                              width: 2,
+                        child: GestureDetector(
+                          onTap: () => _pickProfileImage(context, currentUser),
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: AppColors.white,
+                                width: 2,
+                              ),
                             ),
-                          ),
-                          child: const Icon(
-                            Icons.edit,
-                            color: AppColors.white,
-                            size: 14,
+                            child: const Icon(
+                              Icons.edit,
+                              color: AppColors.white,
+                              size: 14,
+                            ),
                           ),
                         ),
                       ),
@@ -113,7 +148,7 @@ class ProfileDrawer extends StatelessWidget {
                   
                   // User Name
                   Text(
-                    UserUtils.getDisplayName(user),
+                    UserUtils.getDisplayName(currentUser),
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
@@ -125,7 +160,7 @@ class ProfileDrawer extends StatelessWidget {
                   
                   // User Email
                   Text(
-                    user?.email ?? 'No email',
+                    currentUser?.email ?? 'No email',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w400,
@@ -164,7 +199,7 @@ class ProfileDrawer extends StatelessWidget {
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(4),
                                 child: LinearProgressIndicator(
-                                  value: _getProfileCompletionPercentage(user),
+                                  value: _getProfileCompletionPercentage(currentUser),
                                   backgroundColor: AppColors.border.withValues(alpha: 0.2),
                                   valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
                                   minHeight: 6,
@@ -175,7 +210,7 @@ class ProfileDrawer extends StatelessWidget {
                         ),
                         const SizedBox(width: 12),
                         Text(
-                          '${(_getProfileCompletionPercentage(user) * 100).round()}%',
+                          '${(_getProfileCompletionPercentage(currentUser) * 100).round()}%',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -201,14 +236,14 @@ class ProfileDrawer extends StatelessWidget {
                     onTap: () async {
                       Navigator.pop(context);
                       // Navigate to edit profile
-                      if (user != null) {
+                      if (currentUser != null) {
                         final updatedUser = await context.push('/edit-profile', extra: {
-                          'user': user!,
+                          'user': currentUser!,
                         });
                         
                         // If user data was updated, call the callback
-                        if (updatedUser != null && updatedUser is UserModel && onUserUpdated != null) {
-                          onUserUpdated!(updatedUser);
+                        if (updatedUser != null && updatedUser is UserModel && widget.onUserUpdated != null) {
+                          widget.onUserUpdated!(updatedUser);
                         }
                       }
                     },
@@ -438,5 +473,93 @@ class ProfileDrawer extends StatelessWidget {
     if (user.profileImageUrl?.isNotEmpty == true) completedFields++;
     
     return completedFields / totalFields;
+  }
+
+  Future<void> _pickProfileImage(BuildContext context, UserModel? user) async {
+    if (user == null) return;
+
+    final cloudinaryService = CloudinaryService();
+    final userServices = UserServices();
+    bool isUploading = false;
+
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 80,
+      );
+
+      if (pickedFile != null) {
+        // Show loading indicator
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+            ),
+          ),
+        );
+        isUploading = true;
+
+        // Upload to Cloudinary
+        final cloudinaryUrl = await cloudinaryService.uploadImageFromFile(
+          pickedFile.path,
+          folder: 'profile_images',
+        );
+
+        // Update user with new profile image URL
+        final updatedUser = user.copyWith(
+          profileImageUrl: cloudinaryUrl,
+          updatedAt: DateTime.now(),
+        );
+
+        // Update in Firestore
+        await userServices.updateUser(updatedUser);
+
+        // Close loading dialog
+        if (isUploading && context.mounted) {
+          Navigator.pop(context);
+          isUploading = false;
+        }
+
+        // Show success message
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Profile picture updated successfully!'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+
+        // Call onUserUpdated callback to refresh UI
+        if (widget.onUserUpdated != null) {
+          widget.onUserUpdated!(updatedUser);
+        }
+
+        // Update local state to refresh the drawer immediately
+        setState(() {
+          currentUser = updatedUser;
+        });
+      }
+    } catch (e) {
+      // Close loading dialog if showing
+      if (isUploading && context.mounted) {
+        Navigator.pop(context);
+      }
+      
+      // Show error message
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update profile picture: ${e.toString()}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 }
