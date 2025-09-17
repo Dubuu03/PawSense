@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants.dart';
 import 'package:pawsense/core/models/user/user_model.dart';
 import 'package:pawsense/core/widgets/shared/profile_avatar.dart';
 import 'package:pawsense/core/utils/user_utils.dart';
+import 'package:pawsense/core/services/auth/auth_service_mobile.dart';
 
 class ProfileDrawer extends StatelessWidget {
   final UserModel? user;
@@ -319,9 +321,21 @@ class ProfileDrawer extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () {
+                      onPressed: () async {
                         Navigator.pop(context);
                         // Handle sign out
+                        try {
+                          final authService = AuthService();
+                          await authService.signOut();
+                          if (context.mounted) {
+                            context.go('/signin');
+                          }
+                        } catch (e) {
+                          // Handle sign out error - still navigate to signin
+                          if (context.mounted) {
+                            context.go('/signin');
+                          }
+                        }
                       },
                       icon: const Icon(
                         Icons.logout_outlined,
