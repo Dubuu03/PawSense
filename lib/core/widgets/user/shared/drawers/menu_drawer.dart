@@ -139,6 +139,14 @@ class MenuDrawer extends StatelessWidget {
                       // Navigate to skin analysis
                     },
                   ),
+                  _buildMenuItem(
+                    icon: Icons.message_outlined,
+                    title: 'Messages',
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.go('/messaging');
+                    },
+                  ),
                   
                   // Divider
                   Container(
