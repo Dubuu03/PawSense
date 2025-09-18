@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../models/user/user_model.dart';
 import '../models/clinic/clinic_model.dart';
 import '../services/auth/token_manager.dart';
@@ -286,14 +287,31 @@ class AuthGuard {
   
   /// Internal method to perform route validation (separated for deduplication)
   static Future<String?> _performRouteValidation(String routePath) async {
-    // Get current user (this also validates authentication)
-    final user = await getCurrentUser();
-    if (user == null) {
+    try {
+      // Get current user (this also validates authentication)
+      final user = await getCurrentUser();
+      if (user == null) {
+        print('AuthGuard: No authenticated user, redirecting to login');
+        return '/web_login';
+      }
+
+      print('AuthGuard: User found with role: ${user.role}');
+      
+      // Check role-based access
+      final redirectPath = _validateRoleBasedAccess(routePath, user.role);
+      
+      if (redirectPath != null) {
+        print('AuthGuard: Access denied, redirecting to: $redirectPath');
+      } else {
+        print('AuthGuard: Access granted for route: $routePath');
+      }
+      
+      return redirectPath;
+    } catch (e) {
+      print('AuthGuard: Error during route validation: $e');
+      // On error, redirect to login to prevent navigation stack issues
       return '/web_login';
     }
-
-    // Check role-based access
-    return _validateRoleBasedAccess(routePath, user.role);
   }
 
   /// Check if route is public (no auth required)
@@ -311,6 +329,11 @@ class AuthGuard {
 
   /// Validate role-based access to routes
   static String? _validateRoleBasedAccess(String routePath, String userRole) {
+    // Root path redirect
+    if (routePath == '/') {
+      return kIsWeb ? '/web_login' : '/signin';
+    }
+    
     // Admin routes
     if (routePath.startsWith('/admin/')) {
       if (userRole == 'super_admin') {
@@ -330,7 +353,7 @@ class AuthGuard {
       }
     }
 
-    // Root admin paths
+    // Root admin paths - redirect to appropriate dashboard
     if (routePath == '/admin' || routePath == '/super-admin') {
       final dashboardPath = userRole == 'super_admin' ? '/super-admin/dashboard' : '/admin/dashboard';
       return dashboardPath;

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:pawsense/core/services/messaging/messaging_service.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants.dart';
+import 'conversation_page.dart';
+import 'package:pawsense/core/models/messaging/conversation_model.dart';
 
 class ClinicSelectionPage extends StatefulWidget {
   const ClinicSelectionPage({super.key});
@@ -62,44 +64,28 @@ class _ClinicSelectionPageState extends State<ClinicSelectionPage> {
     });
   }
 
-  Future<void> _startConversation(Map<String, dynamic> clinic) async {
-    try {
-      print('Creating conversation with clinic: ${clinic['id']} - ${clinic['name']}');
-      
-      final conversationId = await MessagingService.createOrGetConversation(
-        clinic['id'],
-        clinic['name'],
-      );
+  void _startConversation(Map<String, dynamic> clinic) {
+    // Create a temporary conversation for navigation
+    final tempConversation = Conversation(
+      id: 'temp_${clinic['id']}_${DateTime.now().millisecondsSinceEpoch}', // Temporary ID
+      userId: '', // Will be populated when actual conversation is created
+      userName: '', // Will be populated when actual conversation is created
+      clinicId: clinic['id'],
+      clinicName: clinic['name'],
+      lastMessageTime: DateTime.now(),
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
 
-      print('Conversation result: $conversationId');
-
-      if (conversationId != null) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Conversation with ${clinic['name']} is ready'),
-            backgroundColor: AppColors.success,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to create conversation. Please check your internet connection and try again.'),
-            backgroundColor: AppColors.error,
-            duration: Duration(seconds: 4),
-          ),
-        );
-      }
-    } catch (e) {
-      print('Error creating conversation: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: AppColors.error,
-          duration: const Duration(seconds: 4),
+    // Navigate to conversation page
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ConversationPage(
+          conversation: tempConversation,
         ),
-      );
-    }
+      ),
+    );
   }
 
   @override
@@ -114,7 +100,11 @@ class _ClinicSelectionPageState extends State<ClinicSelectionPage> {
           style: TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: 18,
+            color: AppColors.white,
           ),
+        ),
+        iconTheme: const IconThemeData(
+          color: AppColors.white,
         ),
         elevation: 0,
       ),
@@ -238,14 +228,26 @@ class _ClinicSelectionPageState extends State<ClinicSelectionPage> {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        clinic['address'].toString(),
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 14,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.location_on,
+                            size: 14,
+                            color: AppColors.textSecondary,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              clinic['address'].toString(),
+                              style: TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 14,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                       if (clinic['phone'] != null && clinic['phone'].toString().isNotEmpty) ...[
                         const SizedBox(height: 4),

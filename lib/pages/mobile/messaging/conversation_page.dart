@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pawsense/core/services/messaging/messaging_service.dart';
 import 'package:pawsense/core/models/messaging/conversation_model.dart';
 import 'package:pawsense/core/models/messaging/message_model.dart';
+import 'package:pawsense/core/guards/auth_guard.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants.dart';
 import 'package:pawsense/core/widgets/user/messaging/message_bubble.dart';
@@ -23,6 +24,7 @@ class _ConversationPageState extends State<ConversationPage> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _isSending = false;
+  String? _currentUserId;
   
   @override
   void initState() {
@@ -30,6 +32,16 @@ class _ConversationPageState extends State<ConversationPage> {
     print('=== ConversationPage initState ===');
     print('Conversation ID: ${widget.conversation.id}');
     print('Clinic Name: ${widget.conversation.clinicName}');
+    _loadCurrentUser();
+  }
+
+  Future<void> _loadCurrentUser() async {
+    final user = await AuthGuard.getCurrentUser();
+    if (user != null) {
+      setState(() {
+        _currentUserId = user.uid;
+      });
+    }
   }
 
   @override
@@ -48,8 +60,27 @@ class _ConversationPageState extends State<ConversationPage> {
     });
 
     try {
+      String conversationId = widget.conversation.id;
+      
+      // Check if this is a temporary conversation (new conversation)
+      if (conversationId.startsWith('temp_')) {
+        // Create or get existing conversation
+        final realConversationId = await MessagingService.createOrGetConversation(
+          widget.conversation.clinicId,
+          widget.conversation.clinicName,
+        );
+        
+        if (realConversationId == null) {
+          _showError('Failed to create conversation');
+          return;
+        }
+        
+        conversationId = realConversationId;
+        print('=== Created/Retrieved real conversation: $conversationId ===');
+      }
+      
       final success = await MessagingService.sendMessage(
-        conversationId: widget.conversation.id,
+        conversationId: conversationId,
         receiverId: widget.conversation.clinicId,
         receiverName: widget.conversation.clinicName,
         content: content,
@@ -87,33 +118,66 @@ class _ConversationPageState extends State<ConversationPage> {
       appBar: AppBar(
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.white,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Row(
           children: [
-            Text(
-              widget.conversation.clinicName,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: AppColors.white.withValues(alpha: 0.2),
+              child: const Icon(
+                Icons.local_hospital,
+                color: AppColors.white,
+                size: 20,
               ),
             ),
-            const Text(
-              'Vet Clinic',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w400,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.conversation.clinicName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                      color: AppColors.white,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const Text(
+                    'Vet Clinic',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                      color: AppColors.white,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
         ),
-        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.more_vert, color: AppColors.white),
+            onPressed: () {
+              // TODO: Add menu options
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
           // Messages list - Using StreamBuilder for real-time updates
           Expanded(
             child: StreamBuilder<List<Message>>(
-              stream: MessagingService.getMessagesStream(widget.conversation.id),
+              stream: widget.conversation.id.startsWith('temp_') 
+                  ? Stream.value(<Message>[]) // Empty stream for temporary conversations
+                  : MessagingService.getMessagesStream(widget.conversation.id),
               builder: (context, snapshot) {
                 print('=== StreamBuilder update ===');
                 print('Connection state: ${snapshot.connectionState}');
@@ -216,7 +280,10 @@ class _ConversationPageState extends State<ConversationPage> {
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     final message = messages[index];
-                    return MessageBubble(message: message);
+                    return MessageBubble(
+                      message: message,
+                      currentUserId: _currentUserId,
+                    );
                   },
                 );
               },

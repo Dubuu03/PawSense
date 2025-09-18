@@ -70,9 +70,15 @@ class _MessagingPageState extends State<MessagingPage> {
         user: _userModel,
         onUserUpdated: _onUserUpdated,
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _navigateToClinicSelection(),
+        backgroundColor: AppColors.primary,
+        foregroundColor: AppColors.white,
+        child: const Icon(Icons.add),
+      ),
       body: Column(
         children: [
-          // Header with new message button
+          // Header
           Container(
             padding: const EdgeInsets.all(kSpacingMedium),
             color: AppColors.white,
@@ -86,12 +92,6 @@ class _MessagingPageState extends State<MessagingPage> {
                       color: AppColors.textPrimary,
                     ),
                   ),
-                ),
-                FloatingActionButton.small(
-                  onPressed: () => _navigateToClinicSelection(),
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.white,
-                  child: const Icon(Icons.add),
                 ),
               ],
             ),

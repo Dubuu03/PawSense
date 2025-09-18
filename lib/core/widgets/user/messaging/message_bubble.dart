@@ -4,15 +4,17 @@ import 'package:pawsense/core/utils/app_colors.dart';
 
 class MessageBubble extends StatelessWidget {
   final Message message;
+  final String? currentUserId;
 
   const MessageBubble({
     super.key,
     required this.message,
+    this.currentUserId,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isCurrentUser = message.senderRole == 'pet_owner';
+    final isCurrentUser = currentUserId != null && message.senderId == currentUserId;
     
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -25,7 +27,7 @@ class MessageBubble extends StatelessWidget {
             CircleAvatar(
               radius: 16,
               backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-              child: Icon(
+              child: const Icon(
                 Icons.local_hospital,
                 color: AppColors.primary,
                 size: 16,
@@ -83,19 +85,6 @@ class MessageBubble extends StatelessWidget {
               ),
             ),
           ),
-          
-          if (isCurrentUser) ...[
-            const SizedBox(width: 8),
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-              child: Icon(
-                Icons.person,
-                color: AppColors.primary,
-                size: 16,
-              ),
-            ),
-          ],
         ],
       ),
     );

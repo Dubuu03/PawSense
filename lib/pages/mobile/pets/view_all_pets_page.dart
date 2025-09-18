@@ -113,6 +113,16 @@ class _ViewAllPetsPageState extends State<ViewAllPetsPage> {
     _loadPets();
   }
 
+  void _handleBackNavigation() {
+    // Check if we can pop the current route
+    if (Navigator.canPop(context)) {
+      context.pop();
+    } else {
+      // If we can't pop (e.g., this is the only route), navigate to home
+      context.go('/home');
+    }
+  }
+
   void _navigateToAddPet() async {
     final result = await context.push('/add-pet');
     if (result == true) {
@@ -183,7 +193,7 @@ class _ViewAllPetsPageState extends State<ViewAllPetsPage> {
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-          onPressed: () => context.pop(),
+          onPressed: () => _handleBackNavigation(),
         ),
       ),
       body: _loading ? _buildLoadingState() : _buildContent(),

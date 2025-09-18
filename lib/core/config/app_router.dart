@@ -42,6 +42,7 @@ class AppRouter {
   static final _router = GoRouter(
     initialLocation: kIsWeb ? '/web_login' : '/signin',
     redirect: _handleRedirect,
+    errorBuilder: (context, state) => const SignInPage(), // Add error handler
     routes: [
       // Mobile routes
       GoRoute(
@@ -264,6 +265,12 @@ class AppRouter {
           ),
         ],
       ),
+      
+      // Fallback route for unmatched paths
+      GoRoute(
+        path: '/',
+        redirect: (context, state) => kIsWeb ? '/web_login' : '/signin',
+      ),
     ],
   );
 
@@ -281,8 +288,22 @@ class AppRouter {
   static Future<String?> _handleRedirect(BuildContext context, GoRouterState state) async {
     final location = state.uri.path;
     
-    // Use AuthGuard to validate route access
-    return await AuthGuard.validateRouteAccess(location);
+    try {
+      // Use AuthGuard to validate route access
+      final redirectPath = await AuthGuard.validateRouteAccess(location);
+      
+      // Prevent infinite redirects by checking if we're already on the redirect target
+      if (redirectPath != null && redirectPath != location) {
+        print('AppRouter: Redirecting from $location to $redirectPath');
+        return redirectPath;
+      }
+      
+      return null; // No redirect needed
+    } catch (e) {
+      print('AppRouter: Error during redirect validation: $e');
+      // On error, redirect to appropriate login page
+      return kIsWeb ? '/web_login' : '/signin';
+    }
   }
 }
 

@@ -97,6 +97,7 @@ class MenuDrawer extends StatelessWidget {
                     onTap: () {
                       Navigator.pop(context);
                       // Navigate to home
+                       context.go('/home');
                     },
                   ),
                   _buildMenuItem(
@@ -105,6 +106,7 @@ class MenuDrawer extends StatelessWidget {
                     onTap: () {
                       Navigator.pop(context);
                       // Navigate to pets
+                      context.go('/pets');
                     },
                   ),
                   _buildMenuItem(
