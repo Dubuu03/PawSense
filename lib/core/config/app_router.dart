@@ -9,7 +9,10 @@ import 'package:pawsense/pages/mobile/alerts_page.dart';
 import 'package:pawsense/pages/mobile/edit_profile_page.dart';
 import 'package:pawsense/pages/mobile/history/ai_history_detail_page.dart';
 import 'package:pawsense/pages/mobile/history/appointment_history_detail_page.dart';
+import 'package:pawsense/pages/mobile/pets/view_all_pets_page.dart';
+import 'package:pawsense/pages/mobile/pets/add_edit_pet_page.dart';
 import 'package:pawsense/core/models/user/user_model.dart';
+import 'package:pawsense/core/models/user/pet_model.dart';
 import 'package:pawsense/pages/web/auth/web_login_page.dart';
 import 'package:pawsense/pages/web/auth/admin_signup_page.dart';
 import 'package:pawsense/pages/web/admin/dashboard_screen.dart';
@@ -104,6 +107,23 @@ class AppRouter {
         builder: (context, state) {
           final id = state.pathParameters['id']!;
           return AppointmentHistoryDetailPage(appointmentId: id);
+        },
+      ),
+
+      // Pet management routes
+      GoRoute(
+        path: '/pets',
+        builder: (context, state) => const ViewAllPetsPage(),
+      ),
+      GoRoute(
+        path: '/add-pet',
+        builder: (context, state) => const AddEditPetPage(),
+      ),
+      GoRoute(
+        path: '/edit-pet',
+        builder: (context, state) {
+          final pet = state.extra as Pet?;
+          return AddEditPetPage(pet: pet);
         },
       ),
 

@@ -4,6 +4,9 @@ import '../../../../../core/utils/constants.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
 import 'package:flutter/services.dart';
 import 'package:pawsense/core/utils/breed_options.dart';
+import 'package:pawsense/core/models/user/pet_model.dart';
+import 'package:pawsense/core/services/user/pet_service.dart';
+import 'package:pawsense/core/guards/auth_guard.dart';
 
 class AssessmentStepOne extends StatefulWidget {
   final Map<String, dynamic> assessmentData;
@@ -50,19 +53,10 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
     'breed': false,
   };
 
-  // Sample existing pets (in real app, this would come from a service)
-  final Map<String, List<Map<String, String>>> existingPetsByType = {
-    'Dog': [
-      {'id': '1', 'name': 'Buddy', 'breed': 'Golden Retriever', 'age': '3', 'type': 'Dog'},
-      {'id': '2', 'name': 'Luna', 'breed': 'Labrador', 'age': '2', 'type': 'Dog'},
-      {'id': '3', 'name': 'Max', 'breed': 'German Shepherd', 'age': '5', 'type': 'Dog'},
-    ],
-    'Cat': [
-      {'id': '4', 'name': 'Whiskers', 'breed': 'Persian', 'age': '2', 'type': 'Cat'},
-      {'id': '5', 'name': 'Shadow', 'breed': 'Maine Coon', 'age': '4', 'type': 'Cat'},
-      {'id': '6', 'name': 'Mittens', 'breed': 'Siamese', 'age': '1', 'type': 'Cat'},
-    ],
-  };
+  // Real pets data from database
+  List<Pet> _userPets = [];
+  bool _loadingPets = true;
+  String? _petsError;
 
   // Observed behaviors
   final Map<String, bool> behaviors = {
@@ -78,8 +72,8 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
   void initState() {
     super.initState();
     
-    // Add fake pets data for testing
-    _initializeFakeData();
+    // Load real pets data
+    _loadUserPets();
     
     // Initialize breed functionality
     _breedController.addListener(_onBreedTextChanged);
@@ -132,6 +126,49 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
     }
   }
 
+  Future<void> _loadUserPets() async {
+    print('DEBUG: AssessmentStepOne loading user pets...');
+    try {
+      setState(() {
+        _loadingPets = true;
+        _petsError = null;
+      });
+
+      final user = await AuthGuard.getCurrentUser();
+      if (user != null) {
+        final pets = await PetService.getUserPets(user.uid);
+        print('DEBUG: AssessmentStepOne loaded ${pets.length} pets');
+        if (mounted) {
+          setState(() {
+            _userPets = pets;
+            _loadingPets = false;
+          });
+        }
+      } else {
+        print('DEBUG: AssessmentStepOne user not found');
+        if (mounted) {
+          setState(() {
+            _petsError = 'User not found';
+            _loadingPets = false;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error loading pets in AssessmentStepOne: $e');
+      if (mounted) {
+        setState(() {
+          _petsError = 'Failed to load pets';
+          _loadingPets = false;
+        });
+      }
+    }
+  }
+
+  // Public method to refresh pets from parent
+  void refreshPets() {
+    _loadUserPets();
+  }
+
   @override
   void didUpdateWidget(AssessmentStepOne oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -179,11 +216,6 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
     _notesController.dispose();
     _breedFocusNode.dispose();
     super.dispose();
-  }
-
-  void _initializeFakeData() {
-    // Fake data is already initialized in existingPets list
-    // This method is here for future expansion if needed
   }
 
   void _onBreedTextChanged() {
@@ -583,9 +615,63 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
   }
 
   Widget _buildExistingPetSelector() {
-    // Get pets for the selected pet type
+    // Get pets for the selected pet type from real data
     final selectedPetType = widget.assessmentData['selectedPetType'] ?? 'Dog';
-    final existingPets = existingPetsByType[selectedPetType] ?? [];
+    final existingPets = _userPets.where((pet) => pet.petType.toLowerCase() == selectedPetType.toLowerCase()).toList();
+    
+    print('DEBUG: Selected pet type: $selectedPetType');
+    print('DEBUG: Total pets: ${_userPets.length}');
+    print('DEBUG: Filtered pets for $selectedPetType: ${existingPets.length}');
+    for (var pet in _userPets) {
+      print('DEBUG: Pet "${pet.petName}" is type "${pet.petType}"');
+    }
+    
+    if (_loadingPets) {
+      return Container(
+        padding: const EdgeInsets.all(kSpacingMedium),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(kBorderRadius),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+          ),
+        ),
+      );
+    }
+
+    if (_petsError != null) {
+      return Container(
+        padding: const EdgeInsets.all(kSpacingMedium),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(kBorderRadius),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              Icons.error_outline,
+              color: AppColors.textSecondary,
+              size: 48,
+            ),
+            const SizedBox(height: kSpacingSmall),
+            Text(
+              _petsError!,
+              style: kTextStyleRegular.copyWith(color: AppColors.textSecondary),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: kSpacingSmall),
+            ElevatedButton(
+              onPressed: _loadUserPets,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
     
     return Container(
       padding: const EdgeInsets.all(kSpacingMedium),
@@ -628,18 +714,18 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
               child: RadioListTile<String>(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 10),
                 title: Text(
-                  pet['name']!,
+                  pet.petName,
                   style: kMobileTextStyleServiceTitle.copyWith(
                     fontWeight: FontWeight.w500,
                   ),
                 ),
                 subtitle: Text(
-                  '${pet['breed']} • ${pet['age']} years old',
+                  '${pet.breed} • ${pet.ageString}',
                   style: kMobileTextStyleViewAll.copyWith(
                     color: AppColors.textSecondary,
                   ),
                 ),
-                value: pet['id']!,
+                value: pet.id!,
                 groupValue: selectedPet,
                 onChanged: (value) {
                   setState(() => selectedPet = value);

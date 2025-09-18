@@ -29,13 +29,9 @@ class _UserHomePageState extends State<UserHomePage> {
   bool _loading = true;
   int _currentNavIndex = 0;
   int _currentTabIndex = 0;
+  Key _petCardKey = UniqueKey(); // Add this to force refresh
 
   // Sample data - in a real app, this would come from your backend
-  final List<PetInfo> _pets = [
-    PetInfo(name: 'Buddy', type: 'Dog', icon: Icons.pets),
-    PetInfo(name: 'Milo', type: 'Cat', icon: Icons.pets),
-  ];
-
   final List<HealthData> _healthData = [
     HealthData(condition: 'Mange', count: 1, color: const Color(0xFFFF9500)),
     HealthData(condition: 'Ringworm', count: 3, color: const Color(0xFF007AFF)),
@@ -110,6 +106,20 @@ class _UserHomePageState extends State<UserHomePage> {
         _currentTabIndex = 1; // History tab index
       });
     }
+    
+    // Refresh pet card when returning to page (after frame is built)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _refreshPetCard();
+      }
+    });
+  }
+
+  void _refreshPetCard() {
+    print('DEBUG: Refreshing pet card');
+    setState(() {
+      _petCardKey = UniqueKey();
+    });
   }
 
   Future<void> _fetchUser() async {
@@ -159,6 +169,10 @@ class _UserHomePageState extends State<UserHomePage> {
             setState(() {
               _currentNavIndex = index;
             });
+            // Refresh pet card when home tab is selected
+            if (index == 0) {
+              _refreshPetCard();
+            }
           }
         },
         onCameraPressed: _showCameraDialog,
@@ -248,9 +262,10 @@ class _UserHomePageState extends State<UserHomePage> {
                       ),
 
                       PetInfoCard(
-                        pets: _pets,
+                        key: _petCardKey,
                         nextAppointmentDate: null, // No appointment
                         nextAppointmentTime: null, // No appointment
+                        refreshKey: _petCardKey,
                       ),
 
                       // Add space between pets and health snapshot

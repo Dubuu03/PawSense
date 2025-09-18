@@ -1,35 +1,147 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
+import 'package:pawsense/core/models/user/pet_model.dart';
+import 'package:pawsense/core/services/user/pet_service.dart';
+import 'package:pawsense/core/guards/auth_guard.dart';
 
-class PetInfo {
-  final String name;
-  final String type;
-  final IconData icon;
-  final String? nextAppointment;
-
-  PetInfo({
-    required this.name,
-    required this.type,
-    required this.icon,
-    this.nextAppointment,
-  });
-}
-
-class PetInfoCard extends StatelessWidget {
-  final List<PetInfo> pets;
+class PetInfoCard extends StatefulWidget {
   final String? nextAppointmentDate;
   final String? nextAppointmentTime;
+  final Key? refreshKey; // Add this to force refresh
 
   const PetInfoCard({
     super.key,
-    required this.pets,
     this.nextAppointmentDate,
     this.nextAppointmentTime,
+    this.refreshKey,
   });
 
   @override
+  State<PetInfoCard> createState() => _PetInfoCardState();
+}
+
+class _PetInfoCardState extends State<PetInfoCard> {
+  List<Pet> _pets = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPets();
+  }
+
+  @override
+  void didUpdateWidget(PetInfoCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Refresh pets when widget updates or refreshKey changes
+    if (widget.refreshKey != oldWidget.refreshKey) {
+      _loadPets();
+    }
+  }
+
+  // Public method to refresh pets
+  void refreshPets() {
+    if (mounted) {
+      _loadPets();
+    }
+  }
+
+  Future<void> _loadPets() async {
+    print('DEBUG: PetInfoCard loading pets...');
+    // Don't show loading if we already have data and are just refreshing
+    final showLoading = _pets.isEmpty;
+    
+    try {
+      setState(() {
+        _loading = showLoading;
+        _error = null;
+      });
+
+      final user = await AuthGuard.getCurrentUser();
+      if (user != null) {
+        final pets = await PetService.getUserPets(user.uid);
+        print('DEBUG: PetInfoCard loaded ${pets.length} pets');
+        if (mounted) {
+          setState(() {
+            _pets = pets;
+            _loading = false;
+          });
+        }
+      } else {
+        print('DEBUG: PetInfoCard user not found');
+        if (mounted) {
+          setState(() {
+            _error = 'User not found';
+            _loading = false;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error loading pets: $e');
+      if (mounted) {
+        setState(() {
+          _error = 'Failed to load pets';
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return Container(
+        margin: kMobileMarginCard,
+        padding: kMobilePaddingCard,
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: kMobileBorderRadiusCardPreset,
+          boxShadow: kMobileCardShadow,
+        ),
+        child: const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+          ),
+        ),
+      );
+    }
+
+    if (_error != null) {
+      return Container(
+        margin: kMobileMarginCard,
+        padding: kMobilePaddingCard,
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: kMobileBorderRadiusCardPreset,
+          boxShadow: kMobileCardShadow,
+        ),
+        child: Column(
+          children: [
+            Icon(
+              Icons.error_outline,
+              color: AppColors.textSecondary,
+              size: 48,
+            ),
+            const SizedBox(height: kMobileSizedBoxMedium),
+            Text(
+              _error!,
+              style: kMobileTextStyleSubtitle.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: kMobileSizedBoxMedium),
+            ElevatedButton(
+              onPressed: _loadPets,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       margin: kMobileMarginCard,
       padding: kMobilePaddingCard,
@@ -41,7 +153,7 @@ class PetInfoCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Title row with View All
+          // Title row with Action button
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -52,10 +164,16 @@ class PetInfoCard extends StatelessWidget {
                 ),
               ),
 
-              if (pets.length > 2)
+              if (_pets.length > 2)
                 TextButton(
                   onPressed: () {
-                    // Handle view all pets
+                    print('DEBUG: Top View All button clicked');
+                    try {
+                      context.push('/pets');
+                      print('DEBUG: Navigation to /pets completed');
+                    } catch (e) {
+                      print('DEBUG: Navigation error: $e');
+                    }
                   },
                   style: TextButton.styleFrom(
                     padding: kMobileButtonPadding,
@@ -74,9 +192,11 @@ class PetInfoCard extends StatelessWidget {
           
           // Description below title
           const SizedBox(height: 4),
-          const Text(
-            'Essential details about your pet',
-            style: TextStyle(
+          Text(
+            _pets.isEmpty 
+                ? 'Add your first pet to get started'
+                : 'Essential details about your pet',
+            style: const TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w400,
               color: AppColors.textSecondary,
@@ -86,80 +206,184 @@ class PetInfoCard extends StatelessWidget {
           
           const SizedBox(height: kMobileSizedBoxLarge),
           
-          // Pets and appointment row
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+          // Content based on pets count
+          _pets.isEmpty ? _buildEmptyState() : _buildPetsContent(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Column(
+      children: [
+        // Icon
+        Container(
+          width: 80,
+          height: 80,
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(40),
+          ),
+          child: const Icon(
+            Icons.pets,
+            size: 40,
+            color: AppColors.primary,
+          ),
+        ),
+        const SizedBox(height: kMobileSizedBoxLarge),
+        
+        // Message
+        Text(
+          'No pets added yet',
+          style: kMobileTextStyleTitle.copyWith(
+            fontSize: 16,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: kMobileSizedBoxSmall),
+        
+        Text(
+          'Add your first pet to start tracking their health',
+          style: kMobileTextStyleSubtitle.copyWith(
+            color: AppColors.textSecondary,
+            fontSize: 12,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: kMobileSizedBoxLarge),
+        
+        // Add Pet button
+        Container(
+          width: double.infinity,
+          height: 40,
+          child: ElevatedButton(
+            onPressed: () {
+              print('DEBUG: Add Pet button clicked');
+              try {
+                context.push('/add-pet');
+                print('DEBUG: Navigation to /add-pet completed');
+              } catch (e) {
+                print('DEBUG: Navigation error: $e');
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              elevation: 0,
+            ),
+            child: const Text(
+              'Add Pet',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.white,
+                height: 1.2,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPetsContent() {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Pets section - 2 columns, multiple rows
+          Expanded(
+            flex: 2,
+            child: Column(
               children: [
-                // Pets section - 2 columns, multiple rows
-                Expanded(
-                  flex: 2,
-                  child: Column(
-                    children: [
-                      // First row of pets
-                      Row(
-                        children: pets.take(2).map((pet) => 
-                          Expanded(child: _buildPetIcon(pet))
-                        ).toList(),
-                      ),
-                      // Second row of pets if there are more than 2
-                      if (pets.length > 2) ...[
-                        const SizedBox(height: 8),
-                        Row(
-                          children: pets.skip(2).take(2).map((pet) => 
-                            Expanded(child: _buildPetIcon(pet))
-                          ).toList(),
-                        ),
-                      ],
-                      const SizedBox(height: 12),
-                      // View All button below pets
-                      Container(
-                        width: double.infinity,
-                        height: 40,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            // Handle view all pets
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary.withValues(alpha: 0.9),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: const Text(
-                            'View All',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.white,
-                              height: 1.2,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                // First row of pets
+                Row(
+                  children: _pets.take(2).map((pet) => 
+                    Expanded(child: _buildPetIcon(pet))
+                  ).toList(),
                 ),
-                
-                const SizedBox(width: 16),
-                
-                // Next appointment section - always show
-                Expanded(
-                  flex: 3,
-                  child: _buildAppointmentSection(),
+                // Second row of pets if there are more than 2
+                if (_pets.length > 2) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: _pets.skip(2).take(2).map((pet) => 
+                      Expanded(child: _buildPetIcon(pet))
+                    ).toList(),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                // View All button below pets
+                Container(
+                  width: double.infinity,
+                  height: 40,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      print('DEBUG: Bottom View All button clicked');
+                      try {
+                        context.push('/pets');
+                        print('DEBUG: Navigation to /pets completed');
+                      } catch (e) {
+                        print('DEBUG: Navigation error: $e');
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary.withValues(alpha: 0.9),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Text(
+                      'View All',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.white,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
+          ),
+          
+          const SizedBox(width: 16),
+          
+          // Next appointment section - always show
+          Expanded(
+            flex: 3,
+            child: _buildAppointmentSection(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildPetIcon(PetInfo pet) {
+  IconData _getPetIcon(String petType) {
+    switch (petType.toLowerCase()) {
+      case 'dog':
+        return Icons.pets;
+      case 'cat':
+        return Icons.pets;
+      case 'bird':
+        return Icons.flutter_dash;
+      case 'fish':
+        return Icons.waves;
+      case 'rabbit':
+        return Icons.cruelty_free;
+      default:
+        return Icons.pets;
+    }
+  }
+
+  Widget _buildPetIcon(Pet pet) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Column(
@@ -172,14 +396,14 @@ class PetInfoCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
-              pet.icon,
+              _getPetIcon(pet.petType),
               size: 20,
               color: AppColors.primary,
             ),
           ),
           const SizedBox(height: 6),
           Text(
-            pet.name,
+            pet.petName,
             style: const TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w500,
@@ -197,7 +421,7 @@ class PetInfoCard extends StatelessWidget {
 
   Widget _buildAppointmentSection() {
     // Check if we have appointment data
-    bool hasAppointment = nextAppointmentDate != null && nextAppointmentTime != null;
+    bool hasAppointment = widget.nextAppointmentDate != null && widget.nextAppointmentTime != null;
     
     return Container(
       width: double.infinity,
@@ -241,9 +465,9 @@ class PetInfoCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
+              const Text(
                 'Appointments',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: AppColors.textPrimary,
@@ -263,7 +487,7 @@ class PetInfoCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                nextAppointmentDate!,
+                widget.nextAppointmentDate!,
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
@@ -274,7 +498,7 @@ class PetInfoCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              nextAppointmentTime!,
+              widget.nextAppointmentTime!,
               style: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
