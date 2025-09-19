@@ -16,6 +16,11 @@ import 'package:pawsense/pages/mobile/messaging/messaging_test_page.dart';
 import 'package:pawsense/pages/mobile/pets/view_all_pets_page.dart';
 import 'package:pawsense/pages/mobile/pets/add_edit_pet_page.dart';
 
+import 'package:pawsense/pages/mobile/services/book_appointment_page.dart';
+import 'package:pawsense/pages/mobile/services/emergency_hotline_page.dart';
+import 'package:pawsense/pages/mobile/services/first_aid_guide_page.dart';
+import 'package:pawsense/pages/mobile/services/pet_care_tips_page.dart';
+
 import 'package:pawsense/core/models/user/user_model.dart';
 import 'package:pawsense/core/models/user/pet_model.dart';
 import 'package:pawsense/pages/web/auth/web_login_page.dart';
@@ -139,6 +144,24 @@ class AppRouter {
           final pet = state.extra as Pet?;
           return AddEditPetPage(pet: pet);
         },
+      ),
+
+      // Service routes
+      GoRoute(
+        path: '/book-appointment',
+        builder: (context, state) => const BookAppointmentPage(),
+      ),
+      GoRoute(
+        path: '/emergency-hotline',
+        builder: (context, state) => const EmergencyHotlinePage(),
+      ),
+      GoRoute(
+        path: '/first-aid-guide',
+        builder: (context, state) => const FirstAidGuidePage(),
+      ),
+      GoRoute(
+        path: '/pet-care-tips',
+        builder: (context, state) => const PetCareTipsPage(),
       ),
 
       // Web auth routes

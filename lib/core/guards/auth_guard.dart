@@ -292,7 +292,7 @@ class AuthGuard {
       final user = await getCurrentUser();
       if (user == null) {
         print('AuthGuard: No authenticated user, redirecting to login');
-        return '/web_login';
+        return kIsWeb ? '/web_login' : '/signin';
       }
 
       print('AuthGuard: User found with role: ${user.role}');
@@ -357,6 +357,34 @@ class AuthGuard {
     if (routePath == '/admin' || routePath == '/super-admin') {
       final dashboardPath = userRole == 'super_admin' ? '/super-admin/dashboard' : '/admin/dashboard';
       return dashboardPath;
+    }
+
+    // Mobile user routes - accessible to all authenticated users (including regular mobile users)
+    final mobileRoutes = [
+      '/home',
+      '/alerts', 
+      '/assessment',
+      '/edit-profile',
+      '/messaging',
+      '/ai-history',
+      '/appointment-history',
+      '/pets',
+      '/add-pet',
+      '/edit-pet',
+      '/book-appointment',
+      '/emergency-hotline', 
+      '/first-aid-guide',
+      '/pet-care-tips',
+    ];
+    
+    // Check if it's a mobile route pattern (including dynamic routes)
+    bool isMobileRoute = mobileRoutes.any((route) => routePath.startsWith(route)) ||
+                        routePath.startsWith('/ai-history/') ||
+                        routePath.startsWith('/appointment-history/');
+    
+    if (isMobileRoute) {
+      // Mobile routes are accessible to all authenticated users
+      return null; // Access granted
     }
 
     return null; // Access granted

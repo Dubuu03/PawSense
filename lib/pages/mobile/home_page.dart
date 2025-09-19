@@ -340,7 +340,7 @@ class _UserHomePageState extends State<UserHomePage> {
         icon: Icons.calendar_today,
         backgroundColor: const Color(0xFF8E44AD).withValues(alpha: 0.1),
         onTap: () {
-          // Handle book appointment
+          context.push('/book-appointment');
         },
       ),
       ServiceItem(
@@ -349,7 +349,7 @@ class _UserHomePageState extends State<UserHomePage> {
         icon: Icons.phone,
         backgroundColor: const Color(0xFF007AFF).withValues(alpha: 0.1),
         onTap: () {
-          // Handle hotline
+          context.push('/emergency-hotline');
         },
       ),
       ServiceItem(
@@ -358,7 +358,7 @@ class _UserHomePageState extends State<UserHomePage> {
         icon: Icons.medical_services,
         backgroundColor: const Color(0xFFFF9500).withValues(alpha: 0.1),
         onTap: () {
-          // Handle first aid guide
+          context.push('/first-aid-guide');
         },
       ),
       ServiceItem(
@@ -367,7 +367,7 @@ class _UserHomePageState extends State<UserHomePage> {
         icon: Icons.lightbulb_outline,
         backgroundColor: const Color(0xFF34C759).withValues(alpha: 0.1),
         onTap: () {
-          // Handle pet care tips
+          context.push('/pet-care-tips');
         },
       ),
     ];
