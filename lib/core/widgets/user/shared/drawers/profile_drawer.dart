@@ -114,7 +114,7 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                           user: currentUser,
                           size: 80,
                           showBorder: currentUser?.profileImageUrl?.isEmpty ?? true,
-                          borderColor: AppColors.primary.withOpacity(0.3),
+                          borderColor: AppColors.primary.withValues(alpha: 0.3),
                           borderWidth: 2,
                         ),
                       ),
@@ -294,15 +294,6 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                     ),
                   ),
                   
-                  _buildProfileOption(
-                    icon: Icons.help_outline,
-                    title: 'Help & Support',
-                    subtitle: 'Get help with your account',
-                    onTap: () {
-                      Navigator.pop(context);
-                      // Navigate to help
-                    },
-                  ),
                   _buildProfileOption(
                     icon: Icons.info_outline,
                     title: 'About PawSense',
@@ -492,6 +483,9 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
       );
 
       if (pickedFile != null) {
+        // Store mounted state before async operations
+        if (!context.mounted) return;
+        
         // Show loading indicator
         showDialog(
           context: context,

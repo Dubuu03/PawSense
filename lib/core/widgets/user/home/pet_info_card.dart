@@ -5,6 +5,7 @@ import 'package:pawsense/core/utils/constants_mobile.dart';
 import 'package:pawsense/core/models/user/pet_model.dart';
 import 'package:pawsense/core/services/user/pet_service.dart';
 import 'package:pawsense/core/guards/auth_guard.dart';
+import 'package:pawsense/core/widgets/user/pets/pet_avatar.dart';
 
 class PetInfoCard extends StatefulWidget {
   final String? nextAppointmentDate;
@@ -166,11 +167,13 @@ class _PetInfoCardState extends State<PetInfoCard> {
 
               if (_pets.length > 2)
                 TextButton(
-                  onPressed: () {
+                  onPressed: () async {
                     print('DEBUG: Top View All button clicked');
                     try {
-                      context.push('/pets');
-                      print('DEBUG: Navigation to /pets completed');
+                      await context.push('/pets');
+                      print('DEBUG: Navigation to /pets completed, refreshing pets');
+                      // Refresh pets when returning from View All page
+                      _loadPets();
                     } catch (e) {
                       print('DEBUG: Navigation error: $e');
                     }
@@ -181,7 +184,7 @@ class _PetInfoCardState extends State<PetInfoCard> {
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                   child: Text(
-                    'View All',
+                    'View All (${_pets.length})',
                     style: kMobileTextStyleViewAll.copyWith(
                       color: AppColors.primary,
                     ),
@@ -257,11 +260,15 @@ class _PetInfoCardState extends State<PetInfoCard> {
           width: double.infinity,
           height: 40,
           child: ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               print('DEBUG: Add Pet button clicked');
               try {
-                context.push('/add-pet');
-                print('DEBUG: Navigation to /add-pet completed');
+                final result = await context.push('/add-pet');
+                print('DEBUG: Navigation to /add-pet completed, result: $result');
+                // Refresh pets when returning from Add Pet page if pet was added
+                if (result == true) {
+                  _loadPets();
+                }
               } catch (e) {
                 print('DEBUG: Navigation error: $e');
               }
@@ -291,65 +298,62 @@ class _PetInfoCardState extends State<PetInfoCard> {
   }
 
   Widget _buildPetsContent() {
+    // Limit to 2 pets maximum on home page
+    final displayPets = _pets.take(2).toList();
+    
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Pets section - 2 columns, multiple rows
+          // Pets section - show only 2 pets maximum
           Expanded(
             flex: 2,
             child: Column(
               children: [
-                // First row of pets
+                // Show pets in a single row (max 2)
                 Row(
-                  children: _pets.take(2).map((pet) => 
+                  children: displayPets.map((pet) => 
                     Expanded(child: _buildPetIcon(pet))
                   ).toList(),
                 ),
-                // Second row of pets if there are more than 2
-                if (_pets.length > 2) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    children: _pets.skip(2).take(2).map((pet) => 
-                      Expanded(child: _buildPetIcon(pet))
-                    ).toList(),
-                  ),
-                ],
                 const SizedBox(height: 12),
-                // View All button below pets
-                Container(
-                  width: double.infinity,
-                  height: 40,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      print('DEBUG: Bottom View All button clicked');
-                      try {
-                        context.push('/pets');
-                        print('DEBUG: Navigation to /pets completed');
-                      } catch (e) {
-                        print('DEBUG: Navigation error: $e');
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary.withValues(alpha: 0.9),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                // View All button below pets (always show if there are pets)
+                if (_pets.isNotEmpty)
+                  Container(
+                    width: double.infinity,
+                    height: 40,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        print('DEBUG: Bottom View All button clicked');
+                        try {
+                          await context.push('/pets');
+                          print('DEBUG: Navigation to /pets completed, refreshing pets');
+                          // Refresh pets when returning from View All page
+                          _loadPets();
+                        } catch (e) {
+                          print('DEBUG: Navigation error: $e');
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary.withValues(alpha: 0.9),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        elevation: 0,
                       ),
-                      elevation: 0,
-                    ),
-                    child: const Text(
-                      'View All',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.white,
-                        height: 1.2,
+                      child: Text(
+                        _pets.length > 2 ? 'View All (${_pets.length})' : 'View All',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.white,
+                          height: 1.2,
+                        ),
                       ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
@@ -366,40 +370,16 @@ class _PetInfoCardState extends State<PetInfoCard> {
     );
   }
 
-  IconData _getPetIcon(String petType) {
-    switch (petType.toLowerCase()) {
-      case 'dog':
-        return Icons.pets;
-      case 'cat':
-        return Icons.pets;
-      case 'bird':
-        return Icons.flutter_dash;
-      case 'fish':
-        return Icons.waves;
-      case 'rabbit':
-        return Icons.cruelty_free;
-      default:
-        return Icons.pets;
-    }
-  }
-
   Widget _buildPetIcon(Pet pet) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Column(
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              _getPetIcon(pet.petType),
-              size: 20,
-              color: AppColors.primary,
-            ),
+          PetAvatar(
+            petType: pet.petType,
+            imageUrl: pet.imageUrl,
+            size: 40,
+            borderRadius: BorderRadius.circular(10),
           ),
           const SizedBox(height: 6),
           Text(

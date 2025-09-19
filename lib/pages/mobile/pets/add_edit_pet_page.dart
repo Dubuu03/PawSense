@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:pawsense/core/models/user/pet_model.dart';
 import 'package:pawsense/core/models/user/user_model.dart';
 import 'package:pawsense/core/services/user/pet_service.dart';
+import 'package:pawsense/core/services/cloudinary/cloudinary_service.dart';
 import 'package:pawsense/core/guards/auth_guard.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
@@ -29,6 +31,8 @@ class _AddEditPetPageState extends State<AddEditPetPage> {
   String _selectedPetType = 'Dog';
   String _selectedBreed = '';
   List<String> _availableBreeds = [];
+  String? _petImageUrl;
+  bool _uploadingImage = false;
 
   bool get _isEditing => widget.pet != null;
 
@@ -62,6 +66,7 @@ class _AddEditPetPageState extends State<AddEditPetPage> {
       _weightController.text = pet.weight.toString();
       _selectedPetType = pet.petType;
       _selectedBreed = pet.breed;
+      _petImageUrl = pet.imageUrl;
     }
     _updateAvailableBreeds();
   }
@@ -73,6 +78,57 @@ class _AddEditPetPageState extends State<AddEditPetPage> {
         _selectedBreed = _availableBreeds.first;
       }
     });
+  }
+
+  Future<void> _pickPetImage() async {
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 80,
+      );
+
+      if (pickedFile != null) {
+        setState(() {
+          _uploadingImage = true;
+        });
+
+        final cloudinaryService = CloudinaryService();
+        final cloudinaryUrl = await cloudinaryService.uploadImageFromFile(
+          pickedFile.path,
+          folder: 'pet_images',
+        );
+
+        setState(() {
+          _petImageUrl = cloudinaryUrl;
+          _uploadingImage = false;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Pet photo uploaded successfully!'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _uploadingImage = false;
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to upload photo: ${e.toString()}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _savePet() async {
@@ -94,6 +150,7 @@ class _AddEditPetPageState extends State<AddEditPetPage> {
         age: int.parse(_ageController.text),
         weight: double.parse(_weightController.text),
         breed: _selectedBreed,
+        imageUrl: _petImageUrl,
         createdAt: _isEditing ? widget.pet!.createdAt : now,
         updatedAt: now,
       );
@@ -214,6 +271,119 @@ class _AddEditPetPageState extends State<AddEditPetPage> {
                   }
                   return null;
                 },
+              ),
+              
+              const SizedBox(height: 20),
+              
+              // Pet Picture Section
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Pet Photo',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Center(
+                    child: GestureDetector(
+                      onTap: _uploadingImage ? null : _pickPetImage,
+                      child: Stack(
+                        children: [
+                          Container(
+                            width: 120,
+                            height: 120,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(60),
+                              border: Border.all(
+                                color: AppColors.primary.withValues(alpha: 0.3),
+                                width: 2,
+                              ),
+                            ),
+                            child: _uploadingImage
+                                ? Container(
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(58), // Slightly smaller to fit inside border
+                                    ),
+                                    child: const Center(
+                                      child: CircularProgressIndicator(
+                                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                                      ),
+                                    ),
+                                  )
+                                : _petImageUrl != null
+                                    ? Padding(
+                                        padding: const EdgeInsets.all(2), // Account for border width
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(58),
+                                          child: Image.network(
+                                            _petImageUrl!,
+                                            width: 116,
+                                            height: 116,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) {
+                                              return Container(
+                                                decoration: BoxDecoration(
+                                                  color: AppColors.primary.withValues(alpha: 0.1),
+                                                  borderRadius: BorderRadius.circular(58),
+                                                ),
+                                                child: Icon(
+                                                  Icons.pets,
+                                                  size: 40,
+                                                  color: AppColors.primary,
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                      )
+                                    : Center(
+                                        child: Icon(
+                                          Icons.pets,
+                                          size: 40,
+                                          color: AppColors.primary.withValues(alpha: 0.6),
+                                        ),
+                                      ),
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: AppColors.white,
+                                  width: 2,
+                                ),
+                              ),
+                              child: Icon(
+                                _petImageUrl != null ? Icons.edit : Icons.camera_alt,
+                                color: AppColors.white,
+                                size: 16,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Center(
+                    child: Text(
+                      _petImageUrl != null ? 'Tap to change photo' : 'Tap to add photo',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               
               const SizedBox(height: 20),

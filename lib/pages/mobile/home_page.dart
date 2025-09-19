@@ -30,6 +30,7 @@ class _UserHomePageState extends State<UserHomePage> {
   int _currentNavIndex = 0;
   int _currentTabIndex = 0;
   Key _petCardKey = UniqueKey(); // Add this to force refresh
+  bool _hasInitiallyLoaded = false; // Track if initial load is complete
 
   // Sample data - in a real app, this would come from your backend
   final List<HealthData> _healthData = [
@@ -100,6 +101,7 @@ class _UserHomePageState extends State<UserHomePage> {
     // Check for query parameters to set initial tab
     final uri = GoRouterState.of(context).uri;
     final tabParam = uri.queryParameters['tab'];
+    final refreshParam = uri.queryParameters['refresh'];
     
     if (tabParam == 'history') {
       setState(() {
@@ -107,12 +109,21 @@ class _UserHomePageState extends State<UserHomePage> {
       });
     }
     
-    // Refresh pet card when returning to page (after frame is built)
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _refreshPetCard();
-      }
-    });
+    // Refresh pet card on initial load or when explicitly requested
+    final shouldRefresh = !_hasInitiallyLoaded || refreshParam == 'pets';
+    
+    if (shouldRefresh) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _refreshPetCard();
+          if (!_hasInitiallyLoaded) {
+            setState(() {
+              _hasInitiallyLoaded = true;
+            });
+          }
+        }
+      });
+    }
   }
 
   void _refreshPetCard() {
@@ -120,6 +131,11 @@ class _UserHomePageState extends State<UserHomePage> {
     setState(() {
       _petCardKey = UniqueKey();
     });
+  }
+
+  // Public method to refresh pets (can be called when returning from pets page)
+  void refreshPets() {
+    _refreshPetCard();
   }
 
   Future<void> _fetchUser() async {

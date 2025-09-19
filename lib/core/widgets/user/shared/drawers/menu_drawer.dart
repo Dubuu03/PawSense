@@ -4,7 +4,6 @@ import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants.dart';
 import 'package:pawsense/core/models/user/user_model.dart';
 import 'package:pawsense/core/widgets/shared/profile_avatar.dart';
-import 'package:pawsense/core/services/auth/auth_service_mobile.dart';
 
 class MenuDrawer extends StatelessWidget {
   final UserModel? user;
@@ -183,19 +182,19 @@ class MenuDrawer extends StatelessWidget {
                     ),
                   ),
                   _buildMenuItem(
-                    icon: Icons.help_outline,
-                    title: 'Help & Support',
-                    onTap: () {
-                      Navigator.pop(context);
-                      // Navigate to help
-                    },
-                  ),
-                  _buildMenuItem(
                     icon: Icons.settings_outlined,
                     title: 'Settings',
                     onTap: () {
                       Navigator.pop(context);
                       // Navigate to settings
+                    },
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.help_outline,
+                    title: 'Help & Support',
+                    onTap: () {
+                      Navigator.pop(context);
+                      // Navigate to help
                     },
                   ),
                 ],
@@ -213,40 +212,14 @@ class MenuDrawer extends StatelessWidget {
                   ),
                 ),
               ),
-              child: Column(
-                children: [
-                  _buildMenuItem(
-                    icon: Icons.logout_outlined,
-                    title: 'Sign Out',
-                    titleColor: AppColors.error,
-                    iconColor: AppColors.error,
-                    onTap: () async {
-                      Navigator.pop(context);
-                      // Handle sign out
-                      try {
-                        final authService = AuthService();
-                        await authService.signOut();
-                        if (context.mounted) {
-                          context.go('/signin');
-                        }
-                      } catch (e) {
-                        // Handle sign out error - still navigate to signin
-                        if (context.mounted) {
-                          context.go('/signin');
-                        }
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'PawSense v1.0.0',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textTertiary,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                ],
+              child: Text(
+                'PawSense v1.0.0',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textTertiary,
+                  fontWeight: FontWeight.w400,
+                ),
+                textAlign: TextAlign.center,
               ),
             ),
           ],

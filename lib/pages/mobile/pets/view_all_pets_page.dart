@@ -118,8 +118,8 @@ class _ViewAllPetsPageState extends State<ViewAllPetsPage> {
     if (Navigator.canPop(context)) {
       context.pop();
     } else {
-      // If we can't pop (e.g., this is the only route), navigate to home
-      context.go('/home');
+      // If we can't pop (e.g., this is the only route), navigate to home with refresh
+      context.go('/home?refresh=pets');
     }
   }
 
