@@ -173,6 +173,9 @@ class _AdminShellState extends State<AdminShell> {
               children: [
                 TopNavBar(
                   key: ValueKey('topnav_$_userRole'), // Prevent unnecessary rebuilds
+                  clinicTitle: _userRole == 'super_admin' 
+                      ? 'Super Administrator Dashboard'
+                      : 'Veterinary Clinic Administator Dashboard',
                   userInitials: _userInitials,
                   userName: _userName,
                   userRole: RoleManager.getRoleDisplayName(_userRole),

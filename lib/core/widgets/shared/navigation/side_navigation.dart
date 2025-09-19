@@ -51,23 +51,27 @@ class SideNavigation extends StatelessWidget {
 
   Widget _buildLogo() {
     return Container(
-      padding: EdgeInsets.all(24),
+      padding: EdgeInsets.fromLTRB(32, 24, 24, 16),
       child: Row(
         children: [
           Container(
-            width: 32,
-            height: 32,
+            width: 60,
+            height: 60,
             decoration: BoxDecoration(
-              color: AppColors.primary,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(Icons.pets, color: AppColors.white, size: 20),
+            child: Image.asset(
+              'assets/img/logo.png',
+              width: 60,
+              height: 60,
+              fit: BoxFit.contain,
+            ),
           ),
           SizedBox(width: 12),
           Text(
             'PawSense',
             style: TextStyle(
-              fontSize: kFontSizeRegular,
+              fontSize: kFontSizeLarge,
               fontWeight: FontWeight.bold,
               color: AppColors.textPrimary,
             ),

@@ -14,7 +14,7 @@ class TopNavBar extends StatefulWidget {
 
   const TopNavBar({
     super.key,
-    this.clinicTitle = 'Veterinary Clinic Dashboard',
+    required this.clinicTitle,
     this.userInitials = 'SJ',
     this.userName = 'Dr. Sarah Johnson',
     this.userRole = 'Veterinarian',
@@ -116,14 +116,31 @@ class _TopNavBarState extends State<TopNavBar> {
 
   @override
   Widget build(BuildContext context) {
+    // Determine clinic title based on user role
+    String displayTitle;
+    if (widget.userRole.toLowerCase() == 'admin') {
+      displayTitle = 'Veterinary Clinic Administrator';
+    } else if (widget.userRole.toLowerCase() == 'super_admin' || widget.userRole.toLowerCase() == 'super admin') {
+      displayTitle = 'Super Administrator';
+    } else {
+      displayTitle = widget.clinicTitle;
+    }
+
     return Container(
-      height: 72,
+      height: 82,
       padding: const EdgeInsets.symmetric(horizontal: 24),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        border: const Border(
+          left: BorderSide(color: AppColors.border, width: 2),
+          bottom: BorderSide(color: AppColors.border, width: 3),
+        ),
+      ),
       child: Row(
         children: [
           // Left: Clinic title
           Text(
-            widget.clinicTitle,
+            displayTitle,
             style: TextStyle(
               fontSize: kFontSizeLarge,
               fontWeight: FontWeight.w600,
