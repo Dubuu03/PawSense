@@ -10,6 +10,9 @@ class AppointmentTableRow extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback onView;
+  final VoidCallback? onAccept;
+  final VoidCallback? onReject;
+  final VoidCallback? onMarkDone;
 
   const AppointmentTableRow({
     super.key,
@@ -17,6 +20,9 @@ class AppointmentTableRow extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onView,
+    this.onAccept,
+    this.onReject,
+    this.onMarkDone,
   });
 
   @override
@@ -67,11 +73,52 @@ class AppointmentTableRow extends StatelessWidget {
             flex: 1,
             child: Row(
               children: [
-                Text(
-                  appointment.pet.emoji,
-                  style: const TextStyle(fontSize: kFontSizeLarge),
+                // Pet profile picture or emoji fallback
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.border, width: 1),
+                  ),
+                  child: appointment.pet.imageUrl != null && appointment.pet.imageUrl!.isNotEmpty
+                      ? ClipOval(
+                          child: Image.network(
+                            appointment.pet.imageUrl!,
+                            width: 40,
+                            height: 40,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Center(
+                                child: Text(
+                                  appointment.pet.emoji,
+                                  style: const TextStyle(fontSize: 20),
+                                ),
+                              );
+                            },
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return const Center(
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        )
+                      : Center(
+                          child: Text(
+                            appointment.pet.emoji,
+                            style: const TextStyle(fontSize: 20),
+                          ),
+                        ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 12),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -140,23 +187,43 @@ class AppointmentTableRow extends StatelessWidget {
                 if (appointment.status == AppointmentStatus.pending) ...[
                   IconButton(
                     icon: const Icon(Icons.check, size: 16),
-                    onPressed: onEdit,
+                    onPressed: onAccept,
                     color: AppColors.success,
                     constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    tooltip: 'Accept Appointment',
                   ),
                   IconButton(
                     icon: const Icon(Icons.close, size: 16),
-                    onPressed: onDelete,
+                    onPressed: onReject,
                     color: AppColors.error,
                     constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    tooltip: 'Reject Appointment',
+                  ),
+                ] else if (appointment.status == AppointmentStatus.confirmed) ...[
+                  IconButton(
+                    icon: const Icon(Icons.task_alt, size: 16),
+                    onPressed: onMarkDone,
+                    color: AppColors.success,
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    tooltip: 'Mark as Done',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    onPressed: onEdit,
+                    color: AppColors.textSecondary,
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    tooltip: 'Edit Appointment',
+                  ),
+                ] else if (appointment.status == AppointmentStatus.cancelled) ...[
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    onPressed: onEdit,
+                    color: AppColors.textSecondary,
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    tooltip: 'Edit Appointment',
                   ),
                 ],
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined, size: 16),
-                  onPressed: onEdit,
-                  color: AppColors.textSecondary,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                ),
+                // No edit button for completed appointments
               ],
             ),
           ),

@@ -4,16 +4,14 @@ import 'package:pawsense/core/utils/constants.dart';
 import '../../../utils/app_colors.dart';
 
 class AppointmentHeader extends StatelessWidget {
-  final VoidCallback onNewAppointment;
-
-  const AppointmentHeader({super.key, required this.onNewAppointment});
+  const AppointmentHeader({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(24.0),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -34,19 +32,6 @@ class AppointmentHeader extends StatelessWidget {
               ),
             ],
           ),
-        ElevatedButton.icon(
-          onPressed: onNewAppointment,
-          icon: const Icon(Icons.add, size: 18),
-          label: const Text('New Appointment'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-        )
 
         ],
       ),

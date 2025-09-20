@@ -10,6 +10,9 @@ class AppointmentTable extends StatelessWidget {
   final Function(Appointment) onEdit;
   final Function(Appointment) onDelete;
   final Function(Appointment) onView;
+  final Function(Appointment)? onAccept;
+  final Function(Appointment)? onReject;
+  final Function(Appointment)? onMarkDone;
 
   const AppointmentTable({
     super.key,
@@ -17,6 +20,9 @@ class AppointmentTable extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onView,
+    this.onAccept,
+    this.onReject,
+    this.onMarkDone,
   });
 
   @override
@@ -36,6 +42,9 @@ class AppointmentTable extends StatelessWidget {
             onEdit: () => onEdit(appointment),
             onDelete: () => onDelete(appointment),
             onView: () => onView(appointment),
+            onAccept: onAccept != null ? () => onAccept!(appointment) : null,
+            onReject: onReject != null ? () => onReject!(appointment) : null,
+            onMarkDone: onMarkDone != null ? () => onMarkDone!(appointment) : null,
           )),
         ],
       ),

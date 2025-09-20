@@ -8,6 +8,7 @@ class Pet {
   final String emoji;
   final String? breed;
   final int? age;
+  final String? imageUrl;
 
   Pet({
     required this.id,
@@ -16,6 +17,7 @@ class Pet {
     required this.emoji,
     this.breed,
     this.age,
+    this.imageUrl,
   });
 
   factory Pet.fromMap(Map<String, dynamic> data) {
@@ -26,6 +28,7 @@ class Pet {
       emoji: data['emoji'] ?? '🐕',
       breed: data['breed'],
       age: data['age'],
+      imageUrl: data['imageUrl'],
     );
   }
 
@@ -37,6 +40,7 @@ class Pet {
       'emoji': emoji,
       'breed': breed,
       'age': age,
+      'imageUrl': imageUrl,
     };
   }
 }
@@ -91,6 +95,8 @@ class Appointment {
   final String? veterinarianId;
   final double? estimatedDuration; // in minutes
   final String? serviceType;
+  final String? cancelReason; // Reason for cancellation
+  final DateTime? cancelledAt; // Timestamp when appointment was cancelled
 
   Appointment({
     required this.id,
@@ -108,6 +114,8 @@ class Appointment {
     this.veterinarianId,
     this.estimatedDuration = 20.0,
     this.serviceType,
+    this.cancelReason,
+    this.cancelledAt,
   });
 
   factory Appointment.fromFirestore(Map<String, dynamic> data, String id) {
@@ -130,6 +138,8 @@ class Appointment {
       veterinarianId: data['veterinarianId'],
       estimatedDuration: (data['estimatedDuration'] as num?)?.toDouble() ?? 20.0,
       serviceType: data['serviceType'],
+      cancelReason: data['cancelReason'],
+      cancelledAt: (data['cancelledAt'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -149,6 +159,8 @@ class Appointment {
       'veterinarianId': veterinarianId,
       'estimatedDuration': estimatedDuration,
       'serviceType': serviceType,
+      'cancelReason': cancelReason,
+      'cancelledAt': cancelledAt != null ? Timestamp.fromDate(cancelledAt!) : null,
     };
   }
 
@@ -168,6 +180,8 @@ class Appointment {
     String? veterinarianId,
     double? estimatedDuration,
     String? serviceType,
+    String? cancelReason,
+    DateTime? cancelledAt,
   }) {
     return Appointment(
       id: id ?? this.id,
@@ -185,6 +199,8 @@ class Appointment {
       veterinarianId: veterinarianId ?? this.veterinarianId,
       estimatedDuration: estimatedDuration ?? this.estimatedDuration,
       serviceType: serviceType ?? this.serviceType,
+      cancelReason: cancelReason ?? this.cancelReason,
+      cancelledAt: cancelledAt ?? this.cancelledAt,
     );
   }
 }

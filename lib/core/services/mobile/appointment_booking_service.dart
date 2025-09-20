@@ -46,7 +46,13 @@ class AppointmentBookingService {
           .collection(_collection)
           .add(appointment.toMap());
 
-      print('Appointment booked successfully with ID: ${docRef.id}');
+      print('📋 MOBILE DEBUG: Appointment booked successfully with ID: ${docRef.id}');
+      print('🏥 MOBILE DEBUG: Saved with clinicId: $clinicId');
+      print('👤 MOBILE DEBUG: Saved with userId: ${currentUser.uid}');
+      print('🐾 MOBILE DEBUG: Saved with petId: $petId');
+      print('📅 MOBILE DEBUG: Saved for date: $appointmentDate at $appointmentTime');
+      print('🔧 MOBILE DEBUG: Service: $serviceName (ID: $serviceId)');
+      
       return docRef.id;
     } catch (e) {
       print('Error booking appointment: $e');

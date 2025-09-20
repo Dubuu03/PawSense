@@ -35,7 +35,7 @@ class PawSenseApp extends StatelessWidget {
       routerConfig: AppRouter.router,
     );
   }
-}
+} 
 
   // runApp(const MaterialApp(
   //   debugShowCheckedModeBanner: false,
