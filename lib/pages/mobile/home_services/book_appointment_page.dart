@@ -6,9 +6,8 @@ import 'package:pawsense/core/utils/constants_mobile.dart';
 import 'package:pawsense/core/services/clinic/clinic_list_service.dart';
 import 'package:pawsense/core/services/user/pet_service.dart';
 import 'package:pawsense/core/services/mobile/appointment_booking_service.dart';
+import 'package:pawsense/core/services/clinic/appointment_service.dart';
 import 'package:pawsense/core/models/user/pet_model.dart';
-import 'package:pawsense/core/models/clinic/clinic_service_model.dart';
-import 'package:pawsense/core/models/clinic/appointment_booking_model.dart';
 import 'package:pawsense/core/guards/auth_guard.dart';
 
 class BookAppointmentPage extends StatefulWidget {
@@ -72,6 +71,12 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
       
       // Load available clinics
       final clinics = await ClinicListService.getAllActiveClinics();
+      print('🏥 MOBILE DEBUG: Loaded ${clinics.length} available clinics');
+      for (int i = 0; i < clinics.length && i < 3; i++) {
+        final clinic = clinics[i];
+        print('   Clinic ${i+1}: ID=${clinic['id']}, Name=${clinic['name']}');
+      }
+      
       setState(() {
         _availableClinics = clinics;
         
@@ -91,6 +96,7 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
           }
         } else if (_availableClinics.isNotEmpty) {
           _selectedClinicId = _availableClinics.first['id'];
+          print('🎯 MOBILE DEBUG: Auto-selected clinic ID: $_selectedClinicId');
         }
         
         _loading = false;
@@ -839,6 +845,9 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
       return;
     }
 
+    // Format time for validation (HH:mm)
+    final formattedTime = '${_selectedTime.hour.toString().padLeft(2, '0')}:${_selectedTime.minute.toString().padLeft(2, '0')}';
+
     // Show loading
     showDialog(
       context: context,
@@ -851,6 +860,58 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
     );
 
     try {
+      // Validate if the appointment can be booked at the selected time
+      final canBook = await AppointmentService.canBookAtTime(
+        _selectedClinicId!,
+        _selectedDate,
+        formattedTime,
+      );
+
+      if (!canBook) {
+        // Hide loading
+        if (mounted) Navigator.of(context).pop();
+        
+        // Show schedule validation error
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Time Slot Unavailable'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('The selected time slot is not available. This could be because:'),
+                  const SizedBox(height: 12),
+                  const Text('• The clinic is closed at that time'),
+                  const Text('• The time slot is during a break'),
+                  const Text('• The time slot is already booked'),
+                  const SizedBox(height: 16),
+                  const Text('Would you like to see available time slots for this date?'),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    Navigator.of(context).pop();
+                    await _showAvailableTimeSlots();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('View Available Times'),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+
       // Get selected pet and clinic for display
       final selectedPet = _userPets.firstWhere((pet) => pet.id == _selectedPetId);
       final selectedClinic = _availableClinics.firstWhere((clinic) => clinic['id'] == _selectedClinicId);
@@ -865,9 +926,6 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
           'duration': '30 mins',
         },
       );
-
-      // Format time for storage (HH:mm)
-      final formattedTime = '${_selectedTime.hour.toString().padLeft(2, '0')}:${_selectedTime.minute.toString().padLeft(2, '0')}';
       
       // Parse estimated price
       double? estimatedPrice;
@@ -928,6 +986,116 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error booking appointment: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _showAvailableTimeSlots() async {
+    if (_selectedClinicId == null) return;
+
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+        ),
+      ),
+    );
+
+    try {
+      final availableSlots = await AppointmentService.getAvailableTimeSlots(
+        _selectedClinicId!,
+        _selectedDate,
+      );
+
+      // Hide loading
+      if (mounted) Navigator.of(context).pop();
+
+      if (availableSlots.isEmpty) {
+        // No available slots
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('No Available Times'),
+              content: const Text('There are no available time slots for the selected date. Please choose a different date.'),
+              actions: [
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+
+      // Show available time slots
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('Available Times - ${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: availableSlots.length,
+                itemBuilder: (context, index) {
+                  final slot = availableSlots[index];
+                  final timeParts = slot.split(':');
+                  final timeOfDay = TimeOfDay(
+                    hour: int.parse(timeParts[0]),
+                    minute: int.parse(timeParts[1]),
+                  );
+                  
+                  return ListTile(
+                    title: Text(timeOfDay.format(context)),
+                    trailing: const Icon(Icons.access_time, color: AppColors.primary),
+                    onTap: () {
+                      setState(() {
+                        _selectedTime = timeOfDay;
+                      });
+                      Navigator.of(context).pop();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Selected time: ${timeOfDay.format(context)}'),
+                          backgroundColor: AppColors.success,
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      // Hide loading
+      if (mounted) Navigator.of(context).pop();
+      
+      // Show error
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading available times: $e'),
             backgroundColor: AppColors.error,
           ),
         );
