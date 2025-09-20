@@ -16,10 +16,13 @@ import 'package:pawsense/pages/mobile/messaging/messaging_test_page.dart';
 import 'package:pawsense/pages/mobile/pets/view_all_pets_page.dart';
 import 'package:pawsense/pages/mobile/pets/add_edit_pet_page.dart';
 
-import 'package:pawsense/pages/mobile/services/book_appointment_page.dart';
-import 'package:pawsense/pages/mobile/services/emergency_hotline_page.dart';
-import 'package:pawsense/pages/mobile/services/first_aid_guide_page.dart';
-import 'package:pawsense/pages/mobile/services/pet_care_tips_page.dart';
+import 'package:pawsense/pages/mobile/home_services/book_appointment_page.dart';
+import 'package:pawsense/pages/mobile/home_services/emergency_hotline_page.dart';
+import 'package:pawsense/pages/mobile/home_services/first_aid_guide_page.dart';
+import 'package:pawsense/pages/mobile/home_services/pet_care_tips_page.dart';
+
+import 'package:pawsense/pages/mobile/clinic/clinic_list_page.dart';
+import 'package:pawsense/pages/mobile/clinic/clinic_details_page.dart';
 
 import 'package:pawsense/core/models/user/user_model.dart';
 import 'package:pawsense/core/models/user/pet_model.dart';
@@ -149,7 +152,13 @@ class AppRouter {
       // Service routes
       GoRoute(
         path: '/book-appointment',
-        builder: (context, state) => const BookAppointmentPage(),
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          return BookAppointmentPage(
+            preselectedClinicId: extra?['clinicId'] as String?,
+            preselectedClinicName: extra?['clinicName'] as String?,
+          );
+        },
       ),
       GoRoute(
         path: '/emergency-hotline',
@@ -162,6 +171,19 @@ class AppRouter {
       GoRoute(
         path: '/pet-care-tips',
         builder: (context, state) => const PetCareTipsPage(),
+      ),
+
+      // Clinic routes
+      GoRoute(
+        path: '/clinics',
+        builder: (context, state) => const ClinicListPage(),
+      ),
+      GoRoute(
+        path: '/clinic-details',
+        builder: (context, state) {
+          final clinicId = state.uri.queryParameters['id'];
+          return ClinicDetailsPage(clinicId: clinicId ?? '');
+        },
       ),
 
       // Web auth routes

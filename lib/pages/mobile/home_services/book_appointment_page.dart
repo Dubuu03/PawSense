@@ -13,7 +13,14 @@ import 'package:pawsense/core/models/clinic/appointment_booking_model.dart';
 import 'package:pawsense/core/guards/auth_guard.dart';
 
 class BookAppointmentPage extends StatefulWidget {
-  const BookAppointmentPage({super.key});
+  final String? preselectedClinicId;
+  final String? preselectedClinicName;
+
+  const BookAppointmentPage({
+    super.key,
+    this.preselectedClinicId,
+    this.preselectedClinicName,
+  });
 
   @override
   State<BookAppointmentPage> createState() => _BookAppointmentPageState();
@@ -74,10 +81,26 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
       
       setState(() {
         _availableClinics = clinics;
-        if (_availableClinics.isNotEmpty) {
+        
+        // Use preselected clinic if provided and valid
+        if (widget.preselectedClinicId != null) {
+          // Check for clinic with matching ID in either 'id' or 'clinicId' field
+          final matchingClinic = _availableClinics.firstWhere(
+            (clinic) => clinic['id'] == widget.preselectedClinicId || 
+                         clinic['clinicId'] == widget.preselectedClinicId,
+            orElse: () => {},
+          );
+          
+          if (matchingClinic.isNotEmpty) {
+            _selectedClinicId = matchingClinic['id']; // Always use the 'id' field for consistency
+          } else if (_availableClinics.isNotEmpty) {
+            _selectedClinicId = _availableClinics.first['id'];
+          }
+        } else if (_availableClinics.isNotEmpty) {
           _selectedClinicId = _availableClinics.first['id'];
           print('🎯 MOBILE DEBUG: Auto-selected clinic ID: $_selectedClinicId');
         }
+        
         _loading = false;
       });
       
@@ -298,11 +321,18 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
   }
 
   Widget _buildClinicDropdown() {
+    // If clinic is preselected (came from clinic details), show static display
+    final isPreselected = widget.preselectedClinicId != null;
+    final selectedClinic = _availableClinics.firstWhere(
+      (clinic) => clinic['id'] == _selectedClinicId,
+      orElse: () => {},
+    );
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Select Clinic',
+          isPreselected ? 'Clinic' : 'Select Clinic',
           style: kMobileTextStyleTitle.copyWith(
             fontSize: 14,
             fontWeight: FontWeight.w500,
@@ -311,20 +341,15 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
         ),
         const SizedBox(height: 8),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           decoration: BoxDecoration(
             border: Border.all(color: AppColors.border),
             borderRadius: BorderRadius.circular(8),
+            color: isPreselected ? AppColors.background : Colors.white,
           ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _selectedClinicId,
-              isExpanded: true,
-              icon: Icon(Icons.arrow_drop_down, color: AppColors.textSecondary),
-              hint: const Text('Choose a clinic'),
-              items: _availableClinics.map((clinic) => DropdownMenuItem<String>(
-                value: clinic['id'],
-                child: Row(
+          child: isPreselected
+              ? // Static display for preselected clinic
+                Row(
                   children: [
                     Icon(Icons.local_hospital, size: 18, color: AppColors.primary),
                     const SizedBox(width: 8),
@@ -333,11 +358,11 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            clinic['name'] ?? 'Unknown Clinic',
+                            selectedClinic['name'] ?? widget.preselectedClinicName ?? 'Selected Clinic',
                             style: const TextStyle(fontWeight: FontWeight.w500),
                           ),
                           Text(
-                            clinic['address'] ?? '',
+                            selectedClinic['address'] ?? '',
                             style: TextStyle(
                               fontSize: 12,
                               color: AppColors.textSecondary,
@@ -349,17 +374,51 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
                       ),
                     ),
                   ],
+                )
+              : // Dropdown for manual selection
+                DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _selectedClinicId,
+                    isExpanded: true,
+                    icon: Icon(Icons.arrow_drop_down, color: AppColors.textSecondary),
+                    hint: const Text('Choose a clinic'),
+                    items: _availableClinics.map((clinic) => DropdownMenuItem<String>(
+                      value: clinic['id'],
+                      child: Row(
+                        children: [
+                          Icon(Icons.local_hospital, size: 18, color: AppColors.primary),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  clinic['name'] ?? 'Unknown Clinic',
+                                  style: const TextStyle(fontWeight: FontWeight.w500),
+                                ),
+                                Text(
+                                  clinic['address'] ?? '',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    )).toList(),
+                    onChanged: (value) {
+                      setState(() => _selectedClinicId = value);
+                      if (value != null) {
+                        _loadServicesForClinic(value);
+                      }
+                    },
+                  ),
                 ),
-              )).toList(),
-              onChanged: (value) {
-                print('🔄 MOBILE DEBUG: User selected clinic ID: $value');
-                setState(() => _selectedClinicId = value);
-                if (value != null) {
-                  _loadServicesForClinic(value);
-                }
-              },
-            ),
-          ),
         ),
       ],
     );
@@ -501,9 +560,11 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
                     children: [
                       Icon(Icons.medical_services, size: 18, color: AppColors.textSecondary),
                       const SizedBox(width: 8),
-                      Text(
-                        'Select a clinic first to see available services',
-                        style: TextStyle(color: AppColors.textSecondary),
+                      Expanded(
+                        child: Text(
+                          'Select a clinic first to see available services',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
                       ),
                     ],
                   ),

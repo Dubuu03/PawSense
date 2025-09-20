@@ -38,20 +38,27 @@ class _ClinicSelectionPageState extends State<ClinicSelectionPage> {
         _isLoading = true;
       });
 
+      // Get all approved clinics first
+      final allClinics = await MessagingService.getApprovedClinics();
+      
       // Get existing conversations to filter out clinics
       final conversationsStream = MessagingService.getUserConversations();
       await for (final conversations in conversationsStream.take(1)) {
         _existingConversationClinicIds = conversations.map((conv) => conv.clinicId).toList();
+        print('=== Clinic Selection: Found ${conversations.length} existing conversations ===');
+        print('=== Existing clinic IDs: $_existingConversationClinicIds ===');
         break;
       }
-
-      // Get all approved clinics
-      final allClinics = await MessagingService.getApprovedClinics();
       
       // Filter out clinics that already have conversations
       final availableClinics = allClinics.where((clinic) {
-        return !_existingConversationClinicIds.contains(clinic['id']);
+        final clinicId = clinic['clinicId'] ?? clinic['id']; // Use clinicId first, fallback to id
+        final hasConversation = _existingConversationClinicIds.contains(clinicId);
+        print('=== Clinic: ${clinic['name']} (ID: $clinicId) - Has conversation: $hasConversation ===');
+        return !hasConversation;
       }).toList();
+
+      print('=== Total clinics: ${allClinics.length}, Available: ${availableClinics.length} ===');
 
       setState(() {
         _clinics = availableClinics;
@@ -83,28 +90,79 @@ class _ClinicSelectionPageState extends State<ClinicSelectionPage> {
     });
   }
 
-  void _startConversation(Map<String, dynamic> clinic) {
-    // Create a temporary conversation for navigation
-    final tempConversation = Conversation(
-      id: 'temp_${clinic['id']}_${DateTime.now().millisecondsSinceEpoch}', // Temporary ID
-      userId: '', // Will be populated when actual conversation is created
-      userName: '', // Will be populated when actual conversation is created
-      clinicId: clinic['id'],
-      clinicName: clinic['name'],
-      lastMessageTime: DateTime.now(),
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
+  void _startConversation(Map<String, dynamic> clinic) async {
+    try {
+      // First check if there's already an existing conversation with this clinic
+      final conversationsStream = MessagingService.getUserConversations();
+      await for (final conversations in conversationsStream.take(1)) {
+        // Look for existing conversation with this clinic
+        Conversation? existingConversation;
+        try {
+          final clinicId = clinic['clinicId'] ?? clinic['id']; // Use clinicId first, fallback to id
+          existingConversation = conversations.firstWhere(
+            (conv) => conv.clinicId == clinicId,
+          );
+        } catch (e) {
+          // No existing conversation found
+          existingConversation = null;
+        }
 
-    // Navigate to conversation page
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ConversationPage(
-          conversation: tempConversation,
-        ),
-      ),
-    );
+        if (existingConversation != null) {
+          // Navigate to existing conversation and return to messaging page
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ConversationPage(
+                conversation: existingConversation!,
+              ),
+            ),
+          );
+          // Always return to messaging page if coming from existing conversation
+          if (mounted) {
+            Navigator.pop(context, true);
+          }
+        } else {
+          // Create a temporary conversation for new conversation
+          final clinicId = clinic['clinicId'] ?? clinic['id']; // Use clinicId first, fallback to id
+          final tempConversation = Conversation(
+            id: 'temp_${clinicId}_${DateTime.now().millisecondsSinceEpoch}', // Temporary ID
+            userId: '', // Will be populated when actual conversation is created
+            userName: '', // Will be populated when actual conversation is created
+            clinicId: clinicId,
+            clinicName: clinic['name'],
+            lastMessageTime: DateTime.now(),
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          );
+
+          // Navigate to conversation page with temporary conversation
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ConversationPage(
+                conversation: tempConversation,
+              ),
+            ),
+          );
+
+          // If user sent a message, return true to indicate conversation was created
+          if (result == true && mounted) {
+            Navigator.pop(context, true);
+          }
+        }
+        break; // Exit the stream after first result
+      }
+    } catch (e) {
+      print('Error in _startConversation: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error starting conversation: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
   @override

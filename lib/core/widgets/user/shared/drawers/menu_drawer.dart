@@ -130,6 +130,7 @@ class MenuDrawer extends StatelessWidget {
                     onTap: () {
                       Navigator.pop(context);
                       // Navigate to clinic finder
+                      context.go('/clinics') ;
                     },
                   ),
                   _buildMenuItem(

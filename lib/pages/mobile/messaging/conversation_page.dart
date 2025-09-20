@@ -25,6 +25,8 @@ class _ConversationPageState extends State<ConversationPage> {
   final ScrollController _scrollController = ScrollController();
   bool _isSending = false;
   String? _currentUserId;
+  String? _realConversationId; // Track the real conversation ID
+  bool _hassentMessage = false; // Track if user has sent a message
   
   @override
   void initState() {
@@ -33,6 +35,9 @@ class _ConversationPageState extends State<ConversationPage> {
     print('Conversation ID: ${widget.conversation.id}');
     print('Clinic Name: ${widget.conversation.clinicName}');
     _loadCurrentUser();
+    
+    // Set initial conversation ID
+    _realConversationId = widget.conversation.id.startsWith('temp_') ? null : widget.conversation.id;
   }
 
   Future<void> _loadCurrentUser() async {
@@ -42,6 +47,17 @@ class _ConversationPageState extends State<ConversationPage> {
         _currentUserId = user.uid;
       });
     }
+  }
+
+  Stream<List<Message>> _getMessagesStream() {
+    // Use real conversation ID if available, otherwise check if temp conversation
+    final conversationId = _realConversationId ?? widget.conversation.id;
+    
+    if (conversationId.startsWith('temp_')) {
+      return Stream.value(<Message>[]);
+    }
+    
+    return MessagingService.getMessagesStream(conversationId);
   }
 
   @override
@@ -76,7 +92,11 @@ class _ConversationPageState extends State<ConversationPage> {
         }
         
         conversationId = realConversationId;
+        _realConversationId = conversationId; // Update the real conversation ID
         print('=== Created/Retrieved real conversation: $conversationId ===');
+        
+        // Trigger a rebuild to update the stream
+        setState(() {});
       }
       
       final success = await MessagingService.sendMessage(
@@ -89,6 +109,7 @@ class _ConversationPageState extends State<ConversationPage> {
       if (success) {
         print('=== Message sent successfully ===');
         _messageController.clear();
+        _hassentMessage = true; // Mark that user has sent a message
         // The StreamBuilder will automatically update with the new message
       } else {
         _showError('Failed to send message');
@@ -121,7 +142,7 @@ class _ConversationPageState extends State<ConversationPage> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.pop(context, _hassentMessage),
         ),
         title: Row(
           children: [
@@ -175,9 +196,7 @@ class _ConversationPageState extends State<ConversationPage> {
           // Messages list - Using StreamBuilder for real-time updates
           Expanded(
             child: StreamBuilder<List<Message>>(
-              stream: widget.conversation.id.startsWith('temp_') 
-                  ? Stream.value(<Message>[]) // Empty stream for temporary conversations
-                  : MessagingService.getMessagesStream(widget.conversation.id),
+              stream: _getMessagesStream(),
               builder: (context, snapshot) {
                 print('=== StreamBuilder update ===');
                 print('Connection state: ${snapshot.connectionState}');

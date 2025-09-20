@@ -268,12 +268,22 @@ class _MessagingPageState extends State<MessagingPage> {
     }
   }
 
-  void _navigateToClinicSelection() {
-    Navigator.push(
+  void _navigateToClinicSelection() async {
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const ClinicSelectionPage(),
       ),
     );
+
+    // If a conversation was created (user sent a message), the StreamBuilder should automatically refresh
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Conversation started successfully'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    }
   }
 }

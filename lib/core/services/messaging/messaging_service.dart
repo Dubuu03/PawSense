@@ -50,6 +50,7 @@ class MessagingService {
 
       await conversationRef.set(conversation.toMap());
       print('Created new conversation: ${conversationRef.id}');
+      print('Conversation data: ${conversation.toMap()}');
       return conversationRef.id;
     } catch (e) {
       print('Error creating conversation: $e');
@@ -77,10 +78,17 @@ class MessagingService {
           .snapshots()
           .map((snapshot) {
             print('Received ${snapshot.docs.length} conversation documents');
+            print('Raw conversation documents:');
+            for (var doc in snapshot.docs) {
+              print('Doc ID: ${doc.id}, Data: ${doc.data()}');
+            }
+            
             final conversations = snapshot.docs
                 .map((doc) {
                   try {
-                    return Conversation.fromMap(doc.data());
+                    final conv = Conversation.fromMap(doc.data());
+                    print('Successfully parsed conversation: ${conv.clinicName}');
+                    return conv;
                   } catch (e) {
                     print('Error parsing conversation ${doc.id}: $e');
                     return null;
@@ -89,6 +97,8 @@ class MessagingService {
                 .where((conv) => conv != null)
                 .cast<Conversation>()
                 .toList();
+            
+            print('Final conversations count: ${conversations.length}');
             
             // Sort in memory instead of in query
             conversations.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));

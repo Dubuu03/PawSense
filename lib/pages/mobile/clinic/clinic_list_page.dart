@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:pawsense/core/services/clinic/clinic_list_service.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
@@ -76,7 +77,7 @@ class _ClinicListPageState extends State<ClinicListPage> {
     if (Navigator.canPop(context)) {
       Navigator.pop(context);
     } else {
-      Navigator.pushReplacementNamed(context, '/home');
+      context.go('/home');
     }
   }
 
