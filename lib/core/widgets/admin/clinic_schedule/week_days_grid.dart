@@ -105,20 +105,15 @@ class _WeekDaysGridState extends State<WeekDaysGrid> {
       if (dayData != null && dayData['schedule'] != null) {
         final schedule = dayData['schedule'] as ClinicScheduleModel;
         if (schedule.isOpen) {
-          final totalSlots = dayData['totalSlots'] as int;
           final bookedSlots = dayData['bookedSlots'] as int;
-          final availableSlots = dayData['availableSlots'] as int;
           final utilization = dayData['utilization'] as int;
           
-          final appointmentText = totalSlots > 0 
-              ? '$availableSlots/$totalSlots slots available'
-              : 'No slots configured';
-              
+          // Remove slots information, only show time
           openDays.add(DayData(
             day,
-            appointmentText,
+            '', // Remove appointment text
             true,
-            slotsInfo: '$totalSlots slots (${schedule.slotsPerHour}/hour)',
+            slotsInfo: null, // Remove slots info
             openTime: schedule.openTime,
             closeTime: schedule.closeTime,
             bookedSlots: bookedSlots,

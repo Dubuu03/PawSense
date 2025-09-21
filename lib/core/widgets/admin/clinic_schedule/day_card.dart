@@ -19,7 +19,8 @@ class DayCard extends StatelessWidget {
     return GestureDetector(
       onTap: day.isDisabled ? null : onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           gradient: _getBackgroundGradient(),
@@ -95,15 +96,22 @@ class DayCard extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: LinearProgressIndicator(
-                      value: day.utilization! / 100.0,
-                      backgroundColor: isSelected 
-                        ? AppColors.white.withOpacity(0.3)
-                        : AppColors.background,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        _getUtilizationColor(day.utilization!),
+                    child: Container(
+                      height: 4,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(2),
+                        color: isSelected 
+                          ? AppColors.white.withOpacity(0.3)
+                          : Colors.grey.shade300,
                       ),
-                      minHeight: 3,
+                      child: LinearProgressIndicator(
+                        value: day.utilization! / 100.0,
+                        backgroundColor: Colors.transparent,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          _getUtilizationColor(day.utilization!),
+                        ),
+                        minHeight: 4,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 4),
@@ -159,7 +167,7 @@ class DayCard extends StatelessWidget {
   Color _getUtilizationColor(int utilization) {
     if (utilization >= 90) return Colors.red.shade400;
     if (utilization >= 70) return Colors.orange.shade400;
-    if (utilization >= 50) return Colors.yellow.shade600;
+    if (utilization >= 50) return Colors.amber.shade600;
     return Colors.green.shade400;
   }
 }
