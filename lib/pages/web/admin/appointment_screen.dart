@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/utils/app_colors.dart';
-import '../../../core/models/clinic/appointment_models.dart';
+import '../../../core/models/clinic/appointment_models.dart' as AppointmentModels;
 import '../../../core/services/clinic/appointment_service.dart';
 import '../../../core/widgets/admin/appointments/appointment_header.dart';
 import '../../../core/widgets/admin/appointments/appointment_filters.dart';
@@ -21,7 +21,7 @@ class AppointmentManagementScreen extends StatefulWidget {
 class _AppointmentManagementScreenState extends State<AppointmentManagementScreen> {
   String searchQuery = '';
   String selectedStatus = 'All Status';
-  List<Appointment> appointments = [];
+  List<AppointmentModels.Appointment> appointments = [];
   bool isLoading = true;
   String? error;
 
@@ -180,7 +180,7 @@ class _AppointmentManagementScreenState extends State<AppointmentManagementScree
                 Builder(
                   builder: (context) {
                     // Filter appointments for the table
-                    List<Appointment> filteredAppointments = appointments.where((appointment) {
+                    List<AppointmentModels.Appointment> filteredAppointments = appointments.where((appointment) {
                       // Status filter
                       bool statusMatch = selectedStatus == 'All Status' ||
                           appointment.status.name.toLowerCase() == selectedStatus.toLowerCase();
@@ -342,7 +342,7 @@ class _AppointmentManagementScreenState extends State<AppointmentManagementScree
                           // Update status to cancelled instead of deleting
                           final success = await AppointmentService.updateAppointmentStatus(
                             appointment.id,
-                            AppointmentStatus.cancelled,
+                            AppointmentModels.AppointmentStatus.cancelled,
                           );
                           
                           if (success) {
@@ -445,7 +445,7 @@ class _AppointmentManagementScreenState extends State<AppointmentManagementScree
                                   if (appointment.owner.email != null)
                                     _buildDetailRow('Email', appointment.owner.email!),
                                   _buildDetailRow('Status', appointment.status.name.toUpperCase()),
-                                  if (appointment.status == AppointmentStatus.cancelled) ...[
+                                  if (appointment.status == AppointmentModels.AppointmentStatus.cancelled) ...[
                                     if (appointment.cancelReason != null)
                                       _buildDetailRow('Cancel Reason', appointment.cancelReason!),
                                     if (appointment.cancelledAt != null)

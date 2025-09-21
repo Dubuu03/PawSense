@@ -107,14 +107,7 @@ class _AddSpecializationModalState extends State<AddSpecializationModal> {
     }
   }
 
-  void _showSuccessSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColors.success,
-      ),
-    );
-  }
+  // Success notification method removed - functionality not currently used
 
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
