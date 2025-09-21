@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pawsense/core/models/user/user_model.dart';
 import 'package:pawsense/core/guards/auth_guard.dart';
+import 'package:pawsense/core/services/messaging/mobile_messaging_preferences_service.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
 import 'package:pawsense/core/widgets/user/shared/navigation/user_app_bar.dart';
@@ -142,6 +143,17 @@ class _UserHomePageState extends State<UserHomePage> {
     try {
       final userModel = await AuthGuard.getCurrentUser();
       if (userModel != null) {
+        // Initialize mobile messaging preferences for the user
+        try {
+          final preferencesService = MobileMessagingPreferencesService.instance;
+          if (!preferencesService.isInitialized) {
+            await preferencesService.initializeForUser(userModel.uid);
+          }
+        } catch (e) {
+          print('Error initializing mobile messaging preferences: $e');
+          // Don't block the UI for preferences initialization error
+        }
+        
         setState(() {
           _userModel = userModel;
           _loading = false;

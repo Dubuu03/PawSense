@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
 import '../../../core/services/auth/auth_service_mobile.dart';
+import '../../../core/services/messaging/mobile_messaging_preferences_service.dart';
 import 'forgot_password_page.dart';
 import '../../../core/utils/constants.dart';
 import '../../../core/utils/validators.dart';
@@ -251,6 +252,14 @@ class _SignInPageState extends State<SignInPage>
           ),
         );
       } else if (mounted) {
+        // Initialize mobile messaging preferences for the signed-in user
+        try {
+          await MobileMessagingPreferencesService.instance.initializeForUser(user.uid);
+        } catch (e) {
+          debugPrint('Error initializing mobile messaging preferences: $e');
+          // Don't block sign-in for preferences initialization error
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(

@@ -6,7 +6,7 @@ import 'package:pawsense/core/guards/auth_guard.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/widgets/user/messaging/mobile_message_list.dart';
 import 'package:pawsense/core/widgets/user/messaging/message_input.dart';
-import 'package:pawsense/core/services/messaging/messaging_preferences_service.dart';
+import 'package:pawsense/core/services/messaging/mobile_messaging_preferences_service.dart';
 
 class ConversationPage extends StatefulWidget {
   final Conversation conversation;
@@ -23,7 +23,7 @@ class ConversationPage extends StatefulWidget {
 class _ConversationPageState extends State<ConversationPage> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final MessagingPreferencesService _preferencesService = MessagingPreferencesService.instance;
+  final MobileMessagingPreferencesService _mobilePreferencesService = MobileMessagingPreferencesService.instance;
   bool _isSending = false;
   String? _currentUserId;
   String? _realConversationId; // Track the real conversation ID
@@ -42,7 +42,7 @@ class _ConversationPageState extends State<ConversationPage> {
     
     // Mark conversation as read when entering
     if (!widget.conversation.id.startsWith('temp_')) {
-      _preferencesService.markConversationAsRead(widget.conversation.id);
+      _mobilePreferencesService.markConversationAsRead(widget.conversation.id);
     }
   }
 
@@ -118,7 +118,7 @@ class _ConversationPageState extends State<ConversationPage> {
         _hassentMessage = true; // Mark that user has sent a message
         
         // Mark conversation as read when user sends a message
-        _preferencesService.markConversationAsRead(conversationId);
+        _mobilePreferencesService.markConversationAsRead(conversationId);
         
         // The StreamBuilder will automatically update with the new message
       } else {
