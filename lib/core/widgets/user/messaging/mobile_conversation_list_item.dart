@@ -135,13 +135,27 @@ class _MobileConversationListItemState extends State<MobileConversationListItem>
         if (userSnapshot.hasData && userSnapshot.data != null) {
           final currentUser = userSnapshot.data!;
           
-          // Only show as unread if:
-          // 1. There are unread messages (unreadCount > 0)
-          // 2. The last message sender is NOT the current user (meaning it's from clinic)
-          // 3. Not marked as read in storage
-          hasUnreadFromClinic = widget.conversation.unreadCount > 0 &&
-                                widget.conversation.lastMessageSenderId != currentUser.uid &&
+          // Mobile user logic: Only show as unread if the last message was from clinic
+          // Ignore server unread count since it's designed for admin perspective
+          hasUnreadFromClinic = widget.conversation.lastMessageSenderId != currentUser.uid &&
+                                widget.conversation.lastMessageSenderId != null &&
                                 !isReadInStorage;
+          
+          // Fix-up logic: If last message is from clinic but marked as read, 
+          // this might be an old state that needs correction
+          if (widget.conversation.lastMessageSenderId != currentUser.uid &&
+              widget.conversation.lastMessageSenderId != null &&
+              isReadInStorage) {
+            print('🔧 Fix-up: Clinic message but marked as read - clearing read status for ${widget.conversation.clinicName} (ID: ${widget.conversation.id})');
+            // Clear the read status since there's a clinic message
+            _mobilePreferencesService.markConversationAsUnread(widget.conversation.id);
+            hasUnreadFromClinic = true; // Override for this render
+          }
+                                
+          // Debug logging only for conversations that should potentially show as unread
+          if (widget.conversation.lastMessageSenderId != currentUser.uid && widget.conversation.lastMessageSenderId != null) {
+            print('🔍 Debug conversation ${widget.conversation.clinicName}: lastSender=${widget.conversation.lastMessageSenderId}, currentUser=${currentUser.uid}, showAsUnread=$hasUnreadFromClinic, isRead=$isReadInStorage');
+          }
         }
         
         final shouldShowAsUnread = hasUnreadFromClinic && !widget.isCurrentlySelected;
@@ -300,12 +314,13 @@ class _MobileConversationListItemState extends State<MobileConversationListItem>
                                     ),
                                   ],
                                 ),
-                                child: Text(
-                                  widget.conversation.unreadCount.toString(),
-                                  style: const TextStyle(
+                                child: const Text(
+                                  'NEW',
+                                  style: TextStyle(
                                     color: AppColors.white,
-                                    fontSize: 10,
+                                    fontSize: 9,
                                     fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5,
                                   ),
                                 ),
                               ),

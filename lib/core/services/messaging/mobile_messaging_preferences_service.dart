@@ -136,14 +136,36 @@ class MobileMessagingPreferencesService {
   }
 
   /// Update unread count for a conversation and sync with server data
+  /// This method is more intelligent for mobile users
   Future<void> syncConversationData(String conversationId, int serverUnreadCount) async {
     final currentCount = _conversationUnreadCounts[conversationId] ?? 0;
     
     // If server shows more unread messages than we have locally, update
     if (serverUnreadCount > currentCount) {
       print('🔄 MobileMessagingPreferences: Syncing conversation $conversationId: $currentCount -> $serverUnreadCount');
-      await updateUnreadCount(conversationId, serverUnreadCount);
+      
+      // Update the count but DON'T automatically mark as unread
+      // Let the UI logic determine if it should show as unread based on lastMessageSenderId
+      _conversationUnreadCounts[conversationId] = serverUnreadCount;
+      await _saveUnreadCounts();
+      _notifyListeners();
     }
+  }
+
+  /// Mark a conversation as having new messages from clinic
+  /// This should be called when we detect a new message from clinic specifically
+  Future<void> markNewMessageFromClinic(String conversationId, int unreadCount) async {
+    print('📨 MobileMessagingPreferences: New message from clinic in $conversationId');
+    
+    // Update unread count
+    _conversationUnreadCounts[conversationId] = unreadCount;
+    
+    // Remove from read conversations since there's a new clinic message
+    _readConversations.remove(conversationId);
+    
+    await _saveUnreadCounts();
+    await _saveReadConversations();
+    _notifyListeners();
   }
 
   /// Check if conversation data has changed and needs UI update

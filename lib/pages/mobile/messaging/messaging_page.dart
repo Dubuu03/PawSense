@@ -10,7 +10,6 @@ import 'package:pawsense/core/widgets/user/messaging/mobile_conversation_list_it
 import 'package:pawsense/core/services/messaging/mobile_messaging_preferences_service.dart';
 import 'clinic_selection_page.dart';
 import 'conversation_page.dart';
-import 'messaging_preferences_page.dart';
 import 'dart:async';
 
 class MessagingPage extends StatefulWidget {
@@ -129,17 +128,28 @@ class _MessagingPageState extends State<MessagingPage> {
       final oldConv = oldConversationMap[newConv.id];
       
       // Only mark as unread if:
-      // 1. Conversation had fewer unread messages before, or didn't exist
-      // 2. Last message is from clinic (not from current user)
-      // 3. Conversation is not currently being viewed
+      // 1. Last message is from clinic (not from current user)  
+      // 2. Conversation is not currently being viewed
+      // 3. This is a new message (either new conversation or the lastMessageSenderId changed from user to clinic)
       final lastMessageFromClinic = _userModel != null && 
-                                   newConv.lastMessageSenderId != _userModel!.uid;
+                                   newConv.lastMessageSenderId != _userModel!.uid &&
+                                   newConv.lastMessageSenderId != null;
       
-      if ((oldConv == null || newConv.unreadCount > oldConv.unreadCount) && lastMessageFromClinic) {
+      final oldLastMessageFromUser = oldConv != null && 
+                                     _userModel != null && 
+                                     oldConv.lastMessageSenderId == _userModel!.uid;
+      
+      // Detect if this is a new clinic message (either new conversation or sender changed from user to clinic)
+      final isNewClinicMessage = lastMessageFromClinic && 
+                                 (oldConv == null || oldLastMessageFromUser);
+      
+      if (isNewClinicMessage) {
+        print('🆕 New clinic message detected: ${newConv.clinicName}');
         final isCurrentlySelected = _currentlySelectedConversationId == newConv.id;
-        if (!isCurrentlySelected && newConv.unreadCount > 0) {
-          _mobilePreferencesService.markConversationAsUnread(newConv.id);
-          print('🆕 New messages from clinic detected in conversation ${newConv.id}, marked as unread');
+        if (!isCurrentlySelected) {
+          // Use the new method specifically for clinic messages
+          _mobilePreferencesService.markNewMessageFromClinic(newConv.id, 1); // Use 1 instead of server count
+          print('🆕 New clinic message marked as unread via markNewMessageFromClinic');
         }
       }
     }
@@ -160,40 +170,28 @@ class _MessagingPageState extends State<MessagingPage> {
       case 'Unread':
         return conversations.where((conv) {
           final isReadInStorage = _mobilePreferencesService.isConversationRead(conv.id);
-          final hasUnreadMessages = conv.unreadCount > 0;
           
           // Only show as unread if last message was from clinic (not from current user)
           final lastMessageFromClinic = _userModel != null && 
-                                       conv.lastMessageSenderId != _userModel!.uid;
+                                       conv.lastMessageSenderId != _userModel!.uid &&
+                                       conv.lastMessageSenderId != null;
           
-          return hasUnreadMessages && !isReadInStorage && lastMessageFromClinic;
+          return lastMessageFromClinic && !isReadInStorage;
         }).toList();
       case 'Read':
         return conversations.where((conv) {
           final isReadInStorage = _mobilePreferencesService.isConversationRead(conv.id);
-          final hasUnreadMessages = conv.unreadCount > 0;
           
-          // Only consider it "read-eligible" if last message was from clinic
+          // Show as read if: marked as read in storage OR last message was from user OR no messages
           final lastMessageFromClinic = _userModel != null && 
-                                       conv.lastMessageSenderId != _userModel!.uid;
+                                       conv.lastMessageSenderId != _userModel!.uid &&
+                                       conv.lastMessageSenderId != null;
           
-          // Show as read if: marked as read in storage OR no unread messages OR last message was from user
-          return isReadInStorage || !hasUnreadMessages || !lastMessageFromClinic;
+          return isReadInStorage || !lastMessageFromClinic;
         }).toList();
       default:
         return conversations;
     }
-  }
-
-  /// Mark all conversations as read (admin pattern)
-  Future<void> _markAllAsRead(List<Conversation> conversations) async {
-    for (final conversation in conversations) {
-      // Only mark conversations that actually have unread messages (admin logic)
-      if (conversation.unreadCount > 0) {
-        await _mobilePreferencesService.markConversationAsRead(conversation.id);
-      }
-    }
-    setState(() {}); // Refresh UI
   }
 
   /// Build filter chip for conversation filtering
@@ -235,20 +233,20 @@ class _MessagingPageState extends State<MessagingPage> {
                 color: isSelected ? AppColors.white : AppColors.textPrimary,
               ),
             ),
-            if (count > 0) ...[
+            if (count > 0 && (filter == 'All' || filter == 'Unread')) ...[
               const SizedBox(width: 4),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
                 decoration: BoxDecoration(
                   color: isSelected 
                       ? AppColors.white.withValues(alpha: 0.2)
                       : AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   count.toString(),
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: 9,
                     fontWeight: FontWeight.w600,
                     color: isSelected ? AppColors.white : AppColors.primary,
                   ),
@@ -305,30 +303,16 @@ class _MessagingPageState extends State<MessagingPage> {
                     }
                   }
                 }
-                
-                final totalUnread = allConversations.fold<int>(0, (sum, conv) {
-                  final isReadInStorage = _mobilePreferencesService.isConversationRead(conv.id);
-                  final hasUnreadMessages = conv.unreadCount > 0;
-                  
-                  // Only show as unread if last message was from clinic (not from current user)
-                  final lastMessageFromClinic = _userModel != null && 
-                                               conv.lastMessageSenderId != _userModel!.uid;
-                  
-                  final shouldShowAsUnread = hasUnreadMessages && 
-                                            !isReadInStorage && 
-                                            lastMessageFromClinic;
-                  return sum + (shouldShowAsUnread ? conv.unreadCount : 0);
-                });
 
                 final unreadConversationsCount = allConversations.where((conv) {
                   final isReadInStorage = _mobilePreferencesService.isConversationRead(conv.id);
-                  final hasUnreadMessages = conv.unreadCount > 0;
                   
                   // Only count as unread if last message was from clinic
                   final lastMessageFromClinic = _userModel != null && 
-                                               conv.lastMessageSenderId != _userModel!.uid;
+                                               conv.lastMessageSenderId != _userModel!.uid &&
+                                               conv.lastMessageSenderId != null;
                   
-                  return hasUnreadMessages && !isReadInStorage && lastMessageFromClinic;
+                  return lastMessageFromClinic && !isReadInStorage;
                 }).length;
 
                 return Column(
@@ -347,153 +331,8 @@ class _MessagingPageState extends State<MessagingPage> {
                             ),
                           ),
                         ),
-                        if (totalUnread > 0)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            margin: const EdgeInsets.only(right: kMobilePaddingSmall),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              totalUnread > 99 ? '99+' : totalUnread.toString(),
-                              style: const TextStyle(
-                                color: AppColors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        IconButton(
-                          onPressed: () => _navigateToPreferences(),
-                          icon: const Icon(
-                            Icons.settings,
-                            color: AppColors.textSecondary,
-                            size: 20,
-                          ),
-                        ),
                       ],
                     ),
-                    
-                    // Unread summary card
-                    if (totalUnread > 0 || allConversations.isNotEmpty) ...[
-                      const SizedBox(height: kMobileSizedBoxSmall),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(kMobilePaddingSmall),
-                        decoration: BoxDecoration(
-                          color: totalUnread > 0 ? AppColors.primary.withValues(alpha: 0.05) : AppColors.white,
-                          borderRadius: kMobileBorderRadiusSmallPreset,
-                          border: totalUnread > 0 ? Border.all(
-                            color: AppColors.primary.withValues(alpha: 0.2),
-                            width: 1,
-                          ) : null,
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.textSecondary.withValues(alpha: 0.1),
-                              blurRadius: 2,
-                              offset: const Offset(0, 1),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            // Unread icon
-                            if (totalUnread > 0)
-                              Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Icon(
-                                  Icons.mark_email_unread,
-                                  color: AppColors.primary,
-                                  size: 16,
-                                ),
-                              )
-                            else
-                              Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: AppColors.success.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Icon(
-                                  Icons.check_circle_outline,
-                                  color: AppColors.success,
-                                  size: 16,
-                                ),
-                              ),
-                            const SizedBox(width: kMobileSizedBoxSmall),
-                            
-                            // Summary text
-                            Expanded(
-                              child: totalUnread > 0 
-                                  ? RichText(
-                                      text: TextSpan(
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: AppColors.textPrimary,
-                                        ),
-                                        children: [
-                                          TextSpan(
-                                            text: '$unreadConversationsCount unread conversation${unreadConversationsCount == 1 ? '' : 's'}',
-                                            style: const TextStyle(fontWeight: FontWeight.w600),
-                                          ),
-                                          TextSpan(text: ' with '),
-                                          TextSpan(
-                                            text: '$totalUnread message${totalUnread == 1 ? '' : 's'}',
-                                            style: const TextStyle(fontWeight: FontWeight.w600),
-                                          ),
-                                        ],
-                                      ),
-                                    )
-                                  : Text(
-                                      'All conversations read',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.success,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                            ),
-                            
-                            // Quick actions
-                            if (totalUnread > 0)
-                              GestureDetector(
-                                onTap: () => _markAllAsRead(allConversations),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primary.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.done_all,
-                                        color: AppColors.primary,
-                                        size: 12,
-                                      ),
-                                      const SizedBox(width: 2),
-                                      Text(
-                                        'Mark all read',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          color: AppColors.primary,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
                     
                     // Filter chips
                     const SizedBox(height: kMobileSizedBoxMedium),
@@ -502,8 +341,6 @@ class _MessagingPageState extends State<MessagingPage> {
                         _buildFilterChip('All', allConversations.length),
                         const SizedBox(width: kMobileSizedBoxSmall),
                         _buildFilterChip('Unread', unreadConversationsCount),
-                        const SizedBox(width: kMobileSizedBoxSmall),
-                        _buildFilterChip('Read', allConversations.length - unreadConversationsCount),
                       ],
                     ),
                   ],
@@ -745,15 +582,6 @@ class _MessagingPageState extends State<MessagingPage> {
         });
       }
     });
-  }
-
-  void _navigateToPreferences() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const MobileMessagingPreferencesPage(),
-      ),
-    );
   }
 
   Future<void> _deleteConversation(Conversation conversation) async {
