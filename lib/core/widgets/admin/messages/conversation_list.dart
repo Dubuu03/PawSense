@@ -171,11 +171,12 @@ class _ConversationListState extends State<ConversationList> {
                         color: AppColors.textPrimary,
                       ),
                     ),
-                    // Debug button to clear read status (can be removed in production)
-                    IconButton(
-                      icon: Icon(Icons.refresh, size: 16, color: AppColors.textSecondary),
-                      onPressed: () => _preferencesService.clearAllData(),
-                      tooltip: 'Reset read status (Debug)',
+                    Text(
+                      '${widget.conversations.length}',
+                      style: kTextStyleSmall.copyWith(
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
@@ -245,7 +246,16 @@ class _ConversationListState extends State<ConversationList> {
             'No conversations found',
             style: kTextStyleRegular.copyWith(
               color: AppColors.textSecondary,
+              fontWeight: FontWeight.w600,
             ),
+          ),
+          const SizedBox(height: kSpacingSmall),
+          Text(
+            'Patient conversations for your clinic will appear here',
+            style: kTextStyleSmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -260,16 +270,6 @@ class _ConversationListState extends State<ConversationList> {
     
     // Show as unread if: has unread messages AND not read in storage AND not currently selected
     final shouldShowAsUnread = hasUnreadMessages && !isReadInStorage && !isSelected;
-    
-    // Debug logging
-    print('📊 Conversation: ${conversation.userName}');
-    print('   - ID: ${conversation.id}');
-    print('   - Selected: $isSelected');
-    print('   - ReadInStorage: $isReadInStorage');
-    print('   - UnreadCount: ${conversation.unreadCount}');
-    print('   - HasUnreadMessages: $hasUnreadMessages');
-    print('   - ShowAsUnread: $shouldShowAsUnread');
-    print('   - ReadConversations: ${_preferencesService.readConversations}');
     
     return Material(
       key: ValueKey('conversation_${conversation.id}'),

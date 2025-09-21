@@ -6,7 +6,7 @@ import 'package:pawsense/core/guards/auth_guard.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
 import 'package:pawsense/core/widgets/user/shared/navigation/user_app_bar.dart';
-import 'package:pawsense/core/widgets/user/messaging/conversation_list_item.dart';
+import 'package:pawsense/core/widgets/user/messaging/mobile_conversation_list_item.dart';
 import 'clinic_selection_page.dart';
 import 'conversation_page.dart';
 
@@ -216,7 +216,7 @@ class _MessagingPageState extends State<MessagingPage> {
                   itemCount: conversations.length,
                   itemBuilder: (context, index) {
                     final conversation = conversations[index];
-                    return ConversationListItem(
+                    return MobileConversationListItem(
                       conversation: conversation,
                       onTap: () => _navigateToConversation(conversation),
                       onDelete: () => _deleteConversation(conversation),

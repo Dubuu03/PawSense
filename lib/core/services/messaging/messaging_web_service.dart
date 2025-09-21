@@ -6,7 +6,7 @@ import '../../guards/auth_guard.dart';
 class MessagingWebService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Get all conversations for admin view
+  // Get all conversations for admin view (filtered by admin's clinic)
   Future<List<Conversation>> getAllConversations() async {
     try {
       final user = await AuthGuard.getCurrentUser();
@@ -14,13 +14,21 @@ class MessagingWebService {
         throw Exception('User not authenticated');
       }
 
-      print('🔍 MessagingService: Fetching all conversations...');
+      // Get admin's clinic ID first
+      final clinicId = await _getCurrentAdminClinicId();
+      if (clinicId == null) {
+        print('❌ Admin has no clinic, returning empty conversations');
+        return <Conversation>[];
+      }
+
+      print('🔍 MessagingService: Fetching conversations for clinic: $clinicId');
       final QuerySnapshot snapshot = await _firestore
           .collection('conversations')
+          .where('clinicId', isEqualTo: clinicId)
           .orderBy('lastMessageTime', descending: true)
           .get();
 
-      print('🔍 MessagingService: Found ${snapshot.docs.length} conversations');
+      print('🔍 MessagingService: Found ${snapshot.docs.length} conversations for clinic $clinicId');
       
       final conversations = snapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
@@ -37,7 +45,7 @@ class MessagingWebService {
     }
   }
 
-    // Get filtered conversations based on status
+    // Get filtered conversations based on status (filtered by admin's clinic)
   Future<List<Conversation>> getFilteredConversations(String status) async {
     try {
       final user = await AuthGuard.getCurrentUser();
@@ -45,7 +53,16 @@ class MessagingWebService {
         throw Exception('User not authenticated');
       }
 
-      Query query = _firestore.collection('conversations');
+      // Get admin's clinic ID first
+      final clinicId = await _getCurrentAdminClinicId();
+      if (clinicId == null) {
+        print('❌ Admin has no clinic, returning empty conversations');
+        return <Conversation>[];
+      }
+
+      Query query = _firestore
+          .collection('conversations')
+          .where('clinicId', isEqualTo: clinicId);
       
       if (status != 'all') {
         query = query.where('status', isEqualTo: status);
@@ -204,23 +221,67 @@ class MessagingWebService {
     }
   }
 
-  // Stream conversations for real-time updates
+  // Stream conversations for real-time updates (filtered by admin's clinic)
   Stream<List<Conversation>> getConversationsStream() {
     try {
-      return _firestore
-          .collection('conversations')
-          .orderBy('lastMessageTime', descending: true)
-          .snapshots()
-          .map((snapshot) {
-        return snapshot.docs.map((doc) {
-          final data = doc.data();
-          data['id'] = doc.id; // Add document ID to the map
-          return Conversation.fromMap(data);
-        }).toList();
+      return Stream.fromFuture(_getCurrentAdminClinicId()).asyncExpand((clinicId) {
+        if (clinicId == null) {
+          print('❌ Admin has no clinic, returning empty conversation stream');
+          return Stream.value(<Conversation>[]);
+        }
+        
+        print('🏥 Filtering conversations for clinic: $clinicId');
+        return _firestore
+            .collection('conversations')
+            .where('clinicId', isEqualTo: clinicId)
+            .orderBy('lastMessageTime', descending: true)
+            .snapshots()
+            .map((snapshot) {
+          print('📝 Found ${snapshot.docs.length} conversations for clinic $clinicId');
+          return snapshot.docs.map((doc) {
+            final data = doc.data();
+            data['id'] = doc.id; // Add document ID to the map
+            return Conversation.fromMap(data);
+          }).toList();
+        });
       });
     } catch (e) {
       print('Error in getConversationsStream: $e');
       rethrow;
+    }
+  }
+
+  // Helper method to get current admin's clinic ID
+  Future<String?> _getCurrentAdminClinicId() async {
+    try {
+      final user = await AuthGuard.getCurrentUser();
+      if (user == null) {
+        print('❌ No authenticated user found');
+        return null;
+      }
+      
+      print('👤 Current admin user: ${user.uid} (${user.username})');
+      
+      // For admin users, their UID should match their clinic ID
+      // This is based on the clinic structure where clinic documents use the admin's UID as the document ID
+      final clinicDoc = await _firestore
+          .collection('clinics')
+          .doc(user.uid)
+          .get();
+      
+      if (clinicDoc.exists) {
+        final clinicData = clinicDoc.data() as Map<String, dynamic>;
+        final clinicId = clinicDoc.id;
+        final clinicName = clinicData['clinicName'] ?? 'Unknown Clinic';
+        print('🏥 Admin manages clinic: $clinicName (ID: $clinicId)');
+        return clinicId;
+      } else {
+        print('❌ No clinic found for admin user: ${user.uid}');
+        return null;
+      }
+    } catch (e) {
+      print('❌ Error getting admin clinic ID: $e');
+      return null;
     }
   }
 

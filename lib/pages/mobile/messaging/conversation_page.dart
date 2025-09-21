@@ -4,9 +4,9 @@ import 'package:pawsense/core/models/messaging/conversation_model.dart';
 import 'package:pawsense/core/models/messaging/message_model.dart';
 import 'package:pawsense/core/guards/auth_guard.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
-import 'package:pawsense/core/utils/constants.dart';
-import 'package:pawsense/core/widgets/user/messaging/message_bubble.dart';
+import 'package:pawsense/core/widgets/user/messaging/mobile_message_list.dart';
 import 'package:pawsense/core/widgets/user/messaging/message_input.dart';
+import 'package:pawsense/core/services/messaging/messaging_preferences_service.dart';
 
 class ConversationPage extends StatefulWidget {
   final Conversation conversation;
@@ -23,6 +23,7 @@ class ConversationPage extends StatefulWidget {
 class _ConversationPageState extends State<ConversationPage> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final MessagingPreferencesService _preferencesService = MessagingPreferencesService.instance;
   bool _isSending = false;
   String? _currentUserId;
   String? _realConversationId; // Track the real conversation ID
@@ -38,6 +39,11 @@ class _ConversationPageState extends State<ConversationPage> {
     
     // Set initial conversation ID
     _realConversationId = widget.conversation.id.startsWith('temp_') ? null : widget.conversation.id;
+    
+    // Mark conversation as read when entering
+    if (!widget.conversation.id.startsWith('temp_')) {
+      _preferencesService.markConversationAsRead(widget.conversation.id);
+    }
   }
 
   Future<void> _loadCurrentUser() async {
@@ -110,6 +116,10 @@ class _ConversationPageState extends State<ConversationPage> {
         print('=== Message sent successfully ===');
         _messageController.clear();
         _hassentMessage = true; // Mark that user has sent a message
+        
+        // Mark conversation as read when user sends a message
+        _preferencesService.markConversationAsRead(conversationId);
+        
         // The StreamBuilder will automatically update with the new message
       } else {
         _showError('Failed to send message');
@@ -250,38 +260,6 @@ class _ConversationPageState extends State<ConversationPage> {
 
                 final messages = snapshot.data ?? [];
 
-                if (messages.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.chat_bubble_outline,
-                          size: 64,
-                          color: AppColors.textSecondary,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No messages yet',
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Start the conversation by sending a message',
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
                 // Auto-scroll to bottom when messages update
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (_scrollController.hasClients) {
@@ -293,17 +271,10 @@ class _ConversationPageState extends State<ConversationPage> {
                   }
                 });
 
-                return ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.all(kSpacingMedium),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final message = messages[index];
-                    return MessageBubble(
-                      message: message,
-                      currentUserId: _currentUserId,
-                    );
-                  },
+                return MobileMessageList(
+                  messages: messages,
+                  scrollController: _scrollController,
+                  currentUserId: _currentUserId,
                 );
               },
             ),
