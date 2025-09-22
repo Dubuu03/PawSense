@@ -9,11 +9,11 @@ class ClinicActionButtons extends StatelessWidget {
   final VoidCallback? onMessageClinic;
 
   const ClinicActionButtons({
-    Key? key,
+    super.key,
     required this.clinic,
     this.onBookAppointment,
     this.onMessageClinic,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

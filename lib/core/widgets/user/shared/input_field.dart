@@ -8,13 +8,13 @@ class CompactTextField extends StatelessWidget {
   final String? hintText;
 
   const CompactTextField({
-    Key? key,
+    super.key,
     required this.controller,
     required this.labelText,
     this.keyboardType,
     this.validator,
     this.hintText,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

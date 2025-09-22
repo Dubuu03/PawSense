@@ -125,7 +125,7 @@ class UserAppBar extends StatelessWidget implements PreferredSizeWidget {
           alignment: Alignment.centerLeft,
           child: Material(
             color: Colors.transparent,
-            child: Container(
+            child: SizedBox(
               width: MediaQuery.of(context).size.width * 0.85,
               height: MediaQuery.of(context).size.height,
               child: MenuDrawer(
@@ -165,7 +165,7 @@ class UserAppBar extends StatelessWidget implements PreferredSizeWidget {
           alignment: Alignment.centerRight,
           child: Material(
             color: Colors.transparent,
-            child: Container(
+            child: SizedBox(
               width: MediaQuery.of(context).size.width * 0.85,
               height: MediaQuery.of(context).size.height,
               child: ProfileDrawer(

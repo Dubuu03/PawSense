@@ -83,8 +83,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
               onPressed: () => Navigator.of(context).pop(),
             ),
             TextButton(
-              child: Text(buttonText),
               onPressed: onPressed,
+              child: Text(buttonText),
             ),
           ],
         );

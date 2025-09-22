@@ -561,7 +561,7 @@ class _AppointmentHistoryDetailPageState extends State<AppointmentHistoryDetailP
               if (!isLastItem) const SizedBox(height: kMobileSizedBoxMedium),
             ],
           );
-        }).toList(),
+        }),
       ],
     );
   }

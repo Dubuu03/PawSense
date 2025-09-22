@@ -9,9 +9,9 @@ class ClinicContactInfo extends StatefulWidget {
   final ClinicDetails clinic;
 
   const ClinicContactInfo({
-    Key? key,
+    super.key,
     required this.clinic,
-  }) : super(key: key);
+  });
 
   @override
   State<ClinicContactInfo> createState() => _ClinicContactInfoState();

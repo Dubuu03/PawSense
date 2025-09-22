@@ -101,7 +101,7 @@ class DatabaseInspector {
             .where((msg) => msg.data()['conversationId'] == conversationId)
             .length;
         
-        print('\nConversation: ${convData['clinicName']} (${conversationId})');
+        print('\nConversation: ${convData['clinicName']} ($conversationId)');
         print('  Message count: $messageCount');
         print('  Last message: ${convData['lastMessage']}');
         print('  Is active: ${convData['isActive']}');

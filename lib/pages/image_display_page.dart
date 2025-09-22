@@ -49,7 +49,7 @@ class ImageDisplayPage extends StatelessWidget {
                                 child: Image.network(imageUrl, height: 150),
                               )
                             : const SizedBox.shrink();
-                      }).toList(),
+                      }),
                     ],
                     if (licenses != null && licenses.isNotEmpty) ...[
                       const Padding(
@@ -65,7 +65,7 @@ class ImageDisplayPage extends StatelessWidget {
                                 child: Image.network(imageUrl, height: 150),
                               )
                             : const SizedBox.shrink();
-                      }).toList(),
+                      }),
                     ],
                   ],
                 ),

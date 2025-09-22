@@ -430,7 +430,7 @@ class AuthService {
               certifications[i]['documentUrl'] = uploadedUrl;
               certifications[i]['documentFileId'] = null;
               certifications[i]['fileName'] = imageName; // keep original name if needed
-              print('✅ Certification image uploaded: ${uploadedUrl}');
+              print('✅ Certification image uploaded: $uploadedUrl');
             } catch (e) {
               print('❌ Failed to upload certification image $i: $e');
               // Continue without the image - will be marked as needing upload later
@@ -464,7 +464,7 @@ class AuthService {
               licenses[i]['licensePictureUrl'] = uploadedUrl;
               licenses[i]['licensePictureFileId'] = null;
               licenses[i]['fileName'] = imageName; // keep original name if needed
-              print('✅ License image uploaded: ${uploadedUrl}');
+              print('✅ License image uploaded: $uploadedUrl');
             } catch (e) {
               print('❌ Failed to upload license image $i: $e');
               // Continue without the image - will be marked as needing upload later
