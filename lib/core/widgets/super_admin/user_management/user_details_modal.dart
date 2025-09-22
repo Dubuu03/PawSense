@@ -177,26 +177,7 @@ class _UserDetailsModalState extends State<UserDetailsModal>
     }
   }
 
-  void _toggleUserStatus() {
-    if (_isActive && _suspensionReasonController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please provide a reason for suspension'),
-          backgroundColor: AppColors.warning,
-        ),
-      );
-      return;
-    }
-
-    setState(() {
-      _isActive = !_isActive;
-      if (_isActive) {
-        _suspensionReasonController.clear();
-      }
-    });
-
-    widget.onStatusChange?.call(_isActive, _suspensionReasonController.text.trim());
-  }
+  // User status toggle method removed - functionality not currently used
 
   @override
   Widget build(BuildContext context) {

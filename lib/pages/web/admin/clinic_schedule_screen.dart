@@ -6,8 +6,7 @@ import 'package:pawsense/core/widgets/admin/clinic_schedule/schedule_stats.dart'
 import 'package:pawsense/core/widgets/admin/clinic_schedule/time_slot_list.dart';
 import 'package:pawsense/core/widgets/admin/clinic_schedule/week_days_grid.dart';
 import 'package:pawsense/core/widgets/admin/clinic_schedule/week_navigation.dart';
-import 'package:pawsense/core/widgets/debug/debug_clinic_id_widget.dart';
-import 'package:pawsense/core/widgets/debug/test_schedule_availability_widget.dart';
+
 import 'package:pawsense/core/guards/auth_guard.dart';
 
 
@@ -79,14 +78,7 @@ class _ClinicScheduleScreenState extends State<ClinicScheduleScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Debug widget to show clinic ID
-            DebugClinicIdWidget(),
-            SizedBox(height: kSpacingMedium),
-            
-            // Test widget to show availability data
-            if (_actualClinicId != null && _actualClinicId != 'default_clinic_id')
-              TestScheduleAvailabilityWidget(clinicId: _actualClinicId!),
-            SizedBox(height: kSpacingMedium),
+            // Debug widgets removed as requested
             
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -160,6 +152,7 @@ class _ClinicScheduleScreenState extends State<ClinicScheduleScreen> {
                       key: ValueKey('schedule_$_scheduleRefreshKey'), // Add refresh key
                       selectedDay: selectedDay,
                       clinicId: _actualClinicId, // Use actual clinic ID
+                      selectedDate: selectedDate, // Add the required selectedDate parameter
                       onDaySelected: (day) {
                         setState(() {
                           selectedDay = day;

@@ -32,7 +32,7 @@ class ConversationList extends StatefulWidget {
 class _ConversationListState extends State<ConversationList> {
   final MessagingPreferencesService _preferencesService = MessagingPreferencesService.instance;
   StreamSubscription<Set<String>>? _readConversationsSubscription;
-  Map<String, int> _previousUnreadCounts = {}; // Track previous unread counts
+  // Tracking functionality removed
 
   @override
   void initState() {
@@ -112,8 +112,7 @@ class _ConversationListState extends State<ConversationList> {
       }
     }
 
-    // Update the previous unread counts for next comparison
-    _previousUnreadCounts = {for (var conv in newConversations) conv.id: conv.unreadCount};
+    // Tracking functionality removed
   }
 
   @override

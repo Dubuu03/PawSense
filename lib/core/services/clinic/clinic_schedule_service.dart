@@ -471,20 +471,28 @@ class ClinicScheduleService {
           .where('clinicId', isEqualTo: clinicId)
           .where('appointmentDate', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
           .where('appointmentDate', isLessThanOrEqualTo: Timestamp.fromDate(endOfDay))
-          .where('status', whereIn: ['pending', 'confirmed'])  // Only count active appointments
           .get();
 
-      return query.docs.map((doc) {
+      final appointments = query.docs.map((doc) {
         final data = doc.data();
         return {
           'id': doc.id,
-          'appointmentTime': data['appointmentTime'],
+          'time': data['appointmentTime'], // Use appointmentTime field
           'status': data['status'],
           'serviceName': data['serviceName'],
           'petId': data['petId'],
           'userId': data['userId'],
         };
       }).toList();
+
+      // Filter for active appointments only (exclude cancelled, rejected, etc.)
+      final activeAppointments = appointments.where((apt) => 
+        ['pending', 'confirmed', 'completed'].contains(apt['status']) && 
+        apt['status'] != 'cancelled' && 
+        apt['status'] != 'rejected'
+      ).toList();
+      
+      return activeAppointments;
     } catch (e) {
       print('Error getting appointments for date: $e');
       return [];
@@ -496,27 +504,34 @@ class ClinicScheduleService {
     try {
       final schedule = await getScheduleForDay(clinicId, dayOfWeek);
       if (schedule == null || !schedule.isOpen) {
+        print('$dayOfWeek is closed or no schedule found');
         return {
           'schedule': null,
           'totalSlots': 0,
           'bookedSlots': 0,
           'availableSlots': 0,
           'appointments': [],
+          'utilization': 0,
         };
       }
 
       final appointments = await getAppointmentsForDate(clinicId, date);
+      
+      // Count only confirmed appointments for utilization calculation (to match appointment display)
+      final confirmedAppointments = appointments.where((apt) => apt['status'] == 'confirmed').toList();
+      
       final totalSlots = schedule.getTotalCapacity();
-      final bookedSlots = appointments.length;
+      final bookedSlots = confirmedAppointments.length; // Only confirmed appointments
       final availableSlots = totalSlots - bookedSlots;
+      final utilization = totalSlots > 0 ? (bookedSlots / totalSlots * 100).round() : 0;
 
       return {
         'schedule': schedule,
         'totalSlots': totalSlots,
         'bookedSlots': bookedSlots,
         'availableSlots': availableSlots.clamp(0, totalSlots),
-        'appointments': appointments,
-        'utilization': totalSlots > 0 ? (bookedSlots / totalSlots * 100).round() : 0,
+        'appointments': appointments, // Return all active appointments
+        'utilization': utilization,
       };
     } catch (e) {
       print('Error getting day schedule with availability: $e');
@@ -544,7 +559,8 @@ class ClinicScheduleService {
         final currentDate = monday.add(Duration(days: i));
         final dayName = _getDayOfWeek(currentDate.weekday);
         
-        weeklyData[dayName] = await getDayScheduleWithAvailability(clinicId, dayName, currentDate);
+        final dayData = await getDayScheduleWithAvailability(clinicId, dayName, currentDate);
+        weeklyData[dayName] = dayData;
       }
       
       return weeklyData;

@@ -143,14 +143,14 @@ class TimeSlotList extends StatelessWidget {
       {
         'startTime': '08:00',
         'endTime': '09:00',
-        'type': 'Consultation',
+        'type': '',
         'currentAppointments': 2,
         'maxAppointments': 4,
       },
       {
         'startTime': '09:00',
         'endTime': '10:00',
-        'type': 'Consultation',
+        'type': '',
         'currentAppointments': 4,
         'maxAppointments': 4,
       },
@@ -164,7 +164,7 @@ class TimeSlotList extends StatelessWidget {
       {
         'startTime': '11:00',
         'endTime': '12:00',
-        'type': 'Consultation',
+        'type': '',
         'currentAppointments': 3,
         'maxAppointments': 4,
       },
@@ -178,7 +178,7 @@ class TimeSlotList extends StatelessWidget {
       {
         'startTime': '15:00',
         'endTime': '16:00',
-        'type': 'Consultation',
+        'type': '',
         'currentAppointments': 1,
         'maxAppointments': 4,
       },

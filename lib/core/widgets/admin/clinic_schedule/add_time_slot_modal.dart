@@ -18,7 +18,7 @@ class AddTimeSlotModal extends StatefulWidget {
 class _AddTimeSlotModalState extends State<AddTimeSlotModal> {
   final TextEditingController _startTimeController = TextEditingController();
   final TextEditingController _endTimeController = TextEditingController();
-  String _slotType = 'Consultation';
+  String _slotType = '';
   int _capacity = 4;
 
   Future<void> _selectTime(BuildContext context, bool isStart) async {
@@ -172,11 +172,11 @@ class _AddTimeSlotModalState extends State<AddTimeSlotModal> {
                   DropdownButtonFormField<String>(
                     value: _slotType,
                     items: const [
-                      DropdownMenuItem(value: 'Consultation', child: Text('Consultation')),
+                      DropdownMenuItem(value: '', child: Text('General')),
                       DropdownMenuItem(value: 'Surgery', child: Text('Surgery')),
                       DropdownMenuItem(value: 'Emergency', child: Text('Emergency')),
                     ],
-                    onChanged: (v) => setState(() => _slotType = v ?? 'Consultation'),
+                    onChanged: (v) => setState(() => _slotType = v ?? ''),
                     decoration: const InputDecoration(border: OutlineInputBorder()),
                   ),
                 ],
