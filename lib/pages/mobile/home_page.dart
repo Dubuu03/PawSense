@@ -167,15 +167,22 @@ class _UserHomePageState extends State<UserHomePage> {
   }
 
   Future<void> _fetchAssessmentHistory() async {
-    if (_userModel == null) return;
+    if (_userModel == null) {
+      print('DEBUG: User model is null, cannot fetch assessment history');
+      return;
+    }
     
+    print('DEBUG: Fetching assessment history for user: ${_userModel!.uid}');
     setState(() {
       _historyLoading = true;
     });
 
     try {
       final assessmentResults = await _assessmentService.getAssessmentResultsByUserId(_userModel!.uid);
+      print('DEBUG: Fetched ${assessmentResults.length} assessment results');
+      
       final aiHistoryData = _convertAssessmentResultsToAIHistory(assessmentResults);
+      print('DEBUG: Converted to ${aiHistoryData.length} AI history items');
       
       setState(() {
         _aiHistory = aiHistoryData;
@@ -192,14 +199,37 @@ class _UserHomePageState extends State<UserHomePage> {
   List<AIHistoryData> _convertAssessmentResultsToAIHistory(List<AssessmentResult> assessmentResults) {
     List<AIHistoryData> aiHistoryList = [];
     
+    print('DEBUG: Converting ${assessmentResults.length} assessment results');
+    
     for (final result in assessmentResults) {
+      print('DEBUG: Processing assessment ${result.id} with ${result.detectionResults.length} detection results');
+      
+      if (result.detectionResults.isEmpty) {
+        // If no detection results at all, still show the assessment
+        final aiHistoryItem = AIHistoryData(
+          id: '${result.id}_no_detections',
+          title: 'Assessment completed',
+          subtitle: _formatTimestamp(result.createdAt),
+          type: AIDetectionType.mange, // Default type
+          timestamp: result.createdAt,
+          confidence: 0.0,
+          imageUrl: result.imageUrls.isNotEmpty ? result.imageUrls.first : null,
+        );
+        aiHistoryList.add(aiHistoryItem);
+        print('DEBUG: Added assessment with no detection results');
+        continue;
+      }
+      
       for (int i = 0; i < result.detectionResults.length; i++) {
         final detectionResult = result.detectionResults[i];
+        print('DEBUG: Detection result $i has ${detectionResult.detections.length} detections');
         
         if (detectionResult.detections.isNotEmpty) {
           // Use the highest confidence detection for each image
           final topDetection = detectionResult.detections
               .reduce((a, b) => a.confidence > b.confidence ? a : b);
+          
+          print('DEBUG: Top detection: ${topDetection.label} with confidence ${topDetection.confidence}');
           
           final aiHistoryItem = AIHistoryData(
             id: '${result.id}_$i',
@@ -208,15 +238,31 @@ class _UserHomePageState extends State<UserHomePage> {
             type: _getAIDetectionType(topDetection.label),
             timestamp: result.createdAt,
             confidence: topDetection.confidence,
+            imageUrl: detectionResult.imageUrl.isNotEmpty ? detectionResult.imageUrl : null,
           );
           
           aiHistoryList.add(aiHistoryItem);
+          print('DEBUG: Added AI history item: ${aiHistoryItem.title}');
+        } else {
+          // If detection result exists but has no detections, show "No conditions detected"
+          final aiHistoryItem = AIHistoryData(
+            id: '${result.id}_$i',
+            title: 'No conditions detected',
+            subtitle: _formatTimestamp(result.createdAt),
+            type: AIDetectionType.mange, // Default type
+            timestamp: result.createdAt,
+            confidence: 0.0,
+            imageUrl: detectionResult.imageUrl.isNotEmpty ? detectionResult.imageUrl : null,
+          );
+          aiHistoryList.add(aiHistoryItem);
+          print('DEBUG: Added detection result with no detections');
         }
       }
     }
     
     // Sort by timestamp (newest first)
     aiHistoryList.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    print('DEBUG: Final AI history list has ${aiHistoryList.length} items');
     return aiHistoryList;
   }
 

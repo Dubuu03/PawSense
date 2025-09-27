@@ -18,6 +18,7 @@ class AIHistoryData {
   final AIDetectionType type;
   final DateTime timestamp;
   final double? confidence;
+  final String? imageUrl; // Added image URL for displaying assessment images
 
   AIHistoryData({
     required this.id,
@@ -26,6 +27,7 @@ class AIHistoryData {
     required this.type,
     required this.timestamp,
     this.confidence,
+    this.imageUrl,
   });
 }
 
@@ -48,7 +50,7 @@ class AIHistoryList extends StatelessWidget {
         ...aiHistory.take(3).map((item) => AIHistoryItem(
           data: item,
           onTap: () {
-            context.go('/ai-history/${item.id}');
+            context.push('/ai-history/${item.id}');
           },
         )),
         if (aiHistory.length > 3) ...[
@@ -160,25 +162,63 @@ class AIHistoryItem extends StatelessWidget {
                   ),
                 ),
                 
-                // Detection tag
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _getDetectionColor().withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    _getDetectionLabel(),
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: _getDetectionColor(),
+                // Assessment image instead of detection tag
+                if (data.imageUrl != null && data.imageUrl!.isNotEmpty)
+                  Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.border, width: 1),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(7),
+                      child: Image.network(
+                        data.imageUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            color: AppColors.border,
+                            child: Icon(
+                              Icons.pets,
+                              color: AppColors.textSecondary,
+                              size: 20,
+                            ),
+                          );
+                        },
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Container(
+                            color: AppColors.border,
+                            child: Center(
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.pets,
+                      color: AppColors.textSecondary,
+                      size: 20,
                     ),
                   ),
-                ),
               ],
             ),
           ),
@@ -187,33 +227,5 @@ class AIHistoryItem extends StatelessWidget {
     );
   }
 
-  Color _getDetectionColor() {
-    switch (data.type) {
-      case AIDetectionType.mange:
-        return const Color(0xFFFF9500);
-      case AIDetectionType.ringworm:
-        return const Color(0xFF007AFF);
-      case AIDetectionType.pyoderma:
-        return const Color(0xFFE74C3C);
-      case AIDetectionType.hotSpot:
-        return const Color(0xFF8E44AD);
-      case AIDetectionType.fleaAllergy:
-        return const Color(0xFF34C759);
-    }
-  }
 
-  String _getDetectionLabel() {
-    switch (data.type) {
-      case AIDetectionType.mange:
-        return 'Mange';
-      case AIDetectionType.ringworm:
-        return 'Ringworm';
-      case AIDetectionType.pyoderma:
-        return 'Pyoderma';
-      case AIDetectionType.hotSpot:
-        return 'Hot Spot';
-      case AIDetectionType.fleaAllergy:
-        return 'Flea Allergy';
-    }
-  }
 }

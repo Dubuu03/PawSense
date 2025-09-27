@@ -28,18 +28,49 @@ class PDFGenerationService {
       print('Logo not found, continuing without logo: $e');
     }
 
-    // Load assessment images
+    // Load assessment images (handle both local files and Cloudinary URLs)
     List<pw.ImageProvider> assessmentImages = [];
     for (String imagePath in assessmentResult.imageUrls) {
       try {
-        final file = File(imagePath);
-        if (await file.exists()) {
-          final imageBytes = await file.readAsBytes();
+        Uint8List? imageBytes;
+        
+        if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+          // Handle Cloudinary URL
+          print('Loading image from URL: $imagePath');
+          final httpClient = HttpClient();
+          try {
+            final response = await httpClient.getUrl(Uri.parse(imagePath));
+            final httpResponse = await response.close();
+            
+            if (httpResponse.statusCode == 200) {
+              final List<int> bytes = [];
+              await for (var chunk in httpResponse) {
+                bytes.addAll(chunk);
+              }
+              imageBytes = Uint8List.fromList(bytes);
+              print('✅ Loaded image from URL: $imagePath');
+            } else {
+              print('❌ Failed to load image from URL: $imagePath (Status: ${httpResponse.statusCode})');
+            }
+          } finally {
+            httpClient.close();
+          }
+        } else {
+          // Handle local file path
+          final file = File(imagePath);
+          if (await file.exists()) {
+            imageBytes = await file.readAsBytes();
+            print('✅ Loaded local image: $imagePath');
+          } else {
+            print('❌ Local file not found: $imagePath');
+          }
+        }
+        
+        if (imageBytes != null) {
           assessmentImages.add(pw.MemoryImage(imageBytes));
-          print('Loaded assessment image: $imagePath');
         }
       } catch (e) {
-        print('Error loading image $imagePath: $e');
+        print('❌ Error loading image $imagePath: $e');
       }
     }
 

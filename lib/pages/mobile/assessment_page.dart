@@ -30,6 +30,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
   // Global keys to access step widgets
   final GlobalKey<State<AssessmentStepOne>> _stepOneKey = GlobalKey<State<AssessmentStepOne>>();
   final GlobalKey<State<AssessmentStepTwo>> _stepTwoKey = GlobalKey<State<AssessmentStepTwo>>();
+  final GlobalKey<State<AssessmentStepThree>> _stepThreeKey = GlobalKey<State<AssessmentStepThree>>();
   
   // Data to be passed between steps
   late Map<String, dynamic> assessmentData;
@@ -468,8 +469,15 @@ class _AssessmentPageState extends State<AssessmentPage> {
     _showLoading();
     
     try {
-      // Brief processing time for UI feedback
-      await Future.delayed(const Duration(milliseconds: 500));
+      // Try to access the AssessmentStepThree widget and call its save method
+      final stepThreeState = _stepThreeKey.currentState;
+      if (stepThreeState != null && stepThreeState.mounted) {
+        // Use dynamic casting to call the save method
+        final dynamic assessmentState = stepThreeState;
+        if (assessmentState.saveAssessment != null) {
+          await assessmentState.saveAssessment();
+        }
+      }
       
       // Hide loading
       _hideLoading();
@@ -477,18 +485,15 @@ class _AssessmentPageState extends State<AssessmentPage> {
       // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Assessment completed! You can now download the PDF report.'),
+          content: const Text('Assessment completed and saved successfully!'),
           backgroundColor: AppColors.success,
           duration: const Duration(seconds: 3),
           behavior: SnackBarBehavior.floating,
         ),
       );
 
-      // Navigate to home with history tab (same as Complete Assessment button)
+      // Navigate to home with history tab
       context.go('/home?tab=history');
-
-      // Note: The actual assessment saving and PDF generation is handled
-      // by the "Download as PDF" button in AssessmentStepThree
       
     } catch (e) {
       // Hide loading on error
@@ -689,7 +694,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
                 onPrevious: _previousStep,
               ),
               AssessmentStepThree(
-                key: const ValueKey('step_three'),
+                key: _stepThreeKey,
                 assessmentData: assessmentData,
                 onDataUpdate: _updateAssessmentData,
                 onPrevious: _previousStep,
