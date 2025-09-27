@@ -80,10 +80,12 @@ class _NearbyClinicsWidgetState extends State<NearbyClinicsWidget> {
 
   Future<void> _loadClinics() async {
     try {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = null;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = true;
+          _errorMessage = null;
+        });
+      }
 
       // Get all available clinics to show accurate count
       final clinicsData = await ClinicListService.getAllActiveClinics();
@@ -99,15 +101,19 @@ class _NearbyClinicsWidgetState extends State<NearbyClinicsWidget> {
         }
       }
 
-      setState(() {
-        _clinics = clinics;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _clinics = clinics;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'Failed to load clinics. Please try again.';
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Failed to load clinics. Please try again.';
+        });
+      }
     }
   }
 

@@ -33,15 +33,25 @@ class AssessmentResultService {
   // Get assessment results by user ID
   Future<List<AssessmentResult>> getAssessmentResultsByUserId(String userId) async {
     try {
+      print('DEBUG: Fetching assessment results for userId: $userId');
+      
       final query = await _firestore
           .collection(_collection)
           .where('userId', isEqualTo: userId)
           .orderBy('createdAt', descending: true)
           .get();
 
-      return query.docs
-          .map((doc) => AssessmentResult.fromMap(doc.data(), doc.id))
+      print('DEBUG: Found ${query.docs.length} documents in assessment_results collection');
+
+      final results = query.docs
+          .map((doc) {
+            print('DEBUG: Processing document ${doc.id} with data: ${doc.data().keys.toList()}');
+            return AssessmentResult.fromMap(doc.data(), doc.id);
+          })
           .toList();
+      
+      print('DEBUG: Returning ${results.length} assessment results');
+      return results;
     } catch (e) {
       print('Error getting assessment results by user ID: $e');
       return [];

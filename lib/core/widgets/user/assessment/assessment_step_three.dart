@@ -16,6 +16,7 @@ import 'package:pawsense/core/services/user/pdf_generation_service.dart';
 import 'package:pawsense/core/services/auth/auth_service.dart';
 import 'package:pawsense/core/services/user/user_services.dart';
 import 'package:pawsense/core/services/user/pet_service.dart';
+import 'package:pawsense/core/services/cloudinary/cloudinary_service.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter/services.dart';
@@ -116,9 +117,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     return DetectionUtils.formatConditionName(condition);
   }
 
-  Future<void> _generatePDF() async {
-    setState(() => _isGeneratingPDF = true);
-    
+  // Save assessment to Firebase without generating PDF
+  Future<void> saveAssessment() async {
     try {
       // Get current user
       final authService = AuthService();
@@ -143,8 +143,69 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       // Save assessment result to Firebase
       final assessmentService = AssessmentResultService();
       await assessmentService.saveAssessmentResult(assessmentResult);
+
+      print('✅ Assessment saved to Firebase successfully');
       
-      // Generate PDF
+      // Show success toast
+      Fluttertoast.showToast(
+        msg: 'Assessment saved successfully!',
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+        backgroundColor: AppColors.success,
+        textColor: Colors.white,
+      );
+
+    } catch (e) {
+      print('❌ Error saving assessment: $e');
+      
+      // Show error toast
+      Fluttertoast.showToast(
+        msg: 'Failed to save assessment. Please try again.',
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+        backgroundColor: AppColors.error,
+        textColor: Colors.white,
+      );
+    }
+  }
+
+  // Complete assessment (save and navigate)
+  Future<void> _completeAssessment() async {
+    try {
+      // Save assessment first
+      await saveAssessment();
+      
+      // Navigate to home with history tab
+      if (mounted) {
+        context.go('/home?tab=history');
+      }
+    } catch (e) {
+      print('Error completing assessment: $e');
+    }
+  }
+
+  Future<void> _generatePDF() async {
+    setState(() => _isGeneratingPDF = true);
+    
+    try {
+      // Get current user
+      final authService = AuthService();
+      final currentUser = authService.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Get user details
+      final userService = UserServices();
+      final userModel = await userService.getUserByUid(currentUser.uid);
+      if (userModel == null) {
+        throw Exception('User details not found');
+      }
+
+      // Create assessment result model for PDF generation only
+      final assessmentResult = await _createAssessmentResult(userModel);
+      
+      // Generate PDF (without saving to Firebase)
       final pdfBytes = await PDFGenerationService.generateAssessmentPDF(
         user: userModel,
         assessmentResult: assessmentResult,
@@ -161,7 +222,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
 
       // Show success toast
       Fluttertoast.showToast(
-        msg: 'Assessment and PDF generated successfully!',
+        msg: 'PDF generated successfully!',
         toastLength: Toast.LENGTH_LONG,
         gravity: ToastGravity.BOTTOM,
         backgroundColor: AppColors.success,
@@ -289,11 +350,31 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       petWeight = double.tryParse(newPetData['weight']?.toString() ?? '0.0') ?? 0.0;
     }
 
-    // Convert photos to image URLs (for now, just use file paths)
-    final imageUrls = photos.map((photo) => photo.path).toList();
+    // Upload photos to Cloudinary and get URLs
+    final imageUrls = <String>[];
+    final cloudinaryService = CloudinaryService();
+    
+    print('📤 Uploading ${photos.length} photos to Cloudinary...');
+    for (int i = 0; i < photos.length; i++) {
+      try {
+        final photo = photos[i];
+        final cloudinaryUrl = await cloudinaryService.uploadImageFromFile(
+          photo.path,
+          folder: 'assessment_images',
+        );
+        imageUrls.add(cloudinaryUrl);
+        print('✅ Uploaded photo $i to Cloudinary: $cloudinaryUrl');
+      } catch (e) {
+        print('❌ Failed to upload photo $i to Cloudinary: $e');
+        // Fallback to local path if Cloudinary upload fails
+        imageUrls.add(photos[i].path);
+      }
+    }
 
-    // Convert detection results
-    final detectionResultModels = detectionResults.map((result) {
+    // Convert detection results and match with Cloudinary URLs
+    final detectionResultModels = <DetectionResult>[];
+    for (int i = 0; i < detectionResults.length; i++) {
+      final result = detectionResults[i];
       final detections = (result['detections'] as List<dynamic>? ?? []).map((detection) {
         // Extract bounding box from YOLO detection format
         List<double>? boundingBox;
@@ -324,11 +405,14 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
         );
       }).toList();
 
-      return DetectionResult(
-        imageUrl: result['imageUrl'] ?? '',
+      // Use the Cloudinary URL if available, fallback to original
+      final imageUrl = i < imageUrls.length ? imageUrls[i] : (result['imageUrl'] ?? '');
+      
+      detectionResultModels.add(DetectionResult(
+        imageUrl: imageUrl,
         detections: detections,
-      );
-    }).toList();
+      ));
+    }
 
     // Convert analysis results
     final analysisResultModels = _analysisResults.map((result) {
@@ -376,39 +460,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
             children: [
               const Text('Assessment report has been generated successfully!'),
               const SizedBox(height: 8),
-              const Text('• Assessment data saved to Firebase'),
               const Text('• PDF report generated'),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.primary.withOpacity(0.3)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.info_outline, color: AppColors.primary, size: 16),
-                        const SizedBox(width: 4),
-                        Text(
-                          'To access your PDF easily:',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    const Text('1. Tap "Save to Main Downloads"'),
-                    const Text('2. Choose "Downloads" from the menu'),
-                    const Text('3. Find it in your main Downloads folder'),
-                  ],
-                ),
-              ),
+
             ],
           ),
           actions: [
@@ -416,7 +469,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
               onPressed: () => Navigator.of(context).pop(),
               child: const Text('Close'),
             ),
-            TextButton.icon(
+            ElevatedButton.icon(
               onPressed: () async {
                 Navigator.of(context).pop();
                 try {
@@ -435,46 +488,10 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
               },
               icon: const Icon(Icons.preview),
               label: const Text('Preview PDF'),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.info,
-              ),
-            ),
-            ElevatedButton.icon(
-              onPressed: () async {
-                Navigator.of(context).pop();
-                try {
-                  await PDFGenerationService.sharePDF(
-                    Uint8List.fromList(pdfBytes), 
-                    fileName,
-                  );
-                  Fluttertoast.showToast(
-                    msg: 'Choose "Downloads" to save to main Downloads folder',
-                    toastLength: Toast.LENGTH_LONG,
-                    backgroundColor: AppColors.primary,
-                    textColor: Colors.white,
-                  );
-                } catch (e) {
-                  print('Error sharing PDF: $e');
-                  Fluttertoast.showToast(
-                    msg: 'Failed to share PDF',
-                    backgroundColor: AppColors.error,
-                    textColor: Colors.white,
-                  );
-                }
-              },
-              icon: const Icon(Icons.download),
-              label: const Text('Save to Downloads'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
               ),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _showFileLocationHelp(filePath);
-              },
-              child: const Text('Show Path'),
             ),
           ],
         );
@@ -482,74 +499,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     );
   }
 
-  void _showFileLocationHelp(String filePath) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('PDF File Location'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Your PDF is saved at:'),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: SelectableText(
-                  filePath,
-                  style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text('To find this file:'),
-              const Text('1. Open File Manager'),
-              const Text('2. Go to Internal Storage'),
-              const Text('3. Navigate to: Android > data > com.example.pawsense > files > Downloads'),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppColors.warning.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: AppColors.warning.withOpacity(0.3)),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.lightbulb_outline, color: AppColors.warning, size: 16),
-                    const SizedBox(width: 8),
-                    const Expanded(child: Text('Tip: Use "Save to Main Downloads" for easier access!')),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                await Clipboard.setData(ClipboardData(text: filePath));
-                Navigator.of(context).pop();
-                Fluttertoast.showToast(
-                  msg: 'File path copied to clipboard',
-                  backgroundColor: AppColors.success,
-                  textColor: Colors.white,
-                );
-              },
-              child: const Text('Copy Path'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        );
-      },
-    );
-  }
+
 
   void _bookAppointment() {
     _showDialog(
@@ -867,10 +817,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                 ),
                 const SizedBox(height: kSpacingMedium),
                 ElevatedButton.icon(
-                  onPressed: () {
-                    // Navigate back to home with history tab
-                    context.go('/home?tab=history');
-                  },
+                  onPressed: _completeAssessment,
                   icon: Icon(Icons.check_circle),
                   label: Text('Complete Assessment'),
                   style: ElevatedButton.styleFrom(
