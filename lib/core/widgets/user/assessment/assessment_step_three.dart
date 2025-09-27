@@ -106,7 +106,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       
       return AnalysisResult(
         condition: _formatConditionName(condition),
-        percentage: confidence * 100,
+        percentage: _validateConfidence(confidence) * 100,
         color: colors[index % colors.length],
       );
     }).toList();
@@ -156,7 +156,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
 
       setState(() => _isGeneratingPDF = false);
 
-      // Show success dialog with options
+      // Show success dialog with preview and save options
       _showPDFGeneratedDialog(filePath, pdfBytes, fileName);
 
       // Show success toast
@@ -314,7 +314,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     final analysisResultModels = _analysisResults.map((result) {
       return AnalysisResultData(
         condition: result.condition,
-        percentage: result.percentage,
+        percentage: _validateConfidence(result.percentage / 100) * 100, // Ensure valid percentage
         colorHex: '#${result.color.value.toRadixString(16).substring(2)}',
       );
     }).toList();
@@ -396,6 +396,29 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
               onPressed: () => Navigator.of(context).pop(),
               child: const Text('Close'),
             ),
+            TextButton.icon(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                try {
+                  await PDFGenerationService.previewPDF(
+                    Uint8List.fromList(pdfBytes), 
+                    fileName,
+                  );
+                } catch (e) {
+                  print('Error previewing PDF: $e');
+                  Fluttertoast.showToast(
+                    msg: 'Failed to preview PDF',
+                    backgroundColor: AppColors.error,
+                    textColor: Colors.white,
+                  );
+                }
+              },
+              icon: const Icon(Icons.preview),
+              label: const Text('Preview PDF'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.info,
+              ),
+            ),
             ElevatedButton.icon(
               onPressed: () async {
                 Navigator.of(context).pop();
@@ -420,7 +443,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                 }
               },
               icon: const Icon(Icons.download),
-              label: const Text('Save to Main Downloads'),
+              label: const Text('Save to Downloads'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
@@ -431,7 +454,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                 Navigator.of(context).pop();
                 _showFileLocationHelp(filePath);
               },
-              child: const Text('Show File Path'),
+              child: const Text('Show Path'),
             ),
           ],
         );
@@ -690,10 +713,18 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
               ],
             ),
           ),
-          const SizedBox(height: kSpacingMedium),
+          const SizedBox(height: kSpacingLarge),
           
-          // Image Analysis Display
-          _buildImageAnalysisSection(),
+          // Visual separator
+          Container(
+            height: 1,
+            color: AppColors.border.withOpacity(0.3),
+            margin: const EdgeInsets.symmetric(horizontal: kSpacingMedium),
+          ),
+          const SizedBox(height: kSpacingLarge),
+          
+          // Assessment Images Container
+          _buildAssessmentImagesContainer(),
           const SizedBox(height: kSpacingMedium),
           
           // Initial Remedies/Suggestions (Collapsible)
@@ -878,7 +909,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     );
   }
 
-  Widget _buildImageAnalysisSection() {
+  Widget _buildAssessmentImagesContainer() {
     final photos = widget.assessmentData['photos'] as List<XFile>? ?? [];
     final detectionResults = widget.assessmentData['detectionResults'] as List<Map<String, dynamic>>? ?? [];
 
@@ -891,10 +922,14 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(kBorderRadius),
+        border: Border.all(
+          color: AppColors.primary.withOpacity(0.2),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
+            color: AppColors.primary.withOpacity(0.1),
+            blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
@@ -902,10 +937,28 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            children: [
+              Icon(
+                Icons.image_search,
+                color: AppColors.primary,
+                size: 24,
+              ),
+              const SizedBox(width: kSpacingSmall),
+              Text(
+                'Assessment Images',
+                style: kMobileTextStyleTitle.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: kSpacingSmall),
           Text(
-            'Image Analysis Results',
-            style: kMobileTextStyleTitle.copyWith(
-              color: AppColors.textPrimary,
+            'Analysis results for uploaded images',
+            style: kMobileTextStyleSubtitle.copyWith(
+              color: AppColors.textSecondary,
             ),
           ),
           const SizedBox(height: kSpacingMedium),
@@ -1126,6 +1179,14 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
         ],
       ),
     );
+  }
+
+  // Helper method to validate confidence values and prevent NaN/infinity
+  double _validateConfidence(double confidence) {
+    if (confidence.isNaN || confidence.isInfinite || confidence < 0) {
+      return 0.0;
+    }
+    return confidence.clamp(0.0, 1.0);
   }
 }
 
