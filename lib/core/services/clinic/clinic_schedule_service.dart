@@ -72,7 +72,7 @@ class ClinicScheduleService {
         if (daysData.containsKey(dayKey)) {
           final dayData = daysData[dayKey] as Map<String, dynamic>;
           schedules[dayName] = ClinicScheduleModel(
-            id: '${clinicId}_${dayKey}',
+            id: '${clinicId}_$dayKey',
             clinicId: clinicId,
             dayOfWeek: dayData['dayOfWeek'] ?? dayName,
             openTime: dayData['openTime'],
@@ -91,7 +91,7 @@ class ClinicScheduleService {
         } else {
           // Create default closed schedule for missing days
           schedules[dayName] = ClinicScheduleModel(
-            id: '${clinicId}_${dayKey}',
+            id: '${clinicId}_$dayKey',
             clinicId: clinicId,
             dayOfWeek: dayName,
             openTime: null,
@@ -138,7 +138,7 @@ class ClinicScheduleService {
       if (daysData.containsKey(dayKey)) {
         final dayData = daysData[dayKey] as Map<String, dynamic>;
         return ClinicScheduleModel(
-          id: '${clinicId}_${dayKey}',
+          id: '${clinicId}_$dayKey',
           clinicId: clinicId,
           dayOfWeek: dayData['dayOfWeek'] ?? dayOfWeek,
           openTime: dayData['openTime'],
@@ -344,7 +344,7 @@ class ClinicScheduleService {
         if (daysData.containsKey(dayKey)) {
           final dayData = daysData[dayKey] as Map<String, dynamic>;
           schedules[dayName] = ClinicScheduleModel(
-            id: '${clinicId}_${dayKey}',
+            id: '${clinicId}_$dayKey',
             clinicId: clinicId,
             dayOfWeek: dayData['dayOfWeek'] ?? dayName,
             openTime: dayData['openTime'],

@@ -256,7 +256,7 @@ class _PetInfoCardState extends State<PetInfoCard> {
         const SizedBox(height: kMobileSizedBoxLarge),
         
         // Add Pet button
-        Container(
+        SizedBox(
           width: double.infinity,
           height: 40,
           child: ElevatedButton(
@@ -319,7 +319,7 @@ class _PetInfoCardState extends State<PetInfoCard> {
                 const SizedBox(height: 12),
                 // View All button below pets (always show if there are pets)
                 if (_pets.isNotEmpty)
-                  Container(
+                  SizedBox(
                     width: double.infinity,
                     height: 40,
                     child: ElevatedButton(

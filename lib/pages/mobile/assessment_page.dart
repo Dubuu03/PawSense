@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
+import 'package:pawsense/core/utils/constants.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
 import 'package:pawsense/core/utils/breed_options.dart';
 import 'package:pawsense/core/widgets/user/assessment/assessment_step_one.dart';
@@ -28,6 +29,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
   
   // Global keys to access step widgets
   final GlobalKey<State<AssessmentStepOne>> _stepOneKey = GlobalKey<State<AssessmentStepOne>>();
+  final GlobalKey<State<AssessmentStepTwo>> _stepTwoKey = GlobalKey<State<AssessmentStepTwo>>();
   
   // Data to be passed between steps
   late Map<String, dynamic> assessmentData;
@@ -354,6 +356,15 @@ class _AssessmentPageState extends State<AssessmentPage> {
       return false;
     }
 
+    // Check if analysis is still in progress
+    final stepTwoState = _stepTwoKey.currentState;
+    if (stepTwoState != null) {
+      final stepTwoWidget = stepTwoState as dynamic;
+      if (stepTwoWidget.isAnalyzing == true) {
+        return false; // Can't proceed while analyzing
+      }
+    }
+
     return true;
   }
 
@@ -435,6 +446,15 @@ class _AssessmentPageState extends State<AssessmentPage> {
           return 'Please upload or take at least one photo of the affected area';
         }
 
+        // Check if analysis is still in progress
+        final stepTwoState = _stepTwoKey.currentState;
+        if (stepTwoState != null) {
+          final stepTwoWidget = stepTwoState as dynamic;
+          if (stepTwoWidget.isAnalyzing == true) {
+            return 'Please wait for image analysis to complete before proceeding';
+          }
+        }
+
         return 'Please complete Step 2 requirements';
       case 2:
         return 'Please complete Step 3 requirements';
@@ -482,7 +502,22 @@ class _AssessmentPageState extends State<AssessmentPage> {
     }
   }
 
-  void _previousStep() {
+  void _previousStep() async {
+    // Check if we're in step 2 and analysis is in progress
+    if (currentStep == 1) {
+      final stepTwoState = _stepTwoKey.currentState;
+      if (stepTwoState != null) {
+        final stepTwoWidget = stepTwoState as dynamic;
+        if (stepTwoWidget.isAnalyzing == true) {
+          // Show confirmation dialog
+          final shouldCancel = await _showCancelAnalysisDialog();
+          if (!shouldCancel) {
+            return; // User chose not to cancel
+          }
+        }
+      }
+    }
+
     if (currentStep > 0) {
       setState(() {
         currentStep--;
@@ -492,6 +527,55 @@ class _AssessmentPageState extends State<AssessmentPage> {
         curve: Curves.easeInOut,
       );
     }
+  }
+
+  Future<bool> _showCancelAnalysisDialog() async {
+    return await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(
+                Icons.warning,
+                color: AppColors.warning,
+                size: 24,
+              ),
+              const SizedBox(width: kSpacingSmall),
+              Text(
+                'Cancel Analysis?',
+                style: kMobileTextStyleTitle.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            'Image analysis is currently in progress. Going back will cancel the analysis process. Are you sure you want to continue?',
+            style: kMobileTextStyleSubtitle.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(
+                'Stay',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.error,
+              ),
+              child: const Text('Cancel Analysis'),
+            ),
+          ],
+        );
+      },
+    ) ?? false;
   }
 
   void _updateAssessmentData(String key, dynamic value) {
@@ -531,12 +615,12 @@ class _AssessmentPageState extends State<AssessmentPage> {
               showDuration: const Duration(seconds: 2),
               child: IconButton(
                 icon: Icon(Icons.arrow_back, color: AppColors.textPrimary),
-                onPressed: () {
+                onPressed: () async {
                   if (currentStep == 0) {
                     // Navigate back to where user came from
                     _goBack();
                   } else {
-                    // Go to previous step
+                    // Go to previous step (with analysis confirmation if needed)
                     _previousStep();
                   }
                 },
@@ -594,7 +678,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
                 onNext: _nextStep,
               ),
               AssessmentStepTwo(
-                key: const ValueKey('step_two'),
+                key: _stepTwoKey,
                 assessmentData: assessmentData,
                 onDataUpdate: _updateAssessmentData,
                 onNext: _nextStep,

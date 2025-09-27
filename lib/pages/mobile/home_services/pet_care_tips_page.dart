@@ -15,8 +15,8 @@ class PetCareTipsPage extends StatefulWidget {
 class _PetCareTipsPageState extends State<PetCareTipsPage> {
   List<PetCareTipModel> _tips = [];
   List<String> _categories = [];
-  List<String> _petTypes = ['All', 'Dog'];
-  List<String> _ageGroups = ['All', 'Puppy/Kitten', 'Adult', 'Senior'];
+  final List<String> _petTypes = ['All', 'Dog'];
+  final List<String> _ageGroups = ['All', 'Puppy/Kitten', 'Adult', 'Senior'];
   bool _loading = true;
   String _selectedCategory = 'All';
   String _selectedPetType = 'All';

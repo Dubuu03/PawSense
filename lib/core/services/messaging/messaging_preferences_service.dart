@@ -14,8 +14,8 @@ class MessagingPreferencesService {
 
   // In-memory cache for messaging preferences
   Set<String> _readConversations = <String>{};
-  Map<String, DateTime> _lastMessageTimestamps = <String, DateTime>{};
-  Map<String, int> _unreadCounts = <String, int>{};
+  final Map<String, DateTime> _lastMessageTimestamps = <String, DateTime>{};
+  final Map<String, int> _unreadCounts = <String, int>{};
   bool _isInitialized = false;
   bool _isLoading = false;
   String? _currentUserId; // Track which user's data we have loaded
