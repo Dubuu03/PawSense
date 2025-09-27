@@ -300,8 +300,6 @@ class PDFGenerationService {
                     _buildInfoRow('Age:', '${assessmentResult.petAge} months'),
                     pw.SizedBox(height: 8),
                     _buildInfoRow('Weight:', '${assessmentResult.petWeight} kg'),
-                    pw.SizedBox(height: 8),
-                    _buildInfoRow('Duration:', assessmentResult.duration),
                   ],
                 ),
               ),
@@ -364,9 +362,132 @@ class PDFGenerationService {
             ),
           ),
           pw.SizedBox(height: 15),
-          if (assessmentResult.analysisResults.isNotEmpty) ...[
+          // Show detection results by image
+          if (assessmentResult.detectionResults.isNotEmpty) ...[
             pw.Text(
-              'Differential Analysis:',
+              'Detection Results by Image:',
+              style: pw.TextStyle(
+                fontSize: 14,
+                fontWeight: pw.FontWeight.bold,
+                color: PdfColors.grey700,
+              ),
+            ),
+            pw.SizedBox(height: 10),
+            ...assessmentResult.detectionResults.asMap().entries.map((entry) {
+              final imageIndex = entry.key;
+              final detectionResult = entry.value;
+              
+              return pw.Container(
+                margin: const pw.EdgeInsets.only(bottom: 15),
+                padding: const pw.EdgeInsets.all(12),
+                decoration: pw.BoxDecoration(
+                  color: PdfColors.grey50,
+                  borderRadius: pw.BorderRadius.circular(8),
+                  border: pw.Border.all(color: PdfColors.grey300),
+                ),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      'Image ${imageIndex + 1} Results:',
+                      style: pw.TextStyle(
+                        fontSize: 13,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.grey800,
+                      ),
+                    ),
+                    pw.SizedBox(height: 8),
+                    if (detectionResult.detections.isNotEmpty) ...[
+                      ...detectionResult.detections.map((detection) =>
+                        pw.Container(
+                          margin: const pw.EdgeInsets.only(bottom: 4),
+                          child: pw.Row(
+                            children: [
+                              pw.Container(
+                                width: 4,
+                                height: 4,
+                                decoration: pw.BoxDecoration(
+                                  color: PdfColors.blue,
+                                  shape: pw.BoxShape.circle,
+                                ),
+                              ),
+                              pw.SizedBox(width: 8),
+                              pw.Expanded(
+                                child: pw.Text(
+                                  detection.label,
+                                  style: pw.TextStyle(fontSize: 11),
+                                ),
+                              ),
+                              pw.Text(
+                                '${(detection.confidence * 100).toStringAsFixed(1)}%',
+                                style: pw.TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: pw.FontWeight.bold,
+                                  color: PdfColors.grey700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ).toList(),
+                    ] else ...[
+                      pw.Text(
+                        'No detections found in this image',
+                        style: pw.TextStyle(
+                          fontSize: 11,
+                          color: PdfColors.grey600,
+                          fontStyle: pw.FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }).toList(),
+            
+            // Show overall analysis results if available
+            if (assessmentResult.analysisResults.isNotEmpty) ...[
+              pw.SizedBox(height: 15),
+              pw.Text(
+                'Overall Analysis Summary:',
+                style: pw.TextStyle(
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.grey700,
+                ),
+              ),
+              pw.SizedBox(height: 10),
+              ...assessmentResult.analysisResults.map((result) => 
+                pw.Container(
+                  margin: const pw.EdgeInsets.only(bottom: 6),
+                  padding: const pw.EdgeInsets.all(8),
+                  decoration: pw.BoxDecoration(
+                    color: PdfColors.blue50,
+                    borderRadius: pw.BorderRadius.circular(5),
+                  ),
+                  child: pw.Row(
+                    children: [
+                      pw.Expanded(
+                        child: pw.Text(
+                          result.condition,
+                          style: pw.TextStyle(fontSize: 12),
+                        ),
+                      ),
+                      pw.Text(
+                        '${_validatePercentage(result.percentage).toStringAsFixed(1)}%',
+                        style: pw.TextStyle(
+                          fontSize: 12,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ).toList(),
+            ],
+          ] else if (assessmentResult.analysisResults.isNotEmpty) ...[
+            pw.Text(
+              'Analysis Results:',
               style: pw.TextStyle(
                 fontSize: 14,
                 fontWeight: pw.FontWeight.bold,
