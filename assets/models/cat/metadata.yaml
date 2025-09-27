@@ -1,0 +1,28 @@
+description: Ultralytics best model trained on data.yaml
+author: Ultralytics
+date: '2025-09-27T14:56:59.819576'
+version: 8.3.203
+license: AGPL-3.0 License (https://ultralytics.com/license)
+docs: https://docs.ultralytics.com
+stride: 32
+task: detect
+batch: 1
+imgsz:
+- 640
+- 640
+names:
+  0: Alopecia
+  1: Eosinophilic Plague
+  2: Miliary Dermatitis
+  3: ear mite
+  4: feline acne
+  5: flea
+  6: fleas
+  7: ringworm
+args:
+  batch: 1
+  fraction: 1.0
+  half: false
+  int8: false
+  nms: false
+channels: 3
