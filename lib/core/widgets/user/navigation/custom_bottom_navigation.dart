@@ -43,7 +43,7 @@ class CustomBottomNavigation extends StatelessWidget {
       child: Row(
         children: [
           // Left nav items
-          if (items.length > 0) _buildNavItem(items[0], 0),
+          if (items.isNotEmpty) _buildNavItem(items[0], 0),
           if (items.length > 1) _buildNavItem(items[1], 1),
           
           // Center floating button
@@ -95,7 +95,7 @@ class CustomBottomNavigation extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: item.onTap,
-          child: Container(
+          child: SizedBox(
             height: 80,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,

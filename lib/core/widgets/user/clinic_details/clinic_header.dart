@@ -7,9 +7,9 @@ class ClinicHeader extends StatelessWidget {
   final ClinicDetails clinic;
 
   const ClinicHeader({
-    Key? key,
+    super.key,
     required this.clinic,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

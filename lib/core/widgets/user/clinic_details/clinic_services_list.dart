@@ -8,9 +8,9 @@ class ClinicServicesList extends StatelessWidget {
   final ClinicDetails clinic;
 
   const ClinicServicesList({
-    Key? key,
+    super.key,
     required this.clinic,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -126,7 +126,7 @@ class ClinicServicesList extends StatelessWidget {
           const SizedBox(height: kMobileSizedBoxMedium),
           
           // Show services in a more compact grid layout
-          ...clinic.services.take(6).map((service) => _buildServiceItem(service)).toList(),
+          ...clinic.services.take(6).map((service) => _buildServiceItem(service)),
           
           if (clinic.services.length > 6) ...[
             const SizedBox(height: kMobileSizedBoxSmall),

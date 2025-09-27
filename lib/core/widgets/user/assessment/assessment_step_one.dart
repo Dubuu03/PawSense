@@ -46,7 +46,7 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
 
   // Validation state tracking
   bool _showValidationErrors = false;
-  Map<String, bool> _fieldErrors = {
+  final Map<String, bool> _fieldErrors = {
     'name': false,
     'age': false,
     'weight': false,
@@ -737,7 +737,7 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
                 activeColor: AppColors.primary,
                 dense: true,
               ),
-            )).toList(),
+            )),
         ],
       ),
     );

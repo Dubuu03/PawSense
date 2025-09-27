@@ -18,9 +18,9 @@ class ClinicDetailsPage extends StatefulWidget {
   final String clinicId;
 
   const ClinicDetailsPage({
-    Key? key,
+    super.key,
     required this.clinicId,
-  }) : super(key: key);
+  });
 
   @override
   State<ClinicDetailsPage> createState() => _ClinicDetailsPageState();
@@ -242,7 +242,6 @@ class _ClinicDetailsPageState extends State<ClinicDetailsPage> {
             const SizedBox(height: kMobileSizedBoxLarge),
             ElevatedButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: Text('Go Back'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: AppColors.white,
@@ -254,6 +253,7 @@ class _ClinicDetailsPageState extends State<ClinicDetailsPage> {
                   borderRadius: BorderRadius.circular(kMobileBorderRadiusButton),
                 ),
               ),
+              child: Text('Go Back'),
             ),
           ],
         ),

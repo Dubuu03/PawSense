@@ -29,6 +29,7 @@ dependencies:
   cloudinary_public: ^0.23.1
   flutter_slidable: ^3.0.1
   shared_preferences: ^2.2.2
+  flutter_vision: ^2.0.0
 
 dev_dependencies:
   flutter_test:
@@ -38,9 +39,17 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - assets/img/
+    - assets/fonts/
+    - assets/models/
+    - assets/models/dog/
+    - assets/models/dog/best_float32.tflite
+    - assets/models/dog/labels.json
+    - assets/models/dog/metadata.yaml
+    - assets/models/dog/model_config.yaml
     - assets/
     - assets/img/
-    - assets/google_service_account.json
+    - assets/models/
     - .env
 
   fonts:

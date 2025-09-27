@@ -9,9 +9,9 @@ class ClinicCredentials extends StatelessWidget {
   final ClinicDetails clinic;
 
   const ClinicCredentials({
-    Key? key,
+    super.key,
     required this.clinic,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +68,7 @@ class ClinicCredentials extends StatelessWidget {
               ),
             ),
             const SizedBox(height: kMobileSizedBoxSmall),
-            ...clinic.certifications.map((cert) => _buildCertificationItem(cert)).toList(),
+            ...clinic.certifications.map((cert) => _buildCertificationItem(cert)),
           ],
           
           if (hasLicenses) ...[
@@ -82,7 +82,7 @@ class ClinicCredentials extends StatelessWidget {
               ),
             ),
             const SizedBox(height: kMobileSizedBoxSmall),
-            ...clinic.licenses.map((license) => _buildLicenseItem(license)).toList(),
+            ...clinic.licenses.map((license) => _buildLicenseItem(license)),
           ],
         ],
       ),

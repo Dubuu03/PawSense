@@ -2277,7 +2277,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                               children: [
                                 if (_currentStep > 0)
                                   Expanded(
-                                    child: Container(
+                                    child: SizedBox(
                                       height: 44,
                                       child: OutlinedButton(
                                         onPressed: (_isLoading || _isCheckingEmail) ? null : _previousStep,

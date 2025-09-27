@@ -76,7 +76,7 @@ class UserServices {
       AuthGuard.clearUserCache();
     } catch (e) {
       print('Error updating profile image URL: $e');
-      throw e;
+      rethrow;
     }
   }
 
@@ -91,7 +91,7 @@ class UserServices {
       AuthGuard.clearUserCache();
     } catch (e) {
       print('Error removing profile image: $e');
-      throw e;
+      rethrow;
     }
   }
 

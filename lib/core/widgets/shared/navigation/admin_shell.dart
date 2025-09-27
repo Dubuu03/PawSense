@@ -139,7 +139,7 @@ class _AdminShellState extends State<AdminShell> {
       
       // Check if current location starts with the route path (for parameterized routes)
       // For example: '/admin/messaging' should match '/admin/messaging/conversationId'
-      if (currentLocation.startsWith(routePath + '/') || currentLocation.startsWith(routePath)) {
+      if (currentLocation.startsWith('$routePath/') || currentLocation.startsWith(routePath)) {
         return i;
       }
     }
@@ -210,7 +210,7 @@ class _AdminShellState extends State<AdminShell> {
                   clinicTitle: _userRole == 'super_admin' 
                       ? 'Super Administrator Dashboard'
                       : _clinicName.isNotEmpty 
-                          ? '$_clinicName'
+                          ? _clinicName
                           : 'Veterinary Clinic Dashboard',
                   userInitials: _userInitials,
                   userName: _userName,

@@ -174,7 +174,7 @@ class AppointmentService {
       final endTime = '${endHour.toString().padLeft(2, '0')}:${finalEndMinute.toString().padLeft(2, '0')}';
       return '$appointmentTime-$endTime';
     } catch (e) {
-      return '$appointmentTime-${appointmentTime}'; // Fallback
+      return '$appointmentTime-$appointmentTime'; // Fallback
     }
   }
 
