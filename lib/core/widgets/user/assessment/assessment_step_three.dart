@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
+import 'package:pawsense/core/utils/detection_utils.dart';
 import 'package:pawsense/core/widgets/shared/buttons/primary_button.dart';
 
 class AssessmentStepThree extends StatefulWidget {
@@ -26,14 +29,80 @@ class AssessmentStepThree extends StatefulWidget {
 class _AssessmentStepThreeState extends State<AssessmentStepThree> {
   bool _isGeneratingPDF = false;
   bool _showRemedies = false;
+  late List<AnalysisResult> _analysisResults;
   
-  // Mock analysis results - in a real app, this would come from AI analysis
-  final List<AnalysisResult> _analysisResults = [
-    AnalysisResult(condition: 'Mange', percentage: 35.5, color: const Color(0xFFFF9500)),
-    AnalysisResult(condition: 'Ringworm', percentage: 28.2, color: const Color(0xFF007AFF)),
-    AnalysisResult(condition: 'Dermatitis', percentage: 20.3, color: const Color(0xFF34C759)),
-    AnalysisResult(condition: 'Allergic Reaction', percentage: 16.0, color: const Color(0xFFFF3B30)),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _processDetectionResults();
+  }
+
+  void _processDetectionResults() {
+    final detectionResults = widget.assessmentData['detectionResults'] as List<Map<String, dynamic>>? ?? [];
+    
+    // Aggregate all detections from all images
+    final Map<String, List<double>> conditionConfidences = {};
+    
+    for (final result in detectionResults) {
+      final detections = result['detections'] as List<Map<String, dynamic>>? ?? [];
+      for (final detection in detections) {
+        final String condition = detection['label'];
+        final double confidence = detection['confidence'];
+        
+        if (!conditionConfidences.containsKey(condition)) {
+          conditionConfidences[condition] = [];
+        }
+        conditionConfidences[condition]!.add(confidence);
+      }
+    }
+    
+    if (conditionConfidences.isEmpty) {
+      // Fallback to mock data if no detections
+      _analysisResults = [
+        AnalysisResult(condition: 'No conditions detected', percentage: 100.0, color: const Color(0xFF34C759)),
+      ];
+      return;
+    }
+    
+    // Calculate average confidence for each condition
+    final Map<String, double> avgConfidences = {};
+    conditionConfidences.forEach((condition, confidences) {
+      avgConfidences[condition] = confidences.reduce((a, b) => a + b) / confidences.length;
+    });
+    
+    // Sort by average confidence
+    final sortedConditions = avgConfidences.entries.toList();
+    sortedConditions.sort((a, b) => b.value.compareTo(a.value));
+    
+    // Convert to AnalysisResult objects
+    final colors = [
+      const Color(0xFFFF9500),
+      const Color(0xFF007AFF),
+      const Color(0xFF34C759),
+      const Color(0xFFFF3B30),
+      const Color(0xFFAF52DE),
+      const Color(0xFFFF2D92),
+      const Color(0xFF5856D6),
+      const Color(0xFFFF9F0A),
+      const Color(0xFF30B0C7),
+    ];
+    
+    _analysisResults = sortedConditions.asMap().entries.map((entry) {
+      final index = entry.key;
+      final condition = entry.value.key;
+      final confidence = entry.value.value;
+      
+      return AnalysisResult(
+        condition: _formatConditionName(condition),
+        percentage: confidence * 100,
+        color: colors[index % colors.length],
+      );
+    }).toList();
+  }
+
+  String _formatConditionName(String condition) {
+    return DetectionUtils.formatConditionName(condition);
+  }
 
   Future<void> _generatePDF() async {
     setState(() => _isGeneratingPDF = true);
@@ -83,8 +152,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
               onPressed: () => Navigator.of(context).pop(),
             ),
             TextButton(
-              onPressed: onPressed,
               child: Text(buttonText),
+              onPressed: onPressed,
             ),
           ],
         );
@@ -234,6 +303,10 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
               ],
             ),
           ),
+          const SizedBox(height: kSpacingMedium),
+          
+          // Image Analysis Display
+          _buildImageAnalysisSection(),
           const SizedBox(height: kSpacingMedium),
           
           // Initial Remedies/Suggestions (Collapsible)
@@ -393,6 +466,211 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImageAnalysisSection() {
+    final photos = widget.assessmentData['photos'] as List<XFile>? ?? [];
+    final detectionResults = widget.assessmentData['detectionResults'] as List<Map<String, dynamic>>? ?? [];
+
+    if (photos.isEmpty) {
+      return Container();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(kSpacingMedium),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(kBorderRadius),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Image Analysis Results',
+            style: kMobileTextStyleTitle.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: kSpacingMedium),
+          
+          // Display each analyzed image
+          ...List.generate(photos.length, (index) {
+            final photo = photos[index];
+            final hasDetection = index < detectionResults.length;
+            final detections = hasDetection 
+                ? detectionResults[index]['detections'] as List<Map<String, dynamic>>? ?? []
+                : <Map<String, dynamic>>[];
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: kSpacingMedium),
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: AppColors.border),
+                  borderRadius: BorderRadius.circular(kBorderRadius),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Image with bounding boxes
+                    ClipRRect(
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(kBorderRadius),
+                        topRight: Radius.circular(kBorderRadius),
+                      ),
+                      child: ImageWithBoundingBoxes(
+                        imageWidget: Image.file(
+                          File(photo.path),
+                          width: double.infinity,
+                          height: 200,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              width: double.infinity,
+                              height: 200,
+                              color: AppColors.background,
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.image_not_supported,
+                                    color: AppColors.textSecondary,
+                                    size: 48,
+                                  ),
+                                  const SizedBox(height: kSpacingSmall),
+                                  Text(
+                                    'Image ${index + 1}',
+                                    style: kMobileTextStyleSubtitle.copyWith(
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                        detections: detections,
+                        boxColor: AppColors.primary,
+                        strokeWidth: 3.0,
+                        showLabels: true,
+                        showConfidence: true,
+                      ),
+                    ),
+                    
+                    // Detection details
+                    Container(
+                      padding: const EdgeInsets.all(kSpacingMedium),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'Image ${index + 1}',
+                                style: kMobileTextStyleSubtitle.copyWith(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const Spacer(),
+                              if (detections.isNotEmpty) ...[
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: kSpacingSmall,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.success.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                                  ),
+                                  child: Text(
+                                    '${detections.length} detection${detections.length > 1 ? 's' : ''}',
+                                    style: kMobileTextStyleLegend.copyWith(
+                                      color: AppColors.success,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ] else ...[
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: kSpacingSmall,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.textSecondary.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: AppColors.textSecondary.withOpacity(0.3)),
+                                  ),
+                                  child: Text(
+                                    'No detections',
+                                    style: kMobileTextStyleLegend.copyWith(
+                                      color: AppColors.textSecondary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          
+                          if (detections.isNotEmpty) ...[
+                            const SizedBox(height: kSpacingSmall),
+                            ...detections.map((detection) {
+                              final String condition = detection['label'];
+                              final double confidence = detection['confidence'];
+                              
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: kSpacingSmall),
+                                    Expanded(
+                                      child: Text(
+                                        _formatConditionName(condition),
+                                        style: kMobileTextStyleLegend.copyWith(
+                                          color: AppColors.textPrimary,
+                                        ),
+                                      ),
+                                    ),
+                                    Text(
+                                      '${(confidence * 100).toStringAsFixed(1)}%',
+                                      style: kMobileTextStyleLegend.copyWith(
+                                        color: AppColors.textSecondary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
         ],
       ),
     );

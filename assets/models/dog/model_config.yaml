@@ -1,0 +1,57 @@
+# YOLOv8 Model Configuration for Flutter Vision
+# This file ensures consistent preprocessing between Ultralytics and Flutter
+
+model_info:
+  name: "Dog Skin Condition Detector"
+  version: "v1.0"
+  architecture: "YOLOv8n"
+  framework: "Ultralytics"
+  exported_format: "TensorFlow Lite (Float32)"
+
+input_specs:
+  # Model expects 640x640 RGB images
+  height: 640
+  width: 640
+  channels: 3
+  format: "RGB"
+  normalization: "0-1"  # Pixel values normalized to [0.0, 1.0]
+  letterboxing: true    # Maintain aspect ratio with padding
+  padding_color: [0.5, 0.5, 0.5]  # Gray padding (128/255)
+
+preprocessing_pipeline:
+  # Step 1: Letterbox resize (maintain aspect ratio)
+  - name: "letterbox_resize"
+    target_size: [640, 640]
+    fill_color: [128, 128, 128]  # Gray padding
+    
+  # Step 2: Normalize pixel values
+  - name: "normalize"
+    method: "divide_by_255"  # Convert [0,255] -> [0.0,1.0]
+    
+  # Step 3: Ensure RGB channel order
+  - name: "channel_order"
+    format: "RGB"
+
+postprocessing:
+  # Standard YOLOv8 NMS parameters
+  confidence_threshold: 0.25
+  iou_threshold: 0.7
+  max_detections: 300
+
+classes:
+  0: "dermatitis"
+  1: "fleas"
+  2: "fungal_infection"  
+  3: "hotspot"
+  4: "mange"
+  5: "pyoderma"
+  6: "ringworm"
+  7: "ticks"
+  8: "unknown_abnormality"
+
+flutter_vision_config:
+  # Recommended settings for flutter_vision package
+  model_version: "yolov8"
+  use_gpu: false          # Use CPU for stability
+  num_threads: 4          # Optimize for mobile devices
+  delegate: "none"        # No special delegate needed
