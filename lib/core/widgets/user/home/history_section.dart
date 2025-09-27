@@ -8,12 +8,14 @@ import 'package:pawsense/core/widgets/user/home/appointment_history_list.dart';
 class HistorySection extends StatefulWidget {
   final List<AIHistoryData> aiHistory;
   final List<AppointmentHistoryData> appointmentHistory;
+  final bool isHistoryLoading;
   final VoidCallback? onViewAllPressed;
 
   const HistorySection({
     super.key,
     required this.aiHistory,
     required this.appointmentHistory,
+    this.isHistoryLoading = false,
     this.onViewAllPressed,
   });
 
@@ -97,11 +99,42 @@ class _HistorySectionState extends State<HistorySection> {
 
           // Content based on selected tab
           if (_selectedTabIndex == 0) ...[
-            AIHistoryList(aiHistory: widget.aiHistory),
+            widget.isHistoryLoading 
+                ? _buildLoadingState()
+                : AIHistoryList(aiHistory: widget.aiHistory),
           ] else ...[
             AppointmentHistoryList(appointmentHistory: widget.appointmentHistory),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingState() {
+    return Container(
+      height: 120,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Loading assessment history...',
+              style: kMobileTextStyleSubtitle.copyWith(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

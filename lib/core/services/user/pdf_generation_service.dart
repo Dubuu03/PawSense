@@ -14,6 +14,9 @@ class PDFGenerationService {
     required UserModel user,
     required AssessmentResult assessmentResult,
   }) async {
+    // Debug validation
+    _debugValidateAssessmentData(assessmentResult);
+    
     final pdf = pw.Document();
 
     // Load logo image (you can add this to assets)
@@ -25,10 +28,19 @@ class PDFGenerationService {
       print('Logo not found, continuing without logo: $e');
     }
 
-    // Load assessment images (for future implementation)
-    // In a production app, you would load the actual images here
-    for (String imageUrl in assessmentResult.imageUrls) {
-      print('Assessment image available: $imageUrl');
+    // Load assessment images
+    List<pw.ImageProvider> assessmentImages = [];
+    for (String imagePath in assessmentResult.imageUrls) {
+      try {
+        final file = File(imagePath);
+        if (await file.exists()) {
+          final imageBytes = await file.readAsBytes();
+          assessmentImages.add(pw.MemoryImage(imageBytes));
+          print('Loaded assessment image: $imagePath');
+        }
+      } catch (e) {
+        print('Error loading image $imagePath: $e');
+      }
     }
 
     pdf.addPage(
@@ -52,8 +64,8 @@ class PDFGenerationService {
             pw.SizedBox(height: 25),
 
             // Assessment images section
-            if (assessmentResult.imageUrls.isNotEmpty)
-              _buildAssessmentImagesSection(assessmentResult),
+            if (assessmentImages.isNotEmpty)
+              _buildAssessmentImagesSection(assessmentResult, assessmentImages),
 
             pw.SizedBox(height: 30),
 
@@ -139,6 +151,19 @@ class PDFGenerationService {
       );
     } catch (e) {
       print('Error printing PDF: $e');
+      rethrow;
+    }
+  }
+
+  // Preview PDF
+  static Future<void> previewPDF(Uint8List pdfBytes, String fileName) async {
+    try {
+      await Printing.layoutPdf(
+        name: fileName,
+        onLayout: (PdfPageFormat format) async => pdfBytes,
+      );
+    } catch (e) {
+      print('Error previewing PDF: $e');
       rethrow;
     }
   }
@@ -275,8 +300,6 @@ class PDFGenerationService {
                     _buildInfoRow('Age:', '${assessmentResult.petAge} months'),
                     pw.SizedBox(height: 8),
                     _buildInfoRow('Weight:', '${assessmentResult.petWeight} kg'),
-                    pw.SizedBox(height: 8),
-                    _buildInfoRow('Duration:', assessmentResult.duration),
                   ],
                 ),
               ),
@@ -339,9 +362,132 @@ class PDFGenerationService {
             ),
           ),
           pw.SizedBox(height: 15),
-          if (assessmentResult.analysisResults.isNotEmpty) ...[
+          // Show detection results by image
+          if (assessmentResult.detectionResults.isNotEmpty) ...[
             pw.Text(
-              'Differential Analysis:',
+              'Detection Results by Image:',
+              style: pw.TextStyle(
+                fontSize: 14,
+                fontWeight: pw.FontWeight.bold,
+                color: PdfColors.grey700,
+              ),
+            ),
+            pw.SizedBox(height: 10),
+            ...assessmentResult.detectionResults.asMap().entries.map((entry) {
+              final imageIndex = entry.key;
+              final detectionResult = entry.value;
+              
+              return pw.Container(
+                margin: const pw.EdgeInsets.only(bottom: 15),
+                padding: const pw.EdgeInsets.all(12),
+                decoration: pw.BoxDecoration(
+                  color: PdfColors.grey50,
+                  borderRadius: pw.BorderRadius.circular(8),
+                  border: pw.Border.all(color: PdfColors.grey300),
+                ),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      'Image ${imageIndex + 1} Results:',
+                      style: pw.TextStyle(
+                        fontSize: 13,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.grey800,
+                      ),
+                    ),
+                    pw.SizedBox(height: 8),
+                    if (detectionResult.detections.isNotEmpty) ...[
+                      ...detectionResult.detections.map((detection) =>
+                        pw.Container(
+                          margin: const pw.EdgeInsets.only(bottom: 4),
+                          child: pw.Row(
+                            children: [
+                              pw.Container(
+                                width: 4,
+                                height: 4,
+                                decoration: pw.BoxDecoration(
+                                  color: PdfColors.blue,
+                                  shape: pw.BoxShape.circle,
+                                ),
+                              ),
+                              pw.SizedBox(width: 8),
+                              pw.Expanded(
+                                child: pw.Text(
+                                  detection.label,
+                                  style: pw.TextStyle(fontSize: 11),
+                                ),
+                              ),
+                              pw.Text(
+                                '${(detection.confidence * 100).toStringAsFixed(1)}%',
+                                style: pw.TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: pw.FontWeight.bold,
+                                  color: PdfColors.grey700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ).toList(),
+                    ] else ...[
+                      pw.Text(
+                        'No detections found in this image',
+                        style: pw.TextStyle(
+                          fontSize: 11,
+                          color: PdfColors.grey600,
+                          fontStyle: pw.FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }).toList(),
+            
+            // Show overall analysis results if available
+            if (assessmentResult.analysisResults.isNotEmpty) ...[
+              pw.SizedBox(height: 15),
+              pw.Text(
+                'Overall Analysis Summary:',
+                style: pw.TextStyle(
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.grey700,
+                ),
+              ),
+              pw.SizedBox(height: 10),
+              ...assessmentResult.analysisResults.map((result) => 
+                pw.Container(
+                  margin: const pw.EdgeInsets.only(bottom: 6),
+                  padding: const pw.EdgeInsets.all(8),
+                  decoration: pw.BoxDecoration(
+                    color: PdfColors.blue50,
+                    borderRadius: pw.BorderRadius.circular(5),
+                  ),
+                  child: pw.Row(
+                    children: [
+                      pw.Expanded(
+                        child: pw.Text(
+                          result.condition,
+                          style: pw.TextStyle(fontSize: 12),
+                        ),
+                      ),
+                      pw.Text(
+                        '${_validatePercentage(result.percentage).toStringAsFixed(1)}%',
+                        style: pw.TextStyle(
+                          fontSize: 12,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ).toList(),
+            ],
+          ] else if (assessmentResult.analysisResults.isNotEmpty) ...[
+            pw.Text(
+              'Analysis Results:',
               style: pw.TextStyle(
                 fontSize: 14,
                 fontWeight: pw.FontWeight.bold,
@@ -366,7 +512,7 @@ class PDFGenerationService {
                       ),
                     ),
                     pw.Text(
-                      '${result.percentage.toStringAsFixed(1)}%',
+                      '${_validatePercentage(result.percentage).toStringAsFixed(1)}%',
                       style: pw.TextStyle(
                         fontSize: 12,
                         fontWeight: pw.FontWeight.bold,
@@ -387,7 +533,7 @@ class PDFGenerationService {
     );
   }
 
-  static pw.Widget _buildAssessmentImagesSection(AssessmentResult assessmentResult) {
+  static pw.Widget _buildAssessmentImagesSection(AssessmentResult assessmentResult, List<pw.ImageProvider> assessmentImages) {
     return pw.Container(
       padding: const pw.EdgeInsets.all(15),
       decoration: pw.BoxDecoration(
@@ -407,21 +553,88 @@ class PDFGenerationService {
           ),
           pw.SizedBox(height: 15),
           pw.Text(
-            'Number of images analyzed: ${assessmentResult.imageUrls.length}',
+            'Images analyzed: ${assessmentImages.length}',
             style: pw.TextStyle(fontSize: 12, color: PdfColors.grey600),
           ),
-          pw.SizedBox(height: 8),
-          // Note: In a real implementation, you would load and display the actual images
-          // For now, we'll just list the image paths
-          ...assessmentResult.imageUrls.asMap().entries.map((entry) => 
+          pw.SizedBox(height: 15),
+          
+          // Display actual images in a grid
+          if (assessmentImages.isNotEmpty) ...[
+            pw.GridView(
+              crossAxisCount: 2,
+              childAspectRatio: 1.0,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              children: assessmentImages.asMap().entries.map((entry) {
+                final index = entry.key;
+                final image = entry.value;
+                
+                return pw.Container(
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(color: PdfColors.grey300),
+                    borderRadius: pw.BorderRadius.circular(8),
+                  ),
+                  child: pw.Column(
+                    children: [
+                      pw.Expanded(
+                        child: pw.Container(
+                          decoration: pw.BoxDecoration(
+                            borderRadius: const pw.BorderRadius.only(
+                              topLeft: pw.Radius.circular(8),
+                              topRight: pw.Radius.circular(8),
+                            ),
+                          ),
+                          child: pw.Image(
+                            image,
+                            fit: pw.BoxFit.cover,
+                            width: 200,
+                            height: 150,
+                          ),
+                        ),
+                      ),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.all(8),
+                        decoration: pw.BoxDecoration(
+                          color: PdfColors.grey100,
+                          borderRadius: const pw.BorderRadius.only(
+                            bottomLeft: pw.Radius.circular(8),
+                            bottomRight: pw.Radius.circular(8),
+                          ),
+                        ),
+                        child: pw.Text(
+                          'Image ${index + 1}',
+                          style: pw.TextStyle(
+                            fontSize: 10,
+                            fontWeight: pw.FontWeight.bold,
+                            color: PdfColors.grey700,
+                          ),
+                          textAlign: pw.TextAlign.center,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ] else ...[
             pw.Container(
-              margin: const pw.EdgeInsets.only(bottom: 4),
-              child: pw.Text(
-                'Image ${entry.key + 1}: ${entry.value.split('/').last}',
-                style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
+              padding: const pw.EdgeInsets.all(20),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.grey50,
+                borderRadius: pw.BorderRadius.circular(8),
+              ),
+              child: pw.Center(
+                child: pw.Text(
+                  'No images available for display',
+                  style: pw.TextStyle(
+                    fontSize: 12,
+                    color: PdfColors.grey600,
+                    fontStyle: pw.FontStyle.italic,
+                  ),
+                ),
               ),
             ),
-          ).toList(),
+          ],
         ],
       ),
     );
@@ -494,5 +707,33 @@ class PDFGenerationService {
         ),
       ],
     );
+  }
+
+  // Helper method to validate percentage values and prevent infinity/NaN errors
+  static double _validatePercentage(double percentage) {
+    if (percentage.isNaN || percentage.isInfinite) {
+      print('Warning: Invalid percentage value detected: $percentage, using 0.0 instead');
+      return 0.0;
+    }
+    return percentage.clamp(0.0, 100.0);
+  }
+
+  // Debug method to validate assessment data before PDF generation
+  static void _debugValidateAssessmentData(AssessmentResult assessment) {
+    print('=== PDF Generation Debug ===');
+    print('Pet Name: ${assessment.petName}');
+    print('Analysis Results Count: ${assessment.analysisResults.length}');
+    
+    for (int i = 0; i < assessment.analysisResults.length; i++) {
+      final result = assessment.analysisResults[i];
+      print('Result $i: ${result.condition} - ${result.percentage}%');
+      if (result.percentage.isNaN || result.percentage.isInfinite) {
+        print('WARNING: Invalid percentage detected in result $i');
+      }
+    }
+    
+    print('Detection Results Count: ${assessment.detectionResults.length}');
+    print('Image URLs Count: ${assessment.imageUrls.length}');
+    print('===========================');
   }
 }

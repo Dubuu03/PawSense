@@ -484,6 +484,9 @@ class _AssessmentPageState extends State<AssessmentPage> {
         ),
       );
 
+      // Navigate to home with history tab (same as Complete Assessment button)
+      context.go('/home?tab=history');
+
       // Note: The actual assessment saving and PDF generation is handled
       // by the "Download as PDF" button in AssessmentStepThree
       

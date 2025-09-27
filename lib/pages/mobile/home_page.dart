@@ -17,6 +17,8 @@ import 'package:pawsense/core/widgets/user/home/history_section.dart';
 import 'package:pawsense/core/widgets/user/home/ai_history_list.dart';
 import 'package:pawsense/core/widgets/user/home/appointment_history_list.dart';
 import 'package:pawsense/core/widgets/user/shared/modals/pet_assessment_modal.dart';
+import 'package:pawsense/core/services/user/assessment_result_service.dart';
+import 'package:pawsense/core/models/user/assessment_result_model.dart';
 
 class UserHomePage extends StatefulWidget {
   const UserHomePage({super.key});
@@ -41,33 +43,10 @@ class _UserHomePageState extends State<UserHomePage> {
     HealthData(condition: 'Pyoderma', count: 1, color: const Color(0xFFE74C3C)),
   ];
 
-  // Sample AI history data
-  final List<AIHistoryData> _aiHistory = [
-    AIHistoryData(
-      id: 'ai_001',
-      title: 'Localized mange detected',
-      subtitle: 'Today • 10:34 AM',
-      type: AIDetectionType.mange,
-      timestamp: DateTime.now(),
-      confidence: 0.85,
-    ),
-    AIHistoryData(
-      id: 'ai_002',
-      title: 'Possible ringworm lesion',
-      subtitle: 'Tue • 2:05 PM',
-      type: AIDetectionType.ringworm,
-      timestamp: DateTime.now().subtract(const Duration(days: 1)),
-      confidence: 0.73,
-    ),
-    AIHistoryData(
-      id: 'ai_003',
-      title: 'Severe hot spot indicative of ...',
-      subtitle: 'Mon • 6:10 AM',
-      type: AIDetectionType.pyoderma,
-      timestamp: DateTime.now().subtract(const Duration(days: 2)),
-      confidence: 0.91,
-    ),
-  ];
+  // Dynamic AI history data from database
+  List<AIHistoryData> _aiHistory = [];
+  bool _historyLoading = false;
+  final AssessmentResultService _assessmentService = AssessmentResultService();
 
   // Sample appointment history data
   final List<AppointmentHistoryData> _appointmentHistory = [
@@ -125,6 +104,15 @@ class _UserHomePageState extends State<UserHomePage> {
         }
       });
     }
+    
+    // Also refresh assessment history when tab is history
+    if (tabParam == 'history') {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _userModel != null) {
+          _fetchAssessmentHistory();
+        }
+      });
+    }
   }
 
   void _refreshPetCard() {
@@ -137,6 +125,11 @@ class _UserHomePageState extends State<UserHomePage> {
   // Public method to refresh pets (can be called when returning from pets page)
   void refreshPets() {
     _refreshPetCard();
+  }
+
+  // Public method to refresh assessment history (can be called after completing assessment)
+  void refreshAssessmentHistory() {
+    _fetchAssessmentHistory();
   }
 
   Future<void> _fetchUser() async {
@@ -158,6 +151,9 @@ class _UserHomePageState extends State<UserHomePage> {
           _userModel = userModel;
           _loading = false;
         });
+        
+        // Fetch assessment history after user is loaded
+        _fetchAssessmentHistory();
       } else {
         setState(() {
           _loading = false;
@@ -167,6 +163,111 @@ class _UserHomePageState extends State<UserHomePage> {
       setState(() {
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _fetchAssessmentHistory() async {
+    if (_userModel == null) return;
+    
+    setState(() {
+      _historyLoading = true;
+    });
+
+    try {
+      final assessmentResults = await _assessmentService.getAssessmentResultsByUserId(_userModel!.uid);
+      final aiHistoryData = _convertAssessmentResultsToAIHistory(assessmentResults);
+      
+      setState(() {
+        _aiHistory = aiHistoryData;
+        _historyLoading = false;
+      });
+    } catch (e) {
+      print('Error fetching assessment history: $e');
+      setState(() {
+        _historyLoading = false;
+      });
+    }
+  }
+
+  List<AIHistoryData> _convertAssessmentResultsToAIHistory(List<AssessmentResult> assessmentResults) {
+    List<AIHistoryData> aiHistoryList = [];
+    
+    for (final result in assessmentResults) {
+      for (int i = 0; i < result.detectionResults.length; i++) {
+        final detectionResult = result.detectionResults[i];
+        
+        if (detectionResult.detections.isNotEmpty) {
+          // Use the highest confidence detection for each image
+          final topDetection = detectionResult.detections
+              .reduce((a, b) => a.confidence > b.confidence ? a : b);
+          
+          final aiHistoryItem = AIHistoryData(
+            id: '${result.id}_$i',
+            title: _formatDetectionTitle(topDetection.label, topDetection.confidence),
+            subtitle: _formatTimestamp(result.createdAt),
+            type: _getAIDetectionType(topDetection.label),
+            timestamp: result.createdAt,
+            confidence: topDetection.confidence,
+          );
+          
+          aiHistoryList.add(aiHistoryItem);
+        }
+      }
+    }
+    
+    // Sort by timestamp (newest first)
+    aiHistoryList.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return aiHistoryList;
+  }
+
+  String _formatDetectionTitle(String label, double confidence) {
+    final formattedLabel = label.replaceAll('_', ' ').split(' ')
+        .map((word) => word[0].toUpperCase() + word.substring(1))
+        .join(' ');
+    
+    if (confidence > 0.8) {
+      return '$formattedLabel detected';
+    } else if (confidence > 0.6) {
+      return 'Possible $formattedLabel';
+    } else {
+      return 'Potential $formattedLabel signs';
+    }
+  }
+
+  String _formatTimestamp(DateTime timestamp) {
+    final now = DateTime.now();
+    final difference = now.difference(timestamp);
+    
+    if (difference.inMinutes < 60) {
+      return 'Today • ${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}';
+    } else if (difference.inHours < 24) {
+      return 'Today • ${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}';
+    } else if (difference.inDays == 1) {
+      return 'Yesterday • ${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}';
+    } else if (difference.inDays < 7) {
+      final weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      return '${weekdays[timestamp.weekday - 1]} • ${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}';
+    } else {
+      return '${timestamp.day}/${timestamp.month} • ${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}';
+    }
+  }
+
+  AIDetectionType _getAIDetectionType(String label) {
+    switch (label.toLowerCase()) {
+      case 'mange':
+        return AIDetectionType.mange;
+      case 'ringworm':
+        return AIDetectionType.ringworm;
+      case 'pyoderma':
+        return AIDetectionType.pyoderma;
+      case 'hotspot':
+      case 'hot_spot':
+        return AIDetectionType.hotSpot;
+      case 'fleas':
+      case 'flea_allergy':
+        return AIDetectionType.fleaAllergy;
+      default:
+        return AIDetectionType.mange; // Default fallback
     }
   }
 
@@ -338,6 +439,7 @@ class _UserHomePageState extends State<UserHomePage> {
     return HistorySection(
       aiHistory: _aiHistory,
       appointmentHistory: _appointmentHistory,
+      isHistoryLoading: _historyLoading,
       onViewAllPressed: () {
         // Handle view all history
       },
