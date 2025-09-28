@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+import 'package:image/image.dart' as img;
 
 /// Service for communicating with YOLO detection backend API
 class PetDetectionService {
@@ -38,6 +40,51 @@ class PetDetectionService {
     }
   }
 
+  /// Preprocess image to 640x640 for consistent YOLO model input
+  Future<File> _preprocessImageTo640x640(File originalImage) async {
+    try {
+      print('🔄 Preprocessing image to 640x640...');
+      
+      // Read original image
+      final Uint8List originalBytes = await originalImage.readAsBytes();
+      final img.Image? decodedImage = img.decodeImage(originalBytes);
+      
+      if (decodedImage == null) {
+        throw Exception('Failed to decode image for preprocessing');
+      }
+      
+      print('📏 Original image dimensions: ${decodedImage.width}x${decodedImage.height}');
+      
+      // Resize to exactly 640x640 (YOLO model input size)
+      // This ensures consistent coordinate mapping
+      final img.Image resizedImage = img.copyResize(
+        decodedImage,
+        width: 640,
+        height: 640,
+        interpolation: img.Interpolation.linear,
+      );
+      
+      print('✅ Resized image to: 640x640');
+      
+      // Encode back to JPEG with high quality
+      final List<int> processedBytes = img.encodeJpg(resizedImage, quality: 95);
+      
+      // Create temporary file for processed image
+      final Directory tempDir = Directory.systemTemp;
+      final String tempPath = '${tempDir.path}/pawsense_processed_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final File processedFile = File(tempPath);
+      
+      await processedFile.writeAsBytes(processedBytes);
+      print('💾 Processed image saved: $tempPath');
+      print('📊 Processed image size: ${_formatFileSize(processedBytes.length)}');
+      
+      return processedFile;
+    } catch (e) {
+      print('❌ Image preprocessing failed: $e');
+      throw Exception('Image preprocessing failed: $e');
+    }
+  }
+
   /// Detect skin conditions for pets using the backend API
   Future<DetectionResult> detectConditions({
     required File imageFile,
@@ -49,26 +96,26 @@ class PetDetectionService {
 
     try {
       print('🔍 Sending detection request for $petType...');
-      print('📁 Image file: ${imageFile.path}');
+      print('📁 Original image file: ${imageFile.path}');
       
       // Validate file exists and is readable
       if (!await imageFile.exists()) {
         throw Exception('Image file does not exist: ${imageFile.path}');
       }
       
-      final int fileSize = await imageFile.length();
-      print('📊 Image size: ${_formatFileSize(fileSize)}');
+      final int originalFileSize = await imageFile.length();
+      print('📊 Original image size: ${_formatFileSize(originalFileSize)}');
+      
+      // Preprocess image to 640x640 for consistent coordinate mapping
+      final File processedImage = await _preprocessImageTo640x640(imageFile);
+      
+      final int processedFileSize = await processedImage.length();
+      print('📊 Processed image size: ${_formatFileSize(processedFileSize)}');
       
       // Check file size (exact limit: 10,485,760 bytes)
       const maxSizeBytes = AppConfig.maxImageSizeBytes;
-      if (fileSize > maxSizeBytes) {
-        throw Exception('Image file too large. Maximum size: ${_formatFileSize(maxSizeBytes)}');
-      }
-
-      // Validate file type and determine MIME type
-      final String fileExtension = imageFile.path.split('.').last.toLowerCase();
-      if (!AppConfig.supportedImageTypes.contains(fileExtension)) {
-        throw Exception('Unsupported image type: $fileExtension. Supported types: ${AppConfig.supportedImageTypes.join(', ')}');
+      if (processedFileSize > maxSizeBytes) {
+        throw Exception('Processed image file too large. Maximum size: ${_formatFileSize(maxSizeBytes)}');
       }
 
       // Create multipart request
@@ -77,53 +124,11 @@ class PetDetectionService {
         Uri.parse('$baseUrl/detect/$petType'),
       );
       
-      // Read file bytes and strictly validate image format
-      final List<int> fileBytes = await imageFile.readAsBytes();
-      print('📊 File bytes read successfully: ${fileBytes.length} bytes');
-      
-      // Strict magic bytes validation for allowed formats
-      bool isValidImage = false;
-      String detectedType = '';
-      if (fileBytes.length >= 2 && fileBytes[0] == 0xFF && fileBytes[1] == 0xD8) {
-        isValidImage = true;
-        detectedType = 'JPEG';
-      } else if (fileBytes.length >= 8 && fileBytes[0] == 0x89 && fileBytes[1] == 0x50 && fileBytes[2] == 0x4E && fileBytes[3] == 0x47) {
-        isValidImage = true;
-        detectedType = 'PNG';
-      } else if (fileBytes.length >= 2 && fileBytes[0] == 0x42 && fileBytes[1] == 0x4D) {
-        isValidImage = true;
-        detectedType = 'BMP';
-      } else if (fileBytes.length >= 4 && fileBytes[0] == 0x49 && fileBytes[1] == 0x49 && fileBytes[2] == 0x2A && fileBytes[3] == 0x00) {
-        isValidImage = true;
-        detectedType = 'TIFF (little endian)';
-      } else if (fileBytes.length >= 4 && fileBytes[0] == 0x4D && fileBytes[1] == 0x4D && fileBytes[2] == 0x00 && fileBytes[3] == 0x2A) {
-        isValidImage = true;
-        detectedType = 'TIFF (big endian)';
-      }
-
-      print('📷 Detected image type: $detectedType');
-      if (!isValidImage) {
-        throw Exception('Selected file is not a valid image. Allowed formats: JPEG, PNG, BMP, TIFF.');
-      }
-      
-      // Add file from bytes with content type based on detected format
-      String contentTypeString = 'image/jpeg';
-      
-      if (detectedType == 'PNG') {
-        contentTypeString = 'image/png';
-      } else if (detectedType == 'BMP') {
-        contentTypeString = 'image/bmp';
-      } else if (detectedType.contains('TIFF')) {
-        contentTypeString = 'image/tiff';
-      }
-      
-      // Try using original image path instead of scaled version if possible
-      // The issue might be with Flutter's image scaling/compression
-      
+      // Use processed image (640x640) for consistent coordinates
       final multipartFile = await http.MultipartFile.fromPath(
         'file', // Field name must be exactly "file"  
-        imageFile.path,
-        contentType: MediaType.parse(contentTypeString),
+        processedImage.path,
+        contentType: MediaType.parse('image/jpeg'),
       );
       request.files.add(multipartFile);
       
@@ -138,7 +143,8 @@ class PetDetectionService {
       print('📋 Request headers: ${request.headers}');
       print('📂 File field name: ${multipartFile.field}');
       print('📝 File filename: ${multipartFile.filename}');
-      print('📏 File size being sent: ${await imageFile.length()} bytes');
+      print('📏 Processed file size being sent: ${await processedImage.length()} bytes (640x640)');
+      print('✅ Image preprocessed to consistent 640x640 dimensions for accurate bounding boxes');
       
       // Send request with timeout
       final streamedResponse = await request.send().timeout(
@@ -155,13 +161,41 @@ class PetDetectionService {
         final Map<String, dynamic> responseData = json.decode(response.body);
         print('✅ Detection successful: ${responseData['total_detections']} detections found');
         
+        // Clean up temporary processed image file
+        try {
+          if (await processedImage.exists()) {
+            await processedImage.delete();
+            print('🗑️ Cleaned up temporary processed image');
+          }
+        } catch (e) {
+          print('⚠️ Failed to clean up temporary file: $e');
+        }
+        
         return DetectionResult.fromMap(responseData);
       } else {
         final errorMessage = _parseErrorMessage(response);
+        
+        // Clean up temporary processed image file on error too
+        try {
+          if (await processedImage.exists()) {
+            await processedImage.delete();
+            print('🗑️ Cleaned up temporary processed image');
+          }
+        } catch (e) {
+          print('⚠️ Failed to clean up temporary file: $e');
+        }
+        
         throw Exception('Detection failed (${response.statusCode}): $errorMessage');
       }
       
     } on TimeoutException {
+      // Clean up temporary file on timeout
+      try {
+        final File processedImage = File('${Directory.systemTemp.path}/pawsense_processed_${DateTime.now().millisecondsSinceEpoch}.jpg');
+        if (await processedImage.exists()) {
+          await processedImage.delete();
+        }
+      } catch (_) {}
       throw Exception('Request timed out after $timeoutSeconds seconds. Please check your internet connection.');
     } on SocketException {
       throw Exception('Unable to connect to Railway backend server. Server may be sleeping or unavailable.');

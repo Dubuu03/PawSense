@@ -43,6 +43,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
   bool _isGeneratingPDF = false;
   bool _showRemedies = false;
   late List<AnalysisResult> _analysisResults;
+  Set<int> _previewingImages = {}; // Track which images are showing bounding boxes
+  Set<int> _fullscreenBoundingBoxes = {}; // Track bounding boxes in fullscreen mode
   
   @override
   void initState() {
@@ -50,17 +52,213 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     _processDetectionResults();
   }
 
+  void _showFullscreenImage(XFile photo, int index, List<Map<String, dynamic>> detectionsToShow) {
+    // Set bounding boxes to show by default in fullscreen
+    _fullscreenBoundingBoxes.add(index);
+    
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final bool showingBoundingBoxes = _fullscreenBoundingBoxes.contains(index);
+            
+            return Dialog.fullscreen(
+              child: GestureDetector(
+                onTap: () => Navigator.of(context).pop(),
+                child: Container(
+                  color: Colors.black,
+                  child: Stack(
+                    children: [
+                      // Fullscreen image
+                      Center(
+                        child: InteractiveViewer(
+                          panEnabled: true,
+                          scaleEnabled: true,
+                          minScale: 0.5,
+                          maxScale: 4.0,
+                          child: GestureDetector(
+                            onTap: () {}, // Prevent dialog close when tapping image
+                            child: Stack(
+                              children: [
+                                Image.file(
+                                  File(photo.path),
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Container(
+                                      width: 200,
+                                      height: 200,
+                                      color: AppColors.background,
+                                      child: Icon(
+                                        Icons.image_not_supported,
+                                        color: AppColors.textSecondary,
+                                        size: 48,
+                                      ),
+                                    );
+                                  },
+                                ),
+                                
+                                // Bounding boxes overlay (only when toggled on)
+                                if (showingBoundingBoxes && detectionsToShow.isNotEmpty)
+                                  Positioned.fill(
+                                    child: LayoutBuilder(
+                                      builder: (context, constraints) {
+                                        return CustomPaint(
+                                          painter: BoundingBoxPainter(
+                                            detectionsToShow,
+                                            boxColor: AppColors.primary,
+                                            strokeWidth: 4.0,
+                                            showLabels: true,
+                                            showConfidence: true,
+                                            originalImageWidth: 640.0,
+                                            originalImageHeight: 640.0,
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      
+                      // Top controls
+                      Positioned(
+                        top: MediaQuery.of(context).padding.top + 16,
+                        left: 16,
+                        right: 16,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            // Close button
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: IconButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                icon: const Icon(
+                                  Icons.close,
+                                  color: Colors.white,
+                                  size: 24,
+                                ),
+                              ),
+                            ),
+                            
+                            // Image info
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                'Image ${index + 1}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      
+                      // Bottom controls for bounding box toggle
+                      if (detectionsToShow.isNotEmpty)
+                        Positioned(
+                          bottom: MediaQuery.of(context).padding.bottom + 32,
+                          left: 0,
+                          right: 0,
+                          child: Center(
+                            child: GestureDetector(
+                              onTap: () {
+                                setDialogState(() {
+                                  if (_fullscreenBoundingBoxes.contains(index)) {
+                                    _fullscreenBoundingBoxes.remove(index);
+                                  } else {
+                                    _fullscreenBoundingBoxes.add(index);
+                                  }
+                                });
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                  vertical: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: showingBoundingBoxes 
+                                      ? AppColors.primary 
+                                      : Colors.black54,
+                                  borderRadius: BorderRadius.circular(25),
+                                  border: Border.all(
+                                    color: showingBoundingBoxes 
+                                        ? AppColors.primary 
+                                        : Colors.white.withOpacity(0.3),
+                                    width: 2,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      showingBoundingBoxes 
+                                          ? Icons.visibility 
+                                          : Icons.visibility_off,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      showingBoundingBoxes 
+                                          ? 'Hide Detection' 
+                                          : 'Show Detection',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _processDetectionResults() {
     final detectionResults = widget.assessmentData['detectionResults'] as List<Map<String, dynamic>>? ?? [];
     
-    // Aggregate all detections from all images
+    // Aggregate only the highest confidence detection from each image
     final Map<String, List<double>> conditionConfidences = {};
     
     for (final result in detectionResults) {
-      final detections = result['detections'] as List<Map<String, dynamic>>? ?? [];
-      for (final detection in detections) {
-        final String condition = detection['label'];
-        final double confidence = detection['confidence'];
+      final allDetections = result['detections'] as List<Map<String, dynamic>>? ?? [];
+      
+      if (allDetections.isNotEmpty) {
+        // Sort by confidence and get only the highest one
+        final sortedDetections = List<Map<String, dynamic>>.from(allDetections);
+        sortedDetections.sort((a, b) => (b['confidence'] as double).compareTo(a['confidence'] as double));
+        final highestDetection = sortedDetections.first;
+        
+        final String condition = highestDetection['label'];
+        final double confidence = highestDetection['confidence'];
         
         if (!conditionConfidences.containsKey(condition)) {
           conditionConfidences[condition] = [];
@@ -930,13 +1128,25 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
           ),
           const SizedBox(height: kSpacingMedium),
           
-          // Display each analyzed image
+          // Display each analyzed image with highest confidence detection only
           ...List.generate(photos.length, (index) {
             final photo = photos[index];
             final hasDetection = index < detectionResults.length;
-            final detections = hasDetection 
+            final allDetections = hasDetection 
                 ? detectionResults[index]['detections'] as List<Map<String, dynamic>>? ?? []
                 : <Map<String, dynamic>>[];
+
+            // Get only the highest confidence detection
+            Map<String, dynamic>? highestDetection;
+            if (allDetections.isNotEmpty) {
+              // Sort by confidence and get the highest
+              final sortedDetections = List<Map<String, dynamic>>.from(allDetections);
+              sortedDetections.sort((a, b) => (b['confidence'] as double).compareTo(a['confidence'] as double));
+              highestDetection = sortedDetections.first;
+            }
+
+            // Create list with only the highest detection for display
+            final detectionsToShow = highestDetection != null ? [highestDetection] : <Map<String, dynamic>>[];
 
             return Padding(
               padding: const EdgeInsets.only(bottom: kSpacingMedium),
@@ -948,48 +1158,87 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Image with bounding boxes
-                    ClipRRect(
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(kBorderRadius),
-                        topRight: Radius.circular(kBorderRadius),
-                      ),
-                      child: ImageWithBoundingBoxes(
-                        imageWidget: Image.file(
-                          File(photo.path),
-                          width: double.infinity,
-                          height: 200,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
+                    // Clickable image to open fullscreen
+                    GestureDetector(
+                      onTap: () {
+                        _showFullscreenImage(photo, index, detectionsToShow);
+                      },
+                      child: Stack(
+                        children: [
+                          // Base image
+                          ClipRRect(
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(kBorderRadius),
+                              topRight: Radius.circular(kBorderRadius),
+                            ),
+                            child: Image.file(
+                              File(photo.path),
                               width: double.infinity,
                               height: 200,
-                              color: AppColors.background,
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  width: double.infinity,
+                                  height: 200,
+                                  color: AppColors.background,
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.image_not_supported,
+                                        color: AppColors.textSecondary,
+                                        size: 48,
+                                      ),
+                                      const SizedBox(height: kSpacingSmall),
+                                      Text(
+                                        'Image ${index + 1}',
+                                        style: kMobileTextStyleSubtitle.copyWith(
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+
+                          
+                          // Fullscreen indicator overlay
+                          Positioned(
+                            top: 8,
+                            right: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.7),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
-                                    Icons.image_not_supported,
-                                    color: AppColors.textSecondary,
-                                    size: 48,
+                                    Icons.fullscreen,
+                                    color: Colors.white,
+                                    size: 16,
                                   ),
-                                  const SizedBox(height: kSpacingSmall),
+                                  const SizedBox(width: 4),
                                   Text(
-                                    'Image ${index + 1}',
-                                    style: kMobileTextStyleSubtitle.copyWith(
-                                      color: AppColors.textSecondary,
+                                    'Tap to Enlarge',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                 ],
                               ),
-                            );
-                          },
-                        ),
-                        detections: detections,
-                        boxColor: AppColors.primary,
-                        strokeWidth: 3.0,
-                        showLabels: true,
-                        showConfidence: true,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     
@@ -1009,23 +1258,48 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                                 ),
                               ),
                               const Spacer(),
-                              if (detections.isNotEmpty) ...[
+                              if (detectionsToShow.isNotEmpty) ...[
                                 Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: kSpacingSmall,
                                     vertical: 4,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: AppColors.success.withOpacity(0.1),
+                                    color: _previewingImages.contains(index) 
+                                        ? AppColors.primary.withOpacity(0.1)
+                                        : AppColors.success.withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: AppColors.success.withOpacity(0.3)),
-                                  ),
-                                  child: Text(
-                                    '${detections.length} detection${detections.length > 1 ? 's' : ''}',
-                                    style: kMobileTextStyleLegend.copyWith(
-                                      color: AppColors.success,
-                                      fontWeight: FontWeight.w600,
+                                    border: Border.all(
+                                      color: _previewingImages.contains(index) 
+                                          ? AppColors.primary.withOpacity(0.3)
+                                          : AppColors.success.withOpacity(0.3),
                                     ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        _previewingImages.contains(index) 
+                                            ? Icons.visibility 
+                                            : Icons.remove_red_eye_outlined,
+                                        size: 12,
+                                        color: _previewingImages.contains(index) 
+                                            ? AppColors.primary
+                                            : AppColors.success,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        _previewingImages.contains(index) 
+                                            ? 'Showing Detection'
+                                            : 'Detection Available',
+                                        style: kMobileTextStyleLegend.copyWith(
+                                          color: _previewingImages.contains(index) 
+                                              ? AppColors.primary
+                                              : AppColors.success,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ] else ...[
@@ -1051,9 +1325,9 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                             ],
                           ),
                           
-                          if (detections.isNotEmpty) ...[
+                          if (detectionsToShow.isNotEmpty) ...[
                             const SizedBox(height: kSpacingSmall),
-                            ...detections.map((detection) {
+                            ...detectionsToShow.map((detection) {
                               final String condition = detection['label'];
                               final double confidence = detection['confidence'];
                               

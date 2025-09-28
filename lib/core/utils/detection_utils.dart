@@ -78,6 +78,8 @@ class BoundingBoxPainter extends CustomPainter {
   final double strokeWidth;
   final bool showLabels;
   final bool showConfidence;
+  final double originalImageWidth;
+  final double originalImageHeight;
 
   BoundingBoxPainter(
     this.detections, {
@@ -85,6 +87,8 @@ class BoundingBoxPainter extends CustomPainter {
     this.strokeWidth = 3.0,
     this.showLabels = true,
     this.showConfidence = true,
+    this.originalImageWidth = 640.0,
+    this.originalImageHeight = 640.0,
   });
 
   @override
@@ -110,20 +114,22 @@ class BoundingBoxPainter extends CustomPainter {
       double x2 = coordinates['x2']!;
       double y2 = coordinates['y2']!;
 
-      print('🎨 Drawing bounding box: ($x1, $y1) to ($x2, $y2) for $label');
+      print('🎨 Original coordinates: ($x1, $y1) to ($x2, $y2) for $label');
       print('🖼️ Canvas size: ${size.width} x ${size.height}');
+      print('🖼️ Original image size: ${originalImageWidth} x ${originalImageHeight}');
 
-      // Scale coordinates to canvas size if they seem to be in original image coordinates
-      if (x2 > size.width || y2 > size.height) {
-        final double scaleX = size.width / (x2 > size.width ? x2 * 1.2 : size.width);
-        final double scaleY = size.height / (y2 > size.height ? y2 * 1.2 : size.height);
-        final double scale = scaleX < scaleY ? scaleX : scaleY;
-        
-        x1 *= scale;
-        y1 *= scale;
-        x2 *= scale;
-        y2 *= scale;
-      }
+      // Calculate scale factors from original image to display canvas
+      final double scaleX = size.width / originalImageWidth;
+      final double scaleY = size.height / originalImageHeight;
+      
+      // Scale coordinates directly from original image space to display space
+      // This preserves the exact proportions without aspect ratio adjustments
+      x1 = x1 * scaleX;
+      y1 = y1 * scaleY;
+      x2 = x2 * scaleX;
+      y2 = y2 * scaleY;
+      
+      print('🔍 Scale factors - X: ${scaleX.toStringAsFixed(3)}, Y: ${scaleY.toStringAsFixed(3)}');
 
       // Ensure coordinates are within canvas bounds
       x1 = x1.clamp(0.0, size.width);
@@ -198,7 +204,9 @@ class BoundingBoxPainter extends CustomPainter {
            boxColor != oldDelegate.boxColor ||
            strokeWidth != oldDelegate.strokeWidth ||
            showLabels != oldDelegate.showLabels ||
-           showConfidence != oldDelegate.showConfidence;
+           showConfidence != oldDelegate.showConfidence ||
+           originalImageWidth != oldDelegate.originalImageWidth ||
+           originalImageHeight != oldDelegate.originalImageHeight;
   }
 }
 
@@ -210,6 +218,8 @@ class ImageWithBoundingBoxes extends StatelessWidget {
   final double? strokeWidth;
   final bool showLabels;
   final bool showConfidence;
+  final double? originalImageWidth;  // Add original image dimensions
+  final double? originalImageHeight;
 
   const ImageWithBoundingBoxes({
     super.key,
@@ -219,6 +229,8 @@ class ImageWithBoundingBoxes extends StatelessWidget {
     this.strokeWidth,
     this.showLabels = true,
     this.showConfidence = true,
+    this.originalImageWidth,  // Default to YOLO model size
+    this.originalImageHeight,
   });
 
   @override
@@ -235,6 +247,8 @@ class ImageWithBoundingBoxes extends StatelessWidget {
                 strokeWidth: strokeWidth ?? 3.0,
                 showLabels: showLabels,
                 showConfidence: showConfidence,
+                originalImageWidth: originalImageWidth ?? 640.0,
+                originalImageHeight: originalImageHeight ?? 640.0,
               ),
             ),
           ),
