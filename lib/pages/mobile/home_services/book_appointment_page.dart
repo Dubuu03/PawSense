@@ -9,6 +9,7 @@ import 'package:pawsense/core/services/mobile/appointment_booking_service.dart';
 import 'package:pawsense/core/services/clinic/appointment_service.dart';
 import 'package:pawsense/core/models/user/pet_model.dart';
 import 'package:pawsense/core/guards/auth_guard.dart';
+import 'package:pawsense/core/services/notifications/appointment_booking_integration.dart';
 
 class BookAppointmentPage extends StatefulWidget {
   final String? preselectedClinicId;
@@ -953,18 +954,39 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
       if (mounted) Navigator.of(context).pop();
 
       if (appointmentId != null) {
+        // Create pending appointment notification immediately
+        try {
+          final currentUser = await AuthGuard.getCurrentUser();
+          if (currentUser != null) {
+            await AppointmentBookingIntegration.onAppointmentBooked(
+              userId: currentUser.uid,
+              petName: selectedPet.petName,
+              clinicName: selectedClinic['name'],
+              requestedDate: _selectedDate,
+              requestedTime: formattedTime,
+              appointmentId: appointmentId,
+              isEmergency: _selectedService.toLowerCase().contains('emergency'),
+              symptoms: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
+            );
+          }
+        } catch (notificationError) {
+          print('⚠️ Failed to create pending notification: $notificationError');
+          // Don't block the success flow if notification fails
+        }
         // Success
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Appointment booked successfully for ${selectedPet.petName} at ${selectedClinic['name']} on ${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year} at ${_selectedTime.format(context)}',
-              ),
+            const SnackBar(
+              content: Text('Appointment submitted successfully!'),
               backgroundColor: AppColors.success,
-              duration: const Duration(seconds: 4),
+              duration: Duration(seconds: 3),
             ),
           );
-          context.pop();
+          
+          // Navigate back after showing the notification
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (mounted) context.pop();
+          });
         }
       } else {
         // Error

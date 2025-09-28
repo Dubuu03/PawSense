@@ -8,7 +8,9 @@ import 'package:pawsense/core/widgets/user/shared/navigation/user_bottom_nav_bar
 import 'package:pawsense/core/widgets/user/shared/modals/pet_assessment_modal.dart';
 import 'package:pawsense/core/widgets/user/alerts/alert_item.dart';
 import 'package:pawsense/core/widgets/user/alerts/alert_list.dart';
-import 'package:pawsense/core/utils/data_cache.dart';
+import 'package:pawsense/core/services/notifications/notification_service.dart';
+import 'package:pawsense/core/services/notifications/demo_notification_service.dart';
+import 'package:pawsense/core/utils/notification_helper.dart';
 
 // GlobalKey for accessing AlertsPage methods
 final GlobalKey<_AlertsPageState> alertsPageKey = GlobalKey<_AlertsPageState>();
@@ -22,162 +24,122 @@ class AlertsPage extends StatefulWidget {
 
 class _AlertsPageState extends State<AlertsPage> {
   UserModel? _userModel;
-  List<AlertData> _alerts = [];
   bool _loading = true;
   int _currentNavIndex = 2; // Set to 2 for alerts tab
-  final DataCache _cache = DataCache();
+  Stream<List<AlertData>>? _notificationsStream;
 
   @override
   void initState() {
     super.initState();
     _fetchUser();
-    _loadAlerts();
+  }
+
+  @override
+  void dispose() {
+    // Stream will be automatically disposed when widget is disposed
+    super.dispose();
   }
 
   Future<void> _fetchUser() async {
     try {
       final userModel = await AuthGuard.getCurrentUser();
-      if (userModel != null) {
+      if (userModel != null && mounted) {
         setState(() {
           _userModel = userModel;
+          _notificationsStream = _getNotificationsStream();
         });
       }
     } catch (e) {
       // Handle error silently
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 
-  Future<void> _loadAlerts({bool forceRefresh = false}) async {
-    if (!mounted) return;
-
-    // Check cache first (unless force refresh)
-    if (!forceRefresh) {
-      final cachedAlerts = _cache.get<List<AlertData>>(CacheKeys.alerts());
-      if (cachedAlerts != null) {
-        print('[AlertsPage] Using cached alerts data');
-        if (mounted) {
-          setState(() {
-            _alerts = cachedAlerts;
-            _loading = false;
-          });
-        }
-        return;
-      }
-    }
-
-    if (mounted) {
-      setState(() {
-        _loading = true;
-      });
+  /// Stream of notifications from Firebase
+  Stream<List<AlertData>> _getNotificationsStream() async* {
+    if (_userModel == null) {
+      yield [];
+      return;
     }
 
     try {
-      // Simulate loading delay only when not cached
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      // Sample alert data - based on the image provided
-      final sampleAlerts = [
-        AlertData(
-          title: 'Appointment Approved',
-          subtitle: 'Tomorrow at 11:00 AM',
-          type: AlertType.appointment,
-          timestamp: DateTime.now(),
-          isRead: false,
-        ),
-        AlertData(
-          title: 'Reschedule',
-          subtitle: 'Dr. Lee requested a new time',
-          type: AlertType.reschedule,
-          timestamp: DateTime.now(),
-          isRead: false,
-        ),
-        AlertData(
-          title: 'Appointment Declined',
-          subtitle: 'Clinic fully booked',
-          type: AlertType.declined,
-          timestamp: DateTime.now().subtract(const Duration(days: 2)),
-          isRead: false,
-        ),
-        AlertData(
-          title: 'Reappointment Needed',
-          subtitle: 'Follow-up recommended',
-          type: AlertType.reappointment,
-          timestamp: DateTime.now().subtract(const Duration(days: 3)),
-          isRead: false,
-        ),
-        AlertData(
-          title: 'System Update',
-          subtitle: 'Improved accuracy for dog dermatitis',
-          type: AlertType.systemUpdate,
-          timestamp: DateTime.now().subtract(const Duration(days: 10)),
-          isRead: true,
-        ),
-      ];
-
-      // Cache the alerts with 2-minute TTL (alerts should be relatively fresh)
-      _cache.put(CacheKeys.alerts(), sampleAlerts, ttl: const Duration(minutes: 2));
-      print('[AlertsPage] Cached alerts data for 2 minutes');
-
-      if (mounted) {
-        setState(() {
-          _alerts = sampleAlerts;
-          _loading = false;
-        });
+      await for (final notifications in NotificationService.getAllUserNotifications(_userModel!.uid)) {
+        if (!mounted) return; // Stop if widget is disposed
+        
+        final alertData = notifications
+            .map((notification) => NotificationHelper.fromNotificationModel(notification))
+            .toList();
+        
+        // Update loading state
+        if (mounted) {
+          setState(() {
+            _loading = false;
+          });
+        }
+        
+        yield alertData;
       }
     } catch (e) {
-      print('[AlertsPage] Error loading alerts: $e');
+      print('Error getting all user notifications: $e');
       if (mounted) {
         setState(() {
           _loading = false;
         });
       }
+      yield [];
     }
   }
 
-  void _handleAlertTap(AlertData alert) {
-    // Handle alert tap - navigate to relevant page or show details
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Tapped: ${alert.title}'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+  void _handleAlertTap(AlertData alert) async {
+    try {
+      // Navigate to alert details page
+      context.push('/alerts/details/${alert.id}');
+    } catch (e) {
+      print('Error handling alert tap: $e');
+      _showErrorMessage('Failed to open notification details');
+    }
   }
 
-  void _handleMarkAsRead(AlertData alert) {
+  Future<void> _handleMarkAsRead(AlertData alert) async {
     if (!mounted) return;
     
-    setState(() {
-      final index = _alerts.indexOf(alert);
-      if (index != -1) {
-        _alerts[index] = AlertData(
-          title: alert.title,
-          subtitle: alert.subtitle,
-          type: alert.type,
-          timestamp: alert.timestamp,
-          isRead: true,
+    try {
+      await NotificationService.markAsRead(alert.id);
+      
+      // Success feedback
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Marked "${alert.title}" as read'),
+            duration: const Duration(seconds: 2),
+            backgroundColor: AppColors.success,
+          ),
         );
       }
-    });
-    
-    // Update cache with modified alerts
-    _cache.put(CacheKeys.alerts(), _alerts, ttl: const Duration(minutes: 2));
-    print('[AlertsPage] Updated cached alerts after marking as read');
-  }
-
-  /// Invalidate alerts cache - useful when alerts are updated externally
-  void invalidateAlertsCache() {
-    _cache.invalidate(CacheKeys.alerts());
-    print('[AlertsPage] Invalidated alerts cache');
-  }
-
-  /// Refresh alerts with force refresh option
-  void refreshAlerts({bool forceRefresh = false}) {
-    _loadAlerts(forceRefresh: forceRefresh);
+    } catch (e) {
+      print('Error marking alert as read: $e');
+      _showErrorMessage('Failed to mark notification as read');
+    }
   }
 
   Future<void> _handleRefresh() async {
-    await _loadAlerts(forceRefresh: true);
+    // Firebase streams handle real-time updates automatically
+    // Just show a brief loading indicator
+    setState(() {
+      _loading = true;
+    });
+    
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    if (mounted) {
+      setState(() {
+        _loading = false;
+      });
+    }
   }
 
   @override
@@ -192,9 +154,9 @@ class _AlertsPageState extends State<AlertsPage> {
           });
         },
       ),
-      body: _loading 
+      body: _userModel == null 
           ? _buildLoadingState()
-          : _buildAlertsContent(),
+          : _buildNotificationsContent(),
       bottomNavigationBar: UserBottomNavBar(
         currentIndex: _currentNavIndex,
         onIndexChanged: (index) {
@@ -222,17 +184,153 @@ class _AlertsPageState extends State<AlertsPage> {
     );
   }
 
-  Widget _buildAlertsContent() {
+  Widget _buildNotificationsContent() {
     return RefreshIndicator(
       onRefresh: _handleRefresh,
       color: AppColors.primary,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: AlertList(
-          alerts: _alerts,
-          onAlertTap: _handleAlertTap,
-          onMarkAsRead: _handleMarkAsRead,
+      child: StreamBuilder<List<AlertData>>(
+        stream: _notificationsStream,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting && _loading) {
+            return _buildLoadingState();
+          }
+          
+          if (snapshot.hasError) {
+            return _buildErrorState(snapshot.error.toString());
+          }
+          
+          final alerts = snapshot.data ?? [];
+          
+          if (alerts.isEmpty) {
+            return _buildEmptyState();
+          }
+          
+          return SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              children: [
+                // Demo button (for testing purposes - remove in production)
+                if (alerts.isEmpty)
+                  Container(
+                    margin: const EdgeInsets.all(16),
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        if (_userModel != null) {
+                          await DemoNotificationService.createAllSampleNotifications(_userModel!.uid);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Sample notifications created!'),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: AppColors.white,
+                      ),
+                      child: const Text('Generate Sample Notifications (Demo)'),
+                    ),
+                  ),
+                
+                // Notifications list
+                AlertList(
+                  alerts: alerts,
+                  onAlertTap: _handleAlertTap,
+                  onMarkAsRead: _handleMarkAsRead,
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showErrorMessage(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: AppColors.error,
+          duration: const Duration(seconds: 3),
         ),
+      );
+    }
+  }
+
+  Widget _buildErrorState(String error) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: 64,
+            color: AppColors.error,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Error Loading Notifications',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Please try again later',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _loading = true;
+              });
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.white,
+            ),
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.notifications_off_outlined,
+            size: 64,
+            color: AppColors.textSecondary,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No Notifications',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'All caught up! You\'ll see new notifications here.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
       ),
     );
   }

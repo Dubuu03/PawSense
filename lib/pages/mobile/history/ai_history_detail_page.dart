@@ -535,14 +535,6 @@ class _AIHistoryDetailPageState extends State<AIHistoryDetailPage> {
   }
 
   Widget _buildDetectionResultItem(DetectionResult detectionResult, int index) {
-    // Get only the highest confidence detection for this image
-    Detection? highestDetection;
-    if (detectionResult.detections.isNotEmpty) {
-      final sortedDetections = List<Detection>.from(detectionResult.detections);
-      sortedDetections.sort((a, b) => b.confidence.compareTo(a.confidence));
-      highestDetection = sortedDetections.first;
-    }
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -555,83 +547,63 @@ class _AIHistoryDetailPageState extends State<AIHistoryDetailPage> {
           ),
         ),
         const SizedBox(height: kMobileSizedBoxMedium),
-        if (highestDetection != null) ...[
-          Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              'Highest',
-                              style: kMobileTextStyleSubtitle.copyWith(
-                                color: AppColors.primary,
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+        if (detectionResult.detections.isNotEmpty) ...[
+          ...detectionResult.detections.map((detection) {
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          DetectionUtils.formatConditionName(detection.label),
+                          style: kMobileTextStyleTitle.copyWith(
+                            color: AppColors.textPrimary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              DetectionUtils.formatConditionName(highestDetection.label),
-                              style: kMobileTextStyleTitle.copyWith(
-                                color: AppColors.textPrimary,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Confidence: ${(highestDetection.confidence * 100).toStringAsFixed(1)}%',
-                        style: kMobileTextStyleSubtitle.copyWith(
-                          color: AppColors.textSecondary,
-                          fontSize: 11,
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 2),
+                        Text(
+                          'Confidence: ${(detection.confidence * 100).toStringAsFixed(1)}%',
+                          style: kMobileTextStyleSubtitle.copyWith(
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                Container(
-                  width: 40,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                  child: FractionallySizedBox(
-                    alignment: Alignment.centerLeft,
-                    widthFactor: highestDetection.confidence,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: _getConfidenceColor(highestDetection.confidence),
-                        borderRadius: BorderRadius.circular(3),
+                  Container(
+                    width: 40,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    child: FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: detection.confidence,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: _getConfidenceColor(detection.confidence),
+                          borderRadius: BorderRadius.circular(3),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
+                ],
+              ),
+            );
+          }).toList(),
         ] else ...[
           Container(
             padding: const EdgeInsets.all(12),

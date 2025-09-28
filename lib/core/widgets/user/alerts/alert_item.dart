@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
-import 'package:pawsense/core/utils/constants_mobile.dart';
 
 enum AlertType {
   appointment,
+  appointmentPending,
+  message,
+  task,
   reschedule,
   declined,
   reappointment,
@@ -11,19 +13,46 @@ enum AlertType {
 }
 
 class AlertData {
+  final String id;
   final String title;
   final String subtitle;
   final AlertType type;
   final DateTime timestamp;
   final bool isRead;
+  final String? actionUrl;
+  final String? actionLabel;
+  final Map<String, dynamic>? metadata;
 
   AlertData({
+    required this.id,
     required this.title,
     required this.subtitle,
     required this.type,
     required this.timestamp,
     this.isRead = false,
+    this.actionUrl,
+    this.actionLabel,
+    this.metadata,
   });
+
+  /// Get time ago string (e.g., "2h ago", "3 days ago")
+  String get timeAgo {
+    final now = DateTime.now();
+    final difference = now.difference(timestamp);
+
+    if (difference.inMinutes < 1) {
+      return 'Just now';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d ago';
+    } else {
+      final weeks = (difference.inDays / 7).floor();
+      return '${weeks}w ago';
+    }
+  }
 }
 
 class AlertItem extends StatelessWidget {
@@ -41,81 +70,120 @@ class AlertItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: kMobileSizedBoxMedium),
+      margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: kMobileBorderRadiusCardPreset,
-        boxShadow: kMobileCardShadowSmall,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+        border: !alert.isRead
+            ? Border(
+                left: BorderSide(
+                  color: _getAlertColor(),
+                  width: 3,
+                ),
+              )
+            : null,
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: kMobileBorderRadiusCardPreset,
+          borderRadius: BorderRadius.circular(12),
           child: Padding(
-            padding: kMobilePaddingCard,
+            padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                // Alert Icon
+                // Compact Alert Icon
                 Container(
-                  width: kMobileIconContainerSize,
-                  height: kMobileIconContainerSize,
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
                     color: _getAlertColor().withValues(alpha: 0.1),
-                    borderRadius: kMobileBorderRadiusIconPreset,
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   child: Icon(
                     _getAlertIcon(),
                     color: _getAlertColor(),
-                    size: 20,
+                    size: 16,
                   ),
                 ),
                 
-                const SizedBox(width: kMobileSizedBoxLarge),
+                const SizedBox(width: 12),
                 
-                // Alert Content
+                // Compact Alert Content
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         alert.title,
-                        style: kMobileTextStyleTitle.copyWith(
+                        style: TextStyle(
                           color: AppColors.textPrimary,
                           fontWeight: alert.isRead ? FontWeight.w500 : FontWeight.w600,
-                          fontSize: 14,
+                          fontSize: 13,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 2),
                       Text(
                         alert.subtitle,
-                        style: kMobileTextStyleSubtitle.copyWith(
-                          color: AppColors.textSecondary,
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
                           fontSize: 12,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.access_time,
+                            size: 11,
+                            color: Colors.grey.shade600,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            alert.timeAgo,
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
                 
-                // Mark as Read Button
-                if (!alert.isRead && onMarkAsRead != null) ...[
-                  const SizedBox(width: kMobileSizedBoxMedium),
-                  TextButton(
-                    onPressed: onMarkAsRead,
-                    style: TextButton.styleFrom(
-                      padding: kMobileButtonPadding,
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: Text(
-                      'Mark read',
-                      style: kMobileTextStyleViewAll.copyWith(
-                        color: AppColors.primary,
+                // Compact trailing icon and unread indicator
+                Column(
+                  children: [
+                    if (!alert.isRead)
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: _getAlertColor(),
+                          shape: BoxShape.circle,
+                        ),
                       ),
+                    const SizedBox(height: 4),
+                    Icon(
+                      Icons.chevron_right,
+                      color: Colors.grey.shade400,
+                      size: 16,
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ],
             ),
           ),
@@ -128,8 +196,14 @@ class AlertItem extends StatelessWidget {
     switch (alert.type) {
       case AlertType.appointment:
         return AppColors.success;
-      case AlertType.reschedule:
+      case AlertType.appointmentPending:
+        return Colors.orange;
+      case AlertType.message:
         return AppColors.info;
+      case AlertType.task:
+        return AppColors.warning;
+      case AlertType.reschedule:
+        return Colors.orange;
       case AlertType.declined:
         return AppColors.error;
       case AlertType.reappointment:
@@ -142,15 +216,21 @@ class AlertItem extends StatelessWidget {
   IconData _getAlertIcon() {
     switch (alert.type) {
       case AlertType.appointment:
-        return Icons.check_circle_outline;
-      case AlertType.reschedule:
+        return Icons.event_available;
+      case AlertType.appointmentPending:
         return Icons.schedule;
+      case AlertType.message:
+        return Icons.message;
+      case AlertType.task:
+        return Icons.assignment;
+      case AlertType.reschedule:
+        return Icons.update;
       case AlertType.declined:
         return Icons.cancel_outlined;
       case AlertType.reappointment:
-        return Icons.warning_amber_outlined;
+        return Icons.repeat;
       case AlertType.systemUpdate:
-        return Icons.info_outline;
+        return Icons.system_update;
     }
   }
 }

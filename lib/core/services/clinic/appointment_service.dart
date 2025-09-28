@@ -4,6 +4,7 @@ import 'package:pawsense/core/models/clinic/appointment_booking_model.dart';
 import 'package:pawsense/core/models/clinic/appointment_models.dart' as AppointmentModels;
 import 'package:pawsense/core/models/user/pet_model.dart' as UserModels;
 import 'package:pawsense/core/services/clinic/clinic_schedule_service.dart';
+import 'package:pawsense/core/services/notifications/appointment_booking_integration.dart';
 
 class AppointmentService {
   static const String _collection = 'appointments';
@@ -352,10 +353,44 @@ class AppointmentService {
   /// Update appointment status
   static Future<bool> updateAppointmentStatus(String appointmentId, AppointmentModels.AppointmentStatus status) async {
     try {
+      // First get the appointment details for notification
+      AppointmentModels.Appointment? appointment;
+      try {
+        final doc = await _firestore.collection(_collection).doc(appointmentId).get();
+        if (doc.exists) {
+          final data = doc.data()!;
+          appointment = AppointmentModels.Appointment.fromFirestore(data, doc.id);
+        }
+      } catch (e) {
+        print('Warning: Could not fetch appointment details for notifications: $e');
+      }
+
       await _firestore.collection(_collection).doc(appointmentId).update({
         'status': status.toString().split('.').last,
         'updatedAt': Timestamp.fromDate(DateTime.now()),
       });
+
+      // Create notification for status change (if we have appointment details)
+      if (appointment != null) {
+        try {
+          await AppointmentBookingIntegration.onAppointmentStatusChanged(
+            userId: appointment.owner.id,
+            appointmentId: appointmentId,
+            petName: appointment.pet.name,
+            clinicName: 'Clinic', // Will be updated in the integration method
+            oldStatus: appointment.status.toString().split('.').last,
+            newStatus: status.toString().split('.').last,
+            appointmentDate: DateTime.tryParse(appointment.date.replaceAll('-', '')),
+            appointmentTime: appointment.time,
+            reason: status == AppointmentModels.AppointmentStatus.cancelled ? 
+              'Cancelled by clinic administration' : null,
+          );
+        } catch (notificationError) {
+          print('⚠️ Failed to create status change notification: $notificationError');
+          // Don't fail the status update if notification fails
+        }
+      }
+
       return true;
     } catch (e) {
       print('Error updating appointment status: $e');

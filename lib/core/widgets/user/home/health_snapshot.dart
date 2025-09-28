@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
-import 'package:pawsense/core/widgets/user/shared/modals/pet_assessment_modal.dart';
 
 class HealthData {
   final String condition;
@@ -46,67 +45,59 @@ class HealthSnapshot extends StatelessWidget {
           ),
           const SizedBox(height: kMobileSizedBoxSmall),
           Text(
-            total > 0 ? 'Most common detections' : 'No assessments yet',
+            'Most common detections',
             style: kMobileTextStyleSubtitle.copyWith(
               color: AppColors.textSecondary,
             ),
           ),
-          SizedBox(height: total > 0 ? kMobileSizedBoxMedium : kMobileSizedBoxMedium),
+          const SizedBox(height: kMobileSizedBoxLarge),
           
-          if (total > 0) ...[
-            Row(
-              children: [
-                // Donut Chart
-                SizedBox(
-                  width: kMobileDonutChartSize,
-                  height: kMobileDonutChartSize,
-                  child: Stack(
-                    children: [
-                      _buildDonutChart(total),
-                      Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              '$total',
-                              style: kMobileTextStyleChartTotal.copyWith(
-                                color: AppColors.textPrimary,
-                              ),
+          Row(
+            children: [
+              // Donut Chart
+              SizedBox(
+                width: kMobileDonutChartSize,
+                height: kMobileDonutChartSize,
+                child: Stack(
+                  children: [
+                    _buildDonutChart(total),
+                    Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '$total',
+                            style: kMobileTextStyleChartTotal.copyWith(
+                              color: AppColors.textPrimary,
                             ),
-                            Text(
-                              'Total',
-                              style: kMobileTextStyleChartLabel.copyWith(
-                                color: AppColors.textSecondary,
-                              ),
+                          ),
+                          Text(
+                            'Total',
+                            style: kMobileTextStyleChartLabel.copyWith(
+                              color: AppColors.textSecondary,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                
-                const SizedBox(width: kMobileSizedBoxLarge),
-                
-                // Legend
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: healthData
-                        .take(4)
-                        .map((data) => _buildLegendItem(data))
-                        .toList(),
-                  ),
+              ),
+              
+              const SizedBox(width: kMobileSizedBoxXXLarge),
+              
+              // Legend
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: healthData
+                      .take(4)
+                      .map((data) => _buildLegendItem(data))
+                      .toList(),
                 ),
-              ],
-            ),
-          ] else ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 0.0),
-              child: _buildEmptyState(context),
-            ),
-            const SizedBox(height: kMobileSizedBoxLarge), // Increased bottom spacing
-          ],
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -159,105 +150,6 @@ class HealthSnapshot extends StatelessWidget {
               fontWeight: FontWeight.w600,
               color: AppColors.textPrimary,
               height: 1.2,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16.0), // Added padding around the entire empty state
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: 80, // Slightly larger for better proportion
-            height: 80,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.assessment_outlined,
-              size: 36, // Slightly larger icon
-              color: AppColors.primary,
-            ),
-          ),
-          const SizedBox(width: 20), // Increased spacing between icon and text
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Start Your First Assessment',
-                  style: kMobileTextStyleTitle.copyWith(
-                    color: AppColors.textPrimary,
-                    fontSize: 14, // Match the original smaller size
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4), // Back to original spacing
-                Text(
-                  'Take photos of your pet to start\nbuilding their health snapshot',
-                  style: kMobileTextStyleSubtitle.copyWith(
-                    color: AppColors.textSecondary,
-                    fontSize: 12, // Back to original smaller size
-                    height: 1.3, // Adjusted line height
-                  ),
-                ),
-                const SizedBox(height: 12), // Increased spacing before button
-                GestureDetector(
-                  onTap: () {
-                    // Show pet assessment modal as bottom sheet
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (context) => const PetAssessmentModal(),
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18, // Increased horizontal padding
-                      vertical: 8,    // Increased vertical padding
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(20), // Slightly more rounded
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.3),
-                          offset: const Offset(0, 2),
-                          blurRadius: 4,
-                        ),
-                      ], // Added subtle shadow to button
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.camera_alt,
-                          color: Colors.white,
-                          size: 18, // Slightly larger icon
-                        ),
-                        const SizedBox(width: 8), // Increased spacing
-                        Text(
-                          'Start Assessment',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 12, // Back to original smaller size
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.3, // Added letter spacing
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
             ),
           ),
         ],

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pawsense/core/models/clinic/appointment_booking_model.dart';
 import 'package:pawsense/core/guards/auth_guard.dart';
+import 'package:pawsense/core/services/notifications/appointment_booking_integration.dart';
 
 class AppointmentBookingService {
   static const String _collection = 'appointments';
@@ -126,6 +127,17 @@ class AppointmentBookingService {
     String? reason,
   }) async {
     try {
+      // First get the appointment details for notification
+      AppointmentBooking? appointment;
+      try {
+        final doc = await _firestore.collection(_collection).doc(appointmentId).get();
+        if (doc.exists) {
+          appointment = AppointmentBooking.fromMap(doc.data()!, doc.id);
+        }
+      } catch (e) {
+        print('Warning: Could not fetch appointment details for notifications: $e');
+      }
+
       final updateData = <String, dynamic>{
         'status': newStatus.name,
         'updatedAt': Timestamp.fromDate(DateTime.now()),
@@ -143,6 +155,45 @@ class AppointmentBookingService {
           .collection(_collection)
           .doc(appointmentId)
           .update(updateData);
+
+      // Create notification for status change (if we have appointment details)
+      if (appointment != null) {
+        try {
+          // Get additional details for notification
+          String petName = 'Your pet';
+          String clinicName = 'the clinic';
+          
+          // Try to fetch pet and clinic names
+          try {
+            final petDoc = await _firestore.collection('pets').doc(appointment.petId).get();
+            if (petDoc.exists) {
+              petName = petDoc.data()?['petName'] ?? petName;
+            }
+            
+            final clinicDoc = await _firestore.collection('clinics').doc(appointment.clinicId).get();
+            if (clinicDoc.exists) {
+              clinicName = clinicDoc.data()?['name'] ?? clinicName;
+            }
+          } catch (e) {
+            print('Warning: Could not fetch pet/clinic names for notification: $e');
+          }
+
+          await AppointmentBookingIntegration.onAppointmentStatusChanged(
+            userId: appointment.userId,
+            appointmentId: appointmentId,
+            petName: petName,
+            clinicName: clinicName,
+            oldStatus: appointment.status.name,
+            newStatus: newStatus.name,
+            appointmentDate: appointment.appointmentDate,
+            appointmentTime: appointment.appointmentTime,
+            reason: reason,
+          );
+        } catch (notificationError) {
+          print('⚠️ Failed to create status change notification: $notificationError');
+          // Don't fail the status update if notification fails
+        }
+      }
 
       return true;
     } catch (e) {
