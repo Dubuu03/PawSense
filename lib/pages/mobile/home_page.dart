@@ -118,24 +118,46 @@ class _UserHomePageState extends State<UserHomePage> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _userModel != null) {
           // Force refresh if coming from assessment completion
-          final forceRefresh = refreshParam == 'assessment';
-          print('DEBUG: Navigation to history tab detected, forceRefresh: $forceRefresh, refreshParam: $refreshParam');
-          if (forceRefresh && _userModel != null) {
+          final forceRefreshAssessment = refreshParam == 'assessment';
+          // Force refresh if coming from appointment booking
+          final forceRefreshAppointment = uri.queryParameters['refresh_appointments'] != null;
+          
+          print('DEBUG: Navigation to history tab detected, forceRefreshAssessment: $forceRefreshAssessment, forceRefreshAppointment: $forceRefreshAppointment, refreshParam: $refreshParam');
+          
+          if (forceRefreshAssessment && _userModel != null) {
             // Invalidate cache when new assessment is completed
             final cacheKey = CacheKeys.userAssessments(_userModel!.uid);
             _cache.invalidate(cacheKey);
-            print('DEBUG: Cache invalidated for key: $cacheKey');
+            print('DEBUG: Assessment cache invalidated for key: $cacheKey');
           }
-          _fetchAssessmentHistory(forceRefresh: forceRefresh);
-          _fetchAppointmentHistory();
+          
+          if (forceRefreshAppointment && _userModel != null) {
+            // Invalidate cache when new appointment is booked
+            final cacheKey = 'user_appointments_${_userModel!.uid}';
+            _cache.invalidate(cacheKey);
+            print('DEBUG: Appointment cache invalidated for key: $cacheKey');
+          }
+          
+          _fetchAssessmentHistory(forceRefresh: forceRefreshAssessment);
+          _fetchAppointmentHistory(forceRefresh: forceRefreshAppointment);
           
           // Add a secondary refresh after 2 seconds for assessment completions
           // This helps ensure we get the data even if there are propagation delays
-          if (forceRefresh) {
+          if (forceRefreshAssessment) {
             Future.delayed(const Duration(seconds: 2), () {
               if (mounted && _userModel != null) {
                 print('DEBUG: Performing secondary refresh after assessment completion');
                 _fetchAssessmentHistory(forceRefresh: true);
+              }
+            });
+          }
+          
+          // Add a secondary refresh after 2 seconds for appointment bookings
+          if (forceRefreshAppointment) {
+            Future.delayed(const Duration(seconds: 2), () {
+              if (mounted && _userModel != null) {
+                print('DEBUG: Performing secondary refresh after appointment booking');
+                _fetchAppointmentHistory(forceRefresh: true);
               }
             });
           }

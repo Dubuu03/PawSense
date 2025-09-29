@@ -191,6 +191,7 @@ class _AIHistoryDetailPageState extends State<AIHistoryDetailPage> {
     return SingleChildScrollView(
       child: Column(
         children: [
+          const SizedBox(height: kMobileSizedBoxLarge),
           // Header Card - Pet and Assessment Info
           _buildHeaderCard(assessment),
           

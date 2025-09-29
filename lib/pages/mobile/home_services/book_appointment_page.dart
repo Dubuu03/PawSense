@@ -983,9 +983,13 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
             ),
           );
           
-          // Navigate back after showing the notification
+          // Navigate back with refresh parameter to trigger appointment history refresh
           Future.delayed(const Duration(milliseconds: 500), () {
-            if (mounted) context.pop();
+            if (mounted) {
+              // Add timestamp to ensure cache invalidation
+              final timestamp = DateTime.now().millisecondsSinceEpoch;
+              context.go('/home?tab=history&refresh_appointments=$timestamp');
+            }
           });
         }
       } else {
