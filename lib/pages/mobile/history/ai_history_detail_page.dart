@@ -5,6 +5,12 @@ import 'package:pawsense/core/utils/constants_mobile.dart';
 import 'package:pawsense/core/models/user/assessment_result_model.dart';
 import 'package:pawsense/core/services/user/assessment_result_service.dart';
 import 'package:pawsense/core/utils/detection_utils.dart';
+import 'package:pawsense/core/services/user/pdf_generation_service.dart';
+import 'package:pawsense/core/services/auth/auth_service.dart';
+import 'package:pawsense/core/services/user/user_services.dart';
+import 'package:pawsense/core/widgets/shared/buttons/primary_button.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import 'dart:typed_data';
 
 class AIHistoryDetailPage extends StatefulWidget {
   final String aiHistoryId;
@@ -21,6 +27,7 @@ class AIHistoryDetailPage extends StatefulWidget {
 class _AIHistoryDetailPageState extends State<AIHistoryDetailPage> {
   AssessmentResult? _assessmentResult;
   bool _loading = true;
+  bool _isGeneratingPDF = false;
   String? _error;
 
   @override
@@ -220,6 +227,20 @@ class _AIHistoryDetailPageState extends State<AIHistoryDetailPage> {
           // Notes
           if (assessment.notes.isNotEmpty)
             _buildNotesCard(assessment),
+          
+          if (assessment.notes.isNotEmpty)
+            const SizedBox(height: kMobileSizedBoxLarge),
+          
+          // PDF Download Button
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: kMobileMarginHorizontal),
+            child: PrimaryButton(
+              text: 'Download as PDF',
+              icon: Icons.download,
+              onPressed: _isGeneratingPDF ? null : _generatePDF,
+              isLoading: _isGeneratingPDF,
+            ),
+          ),
           
           const SizedBox(height: kMobilePaddingLarge),
         ],
@@ -535,6 +556,9 @@ class _AIHistoryDetailPageState extends State<AIHistoryDetailPage> {
   }
 
   Widget _buildDetectionResultItem(DetectionResult detectionResult, int index) {
+    // Get only the highest confidence detection
+    final highestDetection = _getHighestConfidenceDetection(detectionResult);
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -547,63 +571,82 @@ class _AIHistoryDetailPageState extends State<AIHistoryDetailPage> {
           ),
         ),
         const SizedBox(height: kMobileSizedBoxMedium),
-        if (detectionResult.detections.isNotEmpty) ...[
-          ...detectionResult.detections.map((detection) {
-            return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.background,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          DetectionUtils.formatConditionName(detection.label),
-                          style: kMobileTextStyleTitle.copyWith(
-                            color: AppColors.textPrimary,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
+        if (highestDetection != null) ...[
+          Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              DetectionUtils.formatConditionName(highestDetection.label),
+                              style: kMobileTextStyleTitle.copyWith(
+                                color: AppColors.textPrimary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Confidence: ${(detection.confidence * 100).toStringAsFixed(1)}%',
-                          style: kMobileTextStyleSubtitle.copyWith(
-                            color: AppColors.textSecondary,
-                            fontSize: 11,
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              'Highest',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Confidence: ${(highestDetection.confidence * 100).toStringAsFixed(1)}%',
+                        style: kMobileTextStyleSubtitle.copyWith(
+                          color: AppColors.textSecondary,
+                          fontSize: 11,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                  Container(
-                    width: 40,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: AppColors.border,
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                    child: FractionallySizedBox(
-                      alignment: Alignment.centerLeft,
-                      widthFactor: detection.confidence,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: _getConfidenceColor(detection.confidence),
-                          borderRadius: BorderRadius.circular(3),
-                        ),
+                ),
+                Container(
+                  width: 40,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: highestDetection.confidence,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: _getConfidenceColor(highestDetection.confidence),
+                        borderRadius: BorderRadius.circular(3),
                       ),
                     ),
                   ),
-                ],
-              ),
-            );
-          }).toList(),
+                ),
+              ],
+            ),
+          ),
         ] else ...[
           Container(
             padding: const EdgeInsets.all(12),
@@ -815,5 +858,179 @@ class _AIHistoryDetailPageState extends State<AIHistoryDetailPage> {
     } else {
       return 'Just now';
     }
+  }
+
+  /// Get only the highest confidence detection from a DetectionResult
+  Detection? _getHighestConfidenceDetection(DetectionResult detectionResult) {
+    if (detectionResult.detections.isEmpty) return null;
+    
+    // Sort by confidence and return the highest
+    final sortedDetections = List<Detection>.from(detectionResult.detections);
+    sortedDetections.sort((a, b) => b.confidence.compareTo(a.confidence));
+    return sortedDetections.first;
+  }
+
+  Future<void> _generatePDF() async {
+    if (_assessmentResult == null || _isGeneratingPDF) return;
+    
+    setState(() => _isGeneratingPDF = true);
+    
+    try {
+      // Get current user
+      final authService = AuthService();
+      final currentUser = authService.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Get user details
+      final userService = UserServices();
+      final userModel = await userService.getUserByUid(currentUser.uid);
+      if (userModel == null) {
+        throw Exception('User details not found');
+      }
+
+      // Generate PDF using the existing assessment result
+      final pdfBytes = await PDFGenerationService.generateAssessmentPDF(
+        user: userModel,
+        assessmentResult: _assessmentResult!,
+      );
+
+      // Save PDF to device
+      final fileName = 'PawSense_Assessment_${_assessmentResult!.petName}_${DateTime.now().millisecondsSinceEpoch}';
+      final filePath = await PDFGenerationService.savePDFToDevice(pdfBytes, fileName);
+
+      setState(() => _isGeneratingPDF = false);
+
+      // Show success dialog with preview and save options
+      _showPDFGeneratedDialog(filePath, pdfBytes, fileName);
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(
+                Icons.check_circle,
+                color: Colors.white,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'PDF generated successfully!',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: AppColors.success,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          margin: const EdgeInsets.all(16),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+
+    } catch (e) {
+      setState(() => _isGeneratingPDF = false);
+      
+      print('Error generating PDF: $e');
+      
+      // Show error message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(
+                Icons.error,
+                color: Colors.white,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Failed to generate PDF. Please try again.',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          margin: const EdgeInsets.all(16),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  void _showPDFGeneratedDialog(String filePath, List<int> pdfBytes, String fileName) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.check_circle, color: AppColors.success, size: 24),
+              const SizedBox(width: 8),
+              const Text('PDF Generated'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Assessment report has been generated successfully!'),
+              const SizedBox(height: 8),
+              const Text('• PDF report generated'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                try {
+                  await PDFGenerationService.previewPDF(
+                    Uint8List.fromList(pdfBytes), 
+                    fileName,
+                  );
+                } catch (e) {
+                  print('Error previewing PDF: $e');
+                  Fluttertoast.showToast(
+                    msg: 'Failed to preview PDF',
+                    backgroundColor: AppColors.error,
+                    textColor: Colors.white,
+                  );
+                }
+              },
+              icon: const Icon(Icons.preview),
+              label: const Text('Preview PDF'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
