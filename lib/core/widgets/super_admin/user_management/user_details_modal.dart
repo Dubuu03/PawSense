@@ -506,7 +506,7 @@ class _UserDetailsModalState extends State<UserDetailsModal>
                       onChanged: _isEditing ? (value) {
                         setState(() => _isActive = value);
                       } : null,
-                      activeColor: AppColors.success,
+                      activeThumbColor: AppColors.success,
                     ),
                     const SizedBox(width: kSpacingMedium),
                     Text(
@@ -778,7 +778,7 @@ class _UserDetailsModalState extends State<UserDetailsModal>
             ],
           ),
           child: DropdownButtonFormField<String>(
-            value: value,
+            initialValue: value,
             items: items,
             onChanged: enabled ? onChanged : null,
             style: kTextStyleRegular.copyWith(

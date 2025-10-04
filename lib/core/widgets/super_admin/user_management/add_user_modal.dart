@@ -272,7 +272,7 @@ class _AddUserModalState extends State<AddUserModal> {
             ],
           ),
           child: DropdownButtonFormField<String>(
-            value: value,
+            initialValue: value,
             items: items,
             onChanged: onChanged,
             style: kTextStyleRegular.copyWith(color: AppColors.textPrimary),

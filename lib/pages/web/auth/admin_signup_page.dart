@@ -1368,7 +1368,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                   flex: 2,
                   child: DropdownButtonFormField<ServiceCategory>(
                     isExpanded: true, // 👈 important
-                    value: _services[index].category,
+                    initialValue: _services[index].category,
                     onChanged: (value) =>
                         _updateService(index, category: value),
                     decoration: const InputDecoration(

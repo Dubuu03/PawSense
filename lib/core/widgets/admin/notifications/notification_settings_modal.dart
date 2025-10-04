@@ -135,7 +135,7 @@ class _NotificationSettingsModalState extends State<NotificationSettingsModal> {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: AppColors.primary,
+            activeThumbColor: AppColors.primary,
           ),
         ],
       ),

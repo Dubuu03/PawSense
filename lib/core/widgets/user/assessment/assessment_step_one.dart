@@ -1001,7 +1001,7 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          "Age",
+          "Age (months)",
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
         ),
         const SizedBox(height: 6),

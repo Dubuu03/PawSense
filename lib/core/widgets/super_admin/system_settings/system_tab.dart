@@ -243,7 +243,7 @@ class _SystemTabState extends State<SystemTab> {
           ),
           SizedBox(height: kSpacingSmall),
           DropdownButtonFormField<String>(
-            value: value,
+            initialValue: value,
             onChanged: onChanged,
             items: items.map((item) {
               return DropdownMenuItem<String>(

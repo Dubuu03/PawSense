@@ -68,7 +68,7 @@ class _ClinicSearchAndFilterState extends State<ClinicSearchAndFilter> {
           SizedBox(width: kSpacingMedium),
           Expanded(
             child: DropdownButtonFormField<String>(
-              value: widget.selectedStatus.isEmpty ? 'All Status' : widget.selectedStatus,
+              initialValue: widget.selectedStatus.isEmpty ? 'All Status' : widget.selectedStatus,
               decoration: InputDecoration(
                 labelText: 'Status',
                 labelStyle: kTextStyleRegular.copyWith(color: AppColors.textSecondary),

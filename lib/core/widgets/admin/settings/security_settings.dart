@@ -80,7 +80,7 @@ class _SecuritySettingsState extends State<SecuritySettings> {
                       _twoFactorAuth = value;
                     });
                   },
-                  activeColor: AppColors.primary,
+                  activeThumbColor: AppColors.primary,
                 ),
               ],
             ),
@@ -104,7 +104,7 @@ class _SecuritySettingsState extends State<SecuritySettings> {
                     ),
                     SizedBox(height: 8),
                     DropdownButtonFormField<String>(
-                      value: _sessionTimeout,
+                      initialValue: _sessionTimeout,
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: AppColors.white,
@@ -159,7 +159,7 @@ class _SecuritySettingsState extends State<SecuritySettings> {
                     ),
                     SizedBox(height: 8),
                     DropdownButtonFormField<String>(
-                      value: _passwordExpiry,
+                      initialValue: _passwordExpiry,
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: AppColors.white,
@@ -260,7 +260,7 @@ class _SecuritySettingsState extends State<SecuritySettings> {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: AppColors.primary,
+            activeThumbColor: AppColors.primary,
           ),
         ],
       ),

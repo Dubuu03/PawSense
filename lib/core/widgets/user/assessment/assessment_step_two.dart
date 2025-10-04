@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:pawsense/core/utils/app_colors.dart';
@@ -241,7 +240,7 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
       // Show more specific error messages
       String errorMessage = 'Failed to analyze image';
       if (e.toString().contains('connect')) {
-        errorMessage = 'Cannot connect to detection server. Please ensure the server is running at ${PetDetectionService.baseUrl}';
+        errorMessage = 'Cannot connect to detection server. Please ensure the server is running.';
       } else if (e.toString().contains('timeout')) {
         errorMessage = 'Detection request timed out. Please try again.';
       } else if (e.toString().contains('too large')) {

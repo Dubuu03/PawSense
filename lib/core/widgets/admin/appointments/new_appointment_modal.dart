@@ -164,7 +164,7 @@ class _NewAppointmentModalState extends State<NewAppointmentModal> {
                                   const Text('Pet Type', style: TextStyle(fontWeight: FontWeight.w600)),
                                   const SizedBox(height: 8),
                                   DropdownButtonFormField<String>(
-                                    value: _petType,
+                                    initialValue: _petType,
                                     items: const [
                                       DropdownMenuItem(value: 'Dog', child: Text('Dog')),
                                       DropdownMenuItem(value: 'Cat', child: Text('Cat')),
@@ -236,7 +236,7 @@ class _NewAppointmentModalState extends State<NewAppointmentModal> {
                                   const Text('Duration (minutes)', style: TextStyle(fontWeight: FontWeight.w600)),
                                   const SizedBox(height: 8),
                                   DropdownButtonFormField<String>(
-                                    value: _duration,
+                                    initialValue: _duration,
                                     items: const [
                                       DropdownMenuItem(value: '30 minutes', child: Text('30 minutes')),
                                       DropdownMenuItem(value: '60 minutes', child: Text('60 minutes')),
@@ -250,7 +250,7 @@ class _NewAppointmentModalState extends State<NewAppointmentModal> {
                                   const Text('Urgency Level', style: TextStyle(fontWeight: FontWeight.w600)),
                                   const SizedBox(height: 8),
                                   DropdownButtonFormField<String>(
-                                    value: _urgency,
+                                    initialValue: _urgency,
                                     items: const [
                                       DropdownMenuItem(value: 'Routine', child: Text('Routine')),
                                       DropdownMenuItem(value: 'Urgent', child: Text('Urgent')),
@@ -266,7 +266,7 @@ class _NewAppointmentModalState extends State<NewAppointmentModal> {
                               const Text('Reason for Visit *', style: TextStyle(fontWeight: FontWeight.w600)),
                               const SizedBox(height: 8),
                               DropdownButtonFormField<String>(
-                                value: _reason,
+                                initialValue: _reason,
                                 items: const [
                                   DropdownMenuItem(value: 'Consultation', child: Text('Consultation')),
                                   DropdownMenuItem(value: 'Vaccination', child: Text('Vaccination')),
@@ -293,7 +293,7 @@ class _NewAppointmentModalState extends State<NewAppointmentModal> {
                               const Text('Reminder Preference', style: TextStyle(fontWeight: FontWeight.w600)),
                               const SizedBox(height: 8),
                               DropdownButtonFormField<String>(
-                                value: _reminder,
+                                initialValue: _reminder,
                                 items: const [
                                   DropdownMenuItem(value: 'Email', child: Text('Email')),
                                   DropdownMenuItem(value: 'SMS', child: Text('SMS')),

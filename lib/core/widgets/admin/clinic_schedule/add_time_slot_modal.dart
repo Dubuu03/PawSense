@@ -170,7 +170,7 @@ class _AddTimeSlotModalState extends State<AddTimeSlotModal> {
                   const Text('Slot Type *', style: TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    value: _slotType,
+                    initialValue: _slotType,
                     items: const [
                       DropdownMenuItem(value: '', child: Text('General')),
                       DropdownMenuItem(value: 'Surgery', child: Text('Surgery')),
@@ -190,7 +190,7 @@ class _AddTimeSlotModalState extends State<AddTimeSlotModal> {
                   const Text('Capacity *', style: TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<int>(
-                    value: _capacity,
+                    initialValue: _capacity,
                     items: List.generate(5, (i) => i + 1).map((num) => 
                       DropdownMenuItem(value: num, child: Text('$num appointments'))
                     ).toList(),
