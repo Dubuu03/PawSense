@@ -290,7 +290,6 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
   void _removePhoto(int index) {
     setState(() {
       _selectedImages.removeAt(index);
-      // Also remove corresponding detection results
       if (index < _detectionResults.length) {
         _detectionResults.removeAt(index);
       }
