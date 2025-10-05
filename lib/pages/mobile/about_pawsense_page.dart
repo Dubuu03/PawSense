@@ -47,6 +47,27 @@ class AboutPawSensePage extends StatelessWidget {
               ),
               child: Column(
                 children: [
+                  // PawSense Logo
+                  SizedBox(
+                    width: 80,
+                    height: 80,
+                    child: Image.asset(
+                      'assets/img/logo.png',
+                      width: 80,
+                      height: 80,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        // Fallback to icon if image fails to load
+                        return Icon(
+                          Icons.pets,
+                          size: 40,
+                          color: AppColors.primary,
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  
                   // Meet PawSense Badge
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -109,34 +130,28 @@ class AboutPawSensePage extends StatelessWidget {
                   ),
                 ],
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    child: _buildPillarCard(
-                      icon: Icons.timer_outlined,
-                      iconColor: AppColors.primary,
-                      title: 'Early Insight First',
-                      description: 'We surface subtle skin changes before they become emergencies, empowering caregivers to take action quickly.',
-                    ),
+                  _buildPillarCard(
+                    icon: Icons.timer_outlined,
+                    iconColor: AppColors.primary,
+                    title: 'Early Insight First',
+                    description: 'We surface subtle skin changes before they become emergencies, empowering caregivers to take action quickly.',
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildPillarCard(
-                      icon: Icons.sync_outlined,
-                      iconColor: AppColors.primary,
-                      title: 'Partnering With Vets',
-                      description: 'PawSense augments veterinary expertise with structured reports and rich context that make consultations more productive.',
-                    ),
+                  const SizedBox(height: 16),
+                  _buildPillarCard(
+                    icon: Icons.sync_outlined,
+                    iconColor: AppColors.primary,
+                    title: 'Partnering With Vets',
+                    description: 'PawSense augments veterinary expertise with structured reports and rich context that make consultations more productive.',
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildPillarCard(
-                      icon: Icons.star_outline,
-                      iconColor: AppColors.primary,
-                      title: 'Accessible By Design',
-                      description: 'Guided flows, inclusive language, and adaptive visuals ensure every pet family can confidently navigate care decisions.',
-                    ),
+                  const SizedBox(height: 16),
+                  _buildPillarCard(
+                    icon: Icons.star_outline,
+                    iconColor: AppColors.primary,
+                    title: 'Accessible By Design',
+                    description: 'Guided flows, inclusive language, and adaptive visuals ensure every pet family can confidently navigate care decisions.',
                   ),
                 ],
               ),
@@ -264,28 +279,28 @@ class AboutPawSensePage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Expanded(
-                        child: _buildPromiseCard(
-                          title: 'Clinical-Grade Guidance',
-                          description: 'Our AI models are co-developed with licensed veterinarians and continuously reviewed against real-world cases.',
-                        ),
+                      _buildPromiseCard(
+                        icon: Icons.medical_services_outlined,
+                        iconColor: AppColors.primary,
+                        title: 'Clinical-Grade Guidance',
+                        description: 'Our AI models are co-developed with licensed veterinarians and continuously reviewed against real-world cases.',
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildPromiseCard(
-                          title: 'Privacy You Can Trust',
-                          description: 'Photos and assessments are stored securely, giving families full control over how and when data is shared.',
-                        ),
+                      const SizedBox(height: 16),
+                      _buildPromiseCard(
+                        icon: Icons.security_outlined,
+                        iconColor: AppColors.primary,
+                        title: 'Privacy You Can Trust',
+                        description: 'Photos and assessments are stored securely, giving families full control over how and when data is shared.',
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildPromiseCard(
-                          title: 'Continuous Learning',
-                          description: 'Feedback loops from clinics and caregivers strengthen detection accuracy with every scan submitted.',
-                        ),
+                      const SizedBox(height: 16),
+                      _buildPromiseCard(
+                        icon: Icons.psychology_outlined,
+                        iconColor: AppColors.primary,
+                        title: 'Continuous Learning',
+                        description: 'Feedback loops from clinics and caregivers strengthen detection accuracy with every scan submitted.',
                       ),
                     ],
                   ),
@@ -347,7 +362,7 @@ class AboutPawSensePage extends StatelessWidget {
         color: AppColors.primary.withOpacity(0.05),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
@@ -362,23 +377,30 @@ class AboutPawSensePage extends StatelessWidget {
               size: 20,
             ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            style: kMobileTextStyleTitle.copyWith(
-              color: AppColors.textPrimary,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              height: 1.3,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            description,
-            style: kMobileTextStyleSubtitle.copyWith(
-              color: AppColors.textSecondary,
-              fontSize: 12,
-              height: 1.5,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: kMobileTextStyleTitle.copyWith(
+                    color: AppColors.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  description,
+                  style: kMobileTextStyleSubtitle.copyWith(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    height: 1.5,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -421,34 +443,56 @@ class AboutPawSensePage extends StatelessWidget {
   }
 
   Widget _buildPromiseCard({
+    required IconData icon,
+    required Color iconColor,
     required String title,
     required String description,
   }) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: kMobileTextStyleTitle.copyWith(
-              color: AppColors.textPrimary,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              height: 1.3,
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(
+              icon,
+              color: iconColor,
+              size: 18,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            description,
-            style: kMobileTextStyleSubtitle.copyWith(
-              color: AppColors.textSecondary,
-              fontSize: 11,
-              height: 1.5,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: kMobileTextStyleTitle.copyWith(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  description,
+                  style: kMobileTextStyleSubtitle.copyWith(
+                    color: AppColors.textSecondary,
+                    fontSize: 11,
+                    height: 1.5,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
