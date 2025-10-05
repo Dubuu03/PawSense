@@ -16,6 +16,10 @@ class ScreenStateService {
   String _userSelectedRole = 'All Roles';
   String _userSelectedStatus = 'All Status';
 
+  // Appointment Management State
+  String _appointmentSearchQuery = '';
+  String _appointmentSelectedStatus = 'All Status';
+
   // Clinic Management Getters & Setters
   int get clinicCurrentPage => _clinicCurrentPage;
   String get clinicSearchQuery => _clinicSearchQuery;
@@ -66,9 +70,29 @@ class ScreenStateService {
     _userSelectedStatus = 'All Status';
   }
 
+  // Appointment Management Getters & Setters
+  String get appointmentSearchQuery => _appointmentSearchQuery;
+  String get appointmentSelectedStatus => _appointmentSelectedStatus;
+
+  void saveAppointmentState({
+    required String searchQuery,
+    required String selectedStatus,
+  }) {
+    _appointmentSearchQuery = searchQuery;
+    _appointmentSelectedStatus = selectedStatus;
+    print('💾 Saved appointment management state: status="$selectedStatus", search="$searchQuery"');
+  }
+
+  /// Reset appointment state to defaults
+  void resetAppointmentState() {
+    _appointmentSearchQuery = '';
+    _appointmentSelectedStatus = 'All Status';
+  }
+
   /// Reset all states
   void resetAllStates() {
     resetClinicState();
     resetUserState();
+    resetAppointmentState();
   }
 }
