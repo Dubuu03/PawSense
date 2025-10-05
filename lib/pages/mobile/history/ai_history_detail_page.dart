@@ -243,6 +243,36 @@ class _AIHistoryDetailPageState extends State<AIHistoryDetailPage> {
             ),
           ),
           
+          const SizedBox(height: kMobileSizedBoxMedium),
+          
+          // Book Appointment Button
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: kMobileMarginHorizontal),
+            child: OutlinedButton.icon(
+              onPressed: () => _bookAppointment(assessment),
+              icon: Icon(Icons.calendar_today, color: AppColors.primary),
+              label: Text(
+                'Book Appointment',
+                style: kMobileTextStyleSubtitle.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: BorderSide(color: AppColors.primary),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(kMobileBorderRadiusButton),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  vertical: kMobilePaddingMedium,
+                  horizontal: kMobilePaddingLarge,
+                ),
+                minimumSize: const Size(double.infinity, 48.0),
+              ),
+            ),
+          ),
+          
           const SizedBox(height: kMobilePaddingLarge),
         ],
       ),
@@ -974,6 +1004,22 @@ class _AIHistoryDetailPageState extends State<AIHistoryDetailPage> {
           ),
           margin: const EdgeInsets.all(16),
           duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  void _bookAppointment(AssessmentResult assessment) {
+    // Navigate to book appointment page with assessment result ID and skip service selection
+    if (assessment.id != null && assessment.id!.isNotEmpty) {
+      context.go('/book-appointment?assessment_result_id=${assessment.id}&skip_service=true&from=history');
+    } else {
+      // Show error if assessment ID is not available
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Unable to link assessment to appointment. Assessment ID not found.'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     }

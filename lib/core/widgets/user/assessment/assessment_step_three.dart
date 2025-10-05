@@ -770,22 +770,88 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
 
 
 
-  void _bookAppointment() {
-    _showDialog(
-      'Book Appointment',
-      'Would you like to book an appointment with a veterinarian for further consultation?',
-      'Book Now',
-      () {
+  void _bookAppointment() async {
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return Dialog(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: AppColors.primary),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Saving assessment...',
+                    style: kMobileTextStyleSubtitle.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+
+      // Get current user
+      final authService = AuthService();
+      final currentUser = authService.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Get user details
+      final userService = UserServices();
+      final userModel = await userService.getUserByUid(currentUser.uid);
+      if (userModel == null) {
+        throw Exception('User details not found');
+      }
+
+      // Create assessment result model and handle pet creation if needed
+      final assessmentResult = await _createAssessmentResult(userModel);
+      
+      // If this is a new pet, save it to Firebase first
+      await _handleNewPetCreation(userModel);
+      
+      // Save assessment result to Firebase and get the document ID
+      final assessmentService = AssessmentResultService();
+      final assessmentResultId = await assessmentService.saveAssessmentResult(assessmentResult);
+
+      print('✅ Assessment saved to Firebase with ID: $assessmentResultId');
+
+      // Close loading dialog
+      if (mounted) {
         Navigator.of(context).pop();
-        // Handle appointment booking logic here
+      }
+
+      // Navigate to book appointment page with assessment result ID
+      if (mounted) {
+        context.go('/book-appointment?assessment_result_id=$assessmentResultId&skip_service=true');
+      }
+
+    } catch (e) {
+      print('❌ Error saving assessment and booking appointment: $e');
+      
+      // Close loading dialog if still showing
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+      
+      // Show error dialog
+      if (mounted) {
         _showDialog(
-          'Appointment Booked',
-          'Your appointment request has been submitted. You will receive confirmation shortly.',
+          'Error',
+          'Failed to save assessment: ${e.toString()}',
           'OK',
           () => Navigator.of(context).pop(),
         );
-      },
-    );
+      }
+    }
   }
 
   void _showDialog(String title, String content, String buttonText, VoidCallback onPressed) {

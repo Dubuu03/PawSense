@@ -176,9 +176,14 @@ class AppRouter {
         path: '/book-appointment',
         builder: (context, state) {
           final extra = state.extra as Map<String, dynamic>?;
+          final assessmentResultId = state.uri.queryParameters['assessment_result_id'];
+          final skipService = state.uri.queryParameters['skip_service'] == 'true';
+          
           return BookAppointmentPage(
             preselectedClinicId: extra?['clinicId'] as String?,
             preselectedClinicName: extra?['clinicName'] as String?,
+            assessmentResultId: assessmentResultId,
+            skipServiceSelection: skipService,
           );
         },
       ),

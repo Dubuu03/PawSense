@@ -14,11 +14,15 @@ import 'package:pawsense/core/services/notifications/appointment_booking_integra
 class BookAppointmentPage extends StatefulWidget {
   final String? preselectedClinicId;
   final String? preselectedClinicName;
+  final String? assessmentResultId;
+  final bool skipServiceSelection;
 
   const BookAppointmentPage({
     super.key,
     this.preselectedClinicId,
     this.preselectedClinicName,
+    this.assessmentResultId,
+    this.skipServiceSelection = false,
   });
 
   @override
@@ -51,6 +55,12 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
   @override
   void initState() {
     super.initState();
+    
+    // Set default service based on context
+    if (widget.skipServiceSelection) {
+      _selectedService = 'Consultation Service';
+    }
+    
     _loadData();
   }
   
@@ -201,7 +211,7 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-          onPressed: () => context.pop(),
+          onPressed: () => _handleBackNavigation(),
         ),
       ),
       body: _loading 
@@ -534,6 +544,48 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
   }
 
   Widget _buildServiceDropdown() {
+    // Hide service selection if coming from assessment
+    if (widget.skipServiceSelection) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Service Type',
+            style: kMobileTextStyleTitle.copyWith(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              border: Border.all(color: AppColors.border),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.medical_services, size: 18, color: AppColors.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Consultation Service',
+                    style: kMobileTextStyleSubtitle.copyWith(
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+                Icon(Icons.lock_outline, size: 16, color: AppColors.textTertiary),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -948,6 +1000,7 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
         notes: _notesController.text.trim(),
         estimatedPrice: estimatedPrice,
         duration: selectedServiceData['duration']?.toString(),
+        assessmentResultId: widget.assessmentResultId,
       );
 
       // Hide loading
@@ -1125,6 +1178,23 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
             backgroundColor: AppColors.error,
           ),
         );
+      }
+    }
+  }
+
+  void _handleBackNavigation() {
+    // Check if we came from history via query parameter or assessment result ID
+    final fromHistory = widget.assessmentResultId != null && widget.assessmentResultId!.isNotEmpty;
+    
+    if (fromHistory) {
+      // Navigate back to assessment history
+      context.go('/home?tab=history');
+    } else {
+      // Try to pop, or fallback to home if can't pop
+      if (Navigator.canPop(context)) {
+        context.pop();
+      } else {
+        context.go('/home');
       }
     }
   }
