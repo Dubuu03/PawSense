@@ -254,7 +254,7 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                     subtitle: 'Manage your pet profiles',
                     onTap: () {
                       Navigator.pop(context);
-                      // Navigate to pet management
+                      context.go('/pets');
                     },
                   ),
                   _buildProfileOption(
@@ -266,34 +266,6 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                       // Navigate to security settings
                     },
                   ),
-                  _buildProfileOption(
-                    icon: Icons.notifications_outlined,
-                    title: 'Notification Preferences',
-                    subtitle: 'Manage your notifications',
-                    onTap: () {
-                      Navigator.pop(context);
-                      // Navigate to notification settings
-                    },
-                  ),
-                  _buildProfileOption(
-                    icon: Icons.payment_outlined,
-                    title: 'Payment Methods',
-                    subtitle: 'Manage billing information',
-                    onTap: () {
-                      Navigator.pop(context);
-                      // Navigate to payment settings
-                    },
-                  ),
-                  
-                  // Divider
-                  Container(
-                    margin: const EdgeInsets.symmetric(vertical: 8),
-                    child: Divider(
-                      color: AppColors.border.withValues(alpha: 0.2),
-                      thickness: 1,
-                    ),
-                  ),
-                  
                   _buildProfileOption(
                     icon: Icons.info_outline,
                     title: 'About PawSense',
@@ -320,41 +292,6 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
               ),
               child: Column(
                 children: [
-                  // Switch Account Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        // Handle account switching
-                      },
-                      icon: const Icon(
-                        Icons.switch_account_outlined,
-                        size: 18,
-                        color: AppColors.textSecondary,
-                      ),
-                      label: const Text(
-                        'Switch Account',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        side: BorderSide(
-                          color: AppColors.border.withValues(alpha: 0.3),
-                          width: 1,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  
                   // Sign Out Button
                   SizedBox(
                     width: double.infinity,

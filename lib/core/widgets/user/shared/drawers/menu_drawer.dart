@@ -118,14 +118,6 @@ class MenuDrawer extends StatelessWidget {
                     },
                   ),
                   _buildMenuItem(
-                    icon: Icons.medical_services_outlined,
-                    title: 'Health Records',
-                    onTap: () {
-                      Navigator.pop(context);
-                      // Navigate to health records
-                    },
-                  ),
-                  _buildMenuItem(
                     icon: Icons.local_hospital_outlined,
                     title: 'Find Clinics',
                     onTap: () {
@@ -135,11 +127,11 @@ class MenuDrawer extends StatelessWidget {
                     },
                   ),
                   _buildMenuItem(
-                    icon: Icons.camera_alt_outlined,
-                    title: 'Skin Analysis',
+                    icon: Icons.medical_information_outlined,
+                    title: 'Skin Disease Info',
                     onTap: () {
                       Navigator.pop(context);
-                      // Navigate to skin analysis
+                      // Navigate to skin disease information
                     },
                   ),
                   _buildMenuItem(
