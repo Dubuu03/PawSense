@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:pawsense/core/models/clinic/clinic_registration_model.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
@@ -8,17 +9,21 @@ import '../../../core/widgets/super_admin/clinic_management/clinic_search_and_fi
 import '../../../core/widgets/super_admin/clinic_management/clinics_list.dart';
 import '../../../core/widgets/shared/pagination_widget.dart';
 import '../../../core/services/super_admin/super_admin_service.dart';
+import '../../../core/services/super_admin/clinic_cache_service.dart';
+import '../../../core/services/super_admin/screen_state_service.dart';
 
 class ClinicManagementScreen extends StatefulWidget {
-  const ClinicManagementScreen({super.key});
+  const ClinicManagementScreen({Key? key}) : super(key: key ?? const PageStorageKey('clinic_management'));
 
   @override
   State<ClinicManagementScreen> createState() => _ClinicManagementScreenState();
 }
 
-class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
+class _ClinicManagementScreenState extends State<ClinicManagementScreen> with AutomaticKeepAliveClientMixin {
   List<ClinicRegistration> _clinics = [];
   bool _isLoading = true;
+  bool _isInitialLoad = true;
+  bool _isPaginationLoading = false; // Separate loading state for pagination
   Map<String, int> _clinicStats = {};
   
   // Pagination - fixed at 5 items per page
@@ -30,18 +35,95 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
   // Filters
   String _searchQuery = '';
   String _selectedStatus = ''; // Start with empty string to match "All Status" behavior
+  
+  // Services
+  final _cacheService = ClinicCacheService();
+  final _stateService = ScreenStateService();
+  
+  // Debouncing for search
+  Timer? _debounceTimer;
+  final Duration _debounceDuration = Duration(milliseconds: 500);
+
+  @override
+  bool get wantKeepAlive => true; // Keep state alive when navigating away
 
   @override
   void initState() {
     super.initState();
+    _restoreState();
     _loadClinics();
   }
+  
+  @override
+  void dispose() {
+    _saveState();
+    _debounceTimer?.cancel();
+    super.dispose();
+  }
 
-  Future<void> _loadClinics() async {
-    setState(() => _isLoading = true);
+  /// Restore state from ScreenStateService
+  void _restoreState() {
+    _currentPage = _stateService.clinicCurrentPage;
+    _searchQuery = _stateService.clinicSearchQuery;
+    _selectedStatus = _stateService.clinicSelectedStatus;
+    print('🔄 Restored clinic management state: page=$_currentPage, status="$_selectedStatus", search="$_searchQuery"');
+  }
+
+  /// Save current state to ScreenStateService
+  void _saveState() {
+    _stateService.saveClinicState(
+      currentPage: _currentPage,
+      searchQuery: _searchQuery,
+      selectedStatus: _selectedStatus,
+    );
+  }
+
+  Future<void> _loadClinics({bool forceRefresh = false, bool isPagination = false}) async {
+    // Check if filters changed (clear cache if so)
+    final filtersChanged = _cacheService.hasFiltersChanged(_selectedStatus, _searchQuery);
+    if (filtersChanged && !_isInitialLoad) {
+      _cacheService.invalidateCacheForFilterChange();
+    }
+    
+    // Try to load from multi-page cache first
+    if (!forceRefresh && !_isInitialLoad) {
+      final cachedPage = _cacheService.getCachedPage(
+        statusFilter: _selectedStatus,
+        searchQuery: _searchQuery,
+        page: _currentPage,
+      );
+      
+      if (cachedPage != null) {
+        print('📦 Using cached page data - no network call needed');
+        setState(() {
+          _clinics = cachedPage.clinics;
+          _totalClinics = cachedPage.totalClinics;
+          _totalPages = cachedPage.totalPages;
+          _isPaginationLoading = false;
+        });
+        
+        // Load stats from cache if available
+        final cachedStats = _cacheService.cachedStats;
+        if (cachedStats != null) {
+          setState(() {
+            _clinicStats = cachedStats;
+          });
+        }
+        return;
+      }
+    }
+    
+    // Set appropriate loading state
+    setState(() {
+      if (_isInitialLoad) {
+        _isLoading = true;
+      } else if (isPagination) {
+        _isPaginationLoading = true;
+      }
+    });
     
     try {
-      print('Loading paginated clinics from Firestore...');
+      print('🔄 Loading clinics from Firestore...');
       print('Selected Status: "$_selectedStatus"');
       
       // Convert filter strings to API format
@@ -52,58 +134,79 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
       
       print('Filters - Status: $statusFilter, Search: $_searchQuery');
       
-      // Load paginated data from Firestore
-      final result = await SuperAdminService.getPaginatedClinicRegistrations(
-        page: _currentPage,
-        itemsPerPage: _itemsPerPage,
-        statusFilter: statusFilter,
-        searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
-      );
+      // Fetch statistics and paginated clinics in parallel for better performance
+      final results = await Future.wait([
+        SuperAdminService.getClinicStatistics(),
+        SuperAdminService.getPaginatedClinicRegistrations(
+          page: _currentPage,
+          itemsPerPage: _itemsPerPage,
+          statusFilter: statusFilter,
+          searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
+        ),
+      ]);
       
-      // Load clinic statistics
-      final stats = await SuperAdminService.getClinicStatistics();
+      final stats = results[0] as Map<String, int>;
+      final paginatedResult = results[1];
+      
+      final clinics = paginatedResult['clinics'] as List<ClinicRegistration>;
+      final totalClinics = paginatedResult['totalClinics'] as int;
+      final totalPages = paginatedResult['totalPages'] as int;
       
       // Fallback: if statistics are all 0 but we have clinics, compute manually
       final hasEmptyStats = stats.values.every((count) => count == 0);
       Map<String, int> finalStats = stats;
       
-      if (hasEmptyStats && (result['clinics'] as List<ClinicRegistration>).isNotEmpty) {
-        final allClinics = await SuperAdminService.getAllClinicRegistrations();
+      if (hasEmptyStats && clinics.isNotEmpty) {
         finalStats = {
-          'total': allClinics.length,
-          'pending': allClinics.where((c) => c.status == ClinicStatus.pending).length,
-          'approved': allClinics.where((c) => c.status == ClinicStatus.approved).length,
-          'rejected': allClinics.where((c) => c.status == ClinicStatus.rejected).length,
-          'suspended': allClinics.where((c) => c.status == ClinicStatus.suspended).length,
+          'total': totalClinics,
+          'pending': clinics.where((c) => c.status == ClinicStatus.pending).length,
+          'approved': clinics.where((c) => c.status == ClinicStatus.approved).length,
+          'rejected': clinics.where((c) => c.status == ClinicStatus.rejected).length,
+          'suspended': clinics.where((c) => c.status == ClinicStatus.suspended).length,
         };
       }
       
+      // Update cache with current page data
+      _cacheService.updateCache(
+        clinics: clinics,
+        totalClinics: totalClinics,
+        totalPages: totalPages,
+        stats: finalStats,
+        statusFilter: _selectedStatus,
+        searchQuery: _searchQuery,
+        page: _currentPage,
+      );
+      
       setState(() {
-        _clinics = result['clinics'] as List<ClinicRegistration>;
-        _totalClinics = result['totalClinics'] as int;
-        _totalPages = result['totalPages'] as int;
-        _currentPage = result['currentPage'] as int;
+        _clinics = clinics;
+        _totalClinics = totalClinics;
+        _totalPages = totalPages;
         _clinicStats = finalStats;
         _isLoading = false;
+        _isInitialLoad = false;
+        _isPaginationLoading = false; // Clear pagination loading
       });
       
-      print('Loaded ${_clinics.length} clinics for page $_currentPage of $_totalPages (Total: $_totalClinics)');
+      print('✅ Loaded ${clinics.length} clinics on page $_currentPage of $_totalPages (total: $totalClinics)');
     } catch (e) {
-      print('Error loading clinics: $e');
+      print('❌ Error loading clinics: $e');
       
       // Fallback to mock data if Firebase fails
+      final mockClinics = _getMockClinics();
       setState(() {
-        _clinics = _getMockClinics().take(_itemsPerPage).toList();
-        _totalClinics = _getMockClinics().length;
-        _totalPages = (_totalClinics / _itemsPerPage).ceil();
+        _clinics = mockClinics.take(_itemsPerPage).toList();
+        _totalClinics = mockClinics.length;
+        _totalPages = (mockClinics.length / _itemsPerPage).ceil();
         _clinicStats = {
-          'total': _totalClinics,
-          'pending': _getMockClinics().where((c) => c.status == ClinicStatus.pending).length,
-          'approved': _getMockClinics().where((c) => c.status == ClinicStatus.approved).length,
-          'rejected': _getMockClinics().where((c) => c.status == ClinicStatus.rejected).length,
-          'suspended': _getMockClinics().where((c) => c.status == ClinicStatus.suspended).length,
+          'total': mockClinics.length,
+          'pending': mockClinics.where((c) => c.status == ClinicStatus.pending).length,
+          'approved': mockClinics.where((c) => c.status == ClinicStatus.approved).length,
+          'rejected': mockClinics.where((c) => c.status == ClinicStatus.rejected).length,
+          'suspended': mockClinics.where((c) => c.status == ClinicStatus.suspended).length,
         };
         _isLoading = false;
+        _isInitialLoad = false;
+        _isPaginationLoading = false; // Clear pagination loading on error
       });
       
       // Show error message
@@ -118,6 +221,8 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
       }
     }
   }
+  
+
   
   /// Fallback mock data
   List<ClinicRegistration> _getMockClinics() {
@@ -166,7 +271,13 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
       _searchQuery = query;
       _currentPage = 1; // Reset to first page
     });
-    _loadClinics(); // Reload with new search
+    _saveState(); // Save state when search changes
+    
+    // Debounce search to avoid excessive API calls
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(_debounceDuration, () {
+      _loadClinics(); // Reload with new search after debounce (will clear cache)
+    });
   }
 
   void _onStatusFilterChanged(String status) {
@@ -174,14 +285,16 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
       _selectedStatus = status;
       _currentPage = 1; // Reset to first page
     });
-    _loadClinics(); // Reload with new filter
+    _saveState(); // Save state when filter changes
+    _loadClinics(); // Reload with new filter immediately (will clear cache)
   }
 
   void _onPageChanged(int page) {
     setState(() {
       _currentPage = page;
     });
-    _loadClinics(); // Load new page
+    _saveState(); // Save state when page changes
+    _loadClinics(isPagination: true); // Load new page data from server with pagination flag
   }
 
   /// Map a [ClinicStatus] enum to the key name used in [_clinicStats]
@@ -232,7 +345,7 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
           );
         }
         
-        // Update the local clinic in the list
+        // Update local list and cache
         setState(() {
           final index = _clinics.indexWhere((c) => c.id == updatedClinic.id);
           if (index != -1) {
@@ -240,8 +353,8 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
           }
         });
         
-        // Reload clinics to get updated data
-        _loadClinics();
+        // Update cache without reloading
+        _cacheService.updateClinicInCache(updatedClinic);
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -315,20 +428,24 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
               backgroundColor: AppColors.success,
             ),
           );
-          // Update the local clinic item so the list row shows the new status
+          
+          // Update the local clinic item
+          final updatedClinic = clinic.copyWith(
+            status: ClinicStatus.approved,
+            approvedDate: DateTime.now(),
+            rejectionReason: null,
+            suspensionReason: null,
+          );
+          
           setState(() {
             final idx = _clinics.indexWhere((c) => c.id == clinic.id);
             if (idx != -1) {
-              _clinics[idx] = _clinics[idx].copyWith(
-                status: ClinicStatus.approved,
-                approvedDate: DateTime.now(),
-                rejectionReason: null,
-                suspensionReason: null,
-              );
+              _clinics[idx] = updatedClinic;
             }
           });
-
-          _loadClinics(); // Reload to get updated data
+          
+          // Update cache without full reload
+          _cacheService.updateClinicInCache(updatedClinic);
         } else {
           throw Exception('Failed to approve clinic');
         }
@@ -409,20 +526,24 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
               backgroundColor: AppColors.error,
             ),
           );
-          // Update the local clinic item so the list row shows the new status
+          
+          // Update the local clinic item
+          final updatedClinic = clinic.copyWith(
+            status: ClinicStatus.rejected,
+            approvedDate: null,
+            rejectionReason: result['reason'] ?? 'Rejected by admin',
+            suspensionReason: null,
+          );
+          
           setState(() {
             final idx = _clinics.indexWhere((c) => c.id == clinic.id);
             if (idx != -1) {
-              _clinics[idx] = _clinics[idx].copyWith(
-                status: ClinicStatus.rejected,
-                approvedDate: null,
-                rejectionReason: result['reason'] ?? 'Rejected by admin',
-                suspensionReason: null,
-              );
+              _clinics[idx] = updatedClinic;
             }
           });
-
-          _loadClinics(); // Reload to get updated data
+          
+          // Update cache without full reload
+          _cacheService.updateClinicInCache(updatedClinic);
         } else {
           throw Exception('Failed to reject clinic');
         }
@@ -503,20 +624,24 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
               backgroundColor: AppColors.warning,
             ),
           );
-          // Update the local clinic item so the list row shows the new status
+          
+          // Update the local clinic item
+          final updatedClinic = clinic.copyWith(
+            status: ClinicStatus.suspended,
+            approvedDate: null,
+            rejectionReason: null,
+            suspensionReason: result['reason'] ?? 'Suspended by admin',
+          );
+          
           setState(() {
             final idx = _clinics.indexWhere((c) => c.id == clinic.id);
             if (idx != -1) {
-              _clinics[idx] = _clinics[idx].copyWith(
-                status: ClinicStatus.suspended,
-                approvedDate: null,
-                rejectionReason: null,
-                suspensionReason: result['reason'] ?? 'Suspended by admin',
-              );
+              _clinics[idx] = updatedClinic;
             }
           });
-
-          _loadClinics(); // Reload to get updated data
+          
+          // Update cache without full reload
+          _cacheService.updateClinicInCache(updatedClinic);
         } else {
           throw Exception('Failed to suspend clinic');
         }
@@ -533,6 +658,8 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
+    
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SingleChildScrollView(
@@ -585,27 +712,81 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> {
             
             SizedBox(height: kSpacingLarge),
             
-            // Clinics List
-            ClinicsList(
-              clinics: _clinics,
-              totalClinics: _totalClinics,
-              isLoading: _isLoading,
-              onViewDetails: _onViewDetails,
-              onApprove: _onApprove,
-              onReject: _onReject,
-              onSuspend: _onSuspend,
-              onUpdateClinic: _onUpdateClinic,
+            // Clinics List with pagination loading overlay
+            Stack(
+              children: [
+                ClinicsList(
+                  clinics: _clinics,
+                  totalClinics: _totalClinics,
+                  isLoading: _isLoading,
+                  onViewDetails: _onViewDetails,
+                  onApprove: _onApprove,
+                  onReject: _onReject,
+                  onSuspend: _onSuspend,
+                  onUpdateClinic: _onUpdateClinic,
+                ),
+                
+                // Show loading overlay during pagination
+                if (_isPaginationLoading)
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.white.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Center(
+                        child: Container(
+                          padding: EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: AppColors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.black.withOpacity(0.1),
+                                blurRadius: 10,
+                                offset: Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: 40,
+                                height: 40,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 3,
+                                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                                ),
+                              ),
+                              SizedBox(height: 16),
+                              Text(
+                                'Loading page $_currentPage...',
+                                style: TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             
             if (!_isLoading && _clinics.isNotEmpty) ...[
               SizedBox(height: kSpacingLarge),
               
-              // Pagination
+              // Pagination with loading state
               PaginationWidget(
                 currentPage: _currentPage,
                 totalPages: _totalPages,
                 totalItems: _totalClinics,
                 onPageChanged: _onPageChanged,
+                isLoading: _isPaginationLoading,
               ),
             ],
           ],

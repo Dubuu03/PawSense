@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:pawsense/core/models/user/user_model.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
@@ -8,18 +9,22 @@ import '../../../core/widgets/super_admin/user_management/user_search_and_filter
 import '../../../core/widgets/super_admin/user_management/users_list.dart';
 import '../../../core/widgets/shared/pagination_widget.dart';
 import '../../../core/services/super_admin/super_admin_service.dart';
+import '../../../core/services/super_admin/user_cache_service.dart';
+import '../../../core/services/super_admin/screen_state_service.dart';
 import '../../../core/widgets/super_admin/user_management/add_user_modal.dart';
 
 class UserManagementScreen extends StatefulWidget {
-  const UserManagementScreen({super.key});
+  const UserManagementScreen({Key? key}) : super(key: key ?? const PageStorageKey('user_management'));
 
   @override
   State<UserManagementScreen> createState() => _UserManagementScreenState();
 }
 
-class _UserManagementScreenState extends State<UserManagementScreen> {
+class _UserManagementScreenState extends State<UserManagementScreen> with AutomaticKeepAliveClientMixin {
   List<Map<String, dynamic>> _usersWithStatus = [];
   bool _isLoading = true;
+  bool _isInitialLoad = true;
+  bool _isPaginationLoading = false; // Separate loading state for pagination
   Map<String, int> _userStats = {};
   
   // Pagination
@@ -32,15 +37,99 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   String _searchQuery = '';
   String _selectedRole = 'All Roles';
   String _selectedStatus = 'All Status';
+  
+  // Services
+  final _cacheService = UserCacheService();
+  final _stateService = ScreenStateService();
+  
+  // Debouncing for search
+  Timer? _debounceTimer;
+  final Duration _debounceDuration = Duration(milliseconds: 500);
+
+  @override
+  bool get wantKeepAlive => true; // Keep state alive when navigating away
 
   @override
   void initState() {
     super.initState();
+    _restoreState();
     _loadUsers();
   }
+  
+  @override
+  void dispose() {
+    _saveState();
+    _debounceTimer?.cancel();
+    super.dispose();
+  }
 
-  Future<void> _loadUsers() async {
-    setState(() => _isLoading = true);
+  /// Restore state from ScreenStateService
+  void _restoreState() {
+    _currentPage = _stateService.userCurrentPage;
+    _searchQuery = _stateService.userSearchQuery;
+    _selectedRole = _stateService.userSelectedRole;
+    _selectedStatus = _stateService.userSelectedStatus;
+    print('🔄 Restored user management state: page=$_currentPage, role="$_selectedRole", status="$_selectedStatus", search="$_searchQuery"');
+  }
+
+  /// Save current state to ScreenStateService
+  void _saveState() {
+    _stateService.saveUserState(
+      currentPage: _currentPage,
+      searchQuery: _searchQuery,
+      selectedRole: _selectedRole,
+      selectedStatus: _selectedStatus,
+    );
+  }
+
+  Future<void> _loadUsers({bool forceRefresh = false, bool isPagination = false}) async {
+    // Check if filters changed (clear cache if so)
+    final filtersChanged = _cacheService.hasFiltersChanged(
+      _selectedRole,
+      _selectedStatus,
+      _searchQuery,
+    );
+    if (filtersChanged && !_isInitialLoad) {
+      _cacheService.invalidateCacheForFilterChange();
+    }
+    
+    // Try to load from multi-page cache first
+    if (!forceRefresh && !_isInitialLoad) {
+      final cachedPage = _cacheService.getCachedPage(
+        roleFilter: _selectedRole,
+        statusFilter: _selectedStatus,
+        searchQuery: _searchQuery,
+        page: _currentPage,
+      );
+      
+      if (cachedPage != null) {
+        print('📦 Using cached user page data - no network call needed');
+        setState(() {
+          _usersWithStatus = cachedPage.usersWithStatus;
+          _totalUsers = cachedPage.totalUsers;
+          _totalPages = cachedPage.totalPages;
+          _isPaginationLoading = false;
+        });
+        
+        // Load stats from cache if available
+        final cachedStats = _cacheService.cachedStats;
+        if (cachedStats != null) {
+          setState(() {
+            _userStats = cachedStats;
+          });
+        }
+        return;
+      }
+    }
+    
+    // Set appropriate loading state
+    setState(() {
+      if (_isInitialLoad) {
+        _isLoading = true;
+      } else if (isPagination) {
+        _isPaginationLoading = true;
+      }
+    });
     
     try {
       // Convert filter strings to API format
@@ -56,28 +145,50 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         } else if (_selectedStatus == 'Suspended') statusFilter = 'suspended';
       }
       
-      // Load paginated data from Firestore
-      final result = await SuperAdminService.getPaginatedUsersWithStatus(
+      // Fetch statistics and paginated users in parallel for better performance
+      final results = await Future.wait([
+        SuperAdminService.getUserStatistics(),
+        SuperAdminService.getPaginatedUsersWithStatus(
+          page: _currentPage,
+          itemsPerPage: _itemsPerPage,
+          roleFilter: roleFilter,
+          statusFilter: statusFilter,
+          searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
+        ),
+      ]);
+      
+      final stats = results[0] as Map<String, int>;
+      final result = results[1];
+      
+      final usersWithStatus = result['users'] as List<Map<String, dynamic>>;
+      final totalUsers = result['totalUsers'] as int;
+      final totalPages = result['totalPages'] as int;
+      final currentPage = result['currentPage'] as int;
+      
+      // Update cache with current page data
+      _cacheService.updateCache(
+        usersWithStatus: usersWithStatus,
+        totalUsers: totalUsers,
+        totalPages: totalPages,
+        stats: stats,
+        roleFilter: _selectedRole,
+        statusFilter: _selectedStatus,
+        searchQuery: _searchQuery,
         page: _currentPage,
-        itemsPerPage: _itemsPerPage,
-        roleFilter: roleFilter,
-        statusFilter: statusFilter,
-        searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
       );
       
-      // Load user statistics
-      final stats = await SuperAdminService.getUserStatistics();
-      
       setState(() {
-        _usersWithStatus = result['users'] as List<Map<String, dynamic>>;
-        _totalUsers = result['totalUsers'] as int;
-        _totalPages = result['totalPages'] as int;
-        _currentPage = result['currentPage'] as int;
+        _usersWithStatus = usersWithStatus;
+        _totalUsers = totalUsers;
+        _totalPages = totalPages;
+        _currentPage = currentPage;
         _userStats = stats;
         _isLoading = false;
+        _isInitialLoad = false;
+        _isPaginationLoading = false; // Clear pagination loading
       });
       
-        print('Loaded ${_usersWithStatus.length} users for page $_currentPage of $_totalPages (Total: $_totalUsers)');
+      print('✅ Loaded ${usersWithStatus.length} users on page $_currentPage of $_totalPages (total: $totalUsers)');
     } catch (e) {
       print('Error loading users: $e');
       
@@ -94,6 +205,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           'users': _getMockUsersWithStatus().where((u) => (u['user'] as UserModel).role == 'user').length,
         };
         _isLoading = false;
+        _isInitialLoad = false;
+        _isPaginationLoading = false; // Clear pagination loading on error
       });
       
       // Show error message
@@ -155,7 +268,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       _searchQuery = query;
       _currentPage = 1; // Reset to first page
     });
-    _loadUsers(); // Reload with new search
+    _saveState(); // Save state when search changes
+    
+    // Debounce search to avoid excessive API calls
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(_debounceDuration, () {
+      _loadUsers(); // Reload with new search after debounce (will clear cache)
+    });
   }
 
   void _onRoleFilterChanged(String? role) {
@@ -163,7 +282,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       _selectedRole = role ?? '';
       _currentPage = 1; // Reset to first page
     });
-    _loadUsers(); // Reload with new filter
+    _saveState(); // Save state when role filter changes
+    _loadUsers(); // Reload with new filter immediately (will clear cache)
   }
 
   void _onStatusFilterChanged(String? status) {
@@ -171,14 +291,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       _selectedStatus = status ?? '';
       _currentPage = 1; // Reset to first page
     });
-    _loadUsers(); // Reload with new filter
+    _saveState(); // Save state when status filter changes
+    _loadUsers(); // Reload with new filter immediately (will clear cache)
   }
 
   void _onPageChanged(int page) {
     setState(() {
       _currentPage = page;
     });
-    _loadUsers(); // Load new page
+    _saveState(); // Save state when page changes
+    _loadUsers(isPagination: true); // Load new page data from server with pagination flag
   }
 
   void _onEditUser(UserModel user) {
@@ -424,6 +546,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
+    
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SingleChildScrollView(
@@ -485,25 +609,79 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             
             SizedBox(height: kSpacingLarge),
             
-            // Users List
-            UsersList(
-              users: _usersWithStatus,
-              isLoading: _isLoading,
-              totalUsers: _totalUsers,
-              onEditUser: _onEditUser,
-              onStatusToggle: (user, status) => _onToggleUserStatus(user),
-              onUpdateUser: _onUpdateUser, // Add the update callback
+            // Users List with pagination loading overlay
+            Stack(
+              children: [
+                UsersList(
+                  users: _usersWithStatus,
+                  isLoading: _isLoading,
+                  totalUsers: _totalUsers,
+                  onEditUser: _onEditUser,
+                  onStatusToggle: (user, status) => _onToggleUserStatus(user),
+                  onUpdateUser: _onUpdateUser,
+                ),
+                
+                // Show loading overlay during pagination
+                if (_isPaginationLoading)
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.white.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Center(
+                        child: Container(
+                          padding: EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: AppColors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.black.withOpacity(0.1),
+                                blurRadius: 10,
+                                offset: Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: 40,
+                                height: 40,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 3,
+                                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                                ),
+                              ),
+                              SizedBox(height: 16),
+                              Text(
+                                'Loading page $_currentPage...',
+                                style: TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             
             if (!_isLoading && _totalUsers > 0) ...[
               SizedBox(height: kSpacingLarge),
               
-              // Pagination
+              // Pagination with loading state
               PaginationWidget(
                 currentPage: _currentPage,
                 totalPages: _totalPages,
                 totalItems: _totalUsers,
                 onPageChanged: _onPageChanged,
+                isLoading: _isPaginationLoading,
               ),
             ],
           ],

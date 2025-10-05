@@ -7,6 +7,7 @@ class PaginationWidget extends StatelessWidget {
   final int totalPages;
   final int totalItems;
   final Function(int) onPageChanged;
+  final bool isLoading;
 
   const PaginationWidget({
     super.key,
@@ -14,6 +15,7 @@ class PaginationWidget extends StatelessWidget {
     required this.totalPages,
     required this.totalItems,
     required this.onPageChanged,
+    this.isLoading = false,
   });
 
   @override
@@ -50,9 +52,9 @@ class PaginationWidget extends StatelessWidget {
           Row(
             children: [
               IconButton(
-                onPressed: currentPage > 1 ? () => onPageChanged(currentPage - 1) : null,
+                onPressed: (currentPage > 1 && !isLoading) ? () => onPageChanged(currentPage - 1) : null,
                 icon: Icon(Icons.chevron_left, size: kIconSizeMedium),
-                color: currentPage > 1 ? AppColors.primary : AppColors.textTertiary,
+                color: (currentPage > 1 && !isLoading) ? AppColors.primary : AppColors.textTertiary,
               ),
               ...List.generate(
                 _getVisiblePages().length,
@@ -72,7 +74,7 @@ class PaginationWidget extends StatelessWidget {
                   return Padding(
                     padding: EdgeInsets.symmetric(horizontal: 2),
                     child: TextButton(
-                      onPressed: () => onPageChanged(page),
+                      onPressed: !isLoading ? () => onPageChanged(page) : null,
                       style: TextButton.styleFrom(
                         backgroundColor: page == currentPage 
                             ? AppColors.primary 
@@ -96,7 +98,7 @@ class PaginationWidget extends StatelessWidget {
                 },
               ),
               IconButton(
-                onPressed: currentPage < totalPages ? () => onPageChanged(currentPage + 1) : null,
+                onPressed: (currentPage < totalPages && !isLoading) ? () => onPageChanged(currentPage + 1) : null,
                 icon: Icon(Icons.chevron_right, size: kIconSizeMedium),
                 color: currentPage < totalPages ? AppColors.primary : AppColors.textTertiary,
               ),

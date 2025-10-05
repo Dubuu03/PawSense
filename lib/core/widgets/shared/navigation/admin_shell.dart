@@ -218,9 +218,12 @@ class _AdminShellState extends State<AdminShell> {
                   onSignOut: _handleSignOut,
                 ),
                 Expanded(
-                  child: Container(
-                    color: AppColors.background,
-                    child: widget.child,
+                  child: PageStorage(
+                    bucket: PageStorageBucket(),
+                    child: Container(
+                      color: AppColors.background,
+                      child: widget.child,
+                    ),
                   ),
                 ),
               ],

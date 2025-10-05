@@ -48,9 +48,11 @@ class _WeekDaysGridState extends State<WeekDaysGrid> {
 
   void _loadScheduleWithAvailability() async {
     if (widget.clinicId == null) {
-      setState(() {
-        _hasLoaded = true;
-      });
+      if (mounted) {
+        setState(() {
+          _hasLoaded = true;
+        });
+      }
       return;
     }
 
@@ -63,15 +65,23 @@ class _WeekDaysGridState extends State<WeekDaysGrid> {
       );
       
       print('WeekDaysGrid: Loaded data for ${weeklyData.keys.length} days');
-      setState(() {
-        _weeklyAvailability = weeklyData;
-        _hasLoaded = true;
-      });
+      
+      // Check if widget is still mounted before calling setState
+      if (mounted) {
+        setState(() {
+          _weeklyAvailability = weeklyData;
+          _hasLoaded = true;
+        });
+      }
     } catch (e) {
       print('Error loading schedule availability: $e');
-      setState(() {
-        _hasLoaded = true;
-      });
+      
+      // Check if widget is still mounted before calling setState
+      if (mounted) {
+        setState(() {
+          _hasLoaded = true;
+        });
+      }
     }
   }
 

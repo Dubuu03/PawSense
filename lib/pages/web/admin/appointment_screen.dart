@@ -5,6 +5,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/utils/app_colors.dart';
 import '../../../core/models/clinic/appointment_models.dart' as AppointmentModels;
 import '../../../core/services/clinic/appointment_service.dart';
+import '../../../core/services/clinic/appointment_cache_service.dart';
+import '../../../core/services/super_admin/screen_state_service.dart';
 import '../../../core/widgets/admin/appointments/appointment_header.dart';
 import '../../../core/widgets/admin/appointments/appointment_filters.dart';
 import '../../../core/widgets/admin/appointments/appointment_table.dart';
@@ -12,26 +14,81 @@ import '../../../core/widgets/admin/appointments/appointment_summary.dart';
 import '../../../core/widgets/admin/appointments/appointment_edit_modal.dart';
 
 class AppointmentManagementScreen extends StatefulWidget {
-  const AppointmentManagementScreen({super.key});
+  const AppointmentManagementScreen({Key? key}) : super(key: key ?? const PageStorageKey('appointment_management'));
 
   @override
   State<AppointmentManagementScreen> createState() => _AppointmentManagementScreenState();
 }
 
-class _AppointmentManagementScreenState extends State<AppointmentManagementScreen> {
+class _AppointmentManagementScreenState extends State<AppointmentManagementScreen> with AutomaticKeepAliveClientMixin {
   String searchQuery = '';
   String selectedStatus = 'All Status';
   List<AppointmentModels.Appointment> appointments = [];
   bool isLoading = true;
   String? error;
+  String? _cachedClinicId; // Cache clinic ID to avoid repeated lookups
+
+  // Services
+  final _cacheService = AppointmentCacheService();
+  final _stateService = ScreenStateService();
+
+  @override
+  bool get wantKeepAlive => true; // Keep state alive when navigating away
 
   @override
   void initState() {
     super.initState();
+    _restoreState();
     _loadAppointments();
   }
 
-  Future<void> _loadAppointments() async {
+  @override
+  void dispose() {
+    _saveState();
+    super.dispose();
+  }
+
+  /// Restore state from ScreenStateService
+  void _restoreState() {
+    searchQuery = _stateService.appointmentSearchQuery;
+    selectedStatus = _stateService.appointmentSelectedStatus;
+    print('🔄 Restored appointment management state: status="$selectedStatus", search="$searchQuery"');
+  }
+
+  /// Save current state to ScreenStateService
+  void _saveState() {
+    _stateService.saveAppointmentState(
+      searchQuery: searchQuery,
+      selectedStatus: selectedStatus,
+    );
+  }
+
+  Future<void> _loadAppointments({bool forceRefresh = false}) async {
+    // Check if filters changed (clear cache if so)
+    final filtersChanged = _cacheService.hasFiltersChanged(searchQuery, selectedStatus);
+    if (filtersChanged) {
+      _cacheService.invalidateCache();
+      print('🔄 Filters changed - cache invalidated');
+    }
+
+    // Try to load from cache first (always check cache unless force refresh)
+    if (!forceRefresh) {
+      final cachedAppointments = _cacheService.getCachedAppointments(
+        searchQuery: searchQuery,
+        selectedStatus: selectedStatus,
+      );
+
+      if (cachedAppointments != null) {
+        print('📦 Using cached appointment data - no network call needed');
+        setState(() {
+          appointments = cachedAppointments;
+          isLoading = false;
+        });
+        return;
+      }
+    }
+
+    // Show loading only if no data cached
     setState(() {
       isLoading = true;
       error = null;
@@ -47,56 +104,60 @@ class _AppointmentManagementScreenState extends State<AppointmentManagementScree
         return;
       }
 
-      // First, find the clinic document for this user
-      print('👤 DEBUG: Current admin user UID: ${user.uid}');
-      
-      final clinicQuery = await FirebaseFirestore.instance
-          .collection('clinics')
-          .where('userId', isEqualTo: user.uid)
-          .where('status', isEqualTo: 'approved')
-          .limit(1)
-          .get();
+      // Use cached clinic ID if available
+      String? clinicId = _cachedClinicId;
 
-      print('🏥 DEBUG: Found ${clinicQuery.docs.length} approved clinics for user ${user.uid}');
-
-      if (clinicQuery.docs.isEmpty) {
-        print('❌ DEBUG: No approved clinic found for user ${user.uid}');
-        // Let's also check if there are any clinics for this user regardless of status
-        final anyClinicQuery = await FirebaseFirestore.instance
+      if (clinicId == null) {
+        // First, find the clinic document for this user
+        print('👤 Looking up clinic for admin user UID: ${user.uid}');
+        
+        final clinicQuery = await FirebaseFirestore.instance
             .collection('clinics')
             .where('userId', isEqualTo: user.uid)
+            .where('status', isEqualTo: 'approved')
+            .limit(1)
             .get();
-        print('🔍 DEBUG: Found ${anyClinicQuery.docs.length} clinics (any status) for user ${user.uid}');
-        for (var doc in anyClinicQuery.docs) {
-          print('   - Clinic ${doc.id}: status = ${doc.data()['status']}');
+
+        print('🏥 Found ${clinicQuery.docs.length} approved clinics for user ${user.uid}');
+
+        if (clinicQuery.docs.isEmpty) {
+          print('❌ No approved clinic found for user ${user.uid}');
+          
+          setState(() {
+            error = 'No approved clinic found for this user';
+            isLoading = false;
+          });
+          return;
         }
+
+        clinicId = clinicQuery.docs.first.id;
+        _cachedClinicId = clinicId; // Cache for future calls
         
-        setState(() {
-          error = 'No approved clinic found for this user';
-          isLoading = false;
-        });
-        return;
+        final clinicData = clinicQuery.docs.first.data();
+        print('🎯 Using clinic ID: $clinicId (${clinicData['clinicName']})');
+      } else {
+        print('� Using cached clinic ID: $clinicId');
       }
 
-      final clinicId = clinicQuery.docs.first.id;
-      final clinicData = clinicQuery.docs.first.data();
-      print('🎯 DEBUG: Using clinic ID: $clinicId');
-      print('🏥 DEBUG: Clinic name: ${clinicData['clinicName']}');
-      print('📧 DEBUG: Clinic status: ${clinicData['status']}');
-
       // Load appointments for this clinic using the clinic document ID
-      final loadedAppointments = await AppointmentService.getClinicAppointments(
-        clinicId,
-        // Temporarily remove date filters for debugging
-        // startDate: DateTime.now().subtract(const Duration(days: 30)), // Last 30 days
-        // endDate: DateTime.now().add(const Duration(days: 30)), // Next 30 days
+      print('🔄 Fetching appointments from Firestore...');
+      final loadedAppointments = await AppointmentService.getClinicAppointments(clinicId);
+
+      // Update cache with new data
+      _cacheService.updateCache(
+        appointments: loadedAppointments,
+        searchQuery: searchQuery,
+        selectedStatus: selectedStatus,
       );
 
       setState(() {
         appointments = loadedAppointments;
         isLoading = false;
       });
+
+      print('✅ Loaded ${loadedAppointments.length} appointments');
     } catch (e) {
+      print('❌ Error loading appointments: $e');
       setState(() {
         error = 'Failed to load appointments: $e';
         isLoading = false;
@@ -105,11 +166,30 @@ class _AppointmentManagementScreenState extends State<AppointmentManagementScree
   }
 
   Future<void> _refreshAppointments() async {
-    await _loadAppointments();
+    await _loadAppointments(forceRefresh: true);
+  }
+
+  void _onSearchChanged(String query) {
+    setState(() {
+      searchQuery = query;
+    });
+    _saveState();
+    // Debounced search could be added here if needed
+    _loadAppointments();
+  }
+
+  void _onStatusChanged(String status) {
+    setState(() {
+      selectedStatus = status;
+    });
+    _saveState();
+    _loadAppointments();
   }
   
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
+    
     return Scaffold(
       backgroundColor: AppColors.background,
       body: RefreshIndicator(
@@ -170,8 +250,8 @@ class _AppointmentManagementScreenState extends State<AppointmentManagementScree
                 AppointmentFilters(
                   searchQuery: searchQuery,
                   selectedStatus: selectedStatus,
-                  onSearchChanged: (query) => setState(() => searchQuery = query),
-                  onStatusChanged: (status) => setState(() => selectedStatus = status),
+                  onSearchChanged: _onSearchChanged,
+                  onStatusChanged: _onStatusChanged,
                 ),
 
                 const SizedBox(height: 16),

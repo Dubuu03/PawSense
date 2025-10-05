@@ -335,6 +335,7 @@ class SuperAdminService {
   }
   
   /// Get paginated clinic registrations with filtering
+  /// Optimized to fetch only the needed page and batch-fetch user data
   static Future<Map<String, dynamic>> getPaginatedClinicRegistrations({
     int page = 1,
     int itemsPerPage = 5,
@@ -353,16 +354,39 @@ class SuperAdminService {
         query = query.where('status', isEqualTo: statusFilter);
       }
 
-      // Get all matching documents first
+      // Get all matching documents (needed for search filtering)
       final allSnapshot = await query.get();
       final allDocs = allSnapshot.docs;
 
       print('SuperAdminService: Retrieved ${allDocs.length} clinics from Firestore');
 
-      // Convert all documents to clinic registration objects
+      // Batch fetch all user data in one query to avoid N+1 problem
+      final clinicIds = allDocs.map((doc) => doc.id).toList();
+      Map<String, Map<String, dynamic>> userDataMap = {};
+      
+      if (clinicIds.isNotEmpty) {
+        // Firestore 'in' queries are limited to 10 items, so batch them
+        for (int i = 0; i < clinicIds.length; i += 10) {
+          final batchIds = clinicIds.skip(i).take(10).toList();
+          final userSnapshots = await _firestore
+              .collection('users')
+              .where(FieldPath.documentId, whereIn: batchIds)
+              .get();
+          
+          for (var userDoc in userSnapshots.docs) {
+            userDataMap[userDoc.id] = userDoc.data();
+          }
+        }
+      }
+
+      // Convert all documents to clinic registration objects (now with batched user data)
       List<ClinicRegistration> allClinics = [];
       for (var clinicDoc in allDocs) {
-        final registration = await _buildClinicRegistration(clinicDoc);
+        final registration = _buildClinicRegistrationFromData(
+          clinicDoc.id,
+          clinicDoc.data() as Map<String, dynamic>,
+          userDataMap[clinicDoc.id] ?? {},
+        );
         allClinics.add(registration);
       }
 
@@ -410,15 +434,26 @@ class SuperAdminService {
     }
   }
   
-  /// Helper method to build ClinicRegistration from document
+  /// Helper method to build ClinicRegistration from document (DEPRECATED - kept for compatibility)
   static Future<ClinicRegistration> _buildClinicRegistration(QueryDocumentSnapshot clinicDoc) async {
     final clinicData = clinicDoc.data() as Map<String, dynamic>;
     final clinicId = clinicDoc.id;
     
     // Get user data for admin info
     final userDoc = await _firestore.collection('users').doc(clinicId).get();
-    final userData = userDoc.exists ? userDoc.data()! : {};
+    final userData = userDoc.exists 
+        ? Map<String, dynamic>.from(userDoc.data()!) 
+        : <String, dynamic>{};
     
+    return _buildClinicRegistrationFromData(clinicId, clinicData, userData);
+  }
+  
+  /// Build ClinicRegistration from pre-fetched data (optimized)
+  static ClinicRegistration _buildClinicRegistrationFromData(
+    String clinicId,
+    Map<String, dynamic> clinicData,
+    Map<String, dynamic> userData,
+  ) {
     return ClinicRegistration(
       id: clinicId,
       clinicName: clinicData['clinicName'] ?? 'Unknown Clinic',

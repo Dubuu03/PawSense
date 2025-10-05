@@ -33,7 +33,7 @@ import 'package:pawsense/pages/web/auth/admin_signup_page.dart';
 import 'package:pawsense/pages/web/admin/dashboard_screen.dart';
 import 'package:pawsense/pages/web/admin/appointment_screen.dart';
 import 'package:pawsense/pages/web/admin/patient_record_screen.dart';
-import 'package:pawsense/pages/web/admin/clinic_schedule_page.dart';
+import 'package:pawsense/pages/web/admin/clinic_schedule_screen.dart';
 import 'package:pawsense/pages/web/admin/vet_profile_screen.dart';
 import 'package:pawsense/pages/web/admin/messaging_screen.dart';
 import 'package:pawsense/pages/web/admin/notifications_screen.dart';
