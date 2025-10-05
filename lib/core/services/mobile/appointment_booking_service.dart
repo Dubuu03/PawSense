@@ -18,6 +18,7 @@ class AppointmentBookingService {
     String notes = '',
     double? estimatedPrice,
     String? duration,
+    String? assessmentResultId,
   }) async {
     try {
       final currentUser = await AuthGuard.getCurrentUser();
@@ -41,6 +42,7 @@ class AppointmentBookingService {
         duration: duration,
         createdAt: now,
         updatedAt: now,
+        assessmentResultId: assessmentResultId,
       );
 
       final docRef = await _firestore

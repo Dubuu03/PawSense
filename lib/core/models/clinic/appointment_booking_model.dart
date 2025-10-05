@@ -37,6 +37,7 @@ class AppointmentBooking {
   final DateTime? cancelledAt;
   final String? rescheduleReason;
   final DateTime? rescheduledAt;
+  final String? assessmentResultId;
 
   AppointmentBooking({
     this.id,
@@ -58,6 +59,7 @@ class AppointmentBooking {
     this.cancelledAt,
     this.rescheduleReason,
     this.rescheduledAt,
+    this.assessmentResultId,
   });
 
   /// Convert to Map for Firestore storage
@@ -81,6 +83,7 @@ class AppointmentBooking {
       'cancelledAt': cancelledAt != null ? Timestamp.fromDate(cancelledAt!) : null,
       'rescheduleReason': rescheduleReason,
       'rescheduledAt': rescheduledAt != null ? Timestamp.fromDate(rescheduledAt!) : null,
+      'assessmentResultId': assessmentResultId,
     };
   }
 
@@ -116,6 +119,7 @@ class AppointmentBooking {
       rescheduledAt: map['rescheduledAt'] != null 
           ? (map['rescheduledAt'] as Timestamp).toDate() 
           : null,
+      assessmentResultId: map['assessmentResultId'],
     );
   }
 
@@ -140,6 +144,7 @@ class AppointmentBooking {
     DateTime? cancelledAt,
     String? rescheduleReason,
     DateTime? rescheduledAt,
+    String? assessmentResultId,
   }) {
     return AppointmentBooking(
       id: id ?? this.id,
@@ -161,6 +166,7 @@ class AppointmentBooking {
       cancelledAt: cancelledAt ?? this.cancelledAt,
       rescheduleReason: rescheduleReason ?? this.rescheduleReason,
       rescheduledAt: rescheduledAt ?? this.rescheduledAt,
+      assessmentResultId: assessmentResultId ?? this.assessmentResultId,
     );
   }
 

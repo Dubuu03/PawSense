@@ -272,7 +272,7 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                     subtitle: 'App information and version',
                     onTap: () {
                       Navigator.pop(context);
-                      // Show about dialog
+                      context.go('/about-pawsense');
                     },
                   ),
                 ],

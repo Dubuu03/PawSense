@@ -9,6 +9,7 @@ import 'package:pawsense/pages/mobile/alerts_page.dart';
 import 'package:pawsense/pages/mobile/alerts/alerts_details_page.dart';
 import 'package:pawsense/pages/mobile/appointments/appointment_details_page.dart';
 import 'package:pawsense/pages/mobile/edit_profile_page.dart';
+import 'package:pawsense/pages/mobile/about_pawsense_page.dart';
 import 'package:pawsense/pages/mobile/history/ai_history_detail_page.dart';
 import 'package:pawsense/pages/mobile/history/appointment_history_detail_page.dart';
 
@@ -127,6 +128,10 @@ class AppRouter {
         },
       ),
       GoRoute(
+        path: '/about-pawsense',
+        builder: (context, state) => const AboutPawSensePage(),
+      ),
+      GoRoute(
         path: '/messaging',
         builder: (context, state) => const MessagingPage(),
       ),
@@ -171,9 +176,14 @@ class AppRouter {
         path: '/book-appointment',
         builder: (context, state) {
           final extra = state.extra as Map<String, dynamic>?;
+          final assessmentResultId = state.uri.queryParameters['assessment_result_id'];
+          final skipService = state.uri.queryParameters['skip_service'] == 'true';
+          
           return BookAppointmentPage(
             preselectedClinicId: extra?['clinicId'] as String?,
             preselectedClinicName: extra?['clinicName'] as String?,
+            assessmentResultId: assessmentResultId,
+            skipServiceSelection: skipService,
           );
         },
       ),
