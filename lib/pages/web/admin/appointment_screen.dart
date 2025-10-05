@@ -1,4 +1,5 @@
 // screens/appointment_management_screen.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -31,6 +32,9 @@ class _AppointmentManagementScreenState extends State<AppointmentManagementScree
   // Services
   final _cacheService = AppointmentCacheService();
   final _stateService = ScreenStateService();
+  
+  // Firebase listener subscription
+  StreamSubscription<QuerySnapshot>? _appointmentsListener;
 
   @override
   bool get wantKeepAlive => true; // Keep state alive when navigating away
@@ -39,12 +43,47 @@ class _AppointmentManagementScreenState extends State<AppointmentManagementScree
   void initState() {
     super.initState();
     _restoreState();
+    // Clear cache to ensure fresh data with assessmentResultId
+    _cacheService.invalidateCache();
+    _initializeClinicListener();
     _loadAppointments();
+  }
+  
+  /// Initialize clinic ID and set up listener early
+  Future<void> _initializeClinicListener() async {
+    if (_cachedClinicId != null) {
+      // Already have clinic ID, just set up listener
+      _setupAppointmentsListener();
+      return;
+    }
+    
+    // Get clinic ID first
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    
+    try {
+      final clinicQuery = await FirebaseFirestore.instance
+          .collection('clinics')
+          .where('userId', isEqualTo: user.uid)
+          .where('status', isEqualTo: 'approved')
+          .limit(1)
+          .get();
+      
+      if (clinicQuery.docs.isNotEmpty) {
+        _cachedClinicId = clinicQuery.docs.first.id;
+        print('🔔 Clinic ID obtained early: $_cachedClinicId');
+        _setupAppointmentsListener();
+      }
+    } catch (e) {
+      print('❌ Error getting clinic ID for listener: $e');
+    }
   }
 
   @override
   void dispose() {
     _saveState();
+    // Cancel listener when widget is disposed
+    _appointmentsListener?.cancel();
     super.dispose();
   }
 
@@ -84,6 +123,12 @@ class _AppointmentManagementScreenState extends State<AppointmentManagementScree
           appointments = cachedAppointments;
           isLoading = false;
         });
+        
+        // Ensure listener is set up even when using cached data
+        if (_cachedClinicId != null) {
+          _setupAppointmentsListener();
+        }
+        
         return;
       }
     }
@@ -135,8 +180,11 @@ class _AppointmentManagementScreenState extends State<AppointmentManagementScree
         
         final clinicData = clinicQuery.docs.first.data();
         print('🎯 Using clinic ID: $clinicId (${clinicData['clinicName']})');
+        
+        // Set up real-time listener for this clinic
+        _setupAppointmentsListener();
       } else {
-        print('� Using cached clinic ID: $clinicId');
+        print('📦 Using cached clinic ID: $clinicId');
       }
 
       // Load appointments for this clinic using the clinic document ID
@@ -162,6 +210,71 @@ class _AppointmentManagementScreenState extends State<AppointmentManagementScree
         error = 'Failed to load appointments: $e';
         isLoading = false;
       });
+    }
+  }
+
+  /// Set up Firebase listener for real-time appointment updates
+  void _setupAppointmentsListener() {
+    if (_cachedClinicId == null) return;
+    
+    // Don't set up multiple listeners
+    if (_appointmentsListener != null) {
+      print('🔔 Firebase listener already active');
+      return;
+    }
+    
+    print('🔔 Setting up Firebase listener for appointments - clinic: $_cachedClinicId');
+    
+    // Listen to appointments collection for changes
+    _appointmentsListener = FirebaseFirestore.instance
+        .collection('appointments')
+        .where('clinicId', isEqualTo: _cachedClinicId)
+        .snapshots()
+        .listen((snapshot) {
+      // When appointments change, invalidate cache and reload
+      print('🔔 Appointments changed - ${snapshot.docChanges.length} changes detected');
+      
+      for (var change in snapshot.docChanges) {
+        final data = change.doc.data();
+        final petName = data?['petName'] ?? 'Unknown';
+        print('   - ${change.type.name}: $petName');
+      }
+      
+      // Clear cache to force reload
+      _cacheService.invalidateCache();
+      
+      // Reload data silently (without showing loading spinner)
+      _refreshAppointmentsSilently();
+    }, onError: (error) {
+      print('❌ Error in appointments listener: $error');
+    });
+  }
+  
+  /// Refresh appointments without showing loading indicator
+  Future<void> _refreshAppointmentsSilently() async {
+    if (_cachedClinicId == null || !mounted) return;
+    
+    try {
+      print('🔄 Silently refreshing appointments...');
+      final loadedAppointments = await AppointmentService.getClinicAppointments(_cachedClinicId!);
+      
+      // Update cache
+      _cacheService.updateCache(
+        appointments: loadedAppointments,
+        searchQuery: searchQuery,
+        selectedStatus: selectedStatus,
+      );
+      
+      if (mounted) {
+        setState(() {
+          appointments = loadedAppointments;
+          error = null;
+        });
+        print('✅ Appointments refreshed silently - ${loadedAppointments.length} total');
+      }
+    } catch (e) {
+      print('❌ Error refreshing appointments silently: $e');
+      // Don't update error state for silent refresh failures
     }
   }
 
@@ -444,7 +557,36 @@ class _AppointmentManagementScreenState extends State<AppointmentManagementScree
                           }
                         }
                       },
-                      onView: (appointment) {
+                      onView: (appointment) async {
+                        // Fetch assessment results if available
+                        Map<String, dynamic>? assessmentData;
+                        
+                        print('👁️ Viewing appointment: ${appointment.id}');
+                        print('📋 AssessmentResultId: ${appointment.assessmentResultId}');
+                        
+                        if (appointment.assessmentResultId != null && appointment.assessmentResultId!.isNotEmpty) {
+                          try {
+                            print('🔍 Fetching assessment result: ${appointment.assessmentResultId}');
+                            final assessmentDoc = await FirebaseFirestore.instance
+                                .collection('assessment_results')
+                                .doc(appointment.assessmentResultId)
+                                .get();
+                            
+                            if (assessmentDoc.exists) {
+                              assessmentData = assessmentDoc.data();
+                              print('✅ Assessment data found with ${(assessmentData!['analysisResults'] as List?)?.length ?? 0} results');
+                            } else {
+                              print('⚠️ Assessment document does not exist');
+                            }
+                          } catch (e) {
+                            print('❌ Error fetching assessment result: $e');
+                          }
+                        } else {
+                          print('⚠️ No assessmentResultId in appointment');
+                        }
+                        
+                        if (!mounted) return;
+                        
                         showDialog(
                           context: context,
                           builder: (context) => Dialog(
@@ -532,7 +674,90 @@ class _AppointmentManagementScreenState extends State<AppointmentManagementScree
                                   if (appointment.owner.email != null)
                                     _buildDetailRow('Email', appointment.owner.email!),
                                   _buildDetailRow('Status', appointment.status.name.toUpperCase()),
+                                  
+                                  // Display Assessment Results if available
+                                  if (assessmentData != null) ...[
+                                    const SizedBox(height: 16),
+                                    const Divider(),
+                                    const SizedBox(height: 16),
+                                    const Text(
+                                      'AI Assessment Results',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    ...() {
+                                      final analysisResults = assessmentData!['analysisResults'] as List?;
+                                      if (analysisResults == null || analysisResults.isEmpty) {
+                                        return [
+                                          const Text(
+                                            'No analysis results available',
+                                            style: TextStyle(color: AppColors.textSecondary),
+                                          ),
+                                        ];
+                                      }
+                                      
+                                      return analysisResults.map<Widget>((result) {
+                                        if (result is! Map<String, dynamic>) return const SizedBox.shrink();
+                                        
+                                        final condition = result['condition'] as String?;
+                                        final percentage = result['percentage'] as num?;
+                                        final colorHex = result['colorHex'] as String?;
+                                        
+                                        if (condition == null || percentage == null) return const SizedBox.shrink();
+                                        
+                                        // Parse color from hex string
+                                        Color conditionColor = AppColors.primary;
+                                        if (colorHex != null && colorHex.startsWith('#')) {
+                                          try {
+                                            conditionColor = Color(int.parse(colorHex.substring(1), radix: 16) + 0xFF000000);
+                                          } catch (e) {
+                                            // Use default color if parsing fails
+                                          }
+                                        }
+                                        
+                                        return Padding(
+                                          padding: const EdgeInsets.only(bottom: 12),
+                                          child: Row(
+                                            children: [
+                                              Container(
+                                                width: 12,
+                                                height: 12,
+                                                decoration: BoxDecoration(
+                                                  color: conditionColor,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Text(
+                                                  condition,
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                              ),
+                                              Text(
+                                                '${percentage.toStringAsFixed(1)}%',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  color: conditionColor,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }).toList();
+                                    }(),
+                                  ],
+                                  
                                   if (appointment.status == AppointmentModels.AppointmentStatus.cancelled) ...[
+                                    const SizedBox(height: 16),
+                                    const Divider(),
+                                    const SizedBox(height: 16),
                                     if (appointment.cancelReason != null)
                                       _buildDetailRow('Cancel Reason', appointment.cancelReason!),
                                     if (appointment.cancelledAt != null)

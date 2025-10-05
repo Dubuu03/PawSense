@@ -97,6 +97,7 @@ class Appointment {
   final String? serviceType;
   final String? cancelReason; // Reason for cancellation
   final DateTime? cancelledAt; // Timestamp when appointment was cancelled
+  final String? assessmentResultId; // Reference to assessment_results collection
 
   Appointment({
     required this.id,
@@ -116,6 +117,7 @@ class Appointment {
     this.serviceType,
     this.cancelReason,
     this.cancelledAt,
+    this.assessmentResultId,
   });
 
   factory Appointment.fromFirestore(Map<String, dynamic> data, String id) {
@@ -140,6 +142,7 @@ class Appointment {
       serviceType: data['serviceType'],
       cancelReason: data['cancelReason'],
       cancelledAt: (data['cancelledAt'] as Timestamp?)?.toDate(),
+      assessmentResultId: data['assessmentResultId'],
     );
   }
 
@@ -161,6 +164,7 @@ class Appointment {
       'serviceType': serviceType,
       'cancelReason': cancelReason,
       'cancelledAt': cancelledAt != null ? Timestamp.fromDate(cancelledAt!) : null,
+      'assessmentResultId': assessmentResultId,
     };
   }
 
@@ -182,6 +186,7 @@ class Appointment {
     String? serviceType,
     String? cancelReason,
     DateTime? cancelledAt,
+    String? assessmentResultId,
   }) {
     return Appointment(
       id: id ?? this.id,
@@ -201,6 +206,7 @@ class Appointment {
       serviceType: serviceType ?? this.serviceType,
       cancelReason: cancelReason ?? this.cancelReason,
       cancelledAt: cancelledAt ?? this.cancelledAt,
+      assessmentResultId: assessmentResultId ?? this.assessmentResultId,
     );
   }
 }

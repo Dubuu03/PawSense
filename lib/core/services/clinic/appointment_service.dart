@@ -151,6 +151,7 @@ class AppointmentService {
         updatedAt: booking.updatedAt,
         cancelReason: booking.cancelReason,
         cancelledAt: booking.cancelledAt,
+        assessmentResultId: booking.assessmentResultId,
       );
 
       return appointment;

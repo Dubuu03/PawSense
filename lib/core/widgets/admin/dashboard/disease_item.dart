@@ -15,7 +15,8 @@ class DiseaseItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final percentage = (disease.count / maxValue);
+    // Ensure percentage is between 0 and 1, handle division by zero
+    final percentage = maxValue > 0 ? (disease.count / maxValue).clamp(0.0, 1.0) : 0.0;
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -23,14 +24,19 @@ class DiseaseItem extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              disease.name,
-              style: TextStyle(
-                    fontSize: kFontSizeSmall,
-                fontWeight: FontWeight.w500,
-                color: AppColors.textPrimary,
+            Expanded(
+              child: Text(
+                disease.name,
+                style: TextStyle(
+                  fontSize: kFontSizeSmall,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textPrimary,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
+            SizedBox(width: 8),
             Text(
               '${disease.count}',
               style: TextStyle(
@@ -49,16 +55,18 @@ class DiseaseItem extends StatelessWidget {
             color: AppColors.border,
             borderRadius: BorderRadius.circular(3),
           ),
-          child: FractionallySizedBox(
-            alignment: Alignment.centerLeft,
-            widthFactor: percentage,
-            child: Container(
-              decoration: BoxDecoration(
-                color: disease.color,
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
-          ),
+          child: percentage > 0 
+              ? FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: percentage,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: disease.color,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                )
+              : SizedBox.shrink(),
         ),
       ],
     );

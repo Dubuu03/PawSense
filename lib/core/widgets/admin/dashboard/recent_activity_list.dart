@@ -2,50 +2,87 @@ import 'package:flutter/material.dart';
 import '../../../models/activity_item.dart';
 import '../../../utils/app_colors.dart';
 import '../../../utils/constants.dart';
+import '../../../services/admin/dashboard_service.dart';
 import 'activity_list_item.dart';
 
 class RecentActivityList extends StatelessWidget {
-  const RecentActivityList({super.key});
+  final List<RecentActivity> activities;
+  
+  const RecentActivityList({
+    super.key,
+    this.activities = const [],
+  });
+
+  /// Convert RecentActivity to ActivityItem for display
+  ActivityItem _convertToActivityItem(RecentActivity activity) {
+    // Determine title and icon based on status
+    String title;
+    IconData icon;
+    Color iconColor;
+
+    switch (activity.status.toLowerCase()) {
+      case 'completed':
+        title = 'Consultation completed';
+        icon = Icons.check_circle;
+        iconColor = AppColors.success;
+        break;
+      case 'cancelled':
+        title = 'Appointment cancelled';
+        icon = Icons.cancel;
+        iconColor = AppColors.warning;
+        break;
+      case 'confirmed':
+        title = 'Appointment confirmed';
+        icon = Icons.event_available;
+        iconColor = AppColors.info;
+        break;
+      case 'pending':
+        title = 'New appointment booked';
+        icon = Icons.calendar_today;
+        iconColor = AppColors.primary;
+        break;
+      default:
+        title = 'Appointment updated';
+        icon = Icons.update;
+        iconColor = AppColors.textSecondary;
+    }
+
+    // Format subtitle
+    final subtitle = '${activity.petName} - ${activity.ownerName}';
+
+    // Format time
+    final now = DateTime.now();
+    final difference = now.difference(activity.timestamp);
+    String timeText;
+
+    if (difference.inMinutes < 1) {
+      timeText = 'Just now';
+    } else if (difference.inMinutes < 60) {
+      timeText = '${difference.inMinutes} minute${difference.inMinutes == 1 ? '' : 's'} ago';
+    } else if (difference.inHours < 24) {
+      timeText = '${difference.inHours} hour${difference.inHours == 1 ? '' : 's'} ago';
+    } else if (difference.inDays < 7) {
+      timeText = '${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
+    } else {
+      timeText = '${(difference.inDays / 7).floor()} week${(difference.inDays / 7).floor() == 1 ? '' : 's'} ago';
+    }
+
+    return ActivityItem(
+      title: title,
+      subtitle: subtitle,
+      time: timeText,
+      icon: icon,
+      iconColor: iconColor,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final activities = [
-      ActivityItem(
-        title: 'New appointment booked',
-        subtitle: 'Max (Golden Retriever) - Skin condition check',
-        time: '2 minutes ago',
-        icon: Icons.calendar_today,
-        iconColor: AppColors.primary,
-      ),
-      ActivityItem(
-        title: 'Consultation completed',
-        subtitle: 'Luna (Persian Cat) - Routine checkup',
-        time: '15 minutes ago',
-        icon: Icons.check_circle,
-        iconColor: AppColors.success,
-      ),
-      ActivityItem(
-        title: 'Appointment cancelled',
-        subtitle: 'Buddy (Labrador) - Vaccination',
-        time: '1 hour ago',
-        icon: Icons.cancel,
-        iconColor: AppColors.warning,
-      ),
-      ActivityItem(
-        title: 'Patient record updated',
-        subtitle: 'Whiskers (Siamese) - Added prescription',
-        time: '2 hours ago',
-        icon: Icons.description,
-        iconColor: AppColors.info,
-      ),
-      ActivityItem(
-        title: 'New appointment booked',
-        subtitle: 'Rocky (German Shepherd) - Emergency visit',
-        time: '3 hours ago',
-        icon: Icons.calendar_today,
-        iconColor: AppColors.error,
-      ),
-    ];
+    // Convert activities to display format
+    final displayActivities = activities.map(_convertToActivityItem).toList();
+    
+    // Show message if no activities
+    final hasActivities = displayActivities.isNotEmpty;
 
     return Container(
       padding: EdgeInsets.all(24),
@@ -73,13 +110,23 @@ class RecentActivityList extends StatelessWidget {
           ),
           SizedBox(height: 24),
           Expanded(
-            child: ListView.separated(
-              itemCount: activities.length,
-              separatorBuilder: (context, index) => SizedBox(height: 20),
-              itemBuilder: (context, index) {
-                return ActivityListItem(activity: activities[index]);
-              },
-            ),
+            child: hasActivities
+                ? ListView.separated(
+                    itemCount: displayActivities.length,
+                    separatorBuilder: (context, index) => SizedBox(height: 20),
+                    itemBuilder: (context, index) {
+                      return ActivityListItem(activity: displayActivities[index]);
+                    },
+                  )
+                : Center(
+                    child: Text(
+                      'No recent activity',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
           ),
         ],
       ),

@@ -183,6 +183,7 @@ class AppointmentTableRow extends StatelessWidget {
                   onPressed: onView,
                   color: AppColors.textSecondary,
                   constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  tooltip: 'View Appointment Details',
                 ),
                 if (appointment.status == AppointmentStatus.pending) ...[
                   IconButton(
