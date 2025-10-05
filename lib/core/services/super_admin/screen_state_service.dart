@@ -20,6 +20,10 @@ class ScreenStateService {
   String _appointmentSearchQuery = '';
   String _appointmentSelectedStatus = 'All Status';
 
+  // Clinic Schedule State
+  DateTime _scheduleSelectedDate = DateTime.now();
+  String _scheduleSelectedDay = 'Monday';
+
   // Clinic Management Getters & Setters
   int get clinicCurrentPage => _clinicCurrentPage;
   String get clinicSearchQuery => _clinicSearchQuery;
@@ -89,10 +93,30 @@ class ScreenStateService {
     _appointmentSelectedStatus = 'All Status';
   }
 
+  // Clinic Schedule Getters & Setters
+  DateTime get scheduleSelectedDate => _scheduleSelectedDate;
+  String get scheduleSelectedDay => _scheduleSelectedDay;
+
+  void saveScheduleState({
+    required DateTime selectedDate,
+    required String selectedDay,
+  }) {
+    _scheduleSelectedDate = selectedDate;
+    _scheduleSelectedDay = selectedDay;
+    print('💾 Saved clinic schedule state: date=${selectedDate.toString().split(' ')[0]}, day="$selectedDay"');
+  }
+
+  /// Reset schedule state to defaults
+  void resetScheduleState() {
+    _scheduleSelectedDate = DateTime.now();
+    _scheduleSelectedDay = 'Monday';
+  }
+
   /// Reset all states
   void resetAllStates() {
     resetClinicState();
     resetUserState();
     resetAppointmentState();
+    resetScheduleState();
   }
 }

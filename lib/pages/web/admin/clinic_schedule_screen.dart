@@ -7,23 +7,32 @@ import 'package:pawsense/core/widgets/admin/clinic_schedule/appointment_time_slo
 import 'package:pawsense/core/widgets/admin/clinic_schedule/week_days_grid.dart';
 import 'package:pawsense/core/widgets/admin/clinic_schedule/week_navigation.dart';
 import 'package:pawsense/core/services/clinic/clinic_schedule_service.dart';
+import 'package:pawsense/core/services/clinic/clinic_schedule_cache_service.dart';
+import 'package:pawsense/core/services/super_admin/screen_state_service.dart';
 import 'package:pawsense/core/guards/auth_guard.dart';
 
 class ClinicSchedulePage extends StatefulWidget {
   final String? clinicId;
   
-  const ClinicSchedulePage({super.key, this.clinicId});
+  const ClinicSchedulePage({Key? key, this.clinicId}) : super(key: key ?? const PageStorageKey('clinic_schedule'));
 
   @override
   _ClinicSchedulePageState createState() => _ClinicSchedulePageState();
 }
 
-class _ClinicSchedulePageState extends State<ClinicSchedulePage> {
+class _ClinicSchedulePageState extends State<ClinicSchedulePage> with AutomaticKeepAliveClientMixin {
   String selectedView = 'Timeline';
   DateTime selectedDate = DateTime.now();
   String selectedDay = 'Monday';
   String? _actualClinicId;
   int _scheduleRefreshKey = 0;
+  
+  // Services
+  final _cacheService = ClinicScheduleCacheService();
+  final _stateService = ScreenStateService();
+
+  @override
+  bool get wantKeepAlive => true; // Keep state alive when navigating away
   
   // Statistics for the selected day
   Map<String, dynamic> _dayStats = {
@@ -39,7 +48,29 @@ class _ClinicSchedulePageState extends State<ClinicSchedulePage> {
   @override
   void initState() {
     super.initState();
+    _restoreState();
     _loadClinicId();
+  }
+
+  @override
+  void dispose() {
+    _saveState();
+    super.dispose();
+  }
+
+  /// Restore state from ScreenStateService
+  void _restoreState() {
+    selectedDate = _stateService.scheduleSelectedDate;
+    selectedDay = _stateService.scheduleSelectedDay;
+    print('🔄 Restored clinic schedule state: date=${selectedDate.toString().split(' ')[0]}, day="$selectedDay"');
+  }
+
+  /// Save current state to ScreenStateService
+  void _saveState() {
+    _stateService.saveScheduleState(
+      selectedDate: selectedDate,
+      selectedDay: selectedDay,
+    );
   }
 
   Future<void> _loadClinicId() async {
@@ -63,8 +94,33 @@ class _ClinicSchedulePageState extends State<ClinicSchedulePage> {
     }
   }
 
-  Future<void> _loadWeekData() async {
+  Future<void> _loadWeekData({bool forceRefresh = false}) async {
     if (_actualClinicId == null) return;
+    
+    // Try to load from cache first (unless force refresh)
+    if (!forceRefresh) {
+      final cachedWeekData = _cacheService.getCachedWeekData(
+        selectedDate: selectedDate,
+      );
+
+      if (cachedWeekData != null) {
+        print('📦 Using cached schedule data - no network call needed');
+        setState(() {
+          _weekData = cachedWeekData;
+          _isLoading = false;
+        });
+        
+        // Set the selected day to match the current date
+        final currentDayName = _getCurrentDayName();
+        setState(() {
+          selectedDay = currentDayName;
+        });
+
+        // Calculate statistics for the currently selected day
+        _calculateDayStats();
+        return;
+      }
+    }
     
     setState(() {
       _isLoading = true;
@@ -76,9 +132,16 @@ class _ClinicSchedulePageState extends State<ClinicSchedulePage> {
       final monday = selectedDate.subtract(Duration(days: weekday - 1));
       
       // Load weekly data with appointment availability
+      print('🔄 Fetching schedule from Firestore...');
       _weekData = await ClinicScheduleService.getWeeklyScheduleWithAvailability(
         _actualClinicId!, 
         monday
+      );
+      
+      // Update cache with new data
+      _cacheService.updateCache(
+        weekData: _weekData,
+        selectedDate: selectedDate,
       );
       
       // Set the selected day to match the current date
@@ -90,8 +153,9 @@ class _ClinicSchedulePageState extends State<ClinicSchedulePage> {
       // Calculate statistics for the currently selected day
       _calculateDayStats();
       
+      print('✅ Loaded schedule data for week ${monday.toString().split(' ')[0]}');
     } catch (e) {
-      print('Error loading week data: $e');
+      print('❌ Error loading week data: $e');
     } finally {
       setState(() {
         _isLoading = false;
@@ -142,7 +206,8 @@ class _ClinicSchedulePageState extends State<ClinicSchedulePage> {
     setState(() {
       _scheduleRefreshKey++;
     });
-    _loadWeekData();
+    _cacheService.invalidateCache();
+    _loadWeekData(forceRefresh: true);
   }
 
   Future<void> _onDateChanged(DateTime newDate) async {
@@ -150,6 +215,7 @@ class _ClinicSchedulePageState extends State<ClinicSchedulePage> {
     setState(() {
       selectedDate = newDate;
     });
+    _saveState(); // Save state when date changes
     await _loadWeekData();
   }
 
@@ -157,6 +223,7 @@ class _ClinicSchedulePageState extends State<ClinicSchedulePage> {
     setState(() {
       selectedDay = day;
     });
+    _saveState(); // Save state when day changes
     _calculateDayStats();
   }
 
@@ -182,6 +249,8 @@ class _ClinicSchedulePageState extends State<ClinicSchedulePage> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
+    
     // Show loading if clinic ID is not yet loaded
     if (_actualClinicId == null) {
       return Scaffold(
