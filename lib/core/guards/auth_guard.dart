@@ -337,8 +337,8 @@ class AuthGuard {
     // Admin routes
     if (routePath.startsWith('/admin/')) {
       if (userRole == 'super_admin') {
-        // Super admin trying to access admin routes - redirect to super admin dashboard
-        return '/super-admin/dashboard';
+        // Super admin trying to access admin routes - redirect to super admin system analytics
+        return '/super-admin/system-analytics';
       }
       if (userRole != 'admin') {
         return '/web_login';
@@ -355,7 +355,7 @@ class AuthGuard {
 
     // Root admin paths - redirect to appropriate dashboard
     if (routePath == '/admin' || routePath == '/super-admin') {
-      final dashboardPath = userRole == 'super_admin' ? '/super-admin/dashboard' : '/admin/dashboard';
+      final dashboardPath = userRole == 'super_admin' ? '/super-admin/system-analytics' : '/admin/dashboard';
       return dashboardPath;
     }
 

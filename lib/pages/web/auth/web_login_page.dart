@@ -48,7 +48,7 @@ class _WebLoginPageState extends State<WebLoginPage> {
         if (result.role == 'admin') {
           context.go('/admin/dashboard');
         } else if (result.role == 'super_admin') {
-          context.go('/super-admin/dashboard');
+          context.go('/super-admin/system-analytics');
         } else {
           setState(() {
             _errorMessage = 'Access denied. Insufficient permissions.';

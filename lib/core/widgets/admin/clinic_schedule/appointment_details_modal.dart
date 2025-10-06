@@ -1,19 +1,146 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pawsense/core/models/clinic/appointment_models.dart';
+import 'package:pawsense/core/models/user/user_model.dart';
+import 'package:pawsense/core/services/user/pdf_generation_service.dart';
+import 'package:pawsense/core/services/user/assessment_result_service.dart';
 
-class AppointmentDetailsModal extends StatelessWidget {
+class AppointmentDetailsModal extends StatefulWidget {
   final Appointment appointment;
+  final VoidCallback? onAcceptAppointment;
+  final bool showAcceptButton;
 
   const AppointmentDetailsModal({
     super.key,
     required this.appointment,
+    this.onAcceptAppointment,
+    this.showAcceptButton = false,
   });
 
-  static void show(BuildContext context, Appointment appointment) {
+  static void show(
+    BuildContext context, 
+    Appointment appointment, {
+    VoidCallback? onAcceptAppointment,
+    bool showAcceptButton = false,
+  }) {
     showDialog(
       context: context,
-      builder: (context) => AppointmentDetailsModal(appointment: appointment),
+      builder: (context) => AppointmentDetailsModal(
+        appointment: appointment,
+        onAcceptAppointment: onAcceptAppointment,
+        showAcceptButton: showAcceptButton,
+      ),
     );
+  }
+
+  @override
+  State<AppointmentDetailsModal> createState() => _AppointmentDetailsModalState();
+}
+
+class _AppointmentDetailsModalState extends State<AppointmentDetailsModal> {
+  Map<String, dynamic>? _assessmentData;
+  bool _isLoadingAssessment = false;
+  bool _isGeneratingPDF = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAssessmentData();
+  }
+
+  Future<void> _loadAssessmentData() async {
+    if (widget.appointment.assessmentResultId == null || 
+        widget.appointment.assessmentResultId!.isEmpty) {
+      return;
+    }
+
+    setState(() => _isLoadingAssessment = true);
+
+    try {
+      final assessmentDoc = await FirebaseFirestore.instance
+          .collection('assessment_results')
+          .doc(widget.appointment.assessmentResultId)
+          .get();
+      
+      if (assessmentDoc.exists && mounted) {
+        setState(() {
+          _assessmentData = assessmentDoc.data();
+          _isLoadingAssessment = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading assessment data: $e');
+      if (mounted) {
+        setState(() => _isLoadingAssessment = false);
+      }
+    }
+  }
+
+  Future<void> _generatePDF() async {
+    if (_isGeneratingPDF) return;
+    
+    setState(() => _isGeneratingPDF = true);
+    
+    try {
+      if (widget.appointment.assessmentResultId == null || 
+          widget.appointment.assessmentResultId!.isEmpty) {
+        throw Exception('No assessment data available for this appointment');
+      }
+
+      final assessmentService = AssessmentResultService();
+      final assessmentResult = await assessmentService.getAssessmentResultById(
+        widget.appointment.assessmentResultId!
+      );
+      
+      if (assessmentResult == null) {
+        throw Exception('Assessment data not found');
+      }
+
+      final userModel = UserModel(
+        uid: widget.appointment.owner.id,
+        username: widget.appointment.owner.name,
+        email: widget.appointment.owner.email ?? '',
+        contactNumber: widget.appointment.owner.phone,
+        createdAt: DateTime.now(),
+        role: 'user',
+      );
+
+      final pdfBytes = await PDFGenerationService.generateAssessmentPDF(
+        user: userModel,
+        assessmentResult: assessmentResult,
+      );
+
+      final fileName = 'PawSense_Assessment_${widget.appointment.pet.name}_${DateTime.now().millisecondsSinceEpoch}';
+      await PDFGenerationService.saveWithSystemDialog(pdfBytes, fileName);
+
+      if (mounted) {
+        setState(() => _isGeneratingPDF = false);
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: const [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 12),
+                Text('PDF downloaded successfully'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isGeneratingPDF = false);
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to generate PDF: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   String _getStatusText(AppointmentStatus status) {
@@ -50,17 +177,17 @@ class AppointmentDetailsModal extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: _getStatusColor(appointment.status).withOpacity(0.1),
+        color: _getStatusColor(widget.appointment.status).withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: _getStatusColor(appointment.status),
+          color: _getStatusColor(widget.appointment.status),
           width: 1,
         ),
       ),
       child: Text(
-        _getStatusText(appointment.status),
+        _getStatusText(widget.appointment.status),
         style: TextStyle(
-          color: _getStatusColor(appointment.status),
+          color: _getStatusColor(widget.appointment.status),
           fontSize: 12,
           fontWeight: FontWeight.w600,
         ),
@@ -69,11 +196,11 @@ class AppointmentDetailsModal extends StatelessWidget {
   }
 
   Widget _buildPetImage() {
-    if (appointment.pet.imageUrl != null && appointment.pet.imageUrl!.isNotEmpty) {
+    if (widget.appointment.pet.imageUrl != null && widget.appointment.pet.imageUrl!.isNotEmpty) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: Image.network(
-          appointment.pet.imageUrl!,
+          widget.appointment.pet.imageUrl!,
           width: 60,
           height: 60,
           fit: BoxFit.cover,
@@ -87,7 +214,7 @@ class AppointmentDetailsModal extends StatelessWidget {
               ),
               child: Center(
                 child: Text(
-                  appointment.pet.emoji,
+                  widget.appointment.pet.emoji,
                   style: const TextStyle(fontSize: 24),
                 ),
               ),
@@ -105,7 +232,7 @@ class AppointmentDetailsModal extends StatelessWidget {
         ),
         child: Center(
           child: Text(
-            appointment.pet.emoji,
+            widget.appointment.pet.emoji,
             style: const TextStyle(fontSize: 24),
           ),
         ),
@@ -132,11 +259,75 @@ class AppointmentDetailsModal extends StatelessWidget {
     return '$hour12:${minute.toString().padLeft(2, '0')} $period';
   }
 
+  List<Widget> _buildAssessmentResults() {
+    final analysisResults = _assessmentData!['analysisResults'] as List?;
+    
+    if (analysisResults == null || analysisResults.isEmpty) {
+      return [
+        const Text(
+          'No analysis results available',
+          style: TextStyle(color: Colors.grey),
+        ),
+      ];
+    }
+    
+    return analysisResults.map<Widget>((result) {
+      if (result is! Map<String, dynamic>) return const SizedBox.shrink();
+      
+      final condition = result['condition'] as String?;
+      final percentage = result['percentage'] as num?;
+      final colorHex = result['colorHex'] as String?;
+      
+      if (condition == null || percentage == null) return const SizedBox.shrink();
+      
+      Color conditionColor = const Color(0xFF7C3AED);
+      if (colorHex != null && colorHex.startsWith('#')) {
+        try {
+          conditionColor = Color(int.parse(colorHex.substring(1), radix: 16) + 0xFF000000);
+        } catch (e) {
+          // Use default color if parsing fails
+        }
+      }
+      
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                color: conditionColor,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                condition,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            Text(
+              '${percentage.toStringAsFixed(1)}%',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: conditionColor,
+              ),
+            ),
+          ],
+        ),
+      );
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final dateTime = DateTime.parse('${appointment.date} ${appointment.time}:00');
+    final dateTime = DateTime.parse('${widget.appointment.date} ${widget.appointment.time}:00');
     final formattedDate = '${_getMonthName(dateTime.month)} ${dateTime.day}, ${dateTime.year}';
-    final formattedTime = _formatTime(appointment.time);
+    final formattedTime = _formatTime(widget.appointment.time);
 
     return Dialog(
       shape: RoundedRectangleBorder(
@@ -178,7 +369,7 @@ class AppointmentDetailsModal extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        appointment.pet.name,
+                        widget.appointment.pet.name,
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -186,16 +377,16 @@ class AppointmentDetailsModal extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${appointment.pet.type}${appointment.pet.breed != null ? ' • ${appointment.pet.breed}' : ''}',
+                        '${widget.appointment.pet.type}${widget.appointment.pet.breed != null ? ' • ${widget.appointment.pet.breed}' : ''}',
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey[600],
                         ),
                       ),
-                      if (appointment.pet.age != null) ...[
+                      if (widget.appointment.pet.age != null) ...[
                         const SizedBox(height: 2),
                         Text(
-                          '${appointment.pet.age} years old',
+                          '${widget.appointment.pet.age} years old',
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.grey[600],
@@ -213,33 +404,91 @@ class AppointmentDetailsModal extends StatelessWidget {
             // Appointment Information
             _buildInfoSection('Date & Time', '$formattedDate at $formattedTime'),
             const SizedBox(height: 16),
-            _buildInfoSection('Reason for Visit', appointment.diseaseReason),
+            _buildInfoSection('Reason for Visit', widget.appointment.diseaseReason),
             const SizedBox(height: 16),
 
             // Owner Information
             _buildInfoSection(
               'Owner',
-              '${appointment.owner.name}\n${appointment.owner.phone}${appointment.owner.email != null && appointment.owner.email!.isNotEmpty ? '\n${appointment.owner.email}' : ''}',
+              '${widget.appointment.owner.name}\n${widget.appointment.owner.phone}${widget.appointment.owner.email != null && widget.appointment.owner.email!.isNotEmpty ? '\n${widget.appointment.owner.email}' : ''}',
             ),
 
             // Notes (if available)
-            if (appointment.notes != null && appointment.notes!.isNotEmpty) ...[
+            if (widget.appointment.notes != null && widget.appointment.notes!.isNotEmpty) ...[
               const SizedBox(height: 16),
-              _buildInfoSection('Notes', appointment.notes!),
+              _buildInfoSection('Notes', widget.appointment.notes!),
             ],
 
-            const SizedBox(height: 24),
-
-            // Close Button
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Close'),
+            // AI Assessment Results
+            if (_isLoadingAssessment)
+              ...[
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 16),
+                const Center(child: CircularProgressIndicator()),
+              ]
+            else if (_assessmentData != null)
+              ...[
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 16),
+                const Text(
+                  'AI Assessment Results',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF7C3AED),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ..._buildAssessmentResults(),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isGeneratingPDF ? null : _generatePDF,
+                    icon: _isGeneratingPDF
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Icon(Icons.download, size: 18),
+                    label: Text(_isGeneratingPDF ? 'Generating PDF...' : 'Download Assessment PDF'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF7C3AED),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
                 ),
               ],
-            ),
+
+            // Accept Button (if needed)
+            if (widget.showAcceptButton && widget.onAcceptAppointment != null) ...[
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    widget.onAcceptAppointment!();
+                  },
+                  icon: const Icon(Icons.check, size: 18),
+                  label: const Text('Accept Appointment'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
+                ),
+              ),
+            ],
+            
+            const SizedBox(height: 24),
           ],
         ),
       ),
