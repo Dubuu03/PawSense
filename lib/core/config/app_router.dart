@@ -26,6 +26,7 @@ import 'package:pawsense/pages/mobile/home_services/pet_care_tips_page.dart';
 
 import 'package:pawsense/pages/mobile/clinic/clinic_list_page.dart';
 import 'package:pawsense/pages/mobile/clinic/clinic_details_page.dart';
+import 'package:pawsense/pages/mobile/skin_disease_library_page.dart';
 
 import 'package:pawsense/core/models/user/user_model.dart';
 import 'package:pawsense/core/models/user/pet_model.dart';
@@ -211,6 +212,12 @@ class AppRouter {
           final clinicId = state.uri.queryParameters['id'];
           return ClinicDetailsPage(clinicId: clinicId ?? '');
         },
+      ),
+
+      // Skin Disease Library routes
+      GoRoute(
+        path: '/skin-disease-library',
+        builder: (context, state) => const SkinDiseaseLibraryPage(),
       ),
 
       // Web auth routes

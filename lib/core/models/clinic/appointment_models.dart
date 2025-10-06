@@ -98,6 +98,16 @@ class Appointment {
   final String? cancelReason; // Reason for cancellation
   final DateTime? cancelledAt; // Timestamp when appointment was cancelled
   final String? assessmentResultId; // Reference to assessment_results collection
+  final DateTime? completedAt; // Timestamp when appointment was completed
+  final String? clinicNotes; // Clinic notes from completion
+  final String? diagnosis; // Final diagnosis from clinic
+  final String? treatment; // Treatment provided
+  final String? prescription; // Prescription given
+  final bool? needsFollowUp; // Whether follow-up is needed
+  final String? followUpDate; // Follow-up appointment date
+  final String? followUpTime; // Follow-up appointment time
+  final bool? isFollowUp; // Whether this is a follow-up appointment
+  final String? previousAppointmentId; // Reference to previous appointment if follow-up
 
   Appointment({
     required this.id,
@@ -118,6 +128,16 @@ class Appointment {
     this.cancelReason,
     this.cancelledAt,
     this.assessmentResultId,
+    this.completedAt,
+    this.clinicNotes,
+    this.diagnosis,
+    this.treatment,
+    this.prescription,
+    this.needsFollowUp,
+    this.followUpDate,
+    this.followUpTime,
+    this.isFollowUp,
+    this.previousAppointmentId,
   });
 
   factory Appointment.fromFirestore(Map<String, dynamic> data, String id) {
@@ -143,6 +163,16 @@ class Appointment {
       cancelReason: data['cancelReason'],
       cancelledAt: (data['cancelledAt'] as Timestamp?)?.toDate(),
       assessmentResultId: data['assessmentResultId'],
+      completedAt: (data['completedAt'] as Timestamp?)?.toDate(),
+      clinicNotes: data['clinicNotes'],
+      diagnosis: data['diagnosis'],
+      treatment: data['treatment'],
+      prescription: data['prescription'],
+      needsFollowUp: data['needsFollowUp'],
+      followUpDate: data['followUpDate'],
+      followUpTime: data['followUpTime'],
+      isFollowUp: data['isFollowUp'],
+      previousAppointmentId: data['previousAppointmentId'],
     );
   }
 
@@ -165,6 +195,16 @@ class Appointment {
       'cancelReason': cancelReason,
       'cancelledAt': cancelledAt != null ? Timestamp.fromDate(cancelledAt!) : null,
       'assessmentResultId': assessmentResultId,
+      'completedAt': completedAt != null ? Timestamp.fromDate(completedAt!) : null,
+      'clinicNotes': clinicNotes,
+      'diagnosis': diagnosis,
+      'treatment': treatment,
+      'prescription': prescription,
+      'needsFollowUp': needsFollowUp,
+      'followUpDate': followUpDate,
+      'followUpTime': followUpTime,
+      'isFollowUp': isFollowUp,
+      'previousAppointmentId': previousAppointmentId,
     };
   }
 
@@ -187,6 +227,16 @@ class Appointment {
     String? cancelReason,
     DateTime? cancelledAt,
     String? assessmentResultId,
+    DateTime? completedAt,
+    String? clinicNotes,
+    String? diagnosis,
+    String? treatment,
+    String? prescription,
+    bool? needsFollowUp,
+    String? followUpDate,
+    String? followUpTime,
+    bool? isFollowUp,
+    String? previousAppointmentId,
   }) {
     return Appointment(
       id: id ?? this.id,
@@ -207,6 +257,16 @@ class Appointment {
       cancelReason: cancelReason ?? this.cancelReason,
       cancelledAt: cancelledAt ?? this.cancelledAt,
       assessmentResultId: assessmentResultId ?? this.assessmentResultId,
+      completedAt: completedAt ?? this.completedAt,
+      clinicNotes: clinicNotes ?? this.clinicNotes,
+      diagnosis: diagnosis ?? this.diagnosis,
+      treatment: treatment ?? this.treatment,
+      prescription: prescription ?? this.prescription,
+      needsFollowUp: needsFollowUp ?? this.needsFollowUp,
+      followUpDate: followUpDate ?? this.followUpDate,
+      followUpTime: followUpTime ?? this.followUpTime,
+      isFollowUp: isFollowUp ?? this.isFollowUp,
+      previousAppointmentId: previousAppointmentId ?? this.previousAppointmentId,
     );
   }
 }

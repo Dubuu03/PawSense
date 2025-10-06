@@ -107,9 +107,9 @@ class _AdminShellState extends State<AdminShell> {
     // Only redirect if user is on a completely wrong path
     // Don't redirect if they're already on a valid path for their role
     if (_userRole == 'super_admin' && currentLocation.startsWith('/admin/')) {
-      // Super admin trying to access admin routes - redirect to super admin dashboard
-      if (currentLocation != '/super-admin/dashboard') {
-        context.go('/super-admin/dashboard');
+      // Super admin trying to access admin routes - redirect to super admin system analytics
+      if (currentLocation != '/super-admin/system-analytics') {
+        context.go('/super-admin/system-analytics');
       }
     } else if (_userRole == 'admin' && currentLocation.startsWith('/super-admin/')) {
       // Admin trying to access super admin routes - redirect to admin dashboard
@@ -118,7 +118,7 @@ class _AdminShellState extends State<AdminShell> {
       }
     } else if (currentLocation == '/admin' || currentLocation == '/super-admin') {
       // On root admin path - redirect to appropriate dashboard
-      final dashboardPath = _userRole == 'super_admin' ? '/super-admin/dashboard' : '/admin/dashboard';
+      final dashboardPath = _userRole == 'super_admin' ? '/super-admin/system-analytics' : '/admin/dashboard';
       if (currentLocation != dashboardPath) {
         context.go(dashboardPath);
       }

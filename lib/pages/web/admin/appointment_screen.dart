@@ -10,6 +10,8 @@ import '../../../core/widgets/admin/appointments/appointment_filters.dart';
 import '../../../core/widgets/admin/appointments/appointment_table.dart';
 import '../../../core/widgets/admin/appointments/appointment_summary.dart';
 import '../../../core/widgets/admin/appointments/appointment_edit_modal.dart';
+import '../../../core/widgets/admin/appointments/appointment_completion_modal.dart';
+import '../../../core/widgets/admin/clinic_schedule/appointment_details_modal.dart';
 
 class AppointmentManagementScreen extends StatefulWidget {
   const AppointmentManagementScreen({super.key});
@@ -223,33 +225,43 @@ class _AppointmentManagementScreenState extends State<AppointmentManagementScree
 
                     return AppointmentTable(
                       appointments: filteredAppointments,
-                      onAccept: (appointment) async {
-                        final success = await AppointmentService.acceptAppointment(appointment.id);
-                        
-                        if (success) {
-                          _refreshAppointments();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Accepted appointment for ${appointment.pet.name}')),
-                          );
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Failed to accept appointment')),
-                          );
-                        }
+                      onAccept: (appointment) {
+                        // Show appointment details modal with accept button
+                        AppointmentDetailsModal.show(
+                          context,
+                          appointment,
+                          showAcceptButton: true,
+                          onAcceptAppointment: () async {
+                            final result = await AppointmentService.acceptAppointment(appointment.id);
+                            
+                            if (result['success']) {
+                              _refreshAppointments();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Accepted appointment for ${appointment.pet.name}'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(result['message']),
+                                  backgroundColor: Colors.red,
+                                  duration: Duration(seconds: 4), // Longer duration for error messages
+                                ),
+                              );
+                            }
+                          },
+                        );
                       },
-                      onMarkDone: (appointment) async {
-                        final success = await AppointmentService.markAppointmentCompleted(appointment.id);
-                        
-                        if (success) {
-                          _refreshAppointments();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Marked ${appointment.pet.name}\'s appointment as completed')),
-                          );
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Failed to mark appointment as completed')),
-                          );
-                        }
+                      onMarkDone: (appointment) {
+                        showDialog(
+                          context: context,
+                          builder: (context) => AppointmentCompletionModal(
+                            appointment: appointment,
+                            onCompleted: _refreshAppointments,
+                          ),
+                        );
                       },
                       onReject: (appointment) async {
                         final TextEditingController reasonController = TextEditingController();
@@ -358,104 +370,11 @@ class _AppointmentManagementScreenState extends State<AppointmentManagementScree
                         }
                       },
                       onView: (appointment) {
-                        showDialog(
-                          context: context,
-                          builder: (context) => Dialog(
-                            child: Container(
-                              width: 500,
-                              padding: const EdgeInsets.all(24),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      // Pet profile picture or emoji fallback
-                                      Container(
-                                        width: 64,
-                                        height: 64,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          border: Border.all(color: AppColors.border, width: 2),
-                                        ),
-                                        child: appointment.pet.imageUrl != null && appointment.pet.imageUrl!.isNotEmpty
-                                            ? ClipOval(
-                                                child: Image.network(
-                                                  appointment.pet.imageUrl!,
-                                                  width: 64,
-                                                  height: 64,
-                                                  fit: BoxFit.cover,
-                                                  errorBuilder: (context, error, stackTrace) {
-                                                    return Center(
-                                                      child: Text(
-                                                        appointment.pet.emoji,
-                                                        style: const TextStyle(fontSize: 32),
-                                                      ),
-                                                    );
-                                                  },
-                                                  loadingBuilder: (context, child, loadingProgress) {
-                                                    if (loadingProgress == null) return child;
-                                                    return const Center(
-                                                      child: CircularProgressIndicator(
-                                                        strokeWidth: 2,
-                                                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-                                                      ),
-                                                    );
-                                                  },
-                                                ),
-                                              )
-                                            : Center(
-                                                child: Text(
-                                                  appointment.pet.emoji,
-                                                  style: const TextStyle(fontSize: 32),
-                                                ),
-                                              ),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              appointment.pet.name,
-                                              style: const TextStyle(
-                                                fontSize: 20,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                            Text(
-                                              '${appointment.pet.type} • ${appointment.pet.breed}',
-                                              style: const TextStyle(color: AppColors.textSecondary),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      IconButton(
-                                        onPressed: () => Navigator.of(context).pop(),
-                                        icon: const Icon(Icons.close),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 24),
-                                  _buildDetailRow('Date', appointment.date),
-                                  _buildDetailRow('Time', appointment.timeSlot),
-                                  _buildDetailRow('Reason', appointment.diseaseReason),
-                                  _buildDetailRow('Owner', appointment.owner.name),
-                                  _buildDetailRow('Phone', appointment.owner.phone),
-                                  if (appointment.owner.email != null)
-                                    _buildDetailRow('Email', appointment.owner.email!),
-                                  _buildDetailRow('Status', appointment.status.name.toUpperCase()),
-                                  if (appointment.status == AppointmentModels.AppointmentStatus.cancelled) ...[
-                                    if (appointment.cancelReason != null)
-                                      _buildDetailRow('Cancel Reason', appointment.cancelReason!),
-                                    if (appointment.cancelledAt != null)
-                                      _buildDetailRow('Cancelled At', 
-                                        '${appointment.cancelledAt!.day}/${appointment.cancelledAt!.month}/${appointment.cancelledAt!.year} ${appointment.cancelledAt!.hour}:${appointment.cancelledAt!.minute.toString().padLeft(2, '0')}'),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          ),
+                        // Use the AppointmentDetailsModal without accept button
+                        AppointmentDetailsModal.show(
+                          context,
+                          appointment,
+                          showAcceptButton: false,
                         );
                       },
                     );
@@ -467,30 +386,6 @@ class _AppointmentManagementScreenState extends State<AppointmentManagementScree
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 80,
-            child: Text(
-              '$label:',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(value),
-          ),
-        ],
       ),
     );
   }

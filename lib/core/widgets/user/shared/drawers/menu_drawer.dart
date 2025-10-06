@@ -131,7 +131,7 @@ class MenuDrawer extends StatelessWidget {
                     title: 'Skin Disease Info',
                     onTap: () {
                       Navigator.pop(context);
-                      // Navigate to skin disease information
+                      context.go('/skin-disease-library');
                     },
                   ),
                   _buildMenuItem(
