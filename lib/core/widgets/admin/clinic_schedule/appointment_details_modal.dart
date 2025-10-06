@@ -467,34 +467,28 @@ class _AppointmentDetailsModalState extends State<AppointmentDetailsModal> {
                 ),
               ],
 
-            const SizedBox(height: 24),
-
-            // Action Buttons
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Close'),
-                ),
-                if (widget.showAcceptButton && widget.onAcceptAppointment != null) ...[
-                  const SizedBox(width: 12),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      widget.onAcceptAppointment!();
-                    },
-                    icon: const Icon(Icons.check, size: 18),
-                    label: const Text('Accept Appointment'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    ),
+            // Accept Button (if needed)
+            if (widget.showAcceptButton && widget.onAcceptAppointment != null) ...[
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    widget.onAcceptAppointment!();
+                  },
+                  icon: const Icon(Icons.check, size: 18),
+                  label: const Text('Accept Appointment'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   ),
-                ],
-              ],
-            ),
+                ),
+              ),
+            ],
+            
+            const SizedBox(height: 24),
           ],
         ),
       ),
