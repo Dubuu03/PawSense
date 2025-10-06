@@ -1,0 +1,9 @@
+dermatitis
+fleas
+fungal_infection
+hotspot
+mange
+pyoderma
+ringworm
+ticks
+unknown_abnormality

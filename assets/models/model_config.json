@@ -1,0 +1,17 @@
+{
+  "model_name": "skin_disease_detector_v1",
+  "model_type": "yolov8",
+  "version": "1.0",
+  "input_size": 640,
+  "num_classes": 9,
+  "confidence_threshold": 0.25,
+  "iou_threshold": 0.45,
+  "input_name": "images",
+  "output_name": "output0",
+  "preprocessing": {
+    "normalize": true,
+    "mean": [0.0, 0.0, 0.0],
+    "std": [255.0, 255.0, 255.0],
+    "format": "RGB"
+  }
+}
