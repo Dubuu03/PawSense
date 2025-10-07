@@ -1,0 +1,544 @@
+﻿import 'package:flutter/material.dart';
+import 'package:pawsense/core/models/skin_disease/skin_disease_model.dart';
+import 'package:pawsense/core/models/user/user_model.dart';
+import 'package:pawsense/core/guards/auth_guard.dart';
+import 'package:pawsense/core/services/user/skin_disease_service.dart';
+import 'package:pawsense/core/utils/app_colors.dart';
+import 'package:pawsense/core/utils/constants_mobile.dart';
+import 'package:pawsense/core/widgets/user/shared/navigation/user_app_bar.dart';
+import 'package:pawsense/core/widgets/shared/skin_disease/skin_disease_card.dart';
+import 'package:pawsense/core/widgets/shared/skin_disease/category_chip.dart';
+import 'package:pawsense/core/widgets/shared/skin_disease/skin_disease_empty_state.dart';
+import 'package:pawsense/pages/mobile/skin_disease_detail_page.dart';
+
+/// Skin Disease Information Library Page (Mobile/User)
+/// 
+/// Displays a searchable, filterable list of skin diseases
+/// Based on the design from pasted images 1 and 2
+class SkinDiseaseLibraryPage extends StatefulWidget {
+  const SkinDiseaseLibraryPage({super.key});
+
+  @override
+  State<SkinDiseaseLibraryPage> createState() => _SkinDiseaseLibraryPageState();
+}
+
+class _SkinDiseaseLibraryPageState extends State<SkinDiseaseLibraryPage> {
+  final SkinDiseaseService _service = SkinDiseaseService();
+  final TextEditingController _searchController = TextEditingController();
+  
+  List<SkinDiseaseModel> _allDiseases = [];
+  List<SkinDiseaseModel> _filteredDiseases = [];
+  List<String> _categories = [];
+  
+  UserModel? _userModel;
+  bool _userLoading = true;
+  bool _isLoading = true;
+  String _selectedSpecies = 'cat'; // 'cat', 'dog'
+  String? _selectedCategory; // null means "All"
+  String? _selectedDetectionMethod; // null, 'ai', 'vet_guided'
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUser();
+    _loadData();
+  }
+
+  Future<void> _fetchUser() async {
+    try {
+      final user = await AuthGuard.getCurrentUser();
+      if (mounted) {
+        setState(() {
+          _userModel = user;
+          _userLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _userLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadData() async {
+    print('🔵 Loading data...');
+    setState(() => _isLoading = true);
+    
+    try {
+      final results = await Future.wait([
+        _service.getAllDiseases(useCache: false),
+        _service.getCategories(useCache: false),
+      ]);
+      
+      print('🔵 Data loaded: ${(results[0] as List).length} diseases, ${(results[1] as List).length} categories');
+      
+      setState(() {
+        _allDiseases = results[0] as List<SkinDiseaseModel>;
+        _categories = results[1] as List<String>;
+        _isLoading = false;
+      });
+      
+      print('🔵 Before filters - All diseases: ${_allDiseases.length}');
+      _applyFilters();
+    } catch (e, stackTrace) {
+      print('🔴 Error loading data: $e');
+      print('🔴 Stack trace: $stackTrace');
+      setState(() => _isLoading = false);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load skin diseases: $e')),
+        );
+      }
+    }
+  }
+
+  void _applyFilters() {
+    print('🔵 Applying filters...');
+    print('🔵 All diseases count: ${_allDiseases.length}');
+    print('🔵 Selected species: $_selectedSpecies');
+    print('🔵 Selected category: $_selectedCategory');
+    print('🔵 Selected detection: $_selectedDetectionMethod');
+    print('🔵 Search query: "$_searchQuery"');
+    
+    setState(() {
+      _filteredDiseases = _allDiseases.where((disease) {
+        // Species filter - check for both singular and plural forms
+        bool matchesSpecies = disease.species.contains(_selectedSpecies) ||
+            disease.species.contains('${_selectedSpecies}s') || // plural: cat -> cats
+            disease.species.contains('both');
+        
+        // Category filter (null means show all)
+        bool matchesCategory = _selectedCategory == null ||
+            disease.categories.contains(_selectedCategory);
+        
+        // Detection method filter
+        bool matchesDetection = _selectedDetectionMethod == null ||
+            disease.detectionMethod == _selectedDetectionMethod ||
+            disease.detectionMethod == 'both';
+        
+        // Search query filter
+        bool matchesSearch = _searchQuery.isEmpty ||
+            disease.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+            disease.description.toLowerCase().contains(_searchQuery.toLowerCase());
+        
+        final matches = matchesSpecies && matchesCategory && matchesDetection && matchesSearch;
+        
+        if (!matches) {
+          print('🔴 "${disease.name}" filtered out:');
+          print('   Species: $matchesSpecies (disease.species=${disease.species}, looking for: "$_selectedSpecies" or "${_selectedSpecies}s")');
+          print('   Category: $matchesCategory (disease.categories=${disease.categories})');
+          print('   Detection: $matchesDetection (disease.detectionMethod=${disease.detectionMethod})');
+          print('   Search: $matchesSearch');
+        } else {
+          print('✅ "${disease.name}" PASSED all filters!');
+        }
+        
+        return matches;
+      }).toList();
+      
+      print('🟢 Filtered diseases: ${_filteredDiseases.length}');
+    });
+  }
+
+  void _clearFilters() {
+    print('🔵 Clearing all filters');
+    setState(() {
+      _selectedSpecies = 'cat';
+      _selectedCategory = null; // null = "All"
+      _selectedDetectionMethod = null;
+      _searchQuery = '';
+      _searchController.clear();
+    });
+    _applyFilters();
+  }
+
+  void _onSearchChanged(String query) {
+    setState(() {
+      _searchQuery = query;
+    });
+    _applyFilters();
+  }
+
+  void _onSpeciesChanged(String species) {
+    setState(() {
+      _selectedSpecies = species;
+    });
+    _applyFilters();
+  }
+
+  void _onCategorySelected(String category) {
+    print('🔵 Category selected: $category');
+    setState(() {
+      if (category == 'All') {
+        _selectedCategory = null; // null = show all categories
+      } else {
+        // Toggle: if same category clicked, deselect (show all)
+        _selectedCategory = _selectedCategory == category ? null : category;
+      }
+    });
+    _applyFilters();
+  }
+
+  void _onDetectionMethodToggled() {
+    setState(() {
+      if (_selectedDetectionMethod == null) {
+        _selectedDetectionMethod = 'ai';
+      } else {
+        _selectedDetectionMethod = null;
+      }
+    });
+    _applyFilters();
+  }
+
+  void _navigateToDetail(SkinDiseaseModel disease) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SkinDiseaseDetailPage(disease: disease),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: UserAppBar(user: _userModel),
+      body: _isLoading || _userLoading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _loadData,
+              child: CustomScrollView(
+                slivers: [
+                  // Info banner
+                  SliverToBoxAdapter(
+                    child: _buildInfoBanner(),
+                  ),
+                  
+                  // Search bar
+                  SliverToBoxAdapter(
+                    child: _buildSearchBar(),
+                  ),
+                  
+                  // Species toggle (Cats/Dogs only)
+                  SliverToBoxAdapter(
+                    child: _buildSpeciesToggle(),
+                  ),
+                  
+                  // Filter chips (Categories + AI Detectable)
+                  SliverToBoxAdapter(
+                    child: _buildFilterChips(),
+                  ),
+                  
+                  // Disease list or empty state
+                  _filteredDiseases.isEmpty
+                      ? SliverFillRemaining(
+                          child: SkinDiseaseEmptyState(
+                            message: _searchQuery.isNotEmpty
+                                ? 'No results found'
+                                : 'No diseases match your filters',
+                            submessage: 'Try adjusting your filters',
+                            onReset: _clearFilters,
+                          ),
+                        )
+                      : SliverPadding(
+                          padding: const EdgeInsets.all(kMobileMarginHorizontal),
+                          sliver: SliverList(
+                            delegate: SliverChildBuilderDelegate(
+                              (context, index) {
+                                return SkinDiseaseCard(
+                                  disease: _filteredDiseases[index],
+                                  onTap: () => _navigateToDetail(_filteredDiseases[index]),
+                                );
+                              },
+                              childCount: _filteredDiseases.length,
+                            ),
+                          ),
+                        ),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _buildInfoBanner() {
+    return Container(
+      margin: const EdgeInsets.all(kMobileMarginHorizontal),
+      padding: kMobilePaddingCard,
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.08),
+        borderRadius: kMobileBorderRadiusCardPreset,
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.2),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(
+              Icons.info_outline,
+              color: AppColors.primary,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Skin Disease Info',
+                  style: kMobileTextStyleTitle.copyWith(
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Learn about common pet skin conditions and how PawSense can help detect them.',
+                  style: kMobileTextStyleSubtitle.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: kMobileMarginHorizontal),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: kMobileCardShadowSmall,
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.search,
+            color: AppColors.textSecondary,
+            size: 20,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              decoration: InputDecoration(
+                hintText: 'Search skin diseases...',
+                hintStyle: TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textTertiary,
+                ),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+          if (_searchQuery.isNotEmpty)
+            GestureDetector(
+              onTap: () {
+                _searchController.clear();
+                _onSearchChanged('');
+              },
+              child: Icon(
+                Icons.clear,
+                color: AppColors.textSecondary,
+                size: 18,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSpeciesToggle() {
+    return Container(
+      margin: const EdgeInsets.symmetric(
+        horizontal: kMobileMarginHorizontal,
+        vertical: 16,
+      ),
+      child: Row(
+        children: [
+          _buildSpeciesButton('cat', '🐱 Cats'),
+          const SizedBox(width: 12),
+          _buildSpeciesButton('dog', '🐶 Dogs'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSpeciesButton(String species, String label) {
+    final isSelected = _selectedSpecies == species;
+    final emoji = species == 'cat' ? '🐱' : '';
+    
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => _onSpeciesChanged(species),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.primary : AppColors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected ? AppColors.primary : AppColors.border,
+              width: 1.5,
+            ),
+            boxShadow: kMobileCardShadowSmall,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                emoji,
+                style: const TextStyle(fontSize: 18),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: isSelected ? AppColors.white : AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterChips() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Categories header
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: kMobileMarginHorizontal),
+          child: Text(
+            'Categories',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ),
+        
+        const SizedBox(height: 12),
+        
+        // Category chips in horizontal scroll (no scrollbar)
+        if (_categories.isNotEmpty)
+          SizedBox(
+            height: 38,
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: kMobileMarginHorizontal),
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              itemCount: _categories.length + 2, // +2 for "All" and "AI Detectable"
+              itemBuilder: (context, index) {
+                // First chip: "All"
+                if (index == 0) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: CategoryChip(
+                      label: 'All',
+                      isSelected: _selectedCategory == null,
+                      onTap: () {
+                        setState(() {
+                          _selectedCategory = null;
+                        });
+                        _applyFilters();
+                      },
+                    ),
+                  );
+                }
+                
+                // Last chip: "AI Detectable"
+                if (index == _categories.length + 1) {
+                  return GestureDetector(
+                    onTap: _onDetectionMethodToggled,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _selectedDetectionMethod == 'ai'
+                            ? AppColors.primary
+                            : AppColors.white,
+                        border: Border.all(
+                          color: _selectedDetectionMethod == 'ai'
+                              ? AppColors.primary
+                              : AppColors.border,
+                          width: 1.5,
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '✨',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            'AI Detectable',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: _selectedDetectionMethod == 'ai'
+                                  ? AppColors.white
+                                  : AppColors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+                
+                // Category chips
+                final categoryIndex = index - 1;
+                final category = _categories[categoryIndex];
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: CategoryChip(
+                    label: category,
+                    isSelected: _selectedCategory == category,
+                    onTap: () => _onCategorySelected(category),
+                  ),
+                );
+              },
+            ),
+          ),
+        
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+}

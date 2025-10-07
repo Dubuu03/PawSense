@@ -20,6 +20,8 @@ import 'package:pawsense/core/services/cloudinary/cloudinary_service.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter/services.dart';
+import 'package:pawsense/core/services/user/skin_disease_service.dart';
+import 'package:pawsense/core/models/skin_disease/skin_disease_model.dart';
 
 class AssessmentStepThree extends StatefulWidget {
   final Map<String, dynamic> assessmentData;
@@ -46,11 +48,14 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
   late List<AnalysisResult> _analysisResults;
   Set<int> _previewingImages = {}; // Track which images are showing bounding boxes
   Set<int> _fullscreenBoundingBoxes = {}; // Track bounding boxes in fullscreen mode
+  SkinDiseaseModel? _detectedDisease; // Store the fetched disease info
+  bool _isLoadingDiseaseInfo = false;
   
   @override
   void initState() {
     super.initState();
     _processDetectionResults();
+    _fetchDiseaseInfo();
   }
 
   void _showFullscreenImage(XFile photo, int index, List<Map<String, dynamic>> detectionsToShow) {
@@ -314,6 +319,58 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
 
   String _formatConditionName(String condition) {
     return DetectionUtils.formatConditionName(condition);
+  }
+
+  /// Fetch skin disease information based on highest confidence detection
+  Future<void> _fetchDiseaseInfo() async {
+    if (_analysisResults.isEmpty) {
+      return;
+    }
+    
+    setState(() {
+      _isLoadingDiseaseInfo = true;
+    });
+    
+    try {
+      // Get the highest confidence condition
+      final highestConfidenceCondition = _analysisResults.first.condition;
+      
+      // Search for the disease in the database
+      final diseaseService = SkinDiseaseService();
+      final allDiseases = await diseaseService.getAllDiseases();
+      
+      // Try to match by name (case-insensitive, fuzzy matching)
+      SkinDiseaseModel? matchedDisease;
+      
+      for (var disease in allDiseases) {
+        // Direct match
+        if (disease.name.toLowerCase() == highestConfidenceCondition.toLowerCase()) {
+          matchedDisease = disease;
+          break;
+        }
+        
+        // Partial match (contains)
+        if (disease.name.toLowerCase().contains(highestConfidenceCondition.toLowerCase()) ||
+            highestConfidenceCondition.toLowerCase().contains(disease.name.toLowerCase())) {
+          matchedDisease = disease;
+          break;
+        }
+      }
+      
+      if (mounted) {
+        setState(() {
+          _detectedDisease = matchedDisease;
+          _isLoadingDiseaseInfo = false;
+        });
+      }
+    } catch (e) {
+      print('Error fetching disease info: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingDiseaseInfo = false;
+        });
+      }
+    }
   }
 
   // Save assessment to Firebase without generating PDF
@@ -1066,82 +1123,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
           const SizedBox(height: kSpacingMedium),
           
           // Initial Remedies/Suggestions (Collapsible)
-          Container(
-            decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(kBorderRadius),
-              border: Border.all(color: AppColors.primary.withOpacity(0.3)),
-            ),
-            child: Column(
-              children: [
-                GestureDetector(
-                  onTap: () => setState(() => _showRemedies = !_showRemedies),
-                  child: Container(
-                    padding: const EdgeInsets.all(kSpacingMedium),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.healing,
-                          color: AppColors.primary,
-                          size: 20,
-                        ),
-                        const SizedBox(width: kSpacingSmall),
-                        Text(
-                          'Initial Remedies & Suggestions',
-                          style: kMobileTextStyleTitle.copyWith(
-                            color: AppColors.primary,
-                          ),
-                        ),
-                        const Spacer(),
-
-                        Icon(
-                          _showRemedies ? Icons.expand_less : Icons.expand_more,
-                          color: AppColors.primary,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                if (_showRemedies) ...[
-                  const Divider(height: 1, color: AppColors.primary),
-                  Container(
-                    padding: const EdgeInsets.all(kSpacingMedium),
-                    decoration: BoxDecoration(
-                      color: AppColors.white,
-                      borderRadius: const BorderRadius.only(
-                        bottomLeft: Radius.circular(kBorderRadius),
-                        bottomRight: Radius.circular(kBorderRadius),
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        _buildRemedyItem(
-                          Icons.local_hospital,
-                          'Immediate Care',
-                          'Keep the affected area clean and dry. Avoid excessive scratching.',
-                        ),
-                        _buildRemedyItem(
-                          Icons.medication,
-                          'Topical Treatment',
-                          'Apply antifungal cream twice daily if mange is suspected.',
-                        ),
-                        _buildRemedyItem(
-                          Icons.schedule,
-                          'Monitor Progress',
-                          'Track symptoms daily and note any changes or improvements.',
-                        ),
-                        _buildRemedyItem(
-                          Icons.warning,
-                          'When to Seek Help',
-                          'Consult a veterinarian if symptoms worsen or persist beyond 7 days.',
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
+          _buildRemediesSection(),
           const SizedBox(height: kSpacingMedium),
           
           // Action Buttons
@@ -1556,7 +1538,207 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     );
   }
 
-  Widget _buildRemedyItem(IconData icon, String title, String description) {
+  Widget _buildRemediesSection() {
+    // Check if we have disease info with remedies
+    final hasRemedies = _detectedDisease?.initialRemedies != null;
+    final remedies = _detectedDisease?.initialRemedies;
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.primary.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(kBorderRadius),
+        border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          GestureDetector(
+            onTap: () => setState(() => _showRemedies = !_showRemedies),
+            child: Container(
+              padding: const EdgeInsets.all(kSpacingMedium),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.healing,
+                    color: AppColors.primary,
+                    size: 20,
+                  ),
+                  const SizedBox(width: kSpacingSmall),
+                  Expanded(
+                    child: Text(
+                      'Initial Remedies & Suggestions',
+                      style: kMobileTextStyleTitle.copyWith(
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
+                  if (_isLoadingDiseaseInfo)
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                      ),
+                    )
+                  else
+                    Icon(
+                      _showRemedies ? Icons.expand_less : Icons.expand_more,
+                      color: AppColors.primary,
+                    ),
+                ],
+              ),
+            ),
+          ),
+          if (_showRemedies) ...[
+            const Divider(height: 1, color: AppColors.primary),
+            Container(
+              padding: const EdgeInsets.all(kSpacingMedium),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(kBorderRadius),
+                  bottomRight: Radius.circular(kBorderRadius),
+                ),
+              ),
+              child: hasRemedies
+                  ? _buildDynamicRemedies(remedies!)
+                  : _buildPlaceholderRemedies(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildDynamicRemedies(Map<String, dynamic> remedies) {
+    final List<Widget> remedyWidgets = [];
+    
+    // Immediate Care
+    if (remedies.containsKey('immediateCare')) {
+      final immediateCare = remedies['immediateCare'] as Map<String, dynamic>;
+      final actions = List<String>.from(immediateCare['actions'] ?? []);
+      remedyWidgets.add(_buildRemedyItem(
+        Icons.local_hospital,
+        immediateCare['title'] ?? 'Immediate Care',
+        actions.join('\n• '),
+        isListFormat: true,
+      ));
+    }
+    
+    // Topical Treatment / Environmental Disinfection
+    if (remedies.containsKey('topicalTreatment')) {
+      final topicalTreatment = remedies['topicalTreatment'] as Map<String, dynamic>;
+      final actions = List<String>.from(topicalTreatment['actions'] ?? []);
+      final note = topicalTreatment['note'] as String?;
+      
+      String content = actions.join('\n• ');
+      if (note != null && note.isNotEmpty) {
+        content += '\n\n⚠️ Note: $note';
+      }
+      
+      remedyWidgets.add(_buildRemedyItem(
+        Icons.medication,
+        topicalTreatment['title'] ?? 'Treatment',
+        content,
+        isListFormat: true,
+      ));
+    }
+    
+    // Monitoring
+    if (remedies.containsKey('monitoring')) {
+      final monitoring = remedies['monitoring'] as Map<String, dynamic>;
+      final actions = List<String>.from(monitoring['actions'] ?? []);
+      remedyWidgets.add(_buildRemedyItem(
+        Icons.schedule,
+        monitoring['title'] ?? 'Monitor Progress',
+        actions.join('\n• '),
+        isListFormat: true,
+      ));
+    }
+    
+    // When to Seek Help
+    if (remedies.containsKey('whenToSeekHelp')) {
+      final whenToSeekHelp = remedies['whenToSeekHelp'] as Map<String, dynamic>;
+      final actions = List<String>.from(whenToSeekHelp['actions'] ?? []);
+      final urgency = whenToSeekHelp['urgency'] as String?;
+      
+      String content = actions.join('\n• ');
+      if (urgency != null) {
+        content = '⏰ Urgency: ${urgency.replaceAll('_', ' ')}\n\n$content';
+      }
+      
+      remedyWidgets.add(_buildRemedyItem(
+        Icons.warning,
+        whenToSeekHelp['title'] ?? 'When to Seek Help',
+        content,
+        isListFormat: true,
+        isWarning: true,
+      ));
+    }
+    
+    return Column(children: remedyWidgets);
+  }
+  
+  Widget _buildPlaceholderRemedies() {
+    return Column(
+      children: [
+        // Info banner
+        Container(
+          padding: const EdgeInsets.all(kSpacingMedium),
+          margin: const EdgeInsets.only(bottom: kSpacingMedium),
+          decoration: BoxDecoration(
+            color: AppColors.info.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(kBorderRadius),
+            border: Border.all(color: AppColors.info.withOpacity(0.3)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline, color: AppColors.info, size: 20),
+              const SizedBox(width: kSpacingSmall),
+              Expanded(
+                child: Text(
+                  'Specific remedies for this condition are being updated. Please follow general care guidelines below.',
+                  style: kMobileTextStyleLegend.copyWith(
+                    color: AppColors.info,
+                    height: 1.3,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        // Generic remedies
+        _buildRemedyItem(
+          Icons.local_hospital,
+          'Immediate Care',
+          '• Keep the affected area clean and dry\n• Prevent your pet from scratching or licking the area\n• Avoid applying any products without vet approval\n• Document symptoms with photos for your vet',
+          isListFormat: true,
+        ),
+        _buildRemedyItem(
+          Icons.schedule,
+          'Monitor Progress',
+          '• Track symptoms daily and note any changes\n• Take photos to monitor progression\n• Keep a log of your pet\'s behavior and appetite\n• Note if symptoms worsen or improve',
+          isListFormat: true,
+        ),
+        _buildRemedyItem(
+          Icons.warning,
+          'When to Seek Help',
+          '⏰ Consult a veterinarian immediately if:\n\n• Symptoms worsen or spread rapidly\n• Your pet shows signs of pain or distress\n• The affected area becomes infected\n• Symptoms persist beyond 7 days',
+          isListFormat: true,
+          isWarning: true,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRemedyItem(
+    IconData icon, 
+    String title, 
+    String description, {
+    bool isListFormat = false,
+    bool isWarning = false,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: kSpacingMedium),
       child: Row(
@@ -1565,12 +1747,12 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
           Container(
             padding: const EdgeInsets.all(kSpacingSmall),
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
+              color: (isWarning ? AppColors.error : AppColors.primary).withOpacity(0.1),
               borderRadius: BorderRadius.circular(kBorderRadius),
             ),
             child: Icon(
               icon,
-              color: AppColors.primary,
+              color: isWarning ? AppColors.error : AppColors.primary,
               size: 20,
             ),
           ),
@@ -1583,11 +1765,12 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                   title,
                   style: kMobileTextStyleTitle.copyWith(
                     color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: kSpacingXSmall),
                 Text(
-                  description,
+                  isListFormat ? '• $description' : description,
                   style: kMobileTextStyleServiceSubtitle.copyWith(
                     color: AppColors.textSecondary,
                     height: 1.4,

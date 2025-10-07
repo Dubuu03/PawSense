@@ -21,6 +21,7 @@ class SkinDiseaseModel {
   final int viewCount; // For tracking popularity
   final DateTime createdAt;
   final DateTime updatedAt;
+  final Map<String, dynamic>? initialRemedies; // Initial remedies and care instructions
 
   SkinDiseaseModel({
     required this.id,
@@ -39,6 +40,7 @@ class SkinDiseaseModel {
     this.viewCount = 0,
     required this.createdAt,
     required this.updatedAt,
+    this.initialRemedies,
   });
 
   /// Create from Firestore document
@@ -62,6 +64,7 @@ class SkinDiseaseModel {
       viewCount: data['viewCount'] ?? 0,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      initialRemedies: data['initialRemedies'] as Map<String, dynamic>?,
     );
   }
 
@@ -83,6 +86,7 @@ class SkinDiseaseModel {
       'viewCount': viewCount,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
+      if (initialRemedies != null) 'initialRemedies': initialRemedies,
     };
   }
 
@@ -104,6 +108,7 @@ class SkinDiseaseModel {
     int? viewCount,
     DateTime? createdAt,
     DateTime? updatedAt,
+    Map<String, dynamic>? initialRemedies,
   }) {
     return SkinDiseaseModel(
       id: id ?? this.id,
@@ -122,6 +127,7 @@ class SkinDiseaseModel {
       viewCount: viewCount ?? this.viewCount,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      initialRemedies: initialRemedies ?? this.initialRemedies,
     );
   }
 

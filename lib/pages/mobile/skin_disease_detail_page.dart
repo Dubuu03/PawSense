@@ -7,8 +7,8 @@ import 'package:go_router/go_router.dart';
 /// Skin Disease Detail Page (Mobile/User)
 /// 
 /// Displays detailed information about a specific skin disease
-/// Based on the design from pasted image 3
-class SkinDiseaseDetailPage extends StatelessWidget {
+/// With collapsing app bar and conditional UI based on disease properties
+class SkinDiseaseDetailPage extends StatefulWidget {
   final SkinDiseaseModel disease;
 
   const SkinDiseaseDetailPage({
@@ -17,10 +17,42 @@ class SkinDiseaseDetailPage extends StatelessWidget {
   });
 
   @override
+  State<SkinDiseaseDetailPage> createState() => _SkinDiseaseDetailPageState();
+}
+
+class _SkinDiseaseDetailPageState extends State<SkinDiseaseDetailPage> {
+  final ScrollController _scrollController = ScrollController();
+  bool _isCollapsed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    // Collapse threshold at 150 pixels
+    final shouldCollapse = _scrollController.offset > 150;
+    if (shouldCollapse != _isCollapsed) {
+      setState(() {
+        _isCollapsed = shouldCollapse;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: CustomScrollView(
+        controller: _scrollController,
         slivers: [
           // App bar with image
           _buildAppBar(context),
@@ -36,35 +68,39 @@ class SkinDiseaseDetailPage extends StatelessWidget {
                 // What is this condition?
                 _buildSection(
                   title: 'What is this condition?',
-                  content: disease.description,
+                  content: widget.disease.description,
                 ),
                 
                 // Key symptoms
-                if (disease.symptoms.isNotEmpty)
+                if (widget.disease.symptoms.isNotEmpty)
                   _buildListSection(
                     title: 'Key symptoms to watch for',
                     icon: '⚠️',
-                    items: disease.symptoms,
+                    items: widget.disease.symptoms,
                     iconColor: AppColors.warning,
                   ),
                 
                 // Causes
-                if (disease.causes.isNotEmpty)
+                if (widget.disease.causes.isNotEmpty)
                   _buildListSection(
                     title: 'Common causes',
                     icon: '💊',
-                    items: disease.causes,
+                    items: widget.disease.causes,
                     iconColor: AppColors.info,
                   ),
                 
                 // Treatments
-                if (disease.treatments.isNotEmpty)
+                if (widget.disease.treatments.isNotEmpty)
                   _buildListSection(
                     title: 'Treatment options',
                     icon: '💉',
-                    items: disease.treatments,
+                    items: widget.disease.treatments,
                     iconColor: AppColors.success,
                   ),
+                
+                // Initial Care Guidelines (if available)
+                if (widget.disease.initialRemedies != null)
+                  _buildInitialCareSection(),
                 
                 // Action buttons
                 _buildActionButtons(context),
@@ -80,66 +116,46 @@ class SkinDiseaseDetailPage extends StatelessWidget {
 
   Widget _buildAppBar(BuildContext context) {
     return SliverAppBar(
-      expandedHeight: 200,
+      expandedHeight: 250,
       pinned: true,
       backgroundColor: AppColors.white,
       leading: IconButton(
         onPressed: () => Navigator.pop(context),
-        icon: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: AppColors.white.withValues(alpha: 0.9),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.arrow_back,
-            color: AppColors.textPrimary,
-            size: 20,
-          ),
-        ),
+        icon: _isCollapsed
+            ? const Icon(
+                Icons.arrow_back,
+                color: AppColors.textPrimary,
+                size: 24,
+              )
+            : Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.white.withValues(alpha: 0.9),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.arrow_back,
+                  color: AppColors.textPrimary,
+                  size: 20,
+                ),
+              ),
       ),
-      actions: [
-        IconButton(
-          onPressed: () {
-            // Bookmark functionality (future)
-          },
-          icon: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColors.white.withValues(alpha: 0.9),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.bookmark_border,
-              color: AppColors.textPrimary,
-              size: 20,
-            ),
-          ),
-        ),
-        IconButton(
-          onPressed: () {
-            // Share functionality (future)
-          },
-          icon: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColors.white.withValues(alpha: 0.9),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.share,
-              color: AppColors.textPrimary,
-              size: 20,
-            ),
-          ),
-        ),
-      ],
+      title: _isCollapsed
+          ? Text(
+              widget.disease.name,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            )
+          : null,
       flexibleSpace: FlexibleSpaceBar(
         background: Stack(
           fit: StackFit.expand,
           children: [
             // Image
-            disease.imageUrl.isNotEmpty
+            widget.disease.imageUrl.isNotEmpty
                 ? _buildImage()
                 : _buildPlaceholderImage(),
             
@@ -167,7 +183,7 @@ class SkinDiseaseDetailPage extends StatelessWidget {
                 children: [
                   // Categories
                   Text(
-                    disease.categories.join(' • ').toUpperCase(),
+                    widget.disease.categories.join(' • ').toUpperCase(),
                     style: const TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
@@ -178,7 +194,7 @@ class SkinDiseaseDetailPage extends StatelessWidget {
                   const SizedBox(height: 4),
                   // Name
                   Text(
-                    disease.name,
+                    widget.disease.name,
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w700,
@@ -190,11 +206,11 @@ class SkinDiseaseDetailPage extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: _getSeverityColor(disease.severity).withValues(alpha: 0.9),
+                      color: _getSeverityColor(widget.disease.severity).withValues(alpha: 0.9),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
-                      '${disease.severity} Severity',
+                      '${widget.disease.severity} Severity',
                       style: const TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
@@ -213,13 +229,13 @@ class SkinDiseaseDetailPage extends StatelessWidget {
 
   Widget _buildImage() {
     // Check if imageUrl is a network URL or a local asset filename
-    final isNetworkImage = disease.imageUrl.startsWith('http://') || 
-                           disease.imageUrl.startsWith('https://');
+    final isNetworkImage = widget.disease.imageUrl.startsWith('http://') || 
+                           widget.disease.imageUrl.startsWith('https://');
     
     if (isNetworkImage) {
       // Use network image
       return Image.network(
-        disease.imageUrl,
+        widget.disease.imageUrl,
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) {
           return _buildPlaceholderImage();
@@ -227,7 +243,7 @@ class SkinDiseaseDetailPage extends StatelessWidget {
       );
     } else {
       // Use asset image - construct path from filename
-      final assetPath = 'assets/img/skin_diseases/${disease.imageUrl}';
+      final assetPath = 'assets/img/skin_diseases/${widget.disease.imageUrl}';
       return Image.asset(
         assetPath,
         fit: BoxFit.cover,
@@ -264,7 +280,7 @@ class SkinDiseaseDetailPage extends StatelessWidget {
                 child: _buildBadge(
                   icon: '🐾',
                   label: 'SPECIES',
-                  value: disease.speciesDisplay,
+                  value: widget.disease.speciesDisplay,
                 ),
               ),
               const SizedBox(width: 12),
@@ -273,7 +289,7 @@ class SkinDiseaseDetailPage extends StatelessWidget {
                 child: _buildBadge(
                   icon: '⏱️',
                   label: 'DURATION',
-                  value: disease.duration,
+                  value: widget.disease.duration,
                 ),
               ),
             ],
@@ -285,9 +301,9 @@ class SkinDiseaseDetailPage extends StatelessWidget {
               // Contagious badge
               Expanded(
                 child: _buildBadge(
-                  icon: disease.isContagious ? '⚠️' : '✅',
+                  icon: widget.disease.isContagious ? '⚠️' : '✅',
                   label: 'CONTAGIOUS',
-                  value: disease.isContagious ? 'Yes' : 'No',
+                  value: widget.disease.isContagious ? 'Yes' : 'No',
                 ),
               ),
               const SizedBox(width: 12),
@@ -296,7 +312,7 @@ class SkinDiseaseDetailPage extends StatelessWidget {
                 child: _buildBadge(
                   icon: _getSeverityIcon(),
                   label: 'SEVERITY',
-                  value: '${disease.severity[0].toUpperCase()}${disease.severity.substring(1)}',
+                  value: '${widget.disease.severity[0].toUpperCase()}${widget.disease.severity.substring(1)}',
                 ),
               ),
             ],
@@ -307,7 +323,7 @@ class SkinDiseaseDetailPage extends StatelessWidget {
   }
 
   String _getSeverityIcon() {
-    switch (disease.severity.toLowerCase()) {
+    switch (widget.disease.severity.toLowerCase()) {
       case 'low':
       case 'mild':
         return '🟢';
@@ -481,7 +497,277 @@ class SkinDiseaseDetailPage extends StatelessWidget {
     );
   }
 
+  Widget _buildInitialCareSection() {
+    final remedies = widget.disease.initialRemedies!;
+    
+    return Container(
+      margin: const EdgeInsets.symmetric(
+        horizontal: kMobileMarginHorizontal,
+        vertical: 16,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Important disclaimer banner
+          Container(
+            padding: const EdgeInsets.all(16),
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: AppColors.error.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.error.withOpacity(0.3), width: 1.5),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.medical_services,
+                  color: AppColors.error,
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '⚕️ Professional Diagnosis Required',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.error,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Always consult your veterinarian for proper diagnosis. The information below is for educational purposes only.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w400,
+                          color: AppColors.error,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Section title
+          Text(
+            'If Diagnosed: How to Manage',
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'If your vet confirms this condition, here are care guidelines to help manage it:',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+              color: AppColors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 16),
+          
+          // Care guidelines container
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: kMobileCardShadowSmall,
+            ),
+            child: Column(
+              children: [
+                // Immediate Care
+                if (remedies.containsKey('immediateCare'))
+                  _buildCareItem(
+                    icon: Icons.medical_information,
+                    iconColor: AppColors.error,
+                    title: (remedies['immediateCare'] as Map<String, dynamic>)['title'] ?? 'Immediate Care',
+                    actions: List<String>.from((remedies['immediateCare'] as Map<String, dynamic>)['actions'] ?? []),
+                  ),
+                
+                // Topical Treatment / Environmental Care
+                if (remedies.containsKey('topicalTreatment'))
+                  _buildCareItem(
+                    icon: Icons.healing,
+                    iconColor: AppColors.primary,
+                    title: (remedies['topicalTreatment'] as Map<String, dynamic>)['title'] ?? 'Treatment',
+                    actions: List<String>.from((remedies['topicalTreatment'] as Map<String, dynamic>)['actions'] ?? []),
+                    note: (remedies['topicalTreatment'] as Map<String, dynamic>)['note'] as String?,
+                  ),
+                
+                // Monitoring
+                if (remedies.containsKey('monitoring'))
+                  _buildCareItem(
+                    icon: Icons.track_changes,
+                    iconColor: AppColors.info,
+                    title: (remedies['monitoring'] as Map<String, dynamic>)['title'] ?? 'Monitor Progress',
+                    actions: List<String>.from((remedies['monitoring'] as Map<String, dynamic>)['actions'] ?? []),
+                  ),
+                
+                // When to Seek Help
+                if (remedies.containsKey('whenToSeekHelp'))
+                  _buildCareItem(
+                    icon: Icons.warning_amber,
+                    iconColor: AppColors.warning,
+                    title: (remedies['whenToSeekHelp'] as Map<String, dynamic>)['title'] ?? 'When to Seek Help',
+                    actions: List<String>.from((remedies['whenToSeekHelp'] as Map<String, dynamic>)['actions'] ?? []),
+                    urgency: (remedies['whenToSeekHelp'] as Map<String, dynamic>)['urgency'] as String?,
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildCareItem({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required List<String> actions,
+    String? note,
+    String? urgency,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Title with icon
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: iconColor, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          
+          // Urgency indicator
+          if (urgency != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.alarm, size: 14, color: AppColors.warning),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Timeframe: ${urgency.replaceAll('_', ' ')}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.warning,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          
+          const SizedBox(height: 12),
+          
+          // Actions list
+          ...actions.map((action) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 6),
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: iconColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    action,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                      color: AppColors.textSecondary,
+                      height: 1.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          )).toList(),
+          
+          // Note
+          if (note != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.info.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.info.withOpacity(0.3)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: AppColors.info),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      note,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.info,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildActionButtons(BuildContext context) {
+    // Check if disease has AI detection
+    final hasAIDetection = widget.disease.detectionMethod.toLowerCase() == 'ai';
+    
     return Container(
       margin: const EdgeInsets.all(kMobileMarginHorizontal),
       child: Column(
@@ -520,41 +806,194 @@ class SkinDiseaseDetailPage extends StatelessWidget {
             ),
           ),
           
-          const SizedBox(height: 12),
-          
-          // Track condition button
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: () {
-                // Navigate to assessment or tracking
-                context.push('/assessment');
-              },
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                side: const BorderSide(color: AppColors.primary, width: 1.5),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+          // Track condition button - only show for AI-detectable diseases
+          if (hasAIDetection) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () {
+                  _handleTrackCondition(context);
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.primary, width: 1.5),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.add_circle_outline, size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Track ${widget.disease.name}',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.add_circle_outline, size: 18),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Track ${disease.name}',
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+  
+  /// Handle track condition button tap
+  /// Shows species selection if disease affects multiple species
+  void _handleTrackCondition(BuildContext context) {
+    final species = widget.disease.species;
+    
+    if (species.length > 1) {
+      // Multiple species - show selection modal
+      _showSpeciesSelection(context);
+    } else if (species.isNotEmpty) {
+      // Single species - route directly to assessment
+      final selectedSpecies = species.first.toLowerCase();
+      String petType = 'Dog'; // Default
+      
+      if (selectedSpecies.contains('cat')) {
+        petType = 'Cat';
+      } else if (selectedSpecies.contains('dog')) {
+        petType = 'Dog';
+      }
+      
+      // Navigate to assessment page with selectedPetType
+      context.push(
+        '/assessment',
+        extra: {'selectedPetType': petType},
+      );
+    }
+  }
+  
+  /// Show species selection bottom sheet
+  void _showSpeciesSelection(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Drag handle
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 24),
+            
+            // Title
+            const Text(
+              'Select Your Pet',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Choose which type of pet you want to assess',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                color: AppColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            
+            // Species buttons
+            Row(
+              children: [
+                // Cat button
+                Expanded(
+                  child: _buildSpeciesButton(
+                    context: context,
+                    icon: '🐱',
+                    label: 'Cat',
+                    species: 'cats',
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // Dog button
+                Expanded(
+                  child: _buildSpeciesButton(
+                    context: context,
+                    icon: '🐶',
+                    label: 'Dog',
+                    species: 'dogs',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  /// Build species selection button
+  Widget _buildSpeciesButton({
+    required BuildContext context,
+    required String icon,
+    required String label,
+    required String species,
+  }) {
+    return InkWell(
+      onTap: () {
+        Navigator.pop(context);
+        // Navigate to assessment page with selected pet type
+        String petType = label; // 'Cat' or 'Dog'
+        context.push(
+          '/assessment',
+          extra: {'selectedPetType': petType},
+        );
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border, width: 1.5),
+        ),
+        child: Column(
+          children: [
+            Text(
+              icon,
+              style: const TextStyle(fontSize: 48),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
