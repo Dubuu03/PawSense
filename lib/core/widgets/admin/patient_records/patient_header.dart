@@ -37,19 +37,7 @@ class PatientRecordsHeader extends StatelessWidget {
               ),
             ],
           ),
-          ElevatedButton.icon(
-            onPressed: onAddPatient,
-            icon: const Icon(Icons.add, size: 18),
-            label: const Text('Add New Patient'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          ),
+          const SizedBox(width: 16),
         ],
       ),
     );

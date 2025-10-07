@@ -24,7 +24,7 @@ class _ImprovedPatientRecordsScreenState extends State<ImprovedPatientRecordsScr
   String _selectedType = 'All Types';
   String _selectedStatus = 'All Status';
 
-  final List<String> _types = ['All Types', 'Dog', 'Cat', 'Bird', 'Rabbit', 'Hamster'];
+  final List<String> _types = ['All Types', 'Dog', 'Cat',];
   final List<String> _statuses = ['All Status', 'Healthy', 'Treatment', 'Scheduled'];
 
   // Patient data
@@ -52,12 +52,30 @@ class _ImprovedPatientRecordsScreenState extends State<ImprovedPatientRecordsScr
   // Statistics
   PatientStatistics? _statistics;
 
+  // Flag to prevent duplicate loading
+  bool _isLoadingInitialData = false;
+
+  // Preloading optimization
+  Timer? _preloadTimer;
+
   @override
   void initState() {
     super.initState();
+    print('📌 initState called - PatientRecordsScreen');
     _scrollController.addListener(_onScroll);
     _searchController.addListener(_onSearchChanged);
-    _loadInitialData();
+    
+    // Start loading immediately with high priority
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadInitialData();
+    });
+    
+    // Preload next page after initial load
+    _preloadTimer = Timer(const Duration(seconds: 2), () {
+      if (!_isLoadingMore && _hasMore) {
+        _preloadNextPage();
+      }
+    });
   }
 
   @override
@@ -66,6 +84,7 @@ class _ImprovedPatientRecordsScreenState extends State<ImprovedPatientRecordsScr
     _scrollController.dispose();
     _searchController.dispose();
     _debounceTimer?.cancel();
+    _preloadTimer?.cancel();
     super.dispose();
   }
 
@@ -91,7 +110,36 @@ class _ImprovedPatientRecordsScreenState extends State<ImprovedPatientRecordsScr
     });
   }
 
+  PatientStatistics _calculateStatistics(List<PatientRecord> patients) {
+    final totalPatients = patients.length;
+    final healthyCount = patients
+        .where((p) => p.healthStatus == PatientHealthStatus.healthy)
+        .length;
+    final treatmentCount = patients
+        .where((p) => p.healthStatus == PatientHealthStatus.treatment)
+        .length;
+    final scheduledCount = patients
+        .where((p) => p.healthStatus == PatientHealthStatus.scheduled)
+        .length;
+
+    return PatientStatistics(
+      totalPatients: totalPatients,
+      healthyCount: healthyCount,
+      treatmentCount: treatmentCount,
+      scheduledCount: scheduledCount,
+    );
+  }
+
   Future<void> _loadInitialData() async {
+    // Prevent duplicate loading
+    if (_isLoadingInitialData) {
+      print('⚠️ Already loading initial data, skipping duplicate request');
+      return;
+    }
+
+    print('🚀 Starting optimized initial data load...');
+    _isLoadingInitialData = true;
+
     setState(() {
       _isInitialLoading = true;
       _error = null;
@@ -104,34 +152,43 @@ class _ImprovedPatientRecordsScreenState extends State<ImprovedPatientRecordsScr
           _error = 'User not authenticated';
           _isInitialLoading = false;
         });
+        _isLoadingInitialData = false;
         return;
       }
 
-      // Get clinic ID
-      final clinicQuery = await FirebaseFirestore.instance
-          .collection('clinics')
-          .where('userId', isEqualTo: user.uid)
-          .where('status', isEqualTo: 'approved')
-          .limit(1)
-          .get();
+      // Use cached clinic ID if available
+      if (_cachedClinicId == null) {
+        print('🏥 Getting clinic info...');
+        final clinicQuery = await FirebaseFirestore.instance
+            .collection('clinics')
+            .where('userId', isEqualTo: user.uid)
+            .where('status', isEqualTo: 'approved')
+            .limit(1)
+            .get();
 
-      if (clinicQuery.docs.isEmpty) {
-        setState(() {
-          _error = 'No approved clinic found';
-          _isInitialLoading = false;
-        });
-        return;
+        if (clinicQuery.docs.isEmpty) {
+          setState(() {
+            _error = 'No approved clinic found';
+            _isInitialLoading = false;
+          });
+          _isLoadingInitialData = false;
+          return;
+        }
+
+        _cachedClinicId = clinicQuery.docs.first.id;
+        print('✅ Loaded clinic info: ${clinicQuery.docs.first.data()['clinicName'] ?? 'Unknown'}');
+      } else {
+        print('✅ Using cached clinic ID');
       }
 
-      _cachedClinicId = clinicQuery.docs.first.id;
-
-      // Load statistics
-      final stats = await PatientRecordService.getPatientStatistics(_cachedClinicId!);
-      
-      // Load first page
+      // Load patients with optimized service (single batched call)
+      print('🔄 Loading patients with batch optimization...');
       final result = await PatientRecordService.getClinicPatients(
         clinicId: _cachedClinicId!,
       );
+
+      // Calculate statistics from loaded patients (no additional network call)
+      final stats = _calculateStatistics(result.patients);
 
       if (mounted) {
         setState(() {
@@ -151,7 +208,18 @@ class _ImprovedPatientRecordsScreenState extends State<ImprovedPatientRecordsScr
           _isInitialLoading = false;
         });
       }
+    } finally {
+      _isLoadingInitialData = false;
+      print('✅ Initial data load completed, flag reset');
     }
+  }
+
+  /// Preload next page in background for better UX
+  void _preloadNextPage() {
+    if (_isLoadingMore || !_hasMore || _cachedClinicId == null) return;
+    
+    // Load more patients silently in background
+    _loadMorePatients();
   }
 
   Future<void> _loadMorePatients() async {
@@ -241,16 +309,7 @@ class _ImprovedPatientRecordsScreenState extends State<ImprovedPatientRecordsScr
         child: Column(
           children: [
             // Header with Statistics
-            PatientRecordsHeader(
-              onAddPatient: () {
-                // TODO: Implement add patient functionality
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Add patient feature coming soon'),
-                  ),
-                );
-              },
-            ),
+            const PatientRecordsHeader(),
 
             // Statistics Cards
             if (_statistics != null)
@@ -445,61 +504,66 @@ class _ImprovedPatientRecordsScreenState extends State<ImprovedPatientRecordsScr
 
     return RefreshIndicator(
       onRefresh: _refreshData,
-      child: SingleChildScrollView(
+      child: CustomScrollView(
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(25, 0, 25, 16),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final screenWidth = constraints.maxWidth;
-              const maxCardWidth = 400.0;
-              const spacing = 16.0;
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(25, 0, 25, 16),
+            sliver: SliverLayoutBuilder(
+              builder: (context, constraints) {
+                const spacing = 16.0;
+                const cardsPerRow = 3;
 
-              int cardsPerRow = (screenWidth / (maxCardWidth + spacing)).floor();
-              cardsPerRow = cardsPerRow < 1 ? 1 : cardsPerRow;
-
-              final totalSpacing = (cardsPerRow - 1) * spacing;
-              final cardWidth = (screenWidth - totalSpacing) / cardsPerRow;
-
-              return Column(
-                children: [
-                  Wrap(
-                    spacing: spacing,
-                    runSpacing: spacing,
-                    children: _filteredPatients.map((patient) {
-                      return SizedBox(
-                        width: cardWidth,
-                        child: ImprovedPatientCard(
+                return SliverMainAxisGroup(
+                  slivers: [
+                    // Patient cards grid
+                    SliverGrid.count(
+                      crossAxisCount: cardsPerRow,
+                      crossAxisSpacing: spacing,
+                      mainAxisSpacing: spacing,
+                      childAspectRatio: 0.78, // Reduced to give more height
+                      children: _filteredPatients.map((patient) {
+                        return ImprovedPatientCard(
                           patient: patient,
                           onViewDetails: () {
                             _showPatientDetails(patient);
                           },
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                  if (_isLoadingMore)
-                    const Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: CircularProgressIndicator(),
+                        );
+                      }).toList(),
                     ),
-                  if (!_hasMore && _filteredPatients.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Text(
-                        'No more patients to load',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 14,
+                    
+                    // Loading indicator
+                    if (_isLoadingMore)
+                      const SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: Center(child: CircularProgressIndicator()),
                         ),
                       ),
-                    ),
-                ],
-              );
-            },
+                    
+                    // End message
+                    if (!_hasMore && _filteredPatients.isNotEmpty)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Center(
+                            child: Text(
+                              'No more patients to load',
+                              style: TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

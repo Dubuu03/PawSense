@@ -7,8 +7,270 @@ import 'package:pawsense/core/models/user/user_model.dart';
 class PatientRecordService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static const int _pageSize = 20; // Load 20 patients at a time
+  
+  // Memory cache for performance
+  static final Map<String, Pet> _petCache = <String, Pet>{};
+  static final Map<String, UserModel> _ownerCache = <String, UserModel>{};
+  static final Map<String, int> _appointmentCountCache = <String, int>{};
+  static final Map<String, PatientHealthStatus> _healthStatusCache = <String, PatientHealthStatus>{};
+  
+  // Cache expiry time (5 minutes)
+  static final Map<String, DateTime> _cacheTimestamps = <String, DateTime>{};
+  static const Duration _cacheExpiry = Duration(minutes: 5);
+  
+  // Prevent concurrent calls to same clinic
+  static final Set<String> _loadingClinics = <String>{};
 
-  /// Get paginated patient records for a clinic
+  /// Check if cache entry is valid
+  static bool _isCacheValid(String key) {
+    final timestamp = _cacheTimestamps[key];
+    if (timestamp == null) return false;
+    return DateTime.now().difference(timestamp) < _cacheExpiry;
+  }
+
+
+
+  /// Batch fetch pets to reduce network calls
+  static Future<Map<String, Pet>> _batchFetchPets(List<String> petIds) async {
+    final Map<String, Pet> result = {};
+    final List<String> uncachedPetIds = [];
+
+    // Check cache first
+    for (final petId in petIds) {
+      if (_isCacheValid('pet_$petId') && _petCache.containsKey(petId)) {
+        result[petId] = _petCache[petId]!;
+      } else {
+        uncachedPetIds.add(petId);
+      }
+    }
+
+    // Batch fetch uncached pets
+    if (uncachedPetIds.isNotEmpty) {
+      // Split into chunks of 10 for Firestore 'in' query limit
+      const chunkSize = 10;
+      for (int i = 0; i < uncachedPetIds.length; i += chunkSize) {
+        final chunk = uncachedPetIds.skip(i).take(chunkSize).toList();
+        
+        final querySnapshot = await _firestore
+            .collection('pets')
+            .where(FieldPath.documentId, whereIn: chunk)
+            .get();
+
+        for (final doc in querySnapshot.docs) {
+          final pet = Pet.fromMap(doc.data(), doc.id);
+          result[doc.id] = pet;
+          _petCache[doc.id] = pet;
+          _cacheTimestamps['pet_${doc.id}'] = DateTime.now();
+        }
+      }
+    }
+
+    return result;
+  }
+
+  /// Batch fetch owners to reduce network calls
+  static Future<Map<String, UserModel>> _batchFetchOwners(List<String> ownerIds) async {
+    final Map<String, UserModel> result = {};
+    final List<String> uncachedOwnerIds = [];
+
+    // Check cache first
+    for (final ownerId in ownerIds) {
+      if (_isCacheValid('owner_$ownerId') && _ownerCache.containsKey(ownerId)) {
+        result[ownerId] = _ownerCache[ownerId]!;
+      } else {
+        uncachedOwnerIds.add(ownerId);
+      }
+    }
+
+    // Batch fetch uncached owners
+    if (uncachedOwnerIds.isNotEmpty) {
+      // Split into chunks of 10 for Firestore 'in' query limit
+      const chunkSize = 10;
+      for (int i = 0; i < uncachedOwnerIds.length; i += chunkSize) {
+        final chunk = uncachedOwnerIds.skip(i).take(chunkSize).toList();
+        
+        final querySnapshot = await _firestore
+            .collection('users')
+            .where(FieldPath.documentId, whereIn: chunk)
+            .get();
+
+        for (final doc in querySnapshot.docs) {
+          final ownerData = doc.data();
+          ownerData['id'] = doc.id; // Add ID to data
+          final owner = UserModel.fromMap(ownerData);
+          result[doc.id] = owner;
+          _ownerCache[doc.id] = owner;
+          _cacheTimestamps['owner_${doc.id}'] = DateTime.now();
+        }
+      }
+    }
+
+    return result;
+  }
+
+  /// Batch get appointment counts for multiple pets
+  static Future<Map<String, int>> _batchGetAppointmentCounts(String clinicId, List<String> petIds) async {
+    final Map<String, int> result = {};
+    final List<String> uncachedPetIds = [];
+
+    // Check cache first
+    for (final petId in petIds) {
+      final cacheKey = 'count_${clinicId}_$petId';
+      if (_isCacheValid(cacheKey) && _appointmentCountCache.containsKey(cacheKey)) {
+        result[petId] = _appointmentCountCache[cacheKey]!;
+      } else {
+        uncachedPetIds.add(petId);
+      }
+    }
+
+    // Batch fetch uncached counts
+    if (uncachedPetIds.isNotEmpty) {
+      // Get all appointments for these pets in one query
+      final querySnapshot = await _firestore
+          .collection('appointments')
+          .where('clinicId', isEqualTo: clinicId)
+          .where('petId', whereIn: uncachedPetIds.length > 10 
+              ? uncachedPetIds.take(10).toList() 
+              : uncachedPetIds)
+          .get();
+
+      // Count appointments per pet
+      final counts = <String, int>{};
+      for (final doc in querySnapshot.docs) {
+        final data = doc.data();
+        final petId = data['petId'] as String;
+        counts[petId] = (counts[petId] ?? 0) + 1;
+      }
+
+      // Handle remaining pets if more than 10
+      if (uncachedPetIds.length > 10) {
+        for (int i = 10; i < uncachedPetIds.length; i += 10) {
+          final chunk = uncachedPetIds.skip(i).take(10).toList();
+          final chunkQuery = await _firestore
+              .collection('appointments')
+              .where('clinicId', isEqualTo: clinicId)
+              .where('petId', whereIn: chunk)
+              .get();
+
+          for (final doc in chunkQuery.docs) {
+            final data = doc.data();
+            final petId = data['petId'] as String;
+            counts[petId] = (counts[petId] ?? 0) + 1;
+          }
+        }
+      }
+
+      // Update cache and result
+      for (final petId in uncachedPetIds) {
+        final count = counts[petId] ?? 0;
+        result[petId] = count;
+        final cacheKey = 'count_${clinicId}_$petId';
+        _appointmentCountCache[cacheKey] = count;
+        _cacheTimestamps[cacheKey] = DateTime.now();
+      }
+    }
+
+    return result;
+  }
+
+  /// Batch determine health status for multiple pets
+  static Future<Map<String, PatientHealthStatus>> _batchDetermineHealthStatus(String clinicId, List<String> petIds) async {
+    final Map<String, PatientHealthStatus> result = {};
+    final List<String> uncachedPetIds = [];
+
+    // Check cache first
+    for (final petId in petIds) {
+      final cacheKey = 'health_${clinicId}_$petId';
+      if (_isCacheValid(cacheKey) && _healthStatusCache.containsKey(cacheKey)) {
+        result[petId] = _healthStatusCache[cacheKey]!;
+      } else {
+        uncachedPetIds.add(petId);
+      }
+    }
+
+    // Batch determine health status for uncached pets
+    if (uncachedPetIds.isNotEmpty) {
+      // Get latest appointments for all pets in batch
+      final querySnapshot = await _firestore
+          .collection('appointments')
+          .where('clinicId', isEqualTo: clinicId)
+          .where('petId', whereIn: uncachedPetIds.length > 10 
+              ? uncachedPetIds.take(10).toList() 
+              : uncachedPetIds)
+          .orderBy('appointmentDate', descending: true)
+          .get();
+
+      // Process latest appointments to determine health status
+      final latestAppointments = <String, Map<String, dynamic>>{};
+      for (final doc in querySnapshot.docs) {
+        final data = doc.data();
+        final petId = data['petId'] as String;
+        
+        // Keep only the latest appointment per pet
+        if (!latestAppointments.containsKey(petId)) {
+          latestAppointments[petId] = data;
+        }
+      }
+
+      // Handle remaining pets if more than 10
+      if (uncachedPetIds.length > 10) {
+        for (int i = 10; i < uncachedPetIds.length; i += 10) {
+          final chunk = uncachedPetIds.skip(i).take(10).toList();
+          final chunkQuery = await _firestore
+              .collection('appointments')
+              .where('clinicId', isEqualTo: clinicId)
+              .where('petId', whereIn: chunk)
+              .orderBy('appointmentDate', descending: true)
+              .get();
+
+          for (final doc in chunkQuery.docs) {
+            final data = doc.data();
+            final petId = data['petId'] as String;
+            
+            if (!latestAppointments.containsKey(petId)) {
+              latestAppointments[petId] = data;
+            }
+          }
+        }
+      }
+
+      // Determine health status based on latest appointments
+      for (final petId in uncachedPetIds) {
+        PatientHealthStatus status = PatientHealthStatus.healthy; // Default
+        
+        final latestAppt = latestAppointments[petId];
+        if (latestAppt != null) {
+          final appointmentStatus = latestAppt['status'] as String?;
+          final appointmentDate = (latestAppt['appointmentDate'] as Timestamp?)?.toDate();
+          
+          if (appointmentStatus == 'confirmed') {
+            // Has upcoming appointment
+            status = PatientHealthStatus.scheduled;
+          } else if (appointmentStatus == 'completed') {
+            // Check if recent completion suggests ongoing treatment
+            if (appointmentDate != null) {
+              final daysSinceVisit = DateTime.now().difference(appointmentDate).inDays;
+              if (daysSinceVisit <= 7) {
+                // Recent visit, might need follow-up
+                status = PatientHealthStatus.treatment;
+              } else {
+                status = PatientHealthStatus.healthy;
+              }
+            }
+          }
+        }
+        
+        result[petId] = status;
+        final cacheKey = 'health_${clinicId}_$petId';
+        _healthStatusCache[cacheKey] = status;
+        _cacheTimestamps[cacheKey] = DateTime.now();
+      }
+    }
+
+    return result;
+  }
+
+  /// Get paginated patient records for a clinic with performance optimizations
   /// Includes pets with confirmed or completed appointments
   static Future<PaginatedPatientResult> getClinicPatients({
     required String clinicId,
@@ -17,6 +279,19 @@ class PatientRecordService {
     String? petType, // Filter by pet type (Dog, Cat, etc.)
     PatientHealthStatus? healthStatus,
   }) async {
+    // Prevent concurrent calls to the same clinic
+    final callKey = '${clinicId}_${lastDocument?.id ?? 'initial'}';
+    if (_loadingClinics.contains(callKey)) {
+      print('⚠️ Already loading patients for clinic $clinicId, skipping duplicate');
+      return PaginatedPatientResult(
+        patients: [],
+        lastDocument: null,
+        hasMore: false,
+      );
+    }
+    
+    _loadingClinics.add(callKey);
+    
     try {
       print('🔍 Fetching patients for clinic: $clinicId');
       
@@ -47,31 +322,54 @@ class PatientRecordService {
         );
       }
 
-      // Extract unique pets from appointments
-      final Map<String, PatientRecord> uniquePatients = {};
+      // Step 1: Extract appointments and collect unique pet/owner IDs
+      final Map<String, AppointmentBooking> latestAppointments = {};
+      final Set<String> uniquePetIds = {};
+      final Set<String> uniqueOwnerIds = {};
       
       for (final doc in querySnapshot.docs) {
         final appointmentData = doc.data() as Map<String, dynamic>;
         final appointment = AppointmentBooking.fromMap(appointmentData, doc.id);
 
-        // Skip if pet already processed
-        if (uniquePatients.containsKey(appointment.petId)) {
-          // Update last visit if this is more recent
-          final existingPatient = uniquePatients[appointment.petId]!;
-          if (appointment.appointmentDate.isAfter(existingPatient.lastVisit)) {
-            uniquePatients[appointment.petId] = existingPatient.copyWith(
-              lastVisit: appointment.appointmentDate,
-              lastDiagnosis: appointment.serviceName,
-            );
-          }
-          continue;
-        }
+        uniquePetIds.add(appointment.petId);
+        uniqueOwnerIds.add(appointment.userId);
 
-        // Fetch pet and owner details
-        final pet = await _fetchPet(appointment.petId);
+        // Keep track of latest appointment per pet
+        if (!latestAppointments.containsKey(appointment.petId) ||
+            appointment.appointmentDate.isAfter(latestAppointments[appointment.petId]!.appointmentDate)) {
+          latestAppointments[appointment.petId] = appointment;
+        }
+      }
+
+      print('🔄 Batch fetching ${uniquePetIds.length} pets and ${uniqueOwnerIds.length} owners');
+
+      // Step 2: Batch fetch all pets and owners concurrently
+      final futures = <Future>[
+        _batchFetchPets(uniquePetIds.toList()),
+        _batchFetchOwners(uniqueOwnerIds.toList()),
+      ];
+
+      final results = await Future.wait(futures);
+      final Map<String, Pet> petsMap = results[0] as Map<String, Pet>;
+      final Map<String, UserModel> ownersMap = results[1] as Map<String, UserModel>;
+
+      print('✅ Fetched ${petsMap.length} pets and ${ownersMap.length} owners');
+
+      // Step 3: Batch fetch appointment counts and health statuses
+      final petIds = latestAppointments.keys.toList();
+      final appointmentCounts = await _batchGetAppointmentCounts(clinicId, petIds);
+      final healthStatuses = await _batchDetermineHealthStatus(clinicId, petIds);
+
+      print('🩺 Calculated health data for ${petIds.length} pets');
+
+      // Step 4: Process patient records
+      final Map<String, PatientRecord> uniquePatients = {};
+
+      for (final appointment in latestAppointments.values) {
+        final pet = petsMap[appointment.petId];
         if (pet == null) continue;
 
-        // Apply filters
+        // Apply filters early to avoid unnecessary processing
         if (petType != null && petType != 'All Types' && 
             pet.petType.toLowerCase() != petType.toLowerCase()) {
           continue;
@@ -85,18 +383,11 @@ class PatientRecordService {
           }
         }
 
-        final owner = await _fetchOwner(appointment.userId);
+        final owner = ownersMap[appointment.userId];
 
-        // Get appointment count and health status
-        final appointmentCount = await _getAppointmentCount(
-          clinicId,
-          appointment.petId,
-        );
-
-        final healthStatus = await _determineHealthStatus(
-          clinicId,
-          appointment.petId,
-        );
+        // Get cached data
+        final appointmentCount = appointmentCounts[appointment.petId] ?? 0;
+        final healthStatus = healthStatuses[appointment.petId] ?? PatientHealthStatus.healthy;
 
         // Get last assessment result if available
         String? assessmentResultId;
@@ -161,6 +452,8 @@ class PatientRecordService {
         lastDocument: null,
         hasMore: false,
       );
+    } finally {
+      _loadingClinics.remove(callKey);
     }
   }
 

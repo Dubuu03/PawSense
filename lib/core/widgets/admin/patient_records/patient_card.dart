@@ -23,8 +23,9 @@ class ImprovedPatientCard extends StatelessWidget {
         onTap: onViewDetails,
         borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(16), // Reduced padding to save space
           child: Column(
+            mainAxisSize: MainAxisSize.min, // Let column size itself
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Pet Header with Image/Icon
@@ -70,9 +71,9 @@ class ImprovedPatientCard extends StatelessWidget {
                 ],
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               Divider(color: AppColors.textSecondary.withOpacity(0.2)),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
 
               // Pet Details Grid
               Row(
@@ -94,7 +95,7 @@ class ImprovedPatientCard extends StatelessWidget {
                 ],
               ),
 
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
 
               // Owner Info
               _buildInfoItem(
