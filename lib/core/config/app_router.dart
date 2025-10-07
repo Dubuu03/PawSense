@@ -34,7 +34,7 @@ import 'package:pawsense/core/models/user/pet_model.dart';
 import 'package:pawsense/pages/web/auth/web_login_page.dart';
 import 'package:pawsense/pages/web/auth/admin_signup_page.dart';
 import 'package:pawsense/pages/web/admin/dashboard_screen.dart';
-import 'package:pawsense/pages/web/admin/appointment_screen.dart';
+import 'package:pawsense/pages/web/admin/optimized_appointment_screen.dart';
 import 'package:pawsense/pages/web/admin/patient_record_screen.dart';
 import 'package:pawsense/pages/web/admin/clinic_schedule_screen.dart';
 import 'package:pawsense/pages/web/admin/vet_profile_screen.dart';
@@ -249,9 +249,9 @@ class AppRouter {
           ),
           GoRoute(
             path: '/admin/appointments',
-            builder: (context, state) => AppointmentManagementScreen(),
+            builder: (context, state) => OptimizedAppointmentManagementScreen(),
             pageBuilder: (context, state) => NoTransitionPage(
-              child: AppointmentManagementScreen(),
+              child: OptimizedAppointmentManagementScreen(),
             ),
           ),
           GoRoute(

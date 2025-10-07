@@ -35,5 +35,25 @@ service cloud.firestore {
     match /ai_history/{historyId} {
       allow read, write: if true;
     }
+    
+    // FAQs collection
+    match /faqs/{faqId} {
+      // Anyone can read published FAQs
+      allow read: if resource.data.isPublished == true;
+      
+      // Super admins can create/edit/delete super admin FAQs
+      allow create: if request.auth != null && 
+                      (request.resource.data.isSuperAdminFAQ == true && 
+                       get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin') ||
+                      (request.resource.data.isSuperAdminFAQ == false && 
+                       get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      
+      allow update, delete: if request.auth != null && 
+                              ((resource.data.isSuperAdminFAQ == true && 
+                                get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin') ||
+                               (resource.data.isSuperAdminFAQ == false && 
+                                resource.data.clinicId == request.auth.uid && 
+                                get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+    }
   }
 }

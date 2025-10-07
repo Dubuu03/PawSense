@@ -18,7 +18,6 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAliveClientMixin {
   String selectedPeriod = 'Daily';
   String? _clinicId;
-  bool _isLoading = true;
   bool _isLoadingStats = false; // Loading state for stats only
   DashboardStats? _currentStats;
   List<RecentActivity> _recentActivities = [];
@@ -41,6 +40,8 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   void initState() {
     super.initState();
     _restoreState();
+    
+    // Header appears immediately (no data needed)
     // Only load data if not already cached
     if (_statsCache.isEmpty || _cachedActivities == null || _cachedDiseases == null) {
       _loadDashboardData();
@@ -48,7 +49,6 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
       // Data already cached, just restore it
       print('📦 Dashboard data already cached - skipping load');
       setState(() {
-        _isLoading = false;
         _currentStats = _statsCache[selectedPeriod.toLowerCase()];
         _recentActivities = _cachedActivities ?? [];
         _diseaseData = _cachedDiseases ?? [];
@@ -85,12 +85,13 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     print('💾 Saved dashboard state: period="$selectedPeriod"');
   }
 
-  /// Load dashboard data from Firebase
+  /// Load dashboard data from Firebase (header already visible)
   Future<void> _loadDashboardData() async {
     if (!mounted) return;
     
+    // Don't show full loading state - header is already visible
     setState(() {
-      _isLoading = true;
+      _isLoadingStats = true; // Only show loading for stats section
     });
 
     try {
@@ -98,34 +99,36 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
       final clinicId = await DashboardService.getCurrentUserClinicId();
       
       if (clinicId == null) {
-        print('Error: No clinic ID found for current user');
+        print('❌ Error: No clinic ID found for current user');
         if (mounted) {
           setState(() {
-            _isLoading = false;
+            _isLoadingStats = false;
           });
         }
         return;
       }
 
       _clinicId = clinicId;
+      print('✅ Clinic ID obtained: $_clinicId');
 
-      // Set up real-time listener for appointments
-      _setupAppointmentsListener();
+      // Set up real-time listener for appointments (delayed to avoid build conflicts)
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          _setupAppointmentsListener();
+        }
+      });
 
-      // Fetch all dashboard data
+      // Fetch all dashboard data in parallel
+      print('📥 Loading dashboard data...');
       await Future.wait([
         _loadStats(),
         _loadRecentActivities(),
         _loadDiseaseData(),
       ]);
+      
+      print('✅ Dashboard data loaded successfully');
     } catch (e) {
-      print('Error loading dashboard data: $e');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      print('❌ Error loading dashboard data: $e');
     }
   }
   
@@ -412,12 +415,6 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   Widget build(BuildContext context) {
     super.build(context); // Required by AutomaticKeepAliveClientMixin
     
-    if (_isLoading) {
-      return Center(
-        child: CircularProgressIndicator(),
-      );
-    }
-
     final statsCards = _getStatsCards();
 
     return Padding(
@@ -425,6 +422,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ✅ Header appears immediately (no data dependency)
           DashboardHeader(
             selectedPeriod: selectedPeriod,
             onPeriodChanged: (period) {
@@ -435,6 +433,8 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
             },
           ),
           SizedBox(height: 24),
+          
+          // Stats section with loading state
           _isLoadingStats
               ? _buildLoadingStatsCards()
               : statsCards.isNotEmpty
@@ -451,6 +451,8 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
                       ),
                     ),
           SizedBox(height: 32),
+          
+          // Charts and activities section
           Expanded(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,

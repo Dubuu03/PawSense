@@ -6,11 +6,15 @@ import '../../../utils/constants.dart';
 class FAQItem extends StatefulWidget {
   final FAQItemModel faqItem;
   final VoidCallback? onToggleExpanded;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   const FAQItem({
     super.key,
     required this.faqItem,
     this.onToggleExpanded,
+    this.onEdit,
+    this.onDelete,
   });
 
   @override
@@ -200,9 +204,7 @@ class _FAQItemState extends State<FAQItem> with SingleTickerProviderStateMixin {
                   Row(
                     children: [
                       TextButton.icon(
-                        onPressed: () {
-                          // Handle edit
-                        },
+                        onPressed: widget.onEdit,
                         icon: Icon(
                           Icons.edit_outlined,
                           size: 16,
@@ -215,9 +217,7 @@ class _FAQItemState extends State<FAQItem> with SingleTickerProviderStateMixin {
                       ),
                       SizedBox(width: kSpacingSmall),
                       TextButton.icon(
-                        onPressed: () {
-                          // Handle delete
-                        },
+                        onPressed: widget.onDelete,
                         icon: Icon(
                           Icons.delete_outlined,
                           size: 16,
