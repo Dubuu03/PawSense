@@ -1,62 +1,257 @@
 import 'package:flutter/material.dart';
-import 'package:pawsense/core/models/user/patient_data.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
-import 'package:pawsense/core/widgets/admin/patient_records/patient_status.dart';
+import 'package:pawsense/core/services/clinic/patient_record_service.dart';
+import 'package:pawsense/core/models/clinic/appointment_booking_model.dart';
+import 'package:pawsense/core/models/clinic/appointment_models.dart' as AppointmentModels;
+import 'package:pawsense/core/services/user/pdf_generation_service.dart';
+import 'package:pawsense/core/services/user/assessment_result_service.dart';
+import 'package:pawsense/core/models/user/user_model.dart';
 
-class PatientDetailsModal extends StatefulWidget {
-  final PatientData patient;
-  
-  const PatientDetailsModal({
+class ImprovedPatientDetailsModal extends StatefulWidget {
+  final PatientRecord patient;
+  final String clinicId;
+
+  const ImprovedPatientDetailsModal({
     super.key,
     required this.patient,
+    required this.clinicId,
   });
 
   @override
-  State<PatientDetailsModal> createState() => _PatientDetailsModalState();
+  State<ImprovedPatientDetailsModal> createState() => _ImprovedPatientDetailsModalState();
 }
 
-class _PatientDetailsModalState extends State<PatientDetailsModal> {
+class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModal> {
+  List<AppointmentBooking> _appointmentHistory = [];
+  bool _isLoadingHistory = false;
+  bool _showingAppointmentDetails = false;
+  AppointmentModels.Appointment? _selectedAppointment;
+  Map<String, dynamic>? _assessmentData;
+  bool _isLoadingAssessment = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAppointmentHistory();
+  }
+
+  Future<void> _loadAppointmentHistory() async {
+    setState(() => _isLoadingHistory = true);
+
+    try {
+      final history = await PatientRecordService.getPatientHistory(
+        clinicId: widget.clinicId,
+        petId: widget.patient.petId,
+      );
+
+      if (mounted) {
+        setState(() {
+          _appointmentHistory = history;
+          _isLoadingHistory = false;
+        });
+      }
+    } catch (e) {
+      print('❌ Error loading appointment history: $e');
+      if (mounted) {
+        setState(() => _isLoadingHistory = false);
+      }
+    }
+  }
+
+  Future<void> _showAppointmentDetails(AppointmentBooking booking) async {
+    // Convert to Appointment model
+    final appointment = await _convertToAppointmentModel(booking);
+    if (appointment != null && mounted) {
+      setState(() {
+        _showingAppointmentDetails = true;
+        _selectedAppointment = appointment;
+      });
+      
+      // Load assessment data if available
+      if (appointment.assessmentResultId != null && 
+          appointment.assessmentResultId!.isNotEmpty) {
+        _loadAssessmentData(appointment.assessmentResultId!);
+      }
+    }
+  }
+
+  Future<void> _loadAssessmentData(String assessmentId) async {
+    setState(() => _isLoadingAssessment = true);
+
+    try {
+      final assessmentDoc = await FirebaseFirestore.instance
+          .collection('assessment_results')
+          .doc(assessmentId)
+          .get();
+      
+      if (assessmentDoc.exists && mounted) {
+        setState(() {
+          _assessmentData = assessmentDoc.data();
+          _isLoadingAssessment = false;
+        });
+      }
+    } catch (e) {
+      print('❌ Error loading assessment data: $e');
+      if (mounted) {
+        setState(() => _isLoadingAssessment = false);
+      }
+    }
+  }
+
+  void _goBackToPatientDetails() {
+    setState(() {
+      _showingAppointmentDetails = false;
+      _selectedAppointment = null;
+      _assessmentData = null;
+    });
+  }
+
+  Future<AppointmentModels.Appointment?> _convertToAppointmentModel(
+      AppointmentBooking booking) async {
+    try {
+      // Get pet details
+      final petDoc = await FirebaseFirestore.instance
+          .collection('pets')
+          .doc(booking.petId)
+          .get();
+
+      AppointmentModels.Pet pet;
+      if (petDoc.exists) {
+        final petData = petDoc.data()!;
+        pet = AppointmentModels.Pet(
+          id: booking.petId,
+          name: petData['petName'] ?? 'Unknown',
+          type: petData['petType'] ?? 'Unknown',
+          emoji: _getPetEmoji(petData['petType'] ?? 'Unknown'),
+          breed: petData['breed'],
+          age: petData['age'] != null ? (petData['age'] as int) ~/ 12 : null,
+          imageUrl: petData['imageUrl'],
+        );
+      } else {
+        pet = AppointmentModels.Pet(
+          id: booking.petId,
+          name: widget.patient.petName,
+          type: widget.patient.petType,
+          emoji: widget.patient.petEmoji,
+          breed: widget.patient.breed,
+          age: widget.patient.age ~/ 12,
+        );
+      }
+
+      // Get owner details
+      final owner = AppointmentModels.Owner(
+        id: booking.userId,
+        name: widget.patient.ownerName,
+        phone: widget.patient.ownerPhone,
+        email: widget.patient.ownerEmail,
+      );
+
+      // Convert status
+      AppointmentModels.AppointmentStatus status;
+      switch (booking.status) {
+        case AppointmentStatus.pending:
+          status = AppointmentModels.AppointmentStatus.pending;
+          break;
+        case AppointmentStatus.confirmed:
+          status = AppointmentModels.AppointmentStatus.confirmed;
+          break;
+        case AppointmentStatus.completed:
+          status = AppointmentModels.AppointmentStatus.completed;
+          break;
+        case AppointmentStatus.cancelled:
+          status = AppointmentModels.AppointmentStatus.cancelled;
+          break;
+        default:
+          status = AppointmentModels.AppointmentStatus.pending;
+      }
+
+      // Format date
+      final dateStr = '${booking.appointmentDate.year}-${booking.appointmentDate.month.toString().padLeft(2, '0')}-${booking.appointmentDate.day.toString().padLeft(2, '0')}';
+
+      return AppointmentModels.Appointment(
+        id: booking.id ?? '',
+        clinicId: booking.clinicId,
+        date: dateStr,
+        time: booking.appointmentTime,
+        timeSlot: '${booking.appointmentTime}-${booking.appointmentTime}',
+        pet: pet,
+        diseaseReason: booking.serviceName,
+        owner: owner,
+        status: status,
+        createdAt: booking.createdAt,
+        updatedAt: booking.updatedAt,
+        notes: booking.notes,
+        assessmentResultId: booking.assessmentResultId,
+      );
+    } catch (e) {
+      print('Error converting appointment: $e');
+      return null;
+    }
+  }
+
+  String _getPetEmoji(String petType) {
+    switch (petType.toLowerCase()) {
+      case 'dog':
+        return '🐕';
+      case 'cat':
+        return '🐱';
+      case 'bird':
+        return '🐦';
+      case 'rabbit':
+        return '🐰';
+      case 'hamster':
+        return '🐹';
+      default:
+        return '🐾';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final mq = MediaQuery.of(context);
-    final width = mq.size.width * 0.7;
-    
     return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      insetPadding: const EdgeInsets.all(24),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxWidth: width.clamp(600, 900),
-          maxHeight: mq.size.height * 0.9,
+          maxWidth: _showingAppointmentDetails ? 600 : 1000,
+          maxHeight: 800,
         ),
-        child: Container(
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
+        child: _showingAppointmentDetails && _selectedAppointment != null
+            ? _buildAppointmentDetailsView()
+            : _buildPatientDetailsView(),
+      ),
+    );
+  }
+
+  // ==================== PATIENT DETAILS VIEW ====================
+
+  Widget _buildPatientDetailsView() {
+    return Column(
+      children: [
+        _buildHeader(),
+        Expanded(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHeader(),
               Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(flex: 1, child: _buildPatientInfo()),
-                    Container(
-                      width: 1,
-                      color: AppColors.border,
-                      margin: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    Expanded(flex: 2, child: _buildMedicalHistory()),
-                  ],
-                ),
+                flex: 2,
+                child: _buildPatientInfo(),
               ),
-              _buildActionButtons(),
+              VerticalDivider(
+                width: 1,
+                color: AppColors.textSecondary.withOpacity(0.2),
+              ),
+              Expanded(
+                flex: 3,
+                child: _buildAppointmentHistory(),
+              ),
             ],
           ),
         ),
-      ),
+      ],
     );
   }
 
@@ -64,42 +259,37 @@ class _PatientDetailsModalState extends State<PatientDetailsModal> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(16),
+          topRight: Radius.circular(16),
+        ),
         border: Border(
-          bottom: BorderSide(color: AppColors.border),
+          bottom: BorderSide(
+            color: AppColors.textSecondary.withOpacity(0.2),
+          ),
         ),
       ),
       child: Row(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: widget.patient.cardColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Center(
-              child: Text(
-                widget.patient.petIcon,
-                style: const TextStyle(fontSize: 24),
-              ),
-            ),
-          ),
+          _buildPetAvatar(),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.patient.name,
+                  widget.patient.petName,
                   style: const TextStyle(
                     fontSize: 24,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
                   ),
                 ),
+                const SizedBox(height: 4),
                 Text(
-                  '${widget.patient.breed} • ${widget.patient.age}',
-                  style: const TextStyle(
+                  '${widget.patient.petType} • ${widget.patient.breed}',
+                  style: TextStyle(
                     fontSize: 16,
                     color: AppColors.textSecondary,
                   ),
@@ -107,11 +297,89 @@ class _PatientDetailsModalState extends State<PatientDetailsModal> {
               ],
             ),
           ),
+          _buildHealthStatusBadge(),
+          const SizedBox(width: 16),
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
             icon: const Icon(Icons.close),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
+            tooltip: 'Close',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPetAvatar() {
+    if (widget.patient.imageUrl != null && widget.patient.imageUrl!.isNotEmpty) {
+      return CircleAvatar(
+        radius: 40,
+        backgroundImage: NetworkImage(widget.patient.imageUrl!),
+      );
+    } else {
+      return CircleAvatar(
+        radius: 40,
+        backgroundColor: _getPetTypeColor().withOpacity(0.2),
+        child: Text(
+          widget.patient.petEmoji,
+          style: const TextStyle(fontSize: 40),
+        ),
+      );
+    }
+  }
+
+  Widget _buildHealthStatusBadge() {
+    Color badgeColor;
+    IconData badgeIcon;
+    String badgeText;
+
+    switch (widget.patient.healthStatus) {
+      case PatientHealthStatus.healthy:
+        badgeColor = Colors.green;
+        badgeIcon = Icons.favorite;
+        badgeText = 'Healthy';
+        break;
+      case PatientHealthStatus.treatment:
+        badgeColor = Colors.orange;
+        badgeIcon = Icons.medical_services;
+        badgeText = 'Under Treatment';
+        break;
+      case PatientHealthStatus.scheduled:
+        badgeColor = Colors.blue;
+        badgeIcon = Icons.schedule;
+        badgeText = 'Visit Scheduled';
+        break;
+      default:
+        badgeColor = Colors.grey;
+        badgeIcon = Icons.help_outline;
+        badgeText = 'Unknown Status';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: badgeColor.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: badgeColor.withOpacity(0.3),
+          width: 1.5,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            badgeIcon,
+            size: 20,
+            color: badgeColor,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            badgeText,
+            style: TextStyle(
+              fontSize: 14,
+              color: badgeColor,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
@@ -119,7 +387,7 @@ class _PatientDetailsModalState extends State<PatientDetailsModal> {
   }
 
   Widget _buildPatientInfo() {
-    return Container(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -128,243 +396,184 @@ class _PatientDetailsModalState extends State<PatientDetailsModal> {
             'Patient Information',
             style: TextStyle(
               fontSize: 18,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.bold,
               color: AppColors.textPrimary,
             ),
           ),
-          const SizedBox(height: 20),
-          
-          _buildInfoRow('Weight:', widget.patient.weight),
-          const SizedBox(height: 12),
-          
-          _buildInfoRow('Status:', ''),
-          Padding(
-            padding: const EdgeInsets.only(left: 16, top: 4),
-            child: StatusChip(status: widget.patient.status),
-          ),
-          const SizedBox(height: 12),
-          
-          _buildInfoRow('Last Visit:', widget.patient.lastVisit),
-          const SizedBox(height: 32),
-          
-          const Text(
-            'Owner Information',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 20),
-          
-          const Text(
-            'Mike Wilson', // Sample owner name
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 12),
-          
-          Row(
+          const SizedBox(height: 24),
+
+          _buildInfoCard(
+            title: 'Basic Details',
             children: [
-              Icon(Icons.phone_outlined, size: 16, color: AppColors.textSecondary),
-              const SizedBox(width: 8),
-              const Text(
-                '+1 (555) 456-7890',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textSecondary,
-                ),
-              ),
+              _buildInfoRow(Icons.pets, 'Name', widget.patient.petName),
+              _buildInfoRow(Icons.category, 'Type', widget.patient.petType),
+              _buildInfoRow(Icons.info_outline, 'Breed', widget.patient.breed),
+              _buildInfoRow(Icons.cake, 'Age', widget.patient.ageString),
+              _buildInfoRow(Icons.monitor_weight, 'Weight', widget.patient.weightString),
             ],
           ),
-          const SizedBox(height: 8),
-          
-          Row(
+
+          const SizedBox(height: 16),
+
+          _buildInfoCard(
+            title: 'Owner Information',
             children: [
-              Icon(Icons.email_outlined, size: 16, color: AppColors.textSecondary),
-              const SizedBox(width: 8),
-              const Text(
-                'mike.w@email.com',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textSecondary,
-                ),
-              ),
+              _buildInfoRow(Icons.person, 'Name', widget.patient.ownerName),
+              _buildInfoRow(Icons.phone, 'Phone', widget.patient.ownerPhone),
+              _buildInfoRow(Icons.email, 'Email', widget.patient.ownerEmail),
             ],
           ),
-          const SizedBox(height: 32),
-          
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.error.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.error.withOpacity(0.2)),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.warning_outlined, color: AppColors.error, size: 20),
-                const SizedBox(width: 8),
-                const Text(
-                  'Allergies',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.error,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppColors.error.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: const Text(
-              'Dust',
-              style: TextStyle(
-                fontSize: 14,
-                color: AppColors.error,
+
+          const SizedBox(height: 16),
+
+          _buildInfoCard(
+            title: 'Visit Statistics',
+            children: [
+              _buildInfoRow(
+                Icons.event_note,
+                'Total Visits',
+                '${widget.patient.appointmentCount}',
               ),
-            ),
+              _buildInfoRow(
+                Icons.calendar_today,
+                'Last Visit',
+                _formatDate(widget.patient.lastVisit),
+              ),
+              _buildInfoRow(
+                Icons.medical_information,
+                'Last Diagnosis',
+                widget.patient.lastDiagnosis,
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildMedicalHistory() {
+  Widget _buildAppointmentHistory() {
     return Container(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Medical History',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              TextButton.icon(
-                onPressed: () {
-                  // TODO: Add medical record
-                },
-                icon: const Icon(Icons.add, size: 16),
-                label: const Text('Add Record'),
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.primary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  _buildMedicalRecord(),
-                  const SizedBox(height: 16),
-                  _buildVaccinationsSection(),
-                ],
-              ),
+          const Text(
+            'Appointment History',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
             ),
           ),
+          const SizedBox(height: 16),
+
+          if (_isLoadingHistory)
+            const Expanded(
+              child: Center(
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else if (_appointmentHistory.isEmpty)
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.event_busy,
+                      size: 64,
+                      color: AppColors.textSecondary,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No appointment history found',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            Expanded(
+              child: ListView.builder(
+                itemCount: _appointmentHistory.length,
+                itemBuilder: (context, index) {
+                  final appointment = _appointmentHistory[index];
+                  return _buildAppointmentCard(appointment);
+                },
+              ),
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildMedicalRecord() {
+  Widget _buildInfoCard({
+    required String title,
+    required List<Widget> children,
+  }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.border),
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.textSecondary.withOpacity(0.2),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Upper Respiratory Infection',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const Text(
-                '2024-01-12',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Antibiotics, humidity therapy',
-            style: TextStyle(
+          Text(
+            title,
+            style: const TextStyle(
               fontSize: 14,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Monitor breathing, follow-up in 1 week',
-            style: TextStyle(
-              fontSize: 14,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 12),
-          
-          const Text(
-            'Attachments:',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.bold,
               color: AppColors.textPrimary,
             ),
           ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+          const SizedBox(height: 12),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            icon,
+            size: 20,
+            color: AppColors.textSecondary,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.description_outlined, size: 16, color: AppColors.textSecondary),
-                const SizedBox(width: 8),
-                const Text(
-                  'xray_chest.jpg',
+                Text(
+                  label,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 12,
                     color: AppColors.textSecondary,
                   ),
                 ),
-                const SizedBox(width: 8),
-                Icon(Icons.download_outlined, size: 16, color: AppColors.primary),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
               ],
             ),
           ),
@@ -373,108 +582,623 @@ class _PatientDetailsModalState extends State<PatientDetailsModal> {
     );
   }
 
-  Widget _buildVaccinationsSection() {
+  Widget _buildAppointmentCard(AppointmentBooking appointment) {
+    return InkWell(
+      onTap: () => _showAppointmentDetails(appointment),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppColors.textSecondary.withOpacity(0.2),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.calendar_today,
+                  size: 16,
+                  color: AppColors.textSecondary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _formatDate(appointment.appointmentDate),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const Spacer(),
+                _buildAppointmentStatusBadge(appointment.status),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            Row(
+              children: [
+                Icon(
+                  Icons.access_time,
+                  size: 16,
+                  color: AppColors.textSecondary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  appointment.appointmentTime,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            Row(
+              children: [
+                Icon(
+                  Icons.medical_information,
+                  size: 16,
+                  color: AppColors.textSecondary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    appointment.serviceName,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            if (appointment.notes.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.note,
+                    size: 16,
+                    color: AppColors.textSecondary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      appointment.notes,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                        fontStyle: FontStyle.italic,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  'Tap to view details',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.primary.withOpacity(0.7),
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.arrow_forward,
+                  size: 12,
+                  color: AppColors.primary.withOpacity(0.7),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAppointmentStatusBadge(AppointmentStatus status) {
+    Color badgeColor;
+    String badgeText;
+
+    switch (status) {
+      case AppointmentStatus.confirmed:
+        badgeColor = Colors.blue;
+        badgeText = 'Confirmed';
+        break;
+      case AppointmentStatus.completed:
+        badgeColor = Colors.green;
+        badgeText = 'Completed';
+        break;
+      case AppointmentStatus.cancelled:
+        badgeColor = Colors.red;
+        badgeText = 'Cancelled';
+        break;
+      case AppointmentStatus.pending:
+        badgeColor = Colors.orange;
+        badgeText = 'Pending';
+        break;
+      default:
+        badgeColor = Colors.grey;
+        badgeText = 'Unknown';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: badgeColor.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        badgeText,
+        style: TextStyle(
+          fontSize: 11,
+          color: badgeColor,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  // ==================== APPOINTMENT DETAILS VIEW ====================
+
+  Widget _buildAppointmentDetailsView() {
+    if (_selectedAppointment == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final appointment = _selectedAppointment!;
+    final dateTime = DateTime.parse('${appointment.date} ${appointment.time}:00');
+    final formattedDate = _formatDateFull(dateTime);
+    final formattedTime = _formatTime(appointment.time);
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header with back button
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: _goBackToPatientDetails,
+                    icon: const Icon(Icons.arrow_back),
+                    tooltip: 'Back to patient details',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Appointment Details',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Pet Information
+          Row(
+            children: [
+              _buildAppointmentPetAvatar(appointment.pet),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      appointment.pet.name,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${appointment.pet.type}${appointment.pet.breed != null ? ' • ${appointment.pet.breed}' : ''}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    if (appointment.pet.age != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        '${appointment.pet.age} years old',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              _buildAppointmentModalStatusBadge(appointment.status),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Appointment Information
+          _buildDetailInfoSection('Date & Time', '$formattedDate at $formattedTime'),
+          const SizedBox(height: 16),
+          _buildDetailInfoSection('Reason for Visit', appointment.diseaseReason),
+          const SizedBox(height: 16),
+
+          // Owner Information
+          _buildDetailInfoSection(
+            'Owner',
+            '${appointment.owner.name}\n${appointment.owner.phone}${appointment.owner.email != null && appointment.owner.email!.isNotEmpty ? '\n${appointment.owner.email}' : ''}',
+          ),
+
+          // Notes (if available)
+          if (appointment.notes != null && appointment.notes!.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _buildDetailInfoSection('Notes', appointment.notes!),
+          ],
+
+          // AI Assessment Results
+          if (_isLoadingAssessment)
+            ...[
+              const SizedBox(height: 16),
+              const Divider(),
+              const SizedBox(height: 16),
+              const Center(child: CircularProgressIndicator()),
+            ]
+          else if (_assessmentData != null)
+            ...[
+              const SizedBox(height: 16),
+              const Divider(),
+              const SizedBox(height: 16),
+              const Text(
+                'AI Assessment Results',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF7C3AED),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ..._buildAssessmentResults(),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _generatePDF,
+                  icon: const Icon(Icons.download, size: 18),
+                  label: const Text('Download Assessment PDF'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF7C3AED),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            ],
+
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAppointmentPetAvatar(AppointmentModels.Pet pet) {
+    if (pet.imageUrl != null && pet.imageUrl!.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.network(
+          pet.imageUrl!,
+          width: 60,
+          height: 60,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Center(
+                child: Text(
+                  pet.emoji,
+                  style: const TextStyle(fontSize: 24),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    } else {
+      return Container(
+        width: 60,
+        height: 60,
+        decoration: BoxDecoration(
+          color: Colors.grey[200],
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Center(
+          child: Text(
+            pet.emoji,
+            style: const TextStyle(fontSize: 24),
+          ),
+        ),
+      );
+    }
+  }
+
+  Widget _buildDetailInfoSection(String title, String content) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          content,
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey[700],
+            height: 1.4,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAppointmentModalStatusBadge(AppointmentModels.AppointmentStatus status) {
+    Color badgeColor;
+    String badgeText;
+
+    switch (status) {
+      case AppointmentModels.AppointmentStatus.pending:
+        badgeColor = Colors.orange;
+        badgeText = 'Pending';
+        break;
+      case AppointmentModels.AppointmentStatus.confirmed:
+        badgeColor = Colors.green;
+        badgeText = 'Confirmed';
+        break;
+      case AppointmentModels.AppointmentStatus.completed:
+        badgeColor = Colors.blue;
+        badgeText = 'Completed';
+        break;
+      case AppointmentModels.AppointmentStatus.cancelled:
+        badgeColor = Colors.red;
+        badgeText = 'Cancelled';
+        break;
+      case AppointmentModels.AppointmentStatus.noShow:
+        badgeColor = Colors.grey;
+        badgeText = 'No Show';
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: badgeColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: badgeColor,
+          width: 1,
+        ),
+      ),
+      child: Text(
+        badgeText,
+        style: TextStyle(
+          color: badgeColor,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildAssessmentResults() {
+    if (_assessmentData == null) return [];
+    
+    final analysisResults = _assessmentData!['analysisResults'] as List?;
+    
+    if (analysisResults == null || analysisResults.isEmpty) {
+      return [
+        const Text(
+          'No analysis results available',
+          style: TextStyle(color: Colors.grey),
+        ),
+      ];
+    }
+    
+    return analysisResults.map<Widget>((result) {
+      if (result is! Map<String, dynamic>) return const SizedBox.shrink();
+      
+      final condition = result['condition'] as String?;
+      final percentage = result['percentage'] as num?;
+      final colorHex = result['colorHex'] as String?;
+      
+      if (condition == null || percentage == null) return const SizedBox.shrink();
+      
+      Color conditionColor = const Color(0xFF7C3AED);
+      if (colorHex != null && colorHex.startsWith('#')) {
+        try {
+          conditionColor = Color(int.parse(colorHex.substring(1), radix: 16) + 0xFF000000);
+        } catch (e) {
+          // Use default color if parsing fails
+        }
+      }
+      
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Row(
           children: [
-            const Text(
-              'Vaccinations',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
+            Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                color: conditionColor,
+                shape: BoxShape.circle,
               ),
             ),
-            TextButton.icon(
-              onPressed: () {
-                // TODO: Add vaccination
-              },
-              icon: const Icon(Icons.add, size: 16),
-              label: const Text('Add Vaccination'),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.primary,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                condition,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            Text(
+              '${percentage.toStringAsFixed(1)}%',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: conditionColor,
               ),
             ),
           ],
         ),
-      ],
-    );
+      );
+    }).toList();
   }
 
-  Widget _buildActionButtons() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(color: AppColors.border),
+  Future<void> _generatePDF() async {
+    if (_selectedAppointment == null || 
+        _selectedAppointment!.assessmentResultId == null ||
+        _selectedAppointment!.assessmentResultId!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No assessment data available for this appointment'),
+          backgroundColor: Colors.red,
         ),
-      ),
-      child: Row(
-        children: [
-          ElevatedButton.icon(
-            onPressed: () {
-              // TODO: Upload files
-            },
-            icon: const Icon(Icons.upload_file_outlined),
-            label: const Text('Upload Files'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
+      );
+      return;
+    }
+
+    try {
+      final assessmentService = AssessmentResultService();
+      final assessmentResult = await assessmentService.getAssessmentResultById(
+        _selectedAppointment!.assessmentResultId!
+      );
+      
+      if (assessmentResult == null) {
+        throw Exception('Assessment data not found');
+      }
+
+      final userModel = UserModel(
+        uid: _selectedAppointment!.owner.id,
+        username: _selectedAppointment!.owner.name,
+        email: _selectedAppointment!.owner.email ?? '',
+        contactNumber: _selectedAppointment!.owner.phone,
+        createdAt: DateTime.now(),
+        role: 'user',
+      );
+
+      final pdfBytes = await PDFGenerationService.generateAssessmentPDF(
+        user: userModel,
+        assessmentResult: assessmentResult,
+      );
+
+      final fileName = 'PawSense_Assessment_${_selectedAppointment!.pet.name}_${DateTime.now().millisecondsSinceEpoch}';
+      await PDFGenerationService.saveWithSystemDialog(pdfBytes, fileName);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 12),
+                Text('PDF downloaded successfully'),
+              ],
             ),
+            backgroundColor: Colors.green,
           ),
-          const SizedBox(width: 12),
-          OutlinedButton.icon(
-            onPressed: () {
-              // TODO: Generate report
-            },
-            icon: const Icon(Icons.description_outlined),
-            label: const Text('Generate Report'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.textPrimary,
-              side: BorderSide(color: AppColors.border),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to generate PDF: $e'),
+            backgroundColor: Colors.red,
           ),
-        ],
-      ),
-    );
+        );
+      }
+    }
   }
 
-  Widget _buildInfoRow(String label, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 80,
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 14,
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textPrimary,
-            ),
-          ),
-        ),
-      ],
-    );
+  // ==================== HELPER METHODS ====================
+
+  Color _getPetTypeColor() {
+    switch (widget.patient.petType.toLowerCase()) {
+      case 'dog':
+        return Colors.brown;
+      case 'cat':
+        return Colors.orange;
+      case 'bird':
+        return Colors.blue;
+      case 'rabbit':
+        return Colors.pink;
+      case 'hamster':
+        return Colors.amber;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+  }
+
+  String _formatDateFull(DateTime date) {
+    final months = ['January', 'February', 'March', 'April', 'May', 'June',
+                    'July', 'August', 'September', 'October', 'November', 'December'];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+  }
+
+  String _formatTime(String time24) {
+    final parts = time24.split(':');
+    final hour = int.parse(parts[0]);
+    final minute = parts.length > 1 ? int.parse(parts[1]) : 0;
+    
+    final period = hour >= 12 ? 'PM' : 'AM';
+    final hour12 = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+    
+    return '$hour12:${minute.toString().padLeft(2, '0')} $period';
   }
 }
