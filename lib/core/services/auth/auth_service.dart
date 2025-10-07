@@ -132,6 +132,49 @@ class AuthService {
     }
   }
 
+  /// Check email status - returns map with 'exists' and 'verified' status
+  Future<Map<String, bool>> checkEmailStatus(String email, String password) async {
+    try {
+      print('🔍 AuthService: Checking email status for $email');
+      
+      // First check if email exists
+      final exists = await emailExists(email);
+      print('   Email exists: $exists');
+      
+      if (!exists) {
+        print('   Returning: exists=false, verified=false');
+        return {'exists': false, 'verified': false};
+      }
+
+      // If exists, try to sign in to check verification status
+      try {
+        print('   Attempting to sign in to check verification...');
+        final UserCredential result = await _auth.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+        
+        final isVerified = result.user?.emailVerified ?? false;
+        print('   Sign in successful, verified: $isVerified');
+        
+        // Sign out immediately
+        await _auth.signOut();
+        print('   Signed out, returning results');
+        
+        return {'exists': true, 'verified': isVerified};
+      } catch (signInError) {
+        print('   Sign in failed: ${signInError.toString()}');
+        // If sign in fails, we know email exists but can't check verification
+        // Assume unverified for safety
+        print('   Returning: exists=true, verified=false (sign-in failed)');
+        return {'exists': true, 'verified': false};
+      }
+    } catch (e) {
+      print('   Error in checkEmailStatus: ${e.toString()}');
+      throw Exception('Failed to check email status: ${e.toString()}');
+    }
+  }
+
   /// Create temporary account for email verification
   Future<Map<String, dynamic>> createTempAccountForVerification({
     required String email,
@@ -153,6 +196,7 @@ class AuthService {
         return {
           'success': true,
           'userId': result.user!.uid,
+          'message': 'Verification email sent to $email. Please check your inbox.',
         };
       } else {
         return {
@@ -161,24 +205,30 @@ class AuthService {
         };
       }
     } on FirebaseAuthException catch (e) {
-      String errorMessage;
       switch (e.code) {
         case 'email-already-in-use':
-          errorMessage = 'An account already exists with this email address.';
-          break;
+          // Handle existing account - don't sign in, just allow proceeding to verification
+          // This allows users to proceed to verification step without signing in
+          return {
+            'success': true,
+            'message': 'Account exists with this email. Proceeding to verification step - please check your email for existing verification link or it will be resent.',
+          };
         case 'invalid-email':
-          errorMessage = 'Invalid email address format.';
-          break;
+          return {
+            'success': false,
+            'error': 'Invalid email address format.',
+          };
         case 'weak-password':
-          errorMessage = 'Password is too weak. Please use a stronger password.';
-          break;
+          return {
+            'success': false,
+            'error': 'Password is too weak. Please use a stronger password.',
+          };
         default:
-          errorMessage = 'Failed to create account: ${e.message}';
+          return {
+            'success': false,
+            'error': 'Failed to create account: ${e.message}',
+          };
       }
-      return {
-        'success': false,
-        'error': errorMessage,
-      };
     } catch (e) {
       return {
         'success': false,
