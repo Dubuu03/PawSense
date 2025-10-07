@@ -10,6 +10,7 @@ class VetServicesSection extends StatelessWidget {
   final Function(String)? onServiceToggle;
   final Function(String)? onServiceEdit;
   final Function(String)? onServiceDelete;
+  final bool isLoading;
 
   const VetServicesSection({
     super.key,
@@ -18,6 +19,7 @@ class VetServicesSection extends StatelessWidget {
     this.onServiceToggle,
     this.onServiceEdit,
     this.onServiceDelete,
+    this.isLoading = false,
   });
 
   @override
@@ -62,6 +64,16 @@ class VetServicesSection extends StatelessWidget {
           // Two-column, auto-height layout
           LayoutBuilder(
             builder: (context, constraints) {
+              // Show loading indicator
+              if (isLoading) {
+                return Container(
+                  padding: EdgeInsets.symmetric(vertical: kSpacingLarge * 2),
+                  child: Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              }
+              
               // Show message if no services
               if (services.isEmpty) {
                 return Container(

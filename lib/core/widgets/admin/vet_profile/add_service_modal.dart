@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants.dart';
 import '../../../models/clinic/clinic_service_model.dart';
@@ -285,6 +286,9 @@ class _AddServiceModalState extends State<AddServiceModal> {
                             TextFormField(
                               controller: _durationController,
                               keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
                               decoration: InputDecoration(
                                 hintText: '30',
                                 border: OutlineInputBorder(
@@ -336,9 +340,17 @@ class _AddServiceModalState extends State<AddServiceModal> {
                             SizedBox(height: kSpacingSmall),
                             TextFormField(
                               controller: _priceController,
-                              keyboardType: TextInputType.number,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                              ],
                               decoration: InputDecoration(
                                 hintText: '0',
+                                prefixText: '₱ ',
+                                prefixStyle: TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: kFontSizeRegular,
+                                ),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(kBorderRadiusSmall),
                                   borderSide: BorderSide(color: AppColors.border),

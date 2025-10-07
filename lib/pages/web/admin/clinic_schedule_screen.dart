@@ -84,13 +84,17 @@ class _ClinicSchedulePageState extends State<ClinicSchedulePage> with AutomaticK
       
       print('Loading clinic schedule for clinic ID: $_actualClinicId');
       await _loadWeekData();
-      setState(() {});
+      if (mounted) {
+        setState(() {});
+      }
     } catch (e) {
       print('Error loading clinic ID: $e');
       _actualClinicId = 'default_clinic_id';
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -105,26 +109,30 @@ class _ClinicSchedulePageState extends State<ClinicSchedulePage> with AutomaticK
 
       if (cachedWeekData != null) {
         print('📦 Using cached schedule data - no network call needed');
-        setState(() {
-          _weekData = cachedWeekData;
-          _isLoading = false;
-        });
-        
-        // Set the selected day to match the current date
-        final currentDayName = _getCurrentDayName();
-        setState(() {
-          selectedDay = currentDayName;
-        });
+        if (mounted) {
+          setState(() {
+            _weekData = cachedWeekData;
+            _isLoading = false;
+          });
+          
+          // Set the selected day to match the current date
+          final currentDayName = _getCurrentDayName();
+          setState(() {
+            selectedDay = currentDayName;
+          });
 
-        // Calculate statistics for the currently selected day
-        _calculateDayStats();
+          // Calculate statistics for the currently selected day
+          _calculateDayStats();
+        }
         return;
       }
     }
     
-    setState(() {
-      _isLoading = true;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
     
     try {
       // Get the Monday of the current selected week
@@ -144,22 +152,26 @@ class _ClinicSchedulePageState extends State<ClinicSchedulePage> with AutomaticK
         selectedDate: selectedDate,
       );
       
-      // Set the selected day to match the current date
-      final currentDayName = _getCurrentDayName();
-      setState(() {
-        selectedDay = currentDayName;
-      });
+      if (mounted) {
+        // Set the selected day to match the current date
+        final currentDayName = _getCurrentDayName();
+        setState(() {
+          selectedDay = currentDayName;
+        });
 
-      // Calculate statistics for the currently selected day
-      _calculateDayStats();
+        // Calculate statistics for the currently selected day
+        _calculateDayStats();
+      }
       
       print('✅ Loaded schedule data for week ${monday.toString().split(' ')[0]}');
     } catch (e) {
       print('❌ Error loading week data: $e');
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }  String _getCurrentDayName() {
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -203,28 +215,34 @@ class _ClinicSchedulePageState extends State<ClinicSchedulePage> with AutomaticK
   }
 
   void _refreshSchedule() {
-    setState(() {
-      _scheduleRefreshKey++;
-    });
+    if (mounted) {
+      setState(() {
+        _scheduleRefreshKey++;
+      });
+    }
     _cacheService.invalidateCache();
     _loadWeekData(forceRefresh: true);
   }
 
   Future<void> _onDateChanged(DateTime newDate) async {
     print('Date changed from ${selectedDate.toString().split(' ')[0]} to ${newDate.toString().split(' ')[0]}');
-    setState(() {
-      selectedDate = newDate;
-    });
+    if (mounted) {
+      setState(() {
+        selectedDate = newDate;
+      });
+    }
     _saveState(); // Save state when date changes
     await _loadWeekData();
   }
 
   void _onDaySelected(String day) {
-    setState(() {
-      selectedDay = day;
-    });
-    _saveState(); // Save state when day changes
-    _calculateDayStats();
+    if (mounted) {
+      setState(() {
+        selectedDay = day;
+      });
+      _saveState(); // Save state when day changes
+      _calculateDayStats();
+    }
   }
 
   DateTime _getDateForSelectedDay() {

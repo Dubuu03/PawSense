@@ -153,6 +153,7 @@ class _AddSpecializationModalState extends State<AddSpecializationModal> {
                     icon: Icon(
                       Icons.close,
                       color: AppColors.textSecondary,
+                     
                     ),
                   ),
                 ],
@@ -176,6 +177,7 @@ class _AddSpecializationModalState extends State<AddSpecializationModal> {
                           style: TextStyle(
                             fontSize: kFontSizeRegular,
                             fontWeight: FontWeight.w500,
+                            color: AppColors.textPrimary,
                           ),
                         ),
                         value: false,
@@ -198,6 +200,7 @@ class _AddSpecializationModalState extends State<AddSpecializationModal> {
                           style: TextStyle(
                             fontSize: kFontSizeRegular,
                             fontWeight: FontWeight.w500,
+                            color: AppColors.textPrimary,
                           ),
                         ),
                         value: true,

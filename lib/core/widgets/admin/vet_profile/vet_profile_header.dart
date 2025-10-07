@@ -35,19 +35,6 @@ class VetProfileHeader extends StatelessWidget {
             ),
           ],
         ),
-        ElevatedButton.icon(
-          onPressed: onEditProfile,
-          icon: const Icon(Icons.edit),
-          label: const Text('Edit Profile'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-        ),
       ],
     );
   }

@@ -5,6 +5,8 @@ import 'package:pawsense/core/utils/constants.dart';
 import '../../../core/widgets/admin/vet_profile/vet_basic_info.dart';
 import '../../../core/widgets/admin/vet_profile/specialization_badge.dart';
 import '../../../core/widgets/admin/vet_profile/certification_card.dart';
+import '../../../core/widgets/admin/vet_profile/certification_preview_modal.dart';
+import '../../../core/widgets/admin/vet_profile/add_certification_modal.dart';
 import '../../../core/widgets/admin/vet_profile/vet_services_section.dart';
 import '../../../core/widgets/admin/vet_profile/vet_profile_header.dart';
 import '../../../core/widgets/admin/vet_profile/add_service_modal.dart';
@@ -352,6 +354,116 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
     }
   }
 
+  /// Show Add Certification Modal
+  Future<void> _showAddCertificationModal() async {
+    showDialog(
+      context: context,
+      builder: (context) => AddCertificationModal(
+        onCertificationAdded: () async {
+          print('DEBUG VetProfileScreen: Modal callback - certification added, refreshing data...');
+
+          // Clear all existing state completely
+          if (mounted) {
+            setState(() {
+              _isLoading = true;
+              _errorMessage = null;
+              _vetProfile.clear();
+              _specializations.clear();
+              _services.clear();
+              _certifications.clear();
+              _rebuildKey = UniqueKey();
+              print('DEBUG VetProfileScreen: State cleared, new rebuild key: $_rebuildKey');
+            });
+          }
+
+          // Small delay to ensure modal is fully closed
+          await Future.delayed(Duration(milliseconds: 200));
+
+          // Reload the profile data with force refresh
+          await _loadVetProfile(forceRefresh: true);
+          print('DEBUG VetProfileScreen: Modal callback - certification refresh completed');
+
+          // Show success message
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Certification added successfully'),
+                backgroundColor: AppColors.success,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  /// Show Certification Preview Modal
+  void _showCertificationPreview(
+    String title,
+    String organization,
+    String issueDate,
+    String? expiryDate,
+    String documentUrl,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => CertificationPreviewModal(
+        title: title,
+        organization: organization,
+        issueDate: issueDate,
+        expiryDate: expiryDate,
+        documentUrl: documentUrl,
+        onDownload: () => _downloadCertification(documentUrl),
+      ),
+    );
+  }
+
+  /// Download Certification Document
+  void _downloadCertification(String documentUrl) {
+    // TODO: Implement file download
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Download feature will be implemented'),
+        backgroundColor: AppColors.info,
+      ),
+    );
+  }
+
+  /// Show Delete Certification Confirmation
+  Future<void> _showDeleteCertificationConfirmation(String certificationId) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete Certification'),
+        content: Text('Are you sure you want to delete this certification? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+            ),
+            child: Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true) {
+      // TODO: Implement certification deletion
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Certification deletion will be implemented'),
+          backgroundColor: AppColors.info,
+        ),
+      );
+    }
+  }
+
   /// Show Add Specialization Modal
   Future<void> _showAddSpecializationModal() async {
     showDialog(
@@ -496,11 +608,7 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(),
-            )
-          : _errorMessage != null
+      body: _errorMessage != null
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -595,7 +703,7 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
                                   email: _vetProfile['email'] ?? 'No email',
                                   phone: _vetProfile['phone'] ?? 'No phone',
                                   address: _vetProfile['address'] ?? 'No address',
-                                  website: _vetProfile['website'],
+                                  website: _vetProfile['website'] ?? '',
                                 ),
                                 SizedBox(height: kSpacingMedium),
 
@@ -625,12 +733,20 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
                                             onPressed: _showAddSpecializationModal,
                                             icon: const Icon(Icons.add),
                                             color: AppColors.primary,
+                                            tooltip: 'Add Specialization',
                                           ),
                                         ],
                                       ),
                                       SizedBox(height: kSpacingMedium),
 
-                                      if (_specializations.isEmpty)
+                                      if (_isLoading)
+                                        Center(
+                                          child: Padding(
+                                            padding: EdgeInsets.all(kSpacingMedium),
+                                            child: CircularProgressIndicator(),
+                                          ),
+                                        )
+                                      else if (_specializations.isEmpty)
                                         Center(
                                           child: Text(
                                             'No specializations added yet',
@@ -675,17 +791,23 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
                                             ),
                                           ),
                                           IconButton(
-                                            onPressed: () {
-                                              // Handle upload certification
-                                            },
+                                            onPressed: _showAddCertificationModal,
                                             icon: const Icon(Icons.upload_file),
                                             color: AppColors.primary,
+                                            tooltip: 'Add Certificate',
                                           ),
                                         ],
                                       ),
                                       SizedBox(height: kSpacingMedium),
                                       
-                                      if (_certifications.isEmpty)
+                                      if (_isLoading)
+                                        Center(
+                                          child: Padding(
+                                            padding: EdgeInsets.all(kSpacingMedium),
+                                            child: CircularProgressIndicator(),
+                                          ),
+                                        )
+                                      else if (_certifications.isEmpty)
                                         Center(
                                           child: Text(
                                             'No certifications added yet',
@@ -696,16 +818,30 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
                                           ),
                                         )
                                       else
-                                        Wrap(
-                                          spacing: kSpacingMedium,
-                                          runSpacing: kSpacingMedium,
+                                        Column(
                                           children: _certifications.map((cert) {
+                                            final certTitle = cert['name'] ?? cert['title'] ?? 'Unknown Certificate';
+                                            final certOrg = cert['issuer'] ?? cert['organization'] ?? 'Unknown Organization';
+                                            final documentUrl = cert['documentUrl'];
+                                            final documentFileId = cert['documentFileId'];
+                                            
                                             return CertificationCard(
-                                              title: cert['name'] ?? cert['title'] ?? 'Unknown Certificate',
-                                              organization: cert['issuer'] ?? cert['organization'] ?? 'Unknown Organization',
+                                              title: certTitle,
+                                              organization: certOrg,
                                               issueDate: _formatDate(cert['dateIssued'] ?? cert['issueDate']),
                                               expiryDate: _formatDate(cert['dateExpiry'] ?? cert['expiryDate']),
-                                              onDownload: () {},
+                                              documentUrl: documentUrl,
+                                              documentFileId: documentFileId,
+                                              onPreview: documentUrl != null 
+                                                ? () => _showCertificationPreview(
+                                                    certTitle,
+                                                    certOrg,
+                                                    _formatDate(cert['dateIssued'] ?? cert['issueDate']),
+                                                    _formatDate(cert['dateExpiry'] ?? cert['expiryDate']),
+                                                    documentUrl,
+                                                  )
+                                                : null,
+                                              onDelete: () => _showDeleteCertificationConfirmation(cert['id'] ?? ''),
                                             );
                                           }).toList(),
                                         ),
@@ -722,6 +858,7 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
                             flex: 2,
                             child: VetServicesSection(
                               services: _services,
+                              isLoading: _isLoading,
                               onAddService: _showAddServiceModal,
                               onServiceToggle: (String id) => _toggleServiceStatus(id),
                               onServiceEdit: (String id) => _showEditServiceModal(id),
