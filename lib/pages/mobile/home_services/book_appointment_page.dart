@@ -10,6 +10,8 @@ import 'package:pawsense/core/services/clinic/appointment_service.dart';
 import 'package:pawsense/core/models/user/pet_model.dart';
 import 'package:pawsense/core/guards/auth_guard.dart';
 import 'package:pawsense/core/services/notifications/appointment_booking_integration.dart';
+import 'package:pawsense/core/services/user/assessment_result_service.dart';
+import 'package:pawsense/core/models/user/assessment_result_model.dart';
 
 class BookAppointmentPage extends StatefulWidget {
   final String? preselectedClinicId;
@@ -41,6 +43,8 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
   List<Pet> _userPets = [];
   List<Map<String, dynamic>> _availableClinics = [];
   List<Map<String, dynamic>> _availableServices = [];
+  AssessmentResult? _assessmentResult;
+  bool _petAutoRegistered = false;
 
   final List<String> _defaultServices = [
     'General Checkup',
@@ -68,16 +72,41 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
     setState(() => _loading = true);
     
     try {
+      // Load assessment result if coming from assessment
+      if (widget.assessmentResultId != null) {
+        final assessmentService = AssessmentResultService();
+        _assessmentResult = await assessmentService.getAssessmentResultById(widget.assessmentResultId!);
+      }
+      
       // Get current user and load their pets
       final user = await AuthGuard.getCurrentUser();
       if (user != null) {
         final pets = await PetService.getUserPets(user.uid);
-        setState(() {
-          _userPets = pets;
-          if (_userPets.isNotEmpty) {
-            _selectedPetId = _userPets.first.id;
-          }
-        });
+        
+        // Auto-register pet from assessment if not already registered
+        if (_assessmentResult != null) {
+          await _autoRegisterPetFromAssessment(user.uid, pets);
+          // Reload pets after potential registration
+          final updatedPets = await PetService.getUserPets(user.uid);
+          setState(() {
+            _userPets = updatedPets;
+            // Select the assessment pet if found
+            final assessmentPet = _userPets.firstWhere(
+              (pet) => pet.petName.toLowerCase() == _assessmentResult!.petName.toLowerCase(),
+              orElse: () => _userPets.isNotEmpty ? _userPets.first : _userPets.first,
+            );
+            if (assessmentPet.id != null && assessmentPet.id!.isNotEmpty) {
+              _selectedPetId = assessmentPet.id;
+            }
+          });
+        } else {
+          setState(() {
+            _userPets = pets;
+            if (_userPets.isNotEmpty) {
+              _selectedPetId = _userPets.first.id;
+            }
+          });
+        }
       }
       
       // Load available clinics
@@ -242,15 +271,15 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
     return Container(
       padding: kMobilePaddingCard,
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.1),
+        color: (_petAutoRegistered ? AppColors.success : AppColors.primary).withValues(alpha: 0.1),
         borderRadius: kMobileBorderRadiusCardPreset,
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+        border: Border.all(color: (_petAutoRegistered ? AppColors.success : AppColors.primary).withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
           Icon(
-            Icons.info_outline,
-            color: AppColors.primary,
+            _petAutoRegistered ? Icons.pets : Icons.info_outline,
+            color: _petAutoRegistered ? AppColors.success : AppColors.primary,
             size: 24,
           ),
           const SizedBox(width: 12),
@@ -259,16 +288,18 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Quick Booking',
+                  _petAutoRegistered ? 'Pet Auto-Registered' : 'Quick Booking',
                   style: kMobileTextStyleTitle.copyWith(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.primary,
+                    color: _petAutoRegistered ? AppColors.success : AppColors.primary,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Schedule your pet\'s appointment with our qualified veterinarians',
+                  _petAutoRegistered 
+                      ? 'Your pet from the assessment has been automatically registered'
+                      : 'Schedule your pet\'s appointment with our qualified veterinarians',
                   style: kMobileTextStyleSubtitle.copyWith(
                     fontSize: 12,
                     color: AppColors.textSecondary,
@@ -472,14 +503,10 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
                     ],
                   ),
                 )
-              : DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _selectedPetId,
-                    isExpanded: true,
-                    icon: Icon(Icons.arrow_drop_down, color: AppColors.textSecondary),
-                    hint: const Text('Choose your pet'),
-                    items: _userPets.map((pet) => DropdownMenuItem<String>(
-                      value: pet.id,
+              : (widget.skipServiceSelection && _assessmentResult != null)
+                  ? // Locked pet selection (from assessment)
+                    Container(
+                      padding: const EdgeInsets.all(12),
                       child: Row(
                         children: [
                           // Pet profile picture
@@ -491,22 +518,34 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
                               color: AppColors.background,
                               border: Border.all(color: AppColors.border),
                             ),
-                            child: pet.imageUrl != null && pet.imageUrl!.isNotEmpty
-                                ? ClipOval(
-                                    child: Image.network(
-                                      pet.imageUrl!,
-                                      width: 40,
-                                      height: 40,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) {
-                                        return Icon(
-                                          Icons.pets,
-                                          size: 20,
-                                          color: AppColors.primary,
-                                        );
-                                      },
-                                    ),
-                                  )
+                            child: _userPets.isNotEmpty && _selectedPetId != null
+                                ? (() {
+                                    final selectedPet = _userPets.firstWhere(
+                                      (pet) => pet.id == _selectedPetId,
+                                      orElse: () => _userPets.first,
+                                    );
+                                    return selectedPet.imageUrl != null && selectedPet.imageUrl!.isNotEmpty
+                                        ? ClipOval(
+                                            child: Image.network(
+                                              selectedPet.imageUrl!,
+                                              width: 40,
+                                              height: 40,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (context, error, stackTrace) {
+                                                return Icon(
+                                                  Icons.pets,
+                                                  size: 20,
+                                                  color: AppColors.primary,
+                                                );
+                                              },
+                                            ),
+                                          )
+                                        : Icon(
+                                            Icons.pets,
+                                            size: 20,
+                                            color: AppColors.primary,
+                                          );
+                                  })()
                                 : Icon(
                                     Icons.pets,
                                     size: 20,
@@ -515,36 +554,257 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  pet.petName,
-                                  style: const TextStyle(fontWeight: FontWeight.w500),
-                                ),
-                                Text(
-                                  '${pet.petType} • ${pet.breed}',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textSecondary,
+                            child: _userPets.isNotEmpty && _selectedPetId != null
+                                ? (() {
+                                    final selectedPet = _userPets.firstWhere(
+                                      (pet) => pet.id == _selectedPetId,
+                                      orElse: () => _userPets.first,
+                                    );
+                                    return Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Text(
+                                              selectedPet.petName,
+                                              style: const TextStyle(fontWeight: FontWeight.w500),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.primary.withValues(alpha: 0.1),
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                'ASSESSED PET',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: AppColors.primary,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        Text(
+                                          '${selectedPet.petType} • ${selectedPet.breed}',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  })()
+                                : Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        _assessmentResult?.petName ?? 'Assessment Pet',
+                                        style: const TextStyle(fontWeight: FontWeight.w500),
+                                      ),
+                                      Text(
+                                        '${_assessmentResult?.petType ?? 'Unknown'} • Auto-selected',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                              ],
-                            ),
+                          ),
+                          Icon(
+                            Icons.lock,
+                            size: 18,
+                            color: AppColors.textSecondary,
                           ),
                         ],
                       ),
-                    )).toList(),
-                    onChanged: (value) => setState(() => _selectedPetId = value),
-                  ),
-                ),
+                    )
+                  : // Normal dropdown for manual selection
+                    DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _selectedPetId,
+                        isExpanded: true,
+                        icon: Icon(Icons.arrow_drop_down, color: AppColors.textSecondary),
+                        hint: const Text('Choose your pet'),
+                        items: _userPets.map((pet) => DropdownMenuItem<String>(
+                          value: pet.id,
+                          child: Row(
+                            children: [
+                              // Pet profile picture
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: AppColors.background,
+                                  border: Border.all(color: AppColors.border),
+                                ),
+                                child: pet.imageUrl != null && pet.imageUrl!.isNotEmpty
+                                    ? ClipOval(
+                                        child: Image.network(
+                                          pet.imageUrl!,
+                                          width: 40,
+                                          height: 40,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) {
+                                            return Icon(
+                                              Icons.pets,
+                                              size: 20,
+                                              color: AppColors.primary,
+                                            );
+                                          },
+                                        ),
+                                      )
+                                    : Icon(
+                                        Icons.pets,
+                                        size: 20,
+                                        color: AppColors.primary,
+                                      ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      pet.petName,
+                                      style: const TextStyle(fontWeight: FontWeight.w500),
+                                    ),
+                                    Text(
+                                      '${pet.petType} • ${pet.breed}',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        )).toList(),
+                        onChanged: (value) => setState(() => _selectedPetId = value),
+                      ),
+                    ),
         ),
       ],
     );
   }
 
   Widget _buildServiceDropdown() {
-    // Hide service selection if coming from assessment
+    // Show assessment results if coming from assessment
+    if (widget.skipServiceSelection && _assessmentResult != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Assessment Results',
+            style: kMobileTextStyleTitle.copyWith(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.05),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.analytics, size: 18, color: AppColors.primary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'AI Assessment Detection',
+                        style: kMobileTextStyleSubtitle.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        'AUTO',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (_assessmentResult!.analysisResults.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  ...(_assessmentResult!.analysisResults.take(3).map((analysis) {
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: Color(int.parse(analysis.colorHex.substring(1), radix: 16) + 0xFF000000),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              analysis.condition,
+                              style: kMobileTextStyleSubtitle.copyWith(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${analysis.percentage.toStringAsFixed(1)}%',
+                            style: kMobileTextStyleSubtitle.copyWith(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList()),
+                ],
+                const SizedBox(height: 8),
+                Text(
+                  'Consultation recommended for accurate diagnosis',
+                  style: kMobileTextStyleSubtitle.copyWith(
+                    fontSize: 11,
+                    color: AppColors.textTertiary,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+    
+    // Hide service selection if coming from assessment but no assessment data
     if (widget.skipServiceSelection) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1179,6 +1439,54 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
           ),
         );
       }
+    }
+  }
+
+  // Auto-register pet from assessment if not already exists
+  Future<void> _autoRegisterPetFromAssessment(String userId, List<Pet> existingPets) async {
+    if (_assessmentResult == null) return;
+
+    // Check if pet already exists by name
+    final existingPet = existingPets.firstWhere(
+      (pet) => pet.petName.toLowerCase() == _assessmentResult!.petName.toLowerCase(),
+      orElse: () => Pet(
+        userId: '',
+        petName: '',
+        petType: '',
+        age: 0,
+        weight: 0.0,
+        breed: '',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    );
+
+    // If pet doesn't exist, register it
+    if (existingPet.petName.isEmpty) {
+      try {
+        final newPet = Pet(
+          userId: userId,
+          petName: _assessmentResult!.petName,
+          petType: _assessmentResult!.petType,
+          age: _assessmentResult!.petAge,
+          weight: _assessmentResult!.petWeight,
+          breed: _assessmentResult!.petBreed,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+
+        await PetService.addPet(newPet);
+        
+        setState(() {
+          _petAutoRegistered = true;
+        });
+
+        print('✅ Auto-registered pet: ${_assessmentResult!.petName}');
+      } catch (e) {
+        print('❌ Error auto-registering pet: $e');
+      }
+    } else {
+      print('✅ Pet already exists: ${existingPet.petName}');
     }
   }
 

@@ -947,36 +947,69 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                 SizedBox(
                   height: 150,
                   child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center, // Center align the row items
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Expanded(
                         flex: 2,
-                        child: PieChart(
-                          PieChartData(
-                            sections: _analysisResults.map((result) {
-                              return PieChartSectionData(
-                                color: result.color,
-                                value: result.percentage,
-                                title: '${result.percentage.toStringAsFixed(1)}%',
-                                titleStyle: kMobileTextStyleLegend.copyWith(
-                                  color: AppColors.white,
-                                  fontWeight: FontWeight.w600,
+                        child: _analysisResults.length == 1
+                            ? // Single result - center the percentage inside
+                            Stack(
+                                children: [
+                                  PieChart(
+                                    PieChartData(
+                                      sections: _analysisResults.map((result) {
+                                        return PieChartSectionData(
+                                          color: result.color,
+                                          value: result.percentage,
+                                          title: '', // Remove title from pie section for single result
+                                          radius: 60,
+                                        );
+                                      }).toList(),
+                                      borderData: FlBorderData(show: false),
+                                      sectionsSpace: 0,
+                                      centerSpaceRadius: 0,
+                                    ),
+                                  ),
+                                  // Centered percentage overlay for single result
+                                  Center(
+                                    child: Text(
+                                      '${_analysisResults.first.percentage.toStringAsFixed(1)}%',
+                                      style: kMobileTextStyleTitle.copyWith(
+                                        color: AppColors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 18,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : // Multiple results - show pie chart with side labels
+                            PieChart(
+                                PieChartData(
+                                  sections: _analysisResults.map((result) {
+                                    return PieChartSectionData(
+                                      color: result.color,
+                                      value: result.percentage,
+                                      title: '${result.percentage.toStringAsFixed(1)}%',
+                                      titleStyle: kMobileTextStyleLegend.copyWith(
+                                        color: AppColors.white,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      radius: 60,
+                                    );
+                                  }).toList(),
+                                  borderData: FlBorderData(show: false),
+                                  sectionsSpace: 2,
+                                  centerSpaceRadius: 0,
                                 ),
-                                radius: 60,
-                              );
-                            }).toList(),
-                            borderData: FlBorderData(show: false),
-                            sectionsSpace: 2,
-                            centerSpaceRadius: 0,
-                          ),
-                        ),
+                              ),
                       ),
-                      const SizedBox(width: kSpacingMedium), // Add spacing between chart and legend
+                      const SizedBox(width: kSpacingMedium),
                       Expanded(
                         flex: 3,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center, // Center the legend vertically
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: _analysisResults.map((result) {
                             return Padding(
                               padding: const EdgeInsets.only(bottom: kSpacingSmall),
