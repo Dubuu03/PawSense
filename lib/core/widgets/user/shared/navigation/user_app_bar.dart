@@ -50,7 +50,6 @@ class UserAppBar extends StatelessWidget implements PreferredSizeWidget {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: AppColors.background,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: ClipRRect(
