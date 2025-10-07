@@ -348,6 +348,8 @@ class OptimizedDataService {
         views: 0,
         helpfulVotes: 0,
         isExpanded: false,
+        createdAt: DateTime.now(),
+        createdBy: 'system',
       ),
       FAQItemModel(
         id: 'faq_2',
@@ -357,6 +359,8 @@ class OptimizedDataService {
         views: 0,
         helpfulVotes: 0,
         isExpanded: false,
+        createdAt: DateTime.now(),
+        createdBy: 'system',
       ),
     ];
   }

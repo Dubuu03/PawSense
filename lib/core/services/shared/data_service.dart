@@ -377,6 +377,8 @@ class DataService {
         views: 150,
         helpfulVotes: 42,
         isExpanded: false,
+        createdAt: DateTime.now(),
+        createdBy: 'system',
       ),
       FAQItemModel(
         id: 'faq_2',
@@ -386,6 +388,8 @@ class DataService {
         views: 98,
         helpfulVotes: 35,
         isExpanded: false,
+        createdAt: DateTime.now(),
+        createdBy: 'system',
       ),
     ];
   }

@@ -7,22 +7,27 @@ class SupportHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          'Support Center',
-          style: kTextStyleTitle.copyWith(
-              color: AppColors.textPrimary,
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Support Center',
+              style: kTextStyleTitle.copyWith(
+                color: AppColors.textPrimary,
+              ),
             ),
-        ),
-        SizedBox(height: kSpacingSmall),
-        Text(
-          'Manage customer inquiries and provide assistance',
-          style: TextStyle(
-            fontSize: kFontSizeRegular-2,
-            color: AppColors.textSecondary,
-          ),
+            SizedBox(height: kSpacingSmall),
+            Text(
+              'Manage customer inquiries and provide assistance',
+              style: TextStyle(
+                fontSize: kFontSizeRegular - 2,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
         ),
       ],
     );
