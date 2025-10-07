@@ -132,6 +132,210 @@ class AuthService {
     }
   }
 
+  /// Create temporary account for email verification
+  Future<Map<String, dynamic>> createTempAccountForVerification({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final UserCredential result = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      if (result.user != null) {
+        // Send verification email
+        await result.user!.sendEmailVerification();
+        
+        // Sign out immediately - user needs to verify first
+        await _auth.signOut();
+        
+        return {
+          'success': true,
+          'userId': result.user!.uid,
+        };
+      } else {
+        return {
+          'success': false,
+          'error': 'Failed to create temporary account',
+        };
+      }
+    } on FirebaseAuthException catch (e) {
+      String errorMessage;
+      switch (e.code) {
+        case 'email-already-in-use':
+          errorMessage = 'An account already exists with this email address.';
+          break;
+        case 'invalid-email':
+          errorMessage = 'Invalid email address format.';
+          break;
+        case 'weak-password':
+          errorMessage = 'Password is too weak. Please use a stronger password.';
+          break;
+        default:
+          errorMessage = 'Failed to create account: ${e.message}';
+      }
+      return {
+        'success': false,
+        'error': errorMessage,
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'error': 'An unexpected error occurred: ${e.toString()}',
+      };
+    }
+  }
+
+  /// Check if current user's email is verified
+  Future<bool> checkEmailVerification() async {
+    try {
+      // Reload user to get latest verification status
+      await _auth.currentUser?.reload();
+      final user = _auth.currentUser;
+      
+      if (user == null) {
+        throw Exception('No user is currently signed in');
+      }
+      
+      return user.emailVerified;
+    } catch (e) {
+      throw Exception('Error checking email verification: ${e.toString()}');
+    }
+  }
+
+  /// Check email verification for a specific account (signs in temporarily)
+  Future<bool> checkEmailVerificationForAccount(String email, String password) async {
+    try {
+      // Sign in temporarily to check verification status
+      await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      
+      // Reload user to get latest verification status
+      await _auth.currentUser?.reload();
+      final isVerified = _auth.currentUser?.emailVerified ?? false;
+      
+      // Sign out after checking
+      await _auth.signOut();
+      
+      return isVerified;
+    } catch (e) {
+      // Make sure to sign out even if there's an error
+      try {
+        await _auth.signOut();
+      } catch (_) {}
+      
+      throw Exception('Error checking email verification: ${e.toString()}');
+    }
+  }
+
+  /// Resend verification email to current user
+  Future<void> resendVerificationEmail() async {
+    try {
+      final user = _auth.currentUser;
+      
+      if (user == null) {
+        throw Exception('No user is currently signed in');
+      }
+      
+      if (user.emailVerified) {
+        throw Exception('Email is already verified');
+      }
+      
+      await user.sendEmailVerification();
+    } catch (e) {
+      throw Exception('Error sending verification email: ${e.toString()}');
+    }
+  }
+
+  /// Complete clinic admin registration after email verification
+  Future<AuthResult> completeClinicAdminRegistration({
+    required String email,
+    required String password,
+    required String username,
+    required String? firstName,
+    required String? lastName,
+    required String? contactNumber,
+    required Clinic clinic,
+    required Map<String, dynamic> clinicDetailsData,
+    Map<int, Uint8List>? certificationImages,
+    Map<int, String>? certificationImageNames,
+    Map<int, Uint8List>? licenseImages,
+    Map<int, String>? licenseImageNames,
+  }) async {
+    try {
+      // Sign in to get the user
+      final signInResult = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      if (signInResult.user == null) {
+        return AuthResult(success: false, error: 'Failed to sign in.');
+      }
+
+      final uid = signInResult.user!.uid;
+
+      // Create user profile
+      final userModel = UserModel(
+        uid: uid,
+        username: username,
+        email: email,
+        role: 'admin',
+        createdAt: DateTime.now(),
+        darkTheme: false,
+        agreedToTerms: true,
+        contactNumber: contactNumber,
+        firstName: firstName,
+        lastName: lastName,
+      );
+
+      await _createUserProfile(uid, userModel);
+
+      // Create clinic data
+      final createdClinic = await _createClinic(uid, clinic);
+      if (!createdClinic) {
+        throw Exception('Failed to create clinic data');
+      }
+
+      // Create clinic details
+      final createdClinicDetails = await _createClinicDetails(
+        uid, 
+        clinicDetailsData,
+        certificationImages: certificationImages,
+        certificationImageNames: certificationImageNames,
+        licenseImages: licenseImages,
+        licenseImageNames: licenseImageNames,
+      );
+      if (!createdClinicDetails) {
+        throw Exception('Failed to create clinic details');
+      }
+
+      // Sign out admin user (they need approval before login)
+      await _auth.signOut();
+      _tokenManager.clearToken();
+
+      return AuthResult(success: true, role: userModel.role, user: userModel);
+    } on FirebaseAuthException catch (e) {
+      String errorMessage;
+      switch (e.code) {
+        case 'user-not-found':
+          errorMessage = 'Account not found. Please start registration again.';
+          break;
+        case 'wrong-password':
+          errorMessage = 'Invalid password.';
+          break;
+        default:
+          errorMessage = 'Registration failed: ${e.message}';
+      }
+      return AuthResult(success: false, error: errorMessage);
+    } catch (e) {
+      return AuthResult(success: false, error: e.toString());
+    }
+  }
+
   /// Sign out current user
   Future<void> signOut() async {
     _tokenManager.clearToken();

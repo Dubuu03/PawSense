@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
+import 'dart:async';
 import '../../../core/models/clinic/clinic_model.dart';
 import '../../../core/models/clinic/clinic_details_model.dart';
 import '../../../core/models/clinic/clinic_service_model.dart';
@@ -25,6 +26,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
     GlobalKey<FormState>(),
     GlobalKey<FormState>(),
     GlobalKey<FormState>(),
+    GlobalKey<FormState>(),
   ];
 
   final _authService = AuthService();
@@ -33,7 +35,10 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
   int _currentStep = 0;
   bool _isLoading = false;
   bool _isCheckingEmail = false;
-  String? _errorMessage;
+  bool _isEmailVerified = false;
+  bool _isSendingVerification = false;
+  bool _isCheckingVerification = false;
+  Timer? _verificationTimer;
 
   // Step 1: Account Info
   final _emailController = TextEditingController();
@@ -67,6 +72,110 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
   bool _obscureConfirmPassword = true;
   bool _agreedToTerms = false;
 
+  /// Show error message using SnackBar
+  void _showErrorSnackBar(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(
+                Icons.error_outline,
+                color: Colors.white,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.red.shade600,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          margin: const EdgeInsets.all(16),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+  }
+
+  /// Start checking for email verification automatically
+  void _startVerificationTimer() {
+    _stopVerificationTimer(); // Stop any existing timer
+    
+    _verificationTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+      if (!mounted || _isEmailVerified || _currentStep != 1) {
+        timer.cancel();
+        return;
+      }
+
+      try {
+        final isVerified = await _authService.checkEmailVerificationForAccount(
+          _emailController.text.trim(),
+          _passwordController.text.trim(),
+        );
+
+        if (mounted && isVerified) {
+          setState(() {
+            _isEmailVerified = true;
+          });
+          
+          // Show success message
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(
+                    Icons.check_circle_outline,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Email verified successfully! You can now proceed.',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.green.shade600,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              margin: const EdgeInsets.all(16),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          
+          timer.cancel();
+        }
+      } catch (e) {
+        // Silently fail - don't show error for automatic checks
+        print('Auto verification check failed: $e');
+      }
+    });
+  }
+
+  /// Stop the verification timer
+  void _stopVerificationTimer() {
+    _verificationTimer?.cancel();
+    _verificationTimer = null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -99,6 +208,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
     _clinicEmailController.dispose();
     _websiteController.dispose();
     _pageController.dispose();
+    _verificationTimer?.cancel();
     super.dispose();
   }
 
@@ -264,9 +374,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
   Future<void> _handleSignup() async {
     if (!_formKeys[2].currentState!.validate()) return;
     if (!_agreedToTerms) {
-      setState(() {
-        _errorMessage = 'Please agree to the terms and conditions';
-      });
+      _showErrorSnackBar('Please agree to the terms and conditions');
       return;
     }
 
@@ -275,22 +383,17 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
     final validLicenses = _licenses.where((license) => _isLicenseValid(license)).toList();
 
     if (validCertifications.isEmpty) {
-      setState(() {
-        _errorMessage = 'At least one certification is required';
-      });
+      _showErrorSnackBar('At least one certification is required');
       return;
     }
 
     if (validLicenses.isEmpty) {
-      setState(() {
-        _errorMessage = 'At least one license is required';
-      });
+      _showErrorSnackBar('At least one license is required');
       return;
     }
 
     setState(() {
       _isLoading = true;
-      _errorMessage = null;
     });
 
     try {
@@ -325,8 +428,8 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
         }
       }
 
-      // Create the auth account with dynamic field structure
-      final result = await _authService.signUpClinicAdmin(
+      // Complete registration (account was already created during email verification)
+      final result = await _authService.completeClinicAdminRegistration(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
         username: _usernameController.text.trim(),
@@ -376,15 +479,11 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
         // Show success message and navigate to login
         _showSuccessDialog();
       } else {
-        setState(() {
-          _errorMessage = result.error ?? 'Signup failed. Please try again.';
-        });
+        _showErrorSnackBar(result.error ?? 'Signup failed. Please try again.');
       }
     } catch (e) {
       print('Signup error: $e'); // Add debug print
-      setState(() {
-        _errorMessage = 'An unexpected error occurred. Please try again.';
-      });
+      _showErrorSnackBar('An unexpected error occurred. Please try again.');
     } finally {
       setState(() {
         _isLoading = false;
@@ -695,60 +794,78 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
   }
 
   void _nextStep() async {
-    if (_currentStep < 2) {
-      if (_formKeys[_currentStep].currentState!.validate()) {
+    if (_currentStep < 3) {
+      // Skip validation for step 1 (email verification) as it has no form fields
+      if (_currentStep != 1 && !_formKeys[_currentStep].currentState!.validate()) {
+        return;
+      }
         
-        // Check email availability based on current step
-        if (_currentStep == 0) {
-          await _checkEmailAvailability();
-          
-          if (_errorMessage != null) {
-            return; // Don't proceed if email validation failed
-          }
-        } else if (_currentStep == 1) {
-          await _checkClinicEmailAvailability();
-          
-          if (_errorMessage != null) {
-            return; // Don't proceed if email validation failed
-          }
+      // Check email availability and send verification code for step 0
+      if (_currentStep == 0) {
+        final emailAvailable = await _checkEmailAvailability();
+        if (!emailAvailable) {
+          return; // Don't proceed if email validation failed
         }
         
-        setState(() {
-          _currentStep++;
-        });
-        _pageController.nextPage(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-      } else {
+        // Send verification email via Firebase
+        final emailSent = await _sendVerificationEmail();
+        if (!emailSent) {
+          return; // Don't proceed if sending verification failed
+        }
+        
+        // Start the verification timer when moving to verification step
+        _startVerificationTimer();
+      } 
+      // Verify email for step 1
+      else if (_currentStep == 1) {
+        // For step 1, only proceed if email is already verified
+        if (!_isEmailVerified) {
+          _showErrorSnackBar('Please wait for email verification to complete, or check your inbox and click the verification link.');
+          return;
+        }
+        
+        // Stop the timer when moving away from verification step
+        _stopVerificationTimer();
       }
+      // Check clinic email availability for step 2
+      else if (_currentStep == 2) {
+        final clinicEmailAvailable = await _checkClinicEmailAvailability();
+        if (!clinicEmailAvailable) {
+          return; // Don't proceed if email validation failed
+        }
+      }
+      
+      setState(() {
+        _currentStep++;
+      });
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
     } else {
       _handleSignup();
     }
   }
 
-  Future<void> _checkEmailAvailability() async {
+  Future<bool> _checkEmailAvailability() async {
     final email = _emailController.text.trim();
-    if (email.isEmpty) return;
+    if (email.isEmpty) return false;
 
     setState(() {
       _isCheckingEmail = true;
-      _errorMessage = null;
     });
 
     try {
       final emailExists = await _authService.emailExists(email);
       
       if (emailExists) {
-        setState(() {
-          _errorMessage = 'An account already exists with this email address.';
-        });
-      } else {
+        _showErrorSnackBar('An account already exists with this email address.');
+        return false;
       }
+      return true;
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
-      });
+      _showErrorSnackBar(e.toString().replaceAll('Exception: ', ''));
+      return false;
     } finally {
       setState(() {
         _isCheckingEmail = false;
@@ -756,28 +873,91 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
     }
   }
 
-  Future<void> _checkClinicEmailAvailability() async {
+  Future<bool> _sendVerificationEmail() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+    
+    setState(() {
+      _isSendingVerification = true;
+    });
+
+    try {
+      // Create a temporary Firebase account to send verification email
+      final result = await _authService.createTempAccountForVerification(
+        email: email,
+        password: password,
+      );
+      
+      if (result['success']) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Verification email sent to $email. Please check your inbox.'),
+              backgroundColor: AppColors.success,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+        return true;
+      } else {
+        _showErrorSnackBar(result['error'] ?? 'Failed to send verification email');
+        return false;
+      }
+    } catch (e) {
+      _showErrorSnackBar('Failed to send verification email: ${e.toString()}');
+      return false;
+    } finally {
+      setState(() {
+        _isSendingVerification = false;
+      });
+    }
+  }
+
+  Future<void> _resendVerificationEmail() async {
+    setState(() {
+      _isSendingVerification = true;
+    });
+
+    try {
+      await _authService.resendVerificationEmail();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Verification email sent! Please check your inbox.'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      _showErrorSnackBar('Failed to resend verification email: ${e.toString()}');
+    } finally {
+      setState(() {
+        _isSendingVerification = false;
+      });
+    }
+  }
+
+  Future<bool> _checkClinicEmailAvailability() async {
     final email = _clinicEmailController.text.trim();
-    if (email.isEmpty) return;
+    if (email.isEmpty) return false;
 
     setState(() {
       _isCheckingEmail = true;
-      _errorMessage = null;
     });
 
     try {
       final emailExists = await _authService.clinicEmailExists(email);
       
       if (emailExists) {
-        setState(() {
-          _errorMessage = 'A clinic already exists with this email address.';
-        });
+        _showErrorSnackBar('A clinic already exists with this email address.');
+        return false;
       } else {
+        return true;
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
-      });
+      _showErrorSnackBar(e.toString().replaceAll('Exception: ', ''));
+      return false;
     } finally {
       setState(() {
         _isCheckingEmail = false;
@@ -787,6 +967,11 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
 
   void _previousStep() {
     if (_currentStep > 0) {
+      // Stop verification timer if navigating away from verification step
+      if (_currentStep == 1) {
+        _stopVerificationTimer();
+      }
+      
       setState(() {
         _currentStep--;
       });
@@ -805,9 +990,11 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
         children: [
           _buildStepItem('Account', 0, Icons.person_outline),
           _buildStepConnector(0),
-          _buildStepItem('Clinic', 1, Icons.local_hospital_outlined),
+          _buildStepItem('Verify', 1, Icons.mark_email_read_outlined),
           _buildStepConnector(1),
-          _buildStepItem('Details', 2, Icons.description_outlined),
+          _buildStepItem('Clinic', 2, Icons.local_hospital_outlined),
+          _buildStepConnector(2),
+          _buildStepItem('Details', 3, Icons.description_outlined),
         ],
       ),
     );
@@ -1054,9 +1241,146 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
     );
   }
 
-  Widget _buildClinicInfoStep() {
+  Widget _buildEmailVerificationStep() {
     return Form(
       key: _formKeys[1],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Center icon
+          Center(
+            child: Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: _isEmailVerified 
+                    ? AppColors.success.withOpacity(0.1) 
+                    : AppColors.primary.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                _isEmailVerified ? Icons.mark_email_read : Icons.email_outlined,
+                size: 40,
+                color: _isEmailVerified ? AppColors.success : AppColors.primary,
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          
+          Text(
+            'Verify Your Email',
+            style: kTextStyleTitle.copyWith(
+              fontSize: 20,
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _isEmailVerified
+                ? 'Email verified successfully!'
+                : 'We\'ve sent a verification code to ${_emailController.text.trim()}',
+            style: kTextStyleRegular.copyWith(
+              color: _isEmailVerified ? AppColors.success : AppColors.textSecondary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 32),
+
+          if (!_isEmailVerified) ...[
+            // Instructions
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: AppColors.primary.withOpacity(0.2),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline, color: AppColors.primary, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Instructions',
+                        style: kTextStyleRegular.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    '1. Check your email inbox for the verification link\n'
+                    '2. Click the link in the email to verify your address\n'
+                    '3. Return to this page and click "Next" to continue',
+                    style: kTextStyleRegular.copyWith(
+                      color: AppColors.textSecondary,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Resend email
+            Center(
+              child: TextButton.icon(
+                onPressed: _isSendingVerification ? null : _resendVerificationEmail,
+                icon: Icon(Icons.email_outlined, size: 18),
+                label: Text(
+                  _isSendingVerification ? 'Sending...' : 'Resend Verification Email',
+                  style: kTextStyleRegular.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ] else ...[
+            // Success message
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.success.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: AppColors.success.withOpacity(0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle, color: AppColors.success),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Your email has been verified. Click Next to continue.',
+                      style: kTextStyleRegular.copyWith(
+                        color: AppColors.success,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClinicInfoStep() {
+    return Form(
+      key: _formKeys[2],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1200,7 +1524,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
 
   Widget _buildClinicDetailsStep() {
     return Form(
-      key: _formKeys[2],
+      key: _formKeys[3],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2160,58 +2484,11 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                                 
                               ],
                             ),
-                            const SizedBox(height: 12),
-                  
-                            // Error Message - More Compact
-                            if (_errorMessage != null)
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(12),
-                                margin: const EdgeInsets.only(bottom: 16),
-                                decoration: BoxDecoration(
-                                  color: Colors.red.shade50,
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: Colors.red.shade200),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.red.withOpacity(0.1),
-                                      blurRadius: 4,
-                                      offset: const Offset(0, 1),
-                                    ),
-                                  ],
-                                ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: BoxDecoration(
-                                        color: Colors.red.shade100,
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Icon(
-                                        Icons.error_outline,
-                                        color: Colors.red.shade700,
-                                        size: 16,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        _errorMessage!,
-                                        style: kTextStyleSmall.copyWith(
-                                          fontSize: 13,
-                                          color: Colors.red.shade700,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                            const SizedBox(height: 8),
                   
                             // Form Content Container - Bigger for better field visibility
                             Container(
-                              height: 680, // Fixed height for all devices
+                              height: 640, // Fixed height for all devices
                               decoration: BoxDecoration(
                                 color: AppColors.white.withOpacity(0.3),
                                 borderRadius: BorderRadius.circular(12),
@@ -2257,6 +2534,12 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                                     Padding(
                                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
                                       child: SingleChildScrollView(
+                                        child: _buildEmailVerificationStep(),
+                                      ),
+                                    ),
+                                    Padding(
+                                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                                      child: SingleChildScrollView(
                                         child: _buildClinicInfoStep(),
                                       ),
                                     ),
@@ -2270,7 +2553,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                                 ),
                               ),
                   
-                            const SizedBox(height: 32),
+                            const SizedBox(height: 8),
                   
                             // Navigation Buttons - More Compact
                             Row(
@@ -2321,7 +2604,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                                       ],
                                     ),
                                     child: ElevatedButton(
-                                      onPressed: (_isLoading || _isCheckingEmail) ? null : _nextStep,
+                                      onPressed: (_isLoading || _isCheckingEmail || _isCheckingVerification || (_currentStep == 1 && !_isEmailVerified)) ? null : _nextStep,
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: Colors.transparent,
                                         foregroundColor: AppColors.white,
@@ -2331,7 +2614,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                                         ),
                                         elevation: 0,
                                       ),
-                                      child: (_isLoading || _isCheckingEmail)
+                                      child: (_isLoading || _isCheckingEmail || _isCheckingVerification)
                                           ? const SizedBox(
                                               height: 20,
                                               width: 20,
