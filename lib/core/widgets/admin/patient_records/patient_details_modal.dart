@@ -7,6 +7,7 @@ import 'package:pawsense/core/models/clinic/appointment_models.dart' as Appointm
 import 'package:pawsense/core/services/user/pdf_generation_service.dart';
 import 'package:pawsense/core/services/user/assessment_result_service.dart';
 import 'package:pawsense/core/models/user/user_model.dart';
+import 'package:pawsense/core/widgets/admin/appointments/appointment_completion_modal.dart';
 
 class ImprovedPatientDetailsModal extends StatefulWidget {
   final PatientRecord patient;
@@ -97,6 +98,27 @@ class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModa
         setState(() => _isLoadingAssessment = false);
       }
     }
+  }
+
+  Future<void> _completeAppointment(AppointmentBooking booking) async {
+    // Convert to Appointment model
+    final appointment = await _convertToAppointmentModel(booking);
+    if (appointment == null) return;
+
+    if (!mounted) return;
+
+    // Show the appointment completion modal
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AppointmentCompletionModal(
+        appointment: appointment,
+        onCompleted: () {
+          // Refresh the appointment history to show updated status
+          _loadAppointmentHistory();
+        },
+      ),
+    );
   }
 
   void _goBackToPatientDetails() {
@@ -583,19 +605,22 @@ class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModa
   }
 
   Widget _buildAppointmentCard(AppointmentBooking appointment) {
-    return InkWell(
-      onTap: () => _showAppointmentDetails(appointment),
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: () => _showAppointmentDetails(appointment),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: AppColors.textSecondary.withOpacity(0.2),
-          ),
-        ),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: AppColors.textSecondary.withOpacity(0.2),
+              ),
+            ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -689,25 +714,52 @@ class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModa
 
             const SizedBox(height: 8),
             Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Tap to view details',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.primary.withOpacity(0.7),
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Icon(
-                  Icons.arrow_forward,
-                  size: 12,
-                  color: AppColors.primary.withOpacity(0.7),
+                // Complete button for confirmed appointments
+                if (appointment.status == AppointmentStatus.confirmed)
+                  ElevatedButton.icon(
+                    onPressed: () => _completeAppointment(appointment),
+                    icon: const Icon(Icons.check_circle, size: 16),
+                    label: const Text(
+                      'Complete',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.success,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  )
+                else
+                  const SizedBox.shrink(),
+                
+                // View details indicator
+                Row(
+                  children: [
+                    Text(
+                      'Tap to view details',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.primary.withOpacity(0.7),
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.arrow_forward,
+                      size: 12,
+                      color: AppColors.primary.withOpacity(0.7),
+                    ),
+                  ],
                 ),
               ],
             ),
           ],
+        ),
+      ),
         ),
       ),
     );
@@ -902,6 +954,31 @@ class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModa
                   ),
                 ),
               ),
+              
+              // Complete Appointment Button (below PDF download)
+              if (appointment.status == AppointmentModels.AppointmentStatus.confirmed) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      // Convert back to AppointmentBooking to use existing method
+                      final booking = _appointmentHistory.firstWhere(
+                        (booking) => booking.id == appointment.id,
+                        orElse: () => throw Exception('Booking not found'),
+                      );
+                      await _completeAppointment(booking);
+                    },
+                    icon: const Icon(Icons.check_circle, size: 18),
+                    label: const Text('Complete Appointment'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.success,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ],
             ],
 
           const SizedBox(height: 24),
