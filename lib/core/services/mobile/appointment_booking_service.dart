@@ -75,8 +75,8 @@ class AppointmentBookingService {
           .map((doc) => AppointmentBooking.fromMap(doc.data(), doc.id))
           .toList();
       
-      // Sort by appointment date in the app to avoid composite index requirement
-      appointments.sort((a, b) => a.appointmentDate.compareTo(b.appointmentDate));
+      // Sort by appointment date in descending order (latest first)
+      appointments.sort((a, b) => b.appointmentDate.compareTo(a.appointmentDate));
       
       return appointments;
     } catch (e) {

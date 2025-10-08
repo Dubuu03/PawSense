@@ -221,7 +221,7 @@ class _FAQManagementModalState extends State<FAQManagementModal> {
                       ),
                       SizedBox(height: kSpacingSmall),
                       DropdownButtonFormField<String>(
-                        initialValue: _selectedCategory,
+                        value: _selectedCategory,
                         decoration: InputDecoration(
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -347,7 +347,7 @@ class _FAQManagementModalState extends State<FAQManagementModal> {
                                 onChanged: (value) {
                                   setState(() => _isPublished = value);
                                 },
-                                activeThumbColor: AppColors.success,
+                                activeColor: AppColors.success,
                               ),
                             ],
                           ),

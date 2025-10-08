@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pawsense/core/models/user/user_model.dart';
 import 'package:pawsense/core/guards/auth_guard.dart';
@@ -22,6 +23,10 @@ import 'package:pawsense/core/models/user/assessment_result_model.dart';
 import 'package:pawsense/core/models/clinic/appointment_booking_model.dart' as booking;
 import 'package:pawsense/core/services/mobile/appointment_booking_service.dart';
 import 'package:pawsense/core/utils/data_cache.dart';
+import 'package:pawsense/core/services/notifications/notification_service.dart';
+import 'package:pawsense/core/services/notifications/notification_overlay_manager.dart';
+import 'package:pawsense/core/utils/notification_helper.dart';
+import 'package:pawsense/core/widgets/user/alerts/alert_item.dart';
 
 class UserHomePage extends StatefulWidget {
   const UserHomePage({super.key});
@@ -53,6 +58,11 @@ class _UserHomePageState extends State<UserHomePage> {
   bool _appointmentHistoryLoading = false;
   
   final DataCache _cache = DataCache();
+  
+  // Notification system
+  int _notificationCount = 0;
+  late Stream<int> _notificationStream;
+  List<AlertData> _lastKnownAlerts = [];
 
   @override
   void initState() {
@@ -62,7 +72,8 @@ class _UserHomePageState extends State<UserHomePage> {
 
   @override
   void dispose() {
-    // Clean up any resources here if needed
+    // Clean up notification overlay
+    NotificationOverlayManager.clearAll();
     super.dispose();
   }
 
@@ -205,8 +216,22 @@ class _UserHomePageState extends State<UserHomePage> {
 
   Future<void> _fetchUser() async {
     try {
+      // Clear any stale authentication cache first
+      AuthGuard.clearUserCache();
+      
       final userModel = await AuthGuard.getCurrentUser();
       if (userModel != null) {
+        print('DEBUG: Fetched user - UID: ${userModel.uid}, Email: ${userModel.email}, Role: ${userModel.role}');
+        
+        // Verify this is actually the current Firebase Auth user
+        final firebaseUser = FirebaseAuth.instance.currentUser;
+        if (firebaseUser != null && firebaseUser.uid != userModel.uid) {
+          print('WARNING: User ID mismatch! Firebase: ${firebaseUser.uid}, AuthGuard: ${userModel.uid}');
+          // Force re-authentication
+          AuthGuard.clearUserCache();
+          return;
+        }
+        
         // Initialize mobile messaging preferences for the user
         try {
           final preferencesService = MobileMessagingPreferencesService.instance;
@@ -230,6 +255,9 @@ class _UserHomePageState extends State<UserHomePage> {
         
         // Fetch appointment history after user is loaded
         _fetchAppointmentHistory();
+        
+        // Initialize notification stream
+        _initializeNotificationStream();
       } else {
         if (mounted) {
           setState(() {
@@ -238,6 +266,7 @@ class _UserHomePageState extends State<UserHomePage> {
         }
       }
     } catch (e) {
+      print('ERROR in _fetchUser: $e');
       if (mounted) {
         setState(() {
           _loading = false;
@@ -246,9 +275,64 @@ class _UserHomePageState extends State<UserHomePage> {
     }
   }
 
+  void _initializeNotificationStream() {
+    if (_userModel == null) return;
+    
+    // Listen to notification count
+    _notificationStream = NotificationService.getUnreadNotificationsCount(_userModel!.uid);
+    _notificationStream.listen((count) {
+      if (mounted) {
+        setState(() {
+          _notificationCount = count;
+        });
+      }
+    });
+    
+    // Listen to new notifications for popup display
+    NotificationService.getAllUserNotifications(_userModel!.uid).listen((notifications) {
+      if (!mounted) return;
+      
+      final alertData = notifications
+          .map((notification) => NotificationHelper.fromNotificationModel(notification))
+          .toList();
+      
+      // Check for new unread notifications
+      final newAlerts = alertData.where((alert) => 
+          !alert.isRead && 
+          !_lastKnownAlerts.any((known) => known.id == alert.id)
+      ).toList();
+      
+      // Show popup for new notifications
+      for (final alert in newAlerts) {
+        NotificationOverlayManager.showNotification(
+          context,
+          alert,
+          userId: _userModel?.uid,
+          onTap: () {
+            // Navigate to alerts page
+            setState(() {
+              _currentNavIndex = 2; // Alerts tab
+            });
+          },
+        );
+      }
+      
+      _lastKnownAlerts = alertData;
+    });
+  }
+
   Future<void> _fetchAssessmentHistory({bool forceRefresh = false}) async {
     if (_userModel == null) {
       print('DEBUG: User model is null, cannot fetch assessment history');
+      return;
+    }
+    
+    // Double-check user authentication before fetching
+    final firebaseUser = FirebaseAuth.instance.currentUser;
+    if (firebaseUser == null || firebaseUser.uid != _userModel!.uid) {
+      print('WARNING: User authentication mismatch in _fetchAssessmentHistory');
+      print('Firebase User: ${firebaseUser?.uid}, UserModel: ${_userModel!.uid}');
+      AuthGuard.clearUserCache();
       return;
     }
     
@@ -286,18 +370,32 @@ class _UserHomePageState extends State<UserHomePage> {
     }
 
     try {
-      print('DEBUG: Fetching assessments from API');
+      print('DEBUG: Fetching assessments from API for user: ${_userModel!.uid}');
       final assessmentResults = await _assessmentService.getAssessmentResultsByUserId(_userModel!.uid);
       print('DEBUG: Fetched ${assessmentResults.length} assessment results from API');
       
-      // Cache the fresh data (3 minutes TTL)
-      _cache.put(cacheKey, assessmentResults, ttl: const Duration(minutes: 3));
+      // Verify all assessment results belong to the current user
+      final invalidResults = assessmentResults.where((result) => result.userId != _userModel!.uid).toList();
+      if (invalidResults.isNotEmpty) {
+        print('ERROR: Found ${invalidResults.length} assessment results that do not belong to current user!');
+        print('Current user: ${_userModel!.uid}');
+        for (var result in invalidResults) {
+          print('Invalid result: ${result.id} belongs to user: ${result.userId}');
+        }
+      }
       
-      final aiHistoryData = _convertAssessmentResultsToAIHistory(assessmentResults);
+      // Filter to only include results for current user (safety check)
+      final validResults = assessmentResults.where((result) => result.userId == _userModel!.uid).toList();
+      print('DEBUG: After filtering, ${validResults.length} valid assessment results for current user');
+      
+      // Cache the fresh data (3 minutes TTL)
+      _cache.put(cacheKey, validResults, ttl: const Duration(minutes: 3));
+      
+      final aiHistoryData = _convertAssessmentResultsToAIHistory(validResults);
       print('DEBUG: Converted to ${aiHistoryData.length} AI history items');
       
       // Generate health data from assessment results
-      final healthData = _generateHealthDataFromAssessments(assessmentResults);
+      final healthData = _generateHealthDataFromAssessments(validResults);
       print('DEBUG: Generated ${healthData.length} health data items');
       
       if (mounted) {
@@ -320,6 +418,15 @@ class _UserHomePageState extends State<UserHomePage> {
   Future<void> _fetchAppointmentHistory({bool forceRefresh = false}) async {
     if (_userModel == null) {
       print('DEBUG: User model is null, cannot fetch appointment history');
+      return;
+    }
+    
+    // Double-check user authentication before fetching
+    final firebaseUser = FirebaseAuth.instance.currentUser;
+    if (firebaseUser == null || firebaseUser.uid != _userModel!.uid) {
+      print('WARNING: User authentication mismatch in _fetchAppointmentHistory');
+      print('Firebase User: ${firebaseUser?.uid}, UserModel: ${_userModel!.uid}');
+      AuthGuard.clearUserCache();
       return;
     }
     
@@ -355,14 +462,28 @@ class _UserHomePageState extends State<UserHomePage> {
     }
 
     try {
-      print('DEBUG: Fetching appointments from API');
+      print('DEBUG: Fetching appointments from API for user: ${_userModel!.uid}');
       final appointments = await AppointmentBookingService.getUserAppointments(_userModel!.uid);
       print('DEBUG: Fetched ${appointments.length} appointments from API');
       
-      // Cache the fresh data (3 minutes TTL)
-      _cache.put(cacheKey, appointments, ttl: const Duration(minutes: 3));
+      // Verify all appointments belong to the current user
+      final invalidAppointments = appointments.where((appointment) => appointment.userId != _userModel!.uid).toList();
+      if (invalidAppointments.isNotEmpty) {
+        print('ERROR: Found ${invalidAppointments.length} appointments that do not belong to current user!');
+        print('Current user: ${_userModel!.uid}');
+        for (var appointment in invalidAppointments) {
+          print('Invalid appointment: ${appointment.id} belongs to user: ${appointment.userId}');
+        }
+      }
       
-      final appointmentHistoryData = _convertAppointmentsToHistoryData(appointments);
+      // Filter to only include appointments for current user (safety check)
+      final validAppointments = appointments.where((appointment) => appointment.userId == _userModel!.uid).toList();
+      print('DEBUG: After filtering, ${validAppointments.length} valid appointments for current user');
+      
+      // Cache the fresh data (3 minutes TTL)
+      _cache.put(cacheKey, validAppointments, ttl: const Duration(minutes: 3));
+      
+      final appointmentHistoryData = _convertAppointmentsToHistoryData(validAppointments);
       print('DEBUG: Converted to ${appointmentHistoryData.length} appointment history items');
       
       if (mounted) {
@@ -642,6 +763,7 @@ class _UserHomePageState extends State<UserHomePage> {
               : _buildErrorState(),
       bottomNavigationBar: UserBottomNavBar(
         currentIndex: _currentNavIndex,
+        notificationCount: _notificationCount, // Add notification count
         onIndexChanged: (index) {
           if (index == 2) {
             // Navigate to alerts page

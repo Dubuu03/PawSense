@@ -45,7 +45,7 @@ class PatientFilterBar extends StatelessWidget {
           // Type Dropdown
           Expanded(
             child: DropdownButtonFormField<String>(
-              initialValue: selectedType,
+              value: selectedType,
               onChanged: (value) => onTypeChanged(value ?? selectedType),
               decoration: InputDecoration(
                 filled: true,
@@ -86,7 +86,7 @@ class PatientFilterBar extends StatelessWidget {
           // Status Dropdown
           Expanded(
             child: DropdownButtonFormField<String>(
-              initialValue: selectedStatus,
+              value: selectedStatus,
               onChanged: (value) => onStatusChanged(value ?? selectedStatus),
               decoration: InputDecoration(
                 filled: true,

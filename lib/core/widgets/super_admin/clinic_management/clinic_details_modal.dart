@@ -1665,7 +1665,7 @@ class _ClinicDetailsModalState extends State<ClinicDetailsModal> with TickerProv
             ],
           ),
           child: DropdownButtonFormField<String>(
-            initialValue: value,
+            value: value,
             items: items,
             onChanged: enabled ? onChanged : null,
             style: kTextStyleRegular.copyWith(color: AppColors.textPrimary),

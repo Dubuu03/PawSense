@@ -227,7 +227,7 @@ class _NotificationToggle extends StatelessWidget {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeThumbColor: AppColors.primary,
+            activeColor: AppColors.primary,
           ),
         ],
       ),

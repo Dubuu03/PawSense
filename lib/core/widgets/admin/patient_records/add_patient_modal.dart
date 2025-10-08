@@ -269,7 +269,7 @@ class _AddPatientModalState extends State<AddPatientModal> {
                                       const Text('Pet Type', style: TextStyle(fontWeight: FontWeight.w600)),
                                       const SizedBox(height: 8),
                                       DropdownButtonFormField<String>(
-                                        initialValue: _petType,
+                                        value: _petType,
                                         items: const [
                                           DropdownMenuItem(value: 'Dog', child: Text('Dog')),
                                           DropdownMenuItem(value: 'Cat', child: Text('Cat')),
@@ -344,7 +344,7 @@ class _AddPatientModalState extends State<AddPatientModal> {
                                       const Text('Gender', style: TextStyle(fontWeight: FontWeight.w600)),
                                       const SizedBox(height: 8),
                                       DropdownButtonFormField<String>(
-                                        initialValue: _gender,
+                                        value: _gender,
                                         items: const [
                                           DropdownMenuItem(value: 'Male', child: Text('Male')),
                                           DropdownMenuItem(value: 'Female', child: Text('Female')),

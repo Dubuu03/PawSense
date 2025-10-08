@@ -5,12 +5,14 @@ class UserBottomNavBar extends StatelessWidget {
   final int currentIndex;
   final Function(int) onIndexChanged;
   final VoidCallback onCameraPressed;
+  final int notificationCount; // Add notification count parameter
 
   const UserBottomNavBar({
     super.key,
     required this.currentIndex,
     required this.onIndexChanged,
     required this.onCameraPressed,
+    this.notificationCount = 0, // Default to 0
   });
 
   @override
@@ -54,6 +56,7 @@ class UserBottomNavBar extends StatelessWidget {
                 activeIcon: Icons.notifications,
                 label: 'Alerts',
                 onTap: () => onIndexChanged(2),
+                badgeCount: notificationCount, // Add badge count
               ),
             ],
           ),
@@ -68,6 +71,7 @@ class UserBottomNavBar extends StatelessWidget {
     required IconData activeIcon,
     required String label,
     required VoidCallback onTap,
+    int badgeCount = 0, // Add badge count parameter
   }) {
     final isSelected = currentIndex == index;
     return GestureDetector(
@@ -80,14 +84,45 @@ class UserBottomNavBar extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             SizedBox(height: 10,),
-            SizedBox(
-              width: 24,
-              height: 24,
-              child: Icon(
-                isSelected ? activeIcon : icon,
-                color: isSelected ? AppColors.primary : AppColors.textSecondary,
-                size: 26,
-              ),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: Icon(
+                    isSelected ? activeIcon : icon,
+                    color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                    size: 26,
+                  ),
+                ),
+                if (badgeCount > 0)
+                  Positioned(
+                    right: -8,
+                    top: -4,
+                    child: Container(
+                      constraints: const BoxConstraints(minWidth: 16),
+                      height: 16,
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.error,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.white, width: 1),
+                      ),
+                      child: Center(
+                        child: Text(
+                          badgeCount > 99 ? '99+' : badgeCount.toString(),
+                          style: const TextStyle(
+                            color: AppColors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            height: 1.0,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 1),
             Text(

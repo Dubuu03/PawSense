@@ -247,7 +247,7 @@ class _ClinicSettingsState extends State<ClinicSettings> {
                       _autoApproveAppointments = value;
                     });
                   },
-                  activeThumbColor: AppColors.primary,
+                  activeColor: AppColors.primary,
                 ),
               ],
             ),

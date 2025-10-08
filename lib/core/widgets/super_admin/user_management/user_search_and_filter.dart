@@ -72,7 +72,7 @@ class _UserSearchAndFilterState extends State<UserSearchAndFilter> {
           SizedBox(width: kSpacingMedium),
           Expanded(
             child: DropdownButtonFormField<String>(
-              initialValue: widget.selectedRole.isEmpty ? 'All Roles' : widget.selectedRole,
+              value: widget.selectedRole.isEmpty ? 'All Roles' : widget.selectedRole,
               decoration: InputDecoration(
                 labelText: 'Role',
                 labelStyle: kTextStyleRegular.copyWith(color: AppColors.textSecondary),
@@ -108,7 +108,7 @@ class _UserSearchAndFilterState extends State<UserSearchAndFilter> {
           SizedBox(width: kSpacingMedium),
           Expanded(
             child: DropdownButtonFormField<String>(
-              initialValue: widget.selectedStatus.isEmpty ? 'All Status' : widget.selectedStatus,
+              value: widget.selectedStatus.isEmpty ? 'All Status' : widget.selectedStatus,
               decoration: InputDecoration(
                 labelText: 'Status',
                 labelStyle: kTextStyleRegular.copyWith(color: AppColors.textSecondary),

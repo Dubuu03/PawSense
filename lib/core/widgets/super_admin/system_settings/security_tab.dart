@@ -244,7 +244,7 @@ class _SecurityTabState extends State<SecurityTab> {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeThumbColor: AppColors.primary,
+            activeColor: AppColors.primary,
           ),
         ],
       ),

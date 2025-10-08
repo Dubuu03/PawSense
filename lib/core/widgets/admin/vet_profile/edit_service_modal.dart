@@ -384,7 +384,7 @@ class _EditServiceModalState extends State<EditServiceModal> {
                   ),
                   SizedBox(height: kSpacingSmall),
                   DropdownButtonFormField<ServiceCategory>(
-                    initialValue: _selectedCategory,
+                    value: _selectedCategory,
                     decoration: InputDecoration(
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(kBorderRadiusSmall),
