@@ -1,6 +1,7 @@
 // widgets/appointment_table.dart
 import 'package:flutter/material.dart';
 import '../../../utils/app_colors.dart';
+import '../../../utils/sort_order.dart';
 import '../../../models/clinic/appointment_models.dart';
 import 'appointment_table_header.dart';
 import 'appointment_table_row.dart';
@@ -13,6 +14,8 @@ class AppointmentTable extends StatelessWidget {
   final Function(Appointment)? onAccept;
   final Function(Appointment)? onReject;
   final Function(Appointment)? onMarkDone;
+  final SortOrder dateSortOrder;
+  final VoidCallback? onDateSortChanged;
 
   const AppointmentTable({
     super.key,
@@ -23,6 +26,8 @@ class AppointmentTable extends StatelessWidget {
     this.onAccept,
     this.onReject,
     this.onMarkDone,
+    required this.dateSortOrder,
+    this.onDateSortChanged,
   });
 
   @override
@@ -36,7 +41,10 @@ class AppointmentTable extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const AppointmentTableHeader(),
+          AppointmentTableHeader(
+            dateSortOrder: dateSortOrder,
+            onDateSortChanged: onDateSortChanged,
+          ),
           ...appointments.map((appointment) => AppointmentTableRow(
             appointment: appointment,
             onEdit: () => onEdit(appointment),

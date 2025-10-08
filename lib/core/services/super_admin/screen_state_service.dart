@@ -19,6 +19,7 @@ class ScreenStateService {
   // Appointment Management State
   String _appointmentSearchQuery = '';
   String _appointmentSelectedStatus = 'All Status';
+  String _appointmentDateSortOrder = 'desc'; // Default to newest first
 
   // Clinic Schedule State
   DateTime _scheduleSelectedDate = DateTime.now();
@@ -77,20 +78,26 @@ class ScreenStateService {
   // Appointment Management Getters & Setters
   String get appointmentSearchQuery => _appointmentSearchQuery;
   String get appointmentSelectedStatus => _appointmentSelectedStatus;
+  String get appointmentDateSortOrder => _appointmentDateSortOrder;
 
   void saveAppointmentState({
     required String searchQuery,
     required String selectedStatus,
+    String? dateSortOrder,
   }) {
     _appointmentSearchQuery = searchQuery;
     _appointmentSelectedStatus = selectedStatus;
-    print('💾 Saved appointment management state: status="$selectedStatus", search="$searchQuery"');
+    if (dateSortOrder != null) {
+      _appointmentDateSortOrder = dateSortOrder;
+    }
+    print('💾 Saved appointment management state: status="$selectedStatus", search="$searchQuery", sort="$_appointmentDateSortOrder"');
   }
 
   /// Reset appointment state to defaults
   void resetAppointmentState() {
     _appointmentSearchQuery = '';
     _appointmentSelectedStatus = 'All Status';
+    _appointmentDateSortOrder = 'desc';
   }
 
   // Clinic Schedule Getters & Setters
