@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/utils/app_colors.dart';
 import '../../../core/utils/sort_order.dart';
 import '../../../core/models/clinic/appointment_models.dart' as AppointmentModels;
+import '../../../core/models/clinic/appointment_booking_model.dart';
 import '../../../core/services/clinic/appointment_service.dart';
 import '../../../core/services/clinic/paginated_appointment_service.dart';
 import '../../../core/services/clinic/realtime_appointment_listener.dart';
@@ -242,11 +243,12 @@ class _OptimizedAppointmentManagementScreenState
     });
 
     try {
-      print('📥 Loading ${appointments.isEmpty ? 'first' : 'next'} page of appointments...');
+      print('📥 Loading ${appointments.isEmpty ? 'first' : 'next'} page of appointments with filter: $selectedStatus...');
       
       final result = await PaginatedAppointmentService.getClinicAppointmentsPaginated(
         clinicId: _cachedClinicId!,
         lastDocument: _lastDocument,
+        status: _getStatusFilterForService(), // Apply server-side status filtering
       );
 
       setState(() {
@@ -283,6 +285,7 @@ class _OptimizedAppointmentManagementScreenState
       final result = await PaginatedAppointmentService.getClinicAppointmentsPaginated(
         clinicId: _cachedClinicId!,
         lastDocument: lastDoc,
+        status: _getStatusFilterForService(), // Apply same filter as regular loading
       );
       
       allAppointments.addAll(result.appointments);
@@ -500,6 +503,7 @@ class _OptimizedAppointmentManagementScreenState
         appointmentsFuture = PaginatedAppointmentService.getClinicAppointmentsPaginated(
           clinicId: _cachedClinicId!,
           lastDocument: null,
+          status: _getStatusFilterForService(), // Apply same filter
         );
       }
 
@@ -565,6 +569,69 @@ class _OptimizedAppointmentManagementScreenState
     ]);
   }
 
+  /// Smart refresh that preserves infinite scroll state after status changes
+  Future<void> _refreshAfterStatusChange() async {
+    if (_cachedClinicId == null || !mounted) return;
+
+    try {
+      print('🔄 Smart refresh after status change - preserving scroll state...');
+      
+      // Store current scroll state
+      final currentAppointmentCount = appointments.length;
+      final currentScrollPosition = _scrollController.hasClients 
+          ? _scrollController.position.pixels 
+          : 0.0;
+      
+      // Refresh status counts immediately for instant badge updates
+      final statusCountsFuture = _loadStatusCounts();
+      
+      // Reload appointments to match current loaded count (preserve infinite scroll)
+      final appointmentsFuture = _loadAppointmentsUntilCount(
+        targetCount: currentAppointmentCount,
+      );
+
+      // Wait for both operations
+      final results = await Future.wait([
+        appointmentsFuture,
+        statusCountsFuture,
+      ]);
+
+      final appointmentsResult = results[0] as PaginatedAppointmentResult;
+
+      if (mounted) {
+        setState(() {
+          // Update appointments while preserving count
+          appointments.clear();
+          appointments.addAll(appointmentsResult.appointments);
+          _lastDocument = appointmentsResult.lastDocument;
+          _hasMore = appointmentsResult.hasMore;
+          
+          // Apply filters to update the displayed list
+          _applyFilters();
+          
+          print('✅ Smart refresh complete: preserved ${appointments.length} appointments');
+        });
+
+        // Restore scroll position after a brief delay
+        if (_scrollController.hasClients && currentScrollPosition > 0) {
+          Future.delayed(const Duration(milliseconds: 100), () {
+            if (mounted && _scrollController.hasClients) {
+              _scrollController.animateTo(
+                currentScrollPosition,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOut,
+              );
+            }
+          });
+        }
+      }
+    } catch (e) {
+      print('❌ Error during smart refresh: $e');
+      // Fallback to regular refresh if smart refresh fails
+      await _refreshData();
+    }
+  }
+
   /// Handle scroll events for infinite scrolling
   void _onScroll() {
     if (_scrollController.position.pixels >= 
@@ -615,7 +682,41 @@ class _OptimizedAppointmentManagementScreenState
       selectedStatus = status;
     });
     _saveState();
-    _applyFilters();
+    
+    // Reload data with new filter instead of just applying client-side filter
+    _loadDataWithNewFilter();
+  }
+
+  /// Load fresh data when filter changes to ensure all matching appointments are shown
+  Future<void> _loadDataWithNewFilter() async {
+    setState(() {
+      isInitialLoading = true;
+      appointments.clear();
+      filteredAppointments.clear();
+      _lastDocument = null;
+      _hasMore = true;
+    });
+
+    // Load appointments with the new status filter
+    await _loadMoreAppointments();
+  }
+
+  /// Convert filter status string to AppointmentStatus enum for server-side filtering
+  AppointmentStatus? _getStatusFilterForService() {
+    if (selectedStatus == 'All Status') return null;
+    
+    switch (selectedStatus.toLowerCase()) {
+      case 'pending':
+        return AppointmentStatus.pending;
+      case 'confirmed':
+        return AppointmentStatus.confirmed;
+      case 'completed':
+        return AppointmentStatus.completed;
+      case 'cancelled':
+        return AppointmentStatus.cancelled;
+      default:
+        return null;
+    }
   }
 
   /// Refresh appointments (pull to refresh)
@@ -862,6 +963,14 @@ class _OptimizedAppointmentManagementScreenState
               backgroundColor: Colors.green,
             ),
           );
+          
+          // Smart refresh to preserve infinite scroll state
+          try {
+            await _refreshAfterStatusChange();
+          } catch (e) {
+            print('⚠️ Error refreshing data after accepting appointment: $e');
+            // Don't show error to user as the appointment was successfully accepted
+          }
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -880,7 +989,7 @@ class _OptimizedAppointmentManagementScreenState
       context: context,
       builder: (context) => AppointmentCompletionModal(
         appointment: appointment,
-        onCompleted: _refreshData,
+        onCompleted: _refreshAfterStatusChange,
       ),
     );
   }
@@ -943,6 +1052,16 @@ class _OptimizedAppointmentManagementScreenState
             ),
           ),
         );
+        
+        // Smart refresh to preserve infinite scroll state
+        if (success) {
+          try {
+            await _refreshAfterStatusChange();
+          } catch (e) {
+            print('⚠️ Error refreshing data after rejecting appointment: $e');
+            // Don't show error to user as the appointment was successfully rejected
+          }
+        }
       }
     }
   }
@@ -952,7 +1071,7 @@ class _OptimizedAppointmentManagementScreenState
       context: context,
       builder: (context) => AppointmentEditModal(
         appointment: appointment,
-        onUpdate: _refreshData,
+        onUpdate: _refreshAfterStatusChange,
       ),
     );
   }
@@ -995,6 +1114,16 @@ class _OptimizedAppointmentManagementScreenState
             ),
           ),
         );
+        
+        // Smart refresh to preserve infinite scroll state
+        if (success) {
+          try {
+            await _refreshAfterStatusChange();
+          } catch (e) {
+            print('⚠️ Error refreshing data after cancelling appointment: $e');
+            // Don't show error to user as the appointment was successfully cancelled
+          }
+        }
       }
     }
   }
