@@ -35,6 +35,11 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
   String _aiAssessmentFeedback = '';
   List<Map<String, dynamic>> _aiPredictions = [];
   Map<String, bool> _predictionValidation = {};
+  String? _selectedCorrectDisease; // For when AI assessment is incorrect
+  
+  // Disease name lists loaded from Firestore
+  Map<String, List<String>> _diseasesByPetType = {};
+  bool _isLoadingDiseases = false;
   
   // Image Assessment Data for Training
   List<Map<String, dynamic>> _assessmentImages = [];
@@ -49,6 +54,7 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
   void initState() {
     super.initState();
     _loadAIAssessment();
+    _loadDiseasesFromFirestore();
   }
 
   @override
@@ -119,6 +125,96 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
     } finally {
       setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _loadDiseasesFromFirestore() async {
+    setState(() => _isLoadingDiseases = true);
+
+    try {
+      final diseasesSnapshot = await FirebaseFirestore.instance
+          .collection('skinDiseases')
+          .get();
+
+      final Map<String, List<String>> diseasesByType = {
+        'Dogs': <String>[],
+        'Cats': <String>[],
+      };
+
+      for (var doc in diseasesSnapshot.docs) {
+        final data = doc.data();
+        final name = data['name'] as String? ?? '';
+        final species = data['species'] as List<dynamic>? ?? [];
+
+        if (name.isNotEmpty) {
+          // Add the disease to appropriate species lists
+          for (var specie in species) {
+            final specieStr = specie.toString();
+            if (diseasesByType.containsKey(specieStr)) {
+              diseasesByType[specieStr]!.add(name);
+            }
+          }
+        }
+      }
+
+      // Sort the lists alphabetically and add "Other" option at the end
+      for (var key in diseasesByType.keys) {
+        diseasesByType[key]!.sort();
+        diseasesByType[key]!.add('Other');
+      }
+
+      setState(() {
+        // Map from plural to singular for compatibility with existing pet types
+        _diseasesByPetType = {
+          'Dog': diseasesByType['Dogs'] ?? [],
+          'Cat': diseasesByType['Cats'] ?? [],
+        };
+        _isLoadingDiseases = false;
+      });
+
+      print('Loaded diseases: $_diseasesByPetType');
+    } catch (e) {
+      print('Error loading diseases: $e');
+      setState(() {
+        // Fallback to basic list if loading fails
+        _diseasesByPetType = {
+          'Dog': ['Contact Dermatitis', 'Allergic Dermatitis', 'Bacterial Infection', 'Fungal Infection', 'Other'],
+          'Cat': ['Contact Dermatitis', 'Allergic Dermatitis', 'Bacterial Infection', 'Fungal Infection', 'Other'],
+        };
+        _isLoadingDiseases = false;
+      });
+    }
+  }
+
+  List<String> _getDiseasesForPetType() {
+    final petType = widget.appointment.pet.type;
+    return _diseasesByPetType[petType] ?? _diseasesByPetType['Dog'] ?? [];
+  }
+
+  String _generateUniqueFilename({String? diseaseName}) {
+    final now = DateTime.now();
+    final timestamp = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}';
+    final petType = widget.appointment.pet.type.toLowerCase();
+    final appointmentId = widget.appointment.id.substring(0, 8); // First 8 chars of appointment ID
+    
+    // Use the selected correct disease if available, otherwise use the AI prediction or diagnosis
+    String diseaseForFilename = diseaseName ?? _selectedCorrectDisease ?? _diagnosisController.text.trim();
+    
+    if (diseaseForFilename.isEmpty && _aiPredictions.isNotEmpty) {
+      diseaseForFilename = _aiPredictions.first['condition'] ?? 'unknown';
+    }
+    
+    if (diseaseForFilename.isEmpty) {
+      diseaseForFilename = 'diagnosis';
+    }
+    
+    // Clean disease name for filename (remove special characters, spaces)
+    diseaseForFilename = diseaseForFilename
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]'), '_')
+        .replaceAll(RegExp(r'_+'), '_')
+        .replaceAll(RegExp(r'^_|_$'), '');
+    
+    return '${petType}_${diseaseForFilename}_${appointmentId}_${timestamp}';
   }
 
   Future<void> _selectFollowUpDate() async {
@@ -206,6 +302,17 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
       return;
     }
 
+    // Validate correct disease selection if AI assessment is marked as incorrect
+    if (_hasAIAssessment && _aiAssessmentCorrect == false && (_selectedCorrectDisease == null || _selectedCorrectDisease!.isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select the correct disease when marking AI assessment as incorrect'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
 
     try {
@@ -257,6 +364,7 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
             'predictionsValidation': validatedPredictions,
             'clinicDiagnosis': _diagnosisController.text.trim(),
             'clinicTreatment': _treatmentController.text.trim(),
+            'correctDisease': _aiAssessmentCorrect == false ? _selectedCorrectDisease : null,
           },
           'updatedAt': Timestamp.now(),
         });
@@ -267,9 +375,14 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
               .collection('model_training_data')
               .doc();
           
-          // Prepare image data for training if assessment is correct
+          // Prepare image data for training with unique filename
           Map<String, dynamic> imageTrainingData = {};
-          if (_aiAssessmentCorrect == true) {
+          if (_originalImageUrl != null || _assessmentImages.isNotEmpty) {
+            // Generate unique filename based on the disease
+            final uniqueFilename = _generateUniqueFilename(
+              diseaseName: _aiAssessmentCorrect == false ? _selectedCorrectDisease : null
+            );
+            
             if (_originalImageUrl != null) {
               imageTrainingData['originalImageUrl'] = _originalImageUrl;
             }
@@ -282,6 +395,14 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
             if (_assessmentMetadata != null) {
               imageTrainingData['assessmentMetadata'] = _assessmentMetadata;
             }
+            
+            // Add unique filename for file storage/organization
+            imageTrainingData['uniqueFilename'] = uniqueFilename;
+            imageTrainingData['diseaseLabel'] = _aiAssessmentCorrect == false 
+                ? _selectedCorrectDisease 
+                : (_aiPredictions.isNotEmpty ? _aiPredictions.first['condition'] : _diagnosisController.text.trim());
+            imageTrainingData['petType'] = widget.appointment.pet.type;
+            imageTrainingData['correctionType'] = _aiAssessmentCorrect == false ? 'manual_correction' : 'validation';
           }
           
           batch.set(validationRef, {
@@ -293,9 +414,11 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
             'clinicDiagnosis': _diagnosisController.text.trim(),
             'overallCorrect': _aiAssessmentCorrect,
             'feedback': _aiAssessmentFeedback,
+            'correctDisease': _aiAssessmentCorrect == false ? _selectedCorrectDisease : null,
             'validatedAt': Timestamp.now(),
             'validatedBy': widget.appointment.clinicId,
             'canUseForTraining': _aiAssessmentCorrect == true, // Mark for retraining
+            'canUseForRetraining': _aiAssessmentCorrect == false && _selectedCorrectDisease != null, // Mark for correction training
             'imageData': imageTrainingData.isNotEmpty ? imageTrainingData : null,
             'hasImageAssessment': (_originalImageUrl != null || _assessmentImages.isNotEmpty),
             'trainingDataType': _originalImageUrl != null ? 'image_assessment' : 'text_assessment',
@@ -859,7 +982,12 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
                                             value: true,
                                             groupValue: _aiAssessmentCorrect,
                                             onChanged: (value) {
-                                              setState(() => _aiAssessmentCorrect = value);
+                                              setState(() {
+                                                _aiAssessmentCorrect = value;
+                                                if (value == true) {
+                                                  _selectedCorrectDisease = null; // Reset when switching to correct
+                                                }
+                                              });
                                             },
                                             activeColor: AppColors.success,
                                             dense: true,
@@ -873,7 +1001,12 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
                                             value: false,
                                             groupValue: _aiAssessmentCorrect,
                                             onChanged: (value) {
-                                              setState(() => _aiAssessmentCorrect = value);
+                                              setState(() {
+                                                _aiAssessmentCorrect = value;
+                                                if (value == true) {
+                                                  _selectedCorrectDisease = null; // Reset when switching to correct
+                                                }
+                                              });
                                             },
                                             activeColor: AppColors.error,
                                             dense: true,
@@ -883,6 +1016,107 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
                                         ),
                                       ],
                                     ),
+                                    
+                                    // Disease Selection Dropdown (when AI is incorrect)
+                                    if (_aiAssessmentCorrect == false) ...[
+                                      const SizedBox(height: 16),
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'Select Correct Disease *',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppColors.textPrimary,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Container(
+                                            decoration: BoxDecoration(
+                                              border: Border.all(color: AppColors.border),
+                                              borderRadius: BorderRadius.circular(8),
+                                              color: AppColors.white,
+                                            ),
+                                            child: _isLoadingDiseases 
+                                                ? Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                                                    child: Row(
+                                                      children: [
+                                                        SizedBox(
+                                                          width: 16,
+                                                          height: 16,
+                                                          child: CircularProgressIndicator(
+                                                            strokeWidth: 2,
+                                                            valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                                                          ),
+                                                        ),
+                                                        const SizedBox(width: 12),
+                                                        Text(
+                                                          'Loading diseases...',
+                                                          style: TextStyle(
+                                                            fontSize: 13,
+                                                            color: AppColors.textSecondary,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  )
+                                                : DropdownButtonFormField<String>(
+                                                    value: _selectedCorrectDisease,
+                                                    decoration: InputDecoration(
+                                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                                      border: InputBorder.none,
+                                                      hintText: _getDiseasesForPetType().isEmpty 
+                                                          ? 'No diseases available' 
+                                                          : 'Select the correct disease',
+                                                      hintStyle: const TextStyle(
+                                                        fontSize: 13,
+                                                        color: AppColors.textSecondary,
+                                                      ),
+                                                    ),
+                                                    style: const TextStyle(
+                                                      fontSize: 13,
+                                                      color: AppColors.textPrimary,
+                                                    ),
+                                                    items: _getDiseasesForPetType().map((disease) {
+                                                      return DropdownMenuItem<String>(
+                                                        value: disease,
+                                                        child: Text(
+                                                          disease,
+                                                          style: const TextStyle(fontSize: 13),
+                                                        ),
+                                                      );
+                                                    }).toList(),
+                                                    onChanged: _getDiseasesForPetType().isEmpty ? null : (value) {
+                                                      setState(() {
+                                                        _selectedCorrectDisease = value;
+                                                      });
+                                                    },
+                                                    validator: (value) {
+                                                      if (_aiAssessmentCorrect == false && (value == null || value.isEmpty)) {
+                                                        return 'Please select the correct disease';
+                                                      }
+                                                      return null;
+                                                    },
+                                                    isExpanded: true,
+                                                    dropdownColor: AppColors.white,
+                                                    iconEnabledColor: AppColors.primary,
+                                                  ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'This will help improve our AI model accuracy for ${widget.appointment.pet.type.toLowerCase()} diseases.',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: AppColors.textSecondary,
+                                              fontStyle: FontStyle.italic,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                    
                                     const SizedBox(height: 12),
                                     Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
