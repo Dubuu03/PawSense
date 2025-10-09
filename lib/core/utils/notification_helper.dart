@@ -4,15 +4,38 @@ import 'package:pawsense/core/widgets/user/alerts/alert_item.dart';
 class NotificationHelper {
   /// Convert NotificationModel to AlertData for display
   static AlertData fromNotificationModel(NotificationModel notification) {
+    // Runtime fix for old notification text (temporary migration helper)
+    String title = notification.title;
+    String? actionUrl = notification.actionUrl;
+    String? actionLabel = notification.actionLabel;
+    
+    // Fix old "Received" text to "Sent"
+    if (title == 'Appointment Request Received') {
+      title = 'Appointment Request Sent';
+    }
+    
+    // Fix old action URLs and labels for appointment notifications
+    if (notification.category == NotificationCategory.appointment) {
+      final appointmentId = notification.metadata?['appointmentId'] as String?;
+      
+      // If we have appointment ID and old action URL, update it
+      if (appointmentId != null && 
+          actionUrl == '/book-appointment' && 
+          !appointmentId.startsWith('pending_')) {
+        actionUrl = '/appointments/details/$appointmentId';
+        actionLabel = 'View Details';
+      }
+    }
+    
     return AlertData(
       id: notification.id,
-      title: notification.title,
+      title: title,
       subtitle: notification.message,
       type: _mapCategoryToAlertType(notification.category, notification.metadata),
       timestamp: notification.createdAt,
       isRead: notification.isRead,
-      actionUrl: notification.actionUrl,
-      actionLabel: notification.actionLabel,
+      actionUrl: actionUrl,
+      actionLabel: actionLabel,
       metadata: notification.metadata,
     );
   }
@@ -85,9 +108,20 @@ class NotificationHelper {
   static AlertType _mapCategoryToAlertType(NotificationCategory category, [Map<String, dynamic>? metadata]) {
     switch (category) {
       case NotificationCategory.appointment:
-        // Check if it's a pending appointment
-        if (metadata != null && metadata['status'] == 'pending') {
-          return AlertType.appointmentPending;
+        // Check appointment status to determine the correct alert type
+        if (metadata != null) {
+          final status = metadata['status'] as String?;
+          switch (status) {
+            case 'pending':
+              return AlertType.appointmentPending;
+            case 'cancelled':
+              return AlertType.declined; // Use declined type for red color
+            case 'confirmed':
+            case 'completed':
+              return AlertType.appointment;
+            default:
+              return AlertType.appointment;
+          }
         }
         return AlertType.appointment;
       case NotificationCategory.message:
@@ -105,12 +139,18 @@ class NotificationHelper {
       return notification.actionUrl!;
     }
 
-    // Default routes based on category
+    // Smart default routes based on category and metadata
     switch (notification.category) {
       case NotificationCategory.appointment:
-        return '/book-appointment';  // Changed from /appointments to actual route
+        // Try to get appointment ID from metadata to create proper details route
+        if (notification.metadata?['appointmentId'] != null) {
+          final appointmentId = notification.metadata!['appointmentId'] as String;
+          return '/appointments/details/$appointmentId';
+        }
+        // Fallback to booking page only if no appointment ID available
+        return '/book-appointment';
       case NotificationCategory.message:
-        return '/messaging';  // Changed from /messages to actual route
+        return '/messaging';
       case NotificationCategory.task:
         return '/home';  // Tasks feature not implemented, redirect to home
       case NotificationCategory.system:

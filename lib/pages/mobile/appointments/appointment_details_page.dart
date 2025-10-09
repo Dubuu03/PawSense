@@ -352,13 +352,6 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
           const SizedBox(height: kMobileSizedBoxSmall),
           
           _buildInfoRow(
-            icon: Icons.confirmation_number,
-            label: 'Appointment ID',
-            value: appointment.id ?? 'Unknown',
-          ),
-          const SizedBox(height: kMobileSizedBoxSmall),
-          
-          _buildInfoRow(
             icon: Icons.schedule,
             label: 'Created',
             value: _formatDateTime(appointment.createdAt),

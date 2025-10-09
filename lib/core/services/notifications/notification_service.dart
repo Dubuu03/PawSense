@@ -333,7 +333,7 @@ class NotificationService {
 
             switch (status) {
               case 'pending':
-                title = 'Appointment Request Received';
+                title = 'Appointment Request Sent';
                 message = 'Your appointment request for $petName at $clinicName has been submitted and is awaiting approval.';
                 priority = NotificationPriority.medium;
                 break;
@@ -342,11 +342,7 @@ class NotificationService {
                 message = 'Great news! Your appointment for $petName at $clinicName has been confirmed.';
                 priority = NotificationPriority.high;
                 break;
-              case 'cancelled':
-                title = 'Appointment Cancelled';
-                message = 'Your appointment for $petName at $clinicName has been cancelled.';
-                priority = NotificationPriority.high;
-                break;
+              // Removed 'cancelled' case - these are handled by real notifications to prevent duplicates
               case 'completed':
                 title = 'Appointment Completed';
                 message = 'Your appointment for $petName at $clinicName has been completed.';
@@ -744,11 +740,19 @@ class NotificationService {
     try {
       final title = isEmergency 
           ? 'Emergency Appointment Request Submitted'
-          : 'Appointment Request Received';
+          : 'Appointment Request Sent';
       
       final message = isEmergency
           ? 'Your emergency appointment request for $petName has been submitted. $clinicName will contact you shortly.'
           : 'Your appointment request for $petName at $clinicName has been submitted and is awaiting approval.';
+
+      // Determine the action URL and label based on whether we have an appointmentId
+      final actionUrl = appointmentId != null 
+          ? '/appointments/details/$appointmentId'
+          : '/book-appointment';
+      final actionLabel = appointmentId != null 
+          ? 'View Details'
+          : 'View Status';
 
       await createNotification(
         userId: userId,
@@ -756,8 +760,8 @@ class NotificationService {
         message: message,
         category: NotificationCategory.appointment,
         priority: isEmergency ? NotificationPriority.high : NotificationPriority.medium,
-        actionUrl: '/book-appointment',
-        actionLabel: 'View Status',
+        actionUrl: actionUrl,
+        actionLabel: actionLabel,
         metadata: {
           'appointmentId': appointmentId ?? 'pending_${DateTime.now().millisecondsSinceEpoch}',
           'clinicName': clinicName,
@@ -863,5 +867,158 @@ class NotificationService {
     } else {
       return '${date.day}/${date.month}/${date.year}';
     }
+  }
+
+  /// Migration function to update old "Received" notifications to "Sent"
+  static Future<void> migrateOldNotificationText(String userId) async {
+    try {
+      print('🔄 Starting migration of old notification text for user: $userId');
+      
+      // Find all notifications with the old text
+      final oldNotificationsQuery = await _firestore
+          .collection(_collection)
+          .where('userId', isEqualTo: userId)
+          .where('title', isEqualTo: 'Appointment Request Received')
+          .get();
+      
+      final batch = _firestore.batch();
+      int updateCount = 0;
+      
+      for (final doc in oldNotificationsQuery.docs) {
+        // Update the title to the new text
+        batch.update(doc.reference, {
+          'title': 'Appointment Request Sent',
+          'updatedAt': Timestamp.now(),
+        });
+        updateCount++;
+      }
+      
+      if (updateCount > 0) {
+        await batch.commit();
+        print('✅ Migrated $updateCount notifications from "Received" to "Sent"');
+      } else {
+        print('ℹ️ No notifications found with old text to migrate');
+      }
+      
+    } catch (e) {
+      print('❌ Error during notification migration: $e');
+    }
+  }
+
+  /// Migration function to update action URLs for appointment notifications
+  static Future<void> migrateAppointmentActionUrls(String userId) async {
+    try {
+      print('🔄 Starting migration of appointment action URLs for user: $userId');
+      
+      // Find appointment notifications with old action URL
+      final oldActionUrlQuery = await _firestore
+          .collection(_collection)
+          .where('userId', isEqualTo: userId)
+          .where('actionUrl', isEqualTo: '/book-appointment')
+          .where('category', isEqualTo: 'appointment')
+          .get();
+      
+      final batch = _firestore.batch();
+      int updateCount = 0;
+      
+      for (final doc in oldActionUrlQuery.docs) {
+        final data = doc.data();
+        final appointmentId = data['metadata']?['appointmentId'] as String?;
+        
+        if (appointmentId != null && appointmentId != 'pending_${DateTime.now().millisecondsSinceEpoch}') {
+          // Update to use appointment details URL
+          batch.update(doc.reference, {
+            'actionUrl': '/appointments/details/$appointmentId',
+            'actionLabel': 'View Details',
+            'updatedAt': Timestamp.now(),
+          });
+          updateCount++;
+        }
+      }
+      
+      if (updateCount > 0) {
+        await batch.commit();
+        print('✅ Migrated $updateCount appointment notification URLs');
+      } else {
+        print('ℹ️ No appointment notifications found with old URLs to migrate');
+      }
+      
+    } catch (e) {
+      print('❌ Error during URL migration: $e');
+    }
+  }
+
+  /// Clean up duplicate cancelled appointment notifications
+  static Future<void> cleanupDuplicateCancelledNotifications(String userId) async {
+    try {
+      print('🧹 Cleaning up duplicate cancelled notifications for user: $userId');
+      
+      // Get all cancelled appointment notifications for this user
+      final snapshot = await _firestore
+          .collection(_collection)
+          .where('userId', isEqualTo: userId)
+          .where('category', isEqualTo: 'appointment')
+          .where('title', isEqualTo: 'Appointment Cancelled')
+          .get();
+      
+      if (snapshot.docs.isEmpty) {
+        print('ℹ️ No cancelled notifications found to clean up');
+        return;
+      }
+      
+      // Group notifications by appointment ID
+      final Map<String, List<QueryDocumentSnapshot>> notificationGroups = {};
+      for (final doc in snapshot.docs) {
+        final metadata = doc.data();
+        final appointmentId = metadata['metadata']?['appointmentId'] as String?;
+        
+        if (appointmentId != null) {
+          notificationGroups.putIfAbsent(appointmentId, () => []).add(doc);
+        }
+      }
+      
+      int deletedCount = 0;
+      final batch = _firestore.batch();
+      
+      // For each appointment, keep only the most recent notification and delete duplicates
+      for (final group in notificationGroups.values) {
+        if (group.length > 1) {
+          // Sort by creation time (most recent first)
+          group.sort((a, b) {
+            final aData = a.data() as Map<String, dynamic>?;
+            final bData = b.data() as Map<String, dynamic>?;
+            final aTime = aData?['createdAt'] as Timestamp?;
+            final bTime = bData?['createdAt'] as Timestamp?;
+            if (aTime == null || bTime == null) return 0;
+            return bTime.compareTo(aTime);
+          });
+          
+          // Delete all but the most recent (first in sorted list)
+          for (int i = 1; i < group.length; i++) {
+            batch.delete(group[i].reference);
+            deletedCount++;
+          }
+        }
+      }
+      
+      if (deletedCount > 0) {
+        await batch.commit();
+        print('✅ Cleaned up $deletedCount duplicate cancelled notifications');
+      } else {
+        print('ℹ️ No duplicate cancelled notifications found');
+      }
+      
+    } catch (e) {
+      print('❌ Error cleaning up duplicate notifications: $e');
+    }
+  }
+
+  /// Complete migration for a user (call this once to fix existing notifications)
+  static Future<void> migrateUserNotifications(String userId) async {
+    print('🚀 Starting complete notification migration for user: $userId');
+    await migrateOldNotificationText(userId);
+    await migrateAppointmentActionUrls(userId);
+    await cleanupDuplicateCancelledNotifications(userId);
+    print('✅ Notification migration completed for user: $userId');
   }
 }

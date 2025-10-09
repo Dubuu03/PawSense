@@ -5,15 +5,15 @@ import 'package:pawsense/core/models/notifications/notification_model.dart';
 class DemoNotificationService {
   /// Create sample appointment notifications for testing
   static Future<void> createSampleAppointmentNotifications(String userId) async {
-    // Appointment request received (pending)
+    // Appointment request sent (pending)
     await NotificationService.createNotification(
       userId: userId,
-      title: 'Appointment Request Received',
+      title: 'Appointment Request Sent',
       message: 'Your appointment request for Buddy at Sunny Pet Clinic has been submitted and is awaiting approval.',
       category: NotificationCategory.appointment,
       priority: NotificationPriority.medium,
-      actionUrl: '/book-appointment',
-      actionLabel: 'View Status',
+      actionUrl: '/appointments/details/apt_122',
+      actionLabel: 'View Details',
       metadata: {
         'appointmentId': 'apt_122',
         'clinicName': 'Sunny Pet Clinic',

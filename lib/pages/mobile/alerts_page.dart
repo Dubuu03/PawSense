@@ -95,6 +95,9 @@ class _AlertsPageState extends State<AlertsPage> with WidgetsBindingObserver {
     try {
       final userModel = await AuthGuard.getCurrentUser();
       if (userModel != null && mounted) {
+        // Run migration for existing notifications (one-time fix)
+        NotificationService.migrateUserNotifications(userModel.uid);
+        
         setState(() {
           _userModel = userModel;
           _notificationsStream = _getNotificationsStream();

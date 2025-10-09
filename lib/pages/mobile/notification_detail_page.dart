@@ -5,6 +5,8 @@ import 'package:pawsense/core/services/notifications/notification_service.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/widgets/user/alerts/alert_item.dart';
 import 'package:pawsense/core/utils/notification_helper.dart';
+import 'package:pawsense/core/services/messaging/messaging_service.dart';
+import 'package:pawsense/pages/mobile/messaging/conversation_page.dart';
 
 class NotificationDetailPage extends StatefulWidget {
   final String notificationId;
@@ -354,16 +356,7 @@ class _NotificationDetailPageState extends State<NotificationDetailPage> {
               iconColor: _getStatusColor(metadata['status'] as String),
               label: 'Status:',
               value: _formatStatus(metadata['status'] as String),
-            ),
-          
-          // Appointment ID
-          if (metadata['appointmentId'] != null)
-            _buildDetailRow(
-              icon: Icons.confirmation_number_outlined,
-              iconColor: AppColors.textSecondary,
-              label: 'ID:',
-              value: metadata['appointmentId'] as String,
-              isLast: true,
+              isLast: true, // Made this the last item
             ),
         ],
       ),
@@ -553,9 +546,44 @@ class _NotificationDetailPageState extends State<NotificationDetailPage> {
               width: double.infinity,
               height: 50,
               child: OutlinedButton(
-                onPressed: () {
-                  // Navigate to messaging with clinic
-                  context.push('/messaging');
+                onPressed: () async {
+                  // Navigate to messaging with specific clinic
+                  final clinicId = notification.metadata?['clinicId'] as String?;
+                  final clinicName = notification.metadata?['clinicName'] as String?;
+                  
+                  if (clinicId != null && clinicName != null) {
+                    try {
+                      // Create or get conversation with the clinic
+                      final conversationId = await MessagingService.createOrGetConversation(clinicId, clinicName);
+                      
+                      if (conversationId != null) {
+                        // Get the conversation object and navigate to it
+                        final conversations = await MessagingService.getUserConversations().first;
+                        final conversation = conversations.firstWhere(
+                          (conv) => conv.id == conversationId,
+                          orElse: () => throw Exception('Conversation not found'),
+                        );
+                        
+                        // Navigate to the specific conversation
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ConversationPage(conversation: conversation),
+                          ),
+                        );
+                      } else {
+                        // Fallback to general messaging page
+                        context.push('/messaging');
+                      }
+                    } catch (e) {
+                      print('Error opening conversation: $e');
+                      // Fallback to general messaging page
+                      context.push('/messaging');
+                    }
+                  } else {
+                    // Fallback to general messaging page if no clinic info
+                    context.push('/messaging');
+                  }
                 },
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.primary,
