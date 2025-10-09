@@ -173,12 +173,14 @@ class AppointmentBookingService {
           try {
             final petDoc = await _firestore.collection('pets').doc(appointment.petId).get();
             if (petDoc.exists) {
-              petName = petDoc.data()?['petName'] ?? petName;
+              final petData = petDoc.data();
+              petName = petData?['name'] ?? petData?['petName'] ?? 'Your pet';
             }
             
             final clinicDoc = await _firestore.collection('clinics').doc(appointment.clinicId).get();
             if (clinicDoc.exists) {
-              clinicName = clinicDoc.data()?['name'] ?? clinicName;
+              final clinicData = clinicDoc.data();
+              clinicName = clinicData?['clinicName'] ?? clinicData?['name'] ?? 'the clinic';
             }
           } catch (e) {
             print('Warning: Could not fetch pet/clinic names for notification: $e');

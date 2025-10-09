@@ -6,12 +6,39 @@ class NotificationHelper {
   static AlertData fromNotificationModel(NotificationModel notification) {
     // Runtime fix for old notification text (temporary migration helper)
     String title = notification.title;
+    String message = notification.message;
     String? actionUrl = notification.actionUrl;
     String? actionLabel = notification.actionLabel;
     
     // Fix old "Received" text to "Sent"
     if (title == 'Appointment Request Received') {
       title = 'Appointment Request Sent';
+    }
+    
+    // Replace placeholder text with actual names from metadata
+    if (notification.metadata != null) {
+      final metadata = notification.metadata!;
+      
+      // Replace pet name placeholders
+      final actualPetName = metadata['petName'] as String?;
+      if (actualPetName != null && actualPetName.isNotEmpty && actualPetName != 'Your pet') {
+        message = message.replaceAll('Your pet', actualPetName);
+        message = message.replaceAll('your pet', actualPetName);
+        title = title.replaceAll('Your pet', actualPetName);
+        title = title.replaceAll('your pet', actualPetName);
+      }
+      
+      // Replace clinic name placeholders
+      final actualClinicName = metadata['clinicName'] as String?;
+      if (actualClinicName != null && actualClinicName.isNotEmpty && 
+          actualClinicName != 'Clinic' && actualClinicName != 'the clinic') {
+        message = message.replaceAll('Clinic', actualClinicName);
+        message = message.replaceAll('clinic', actualClinicName);
+        message = message.replaceAll('the clinic', actualClinicName);
+        title = title.replaceAll('Clinic', actualClinicName);
+        title = title.replaceAll('clinic', actualClinicName);
+        title = title.replaceAll('the clinic', actualClinicName);
+      }
     }
     
     // Fix old action URLs and labels for appointment notifications
@@ -30,7 +57,7 @@ class NotificationHelper {
     return AlertData(
       id: notification.id,
       title: title,
-      subtitle: notification.message,
+      subtitle: message,
       type: _mapCategoryToAlertType(notification.category, notification.metadata),
       timestamp: notification.createdAt,
       isRead: notification.isRead,

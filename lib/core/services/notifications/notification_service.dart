@@ -322,9 +322,49 @@ class NotificationService {
             final appointmentId = doc.id;
             final status = appointmentData['status'] as String?;
             final appointmentDate = (appointmentData['appointmentDate'] as Timestamp?)?.toDate();
-            final petName = appointmentData['petName'] ?? 'Your pet';
-            final clinicName = appointmentData['clinicName'] ?? 'Clinic';
             final updatedAt = (appointmentData['updatedAt'] as Timestamp?)?.toDate() ?? now;
+
+            // Get actual pet name and clinic name from their collections
+            String petName = 'Your pet';
+            String clinicName = 'Clinic';
+            
+            // Try to get pet name from pet ID
+            final petId = appointmentData['petId'] as String?;
+            if (petId != null) {
+              try {
+                final petDoc = await _firestore.collection('pets').doc(petId).get();
+                if (petDoc.exists) {
+                  final petData = petDoc.data();
+                  petName = petData?['name'] ?? petData?['petName'] ?? 'Your pet';
+                }
+              } catch (e) {
+                print('Error fetching pet name for ID $petId: $e');
+                // Fall back to appointment data if available
+                petName = appointmentData['petName'] ?? 'Your pet';
+              }
+            } else {
+              // Fall back to appointment data if petId not available
+              petName = appointmentData['petName'] ?? 'Your pet';
+            }
+            
+            // Try to get clinic name from clinic ID
+            final clinicId = appointmentData['clinicId'] as String?;
+            if (clinicId != null) {
+              try {
+                final clinicDoc = await _firestore.collection('clinics').doc(clinicId).get();
+                if (clinicDoc.exists) {
+                  final clinicData = clinicDoc.data();
+                  clinicName = clinicData?['clinicName'] ?? clinicData?['name'] ?? 'Clinic';
+                }
+              } catch (e) {
+                print('Error fetching clinic name for ID $clinicId: $e');
+                // Fall back to appointment data if available
+                clinicName = appointmentData['clinicName'] ?? 'Clinic';
+              }
+            } else {
+              // Fall back to appointment data if clinicId not available
+              clinicName = appointmentData['clinicName'] ?? 'Clinic';
+            }
 
             // Status change notifications
             String? title;

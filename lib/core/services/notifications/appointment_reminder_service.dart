@@ -93,11 +93,17 @@ class AppointmentReminderService {
         try {
           final petDoc = await _firestore.collection('pets').doc(petId).get();
           if (petDoc.exists) {
-            petName = (petDoc.data() as Map<String, dynamic>)['name'] ?? 'Your pet';
+            final petData = petDoc.data();
+            petName = petData?['name'] ?? petData?['petName'] ?? 'Your pet';
           }
         } catch (e) {
           print('Error fetching pet name: $e');
+          // Fall back to appointment data if available
+          petName = data['petName'] ?? 'Your pet';
         }
+      } else {
+        // Fall back to appointment data if petId not available
+        petName = data['petName'] ?? 'Your pet';
       }
 
       String clinicName = 'the clinic';
@@ -105,11 +111,17 @@ class AppointmentReminderService {
         try {
           final clinicDoc = await _firestore.collection('clinics').doc(clinicId).get();
           if (clinicDoc.exists) {
-            clinicName = (clinicDoc.data() as Map<String, dynamic>)['clinicName'] ?? 'the clinic';
+            final clinicData = clinicDoc.data();
+            clinicName = clinicData?['clinicName'] ?? clinicData?['name'] ?? 'the clinic';
           }
         } catch (e) {
           print('Error fetching clinic name: $e');
+          // Fall back to appointment data if available
+          clinicName = data['clinicName'] ?? 'the clinic';
         }
+      } else {
+        // Fall back to appointment data if clinicId not available
+        clinicName = data['clinicName'] ?? 'the clinic';
       }
 
       // Determine which reminder to send based on time until appointment
