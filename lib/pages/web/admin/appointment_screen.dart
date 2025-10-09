@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/utils/app_colors.dart';
+import '../../../core/utils/sort_order.dart';
 import '../../../core/models/clinic/appointment_models.dart' as AppointmentModels;
 import '../../../core/services/clinic/appointment_service.dart';
 import '../../../core/services/clinic/paginated_appointment_service.dart';
@@ -33,6 +34,7 @@ class _OptimizedAppointmentManagementScreenState
   // Filter state
   String searchQuery = '';
   String selectedStatus = 'All Status';
+  SortOrder dateSortOrder = SortOrder.descending; // Default to newest first
   
   // Appointment data
   List<AppointmentModels.Appointment> appointments = [];
@@ -200,7 +202,7 @@ class _OptimizedAppointmentManagementScreenState
     }
   }
 
-  /// Apply filters to appointments
+  /// Apply filters and sorting to appointments
   void _applyFilters() {
     filteredAppointments = appointments.where((appointment) {
       // Status filter
@@ -216,7 +218,47 @@ class _OptimizedAppointmentManagementScreenState
       return statusMatch && searchMatch;
     }).toList();
     
+    // Apply sorting by date
+    _sortAppointments();
+    
     print('🔍 Filtered: ${filteredAppointments.length} of ${appointments.length} appointments');
+  }
+
+  /// Sort appointments by date based on current sort order
+  void _sortAppointments() {
+    filteredAppointments.sort((a, b) {
+      try {
+        // Parse date strings (YYYY-MM-DD format)
+        final dateA = DateTime.parse(a.date);
+        final dateB = DateTime.parse(b.date);
+        
+        if (dateSortOrder == SortOrder.ascending) {
+          return dateA.compareTo(dateB); // Oldest first
+        } else {
+          return dateB.compareTo(dateA); // Newest first
+        }
+      } catch (e) {
+        print('Error parsing dates for sorting: $e');
+        // Fallback to string comparison if date parsing fails
+        if (dateSortOrder == SortOrder.ascending) {
+          return a.date.compareTo(b.date);
+        } else {
+          return b.date.compareTo(a.date);
+        }
+      }
+    });
+  }
+
+  /// Toggle date sort order
+  void _onDateSortChanged() {
+    setState(() {
+      dateSortOrder = dateSortOrder == SortOrder.ascending 
+          ? SortOrder.descending 
+          : SortOrder.ascending;
+    });
+    _saveState();
+    _applyFilters();
+    print('📅 Date sort changed to: ${dateSortOrder.displayName}');
   }
 
   /// Setup real-time listener for appointment changes
@@ -321,6 +363,7 @@ class _OptimizedAppointmentManagementScreenState
   void _restoreState() {
     searchQuery = _stateService.appointmentSearchQuery;
     selectedStatus = _stateService.appointmentSelectedStatus;
+    dateSortOrder = SortOrder.fromString(_stateService.appointmentDateSortOrder);
   }
 
   /// Save current state to ScreenStateService
@@ -328,6 +371,7 @@ class _OptimizedAppointmentManagementScreenState
     _stateService.saveAppointmentState(
       searchQuery: searchQuery,
       selectedStatus: selectedStatus,
+      dateSortOrder: dateSortOrder.value,
     );
   }
 
@@ -494,7 +538,10 @@ class _OptimizedAppointmentManagementScreenState
                     ),
                     child: Column(
                       children: [
-                        const AppointmentTableHeader(),
+                        AppointmentTableHeader(
+                          dateSortOrder: dateSortOrder,
+                          onDateSortChanged: _onDateSortChanged,
+                        ),
                         
                         // Lazy-loaded appointment rows
                         ListView.builder(

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pawsense/core/models/clinic/clinic_registration_model.dart';
+import 'package:pawsense/core/models/clinic/clinic_details_model.dart';
+import 'package:pawsense/core/services/clinic/clinic_details_service.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants.dart';
 import 'package:pawsense/core/utils/validators.dart';
@@ -36,14 +38,19 @@ class _ClinicDetailsModalState extends State<ClinicDetailsModal> with TickerProv
   // State
   bool _isEditing = false;
   bool _isLoading = false;
+  bool _isLoadingDetails = true;
   late ClinicStatus _selectedStatus;
+  
+  // Clinic details data
+  ClinicDetails? _clinicDetails;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this); // Updated to 4 tabs
     _selectedStatus = widget.clinic.status;
     _initializeControllers();
+    _loadClinicDetails();
   }
 
   void _initializeControllers() {
@@ -80,6 +87,34 @@ class _ClinicDetailsModalState extends State<ClinicDetailsModal> with TickerProv
         _selectedStatus = widget.clinic.status;
       }
     });
+  }
+
+  /// Load detailed clinic information
+  Future<void> _loadClinicDetails() async {
+    try {
+      setState(() => _isLoadingDetails = true);
+      
+      // Try to fetch clinic details using the clinic ID (adminId is the user ID)
+      final details = await ClinicDetailsService.getClinicDetails(widget.clinic.adminId);
+      
+      if (mounted) {
+        setState(() {
+          _clinicDetails = details;
+          _isLoadingDetails = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading clinic details: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingDetails = false;
+        });
+      }
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 
   Future<void> _saveChanges() async {
@@ -182,7 +217,8 @@ class _ClinicDetailsModalState extends State<ClinicDetailsModal> with TickerProv
                 child: TabBarView(
                   controller: _tabController,
                   children: [
-                    _buildDetailsTab(),
+                    _buildBasicDetailsTab(),
+                    _buildServicesTab(),
                     _buildStatusTab(),
                     _buildActivityTab(),
                   ],
@@ -291,7 +327,8 @@ class _ClinicDetailsModalState extends State<ClinicDetailsModal> with TickerProv
         unselectedLabelColor: AppColors.textSecondary,
         indicatorColor: AppColors.primary,
         tabs: const [
-          Tab(text: 'Clinic Details'),
+          Tab(text: 'Basic Info'),
+          Tab(text: 'Services & Docs'),
           Tab(text: 'Status & Actions'),
           Tab(text: 'Activity Log'),
         ],
@@ -299,7 +336,7 @@ class _ClinicDetailsModalState extends State<ClinicDetailsModal> with TickerProv
     );
   }
 
-  Widget _buildDetailsTab() {
+  Widget _buildBasicDetailsTab() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(kSpacingLarge),
       child: Form(
@@ -413,6 +450,558 @@ class _ClinicDetailsModalState extends State<ClinicDetailsModal> with TickerProv
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildServicesTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(kSpacingLarge),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Services, Certifications & Licenses',
+            style: kTextStyleLarge.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: kSpacingMedium),
+          
+          if (_isLoadingDetails)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(kSpacingLarge),
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else if (_clinicDetails == null)
+            Container(
+              padding: const EdgeInsets.all(kSpacingLarge),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(kBorderRadius),
+                border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+              ),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.warning_outlined,
+                    color: AppColors.warning,
+                    size: 32,
+                  ),
+                  const SizedBox(height: kSpacingSmall),
+                  Text(
+                    'Detailed clinic information not available',
+                    style: kTextStyleRegular.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: kSpacingSmall),
+                  Text(
+                    'This clinic may have registered with basic information only.',
+                    style: kTextStyleSmall.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            )
+          else ...[
+            // Services Section
+            _buildServicesSection(),
+            const SizedBox(height: kSpacingLarge),
+            
+            // Certifications Section
+            _buildCertificationsSection(),
+            const SizedBox(height: kSpacingLarge),
+            
+            // Licenses Section
+            _buildLicensesSection(),
+            const SizedBox(height: kSpacingLarge),
+            
+            // Additional Details
+            _buildAdditionalDetailsSection(),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildServicesSection() {
+    final services = _clinicDetails?.services ?? [];
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.medical_services, size: 20, color: AppColors.primary),
+            const SizedBox(width: kSpacingSmall),
+            Text(
+              'Services',
+              style: kTextStyleRegular.copyWith(
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '${services.length} service${services.length != 1 ? 's' : ''}',
+                style: kTextStyleSmall.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: kSpacingMedium),
+        
+        if (services.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(kSpacingMedium),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(kBorderRadius),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, color: AppColors.textSecondary, size: 20),
+                const SizedBox(width: kSpacingSmall),
+                Text(
+                  'No services registered',
+                  style: kTextStyleSmall.copyWith(color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+          )
+        else
+          ...services.take(5).map((service) => Container(
+            margin: const EdgeInsets.only(bottom: kSpacingSmall),
+            padding: const EdgeInsets.all(kSpacingMedium),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(kBorderRadius),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: service.isActive ? AppColors.success : AppColors.textSecondary,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: kSpacingSmall),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        service.serviceName.isNotEmpty ? service.serviceName : 'Unnamed Service',
+                        style: kTextStyleSmall.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      if (service.serviceDescription.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          service.serviceDescription,
+                          style: kTextStyleSmall.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (service.estimatedPrice.isNotEmpty)
+                  Text(
+                    '₱${service.estimatedPrice}',
+                    style: kTextStyleSmall.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+              ],
+            ),
+          )).toList(),
+          
+        if (services.length > 5)
+          Container(
+            padding: const EdgeInsets.all(kSpacingSmall),
+            child: Text(
+              '+ ${services.length - 5} more service${services.length - 5 != 1 ? 's' : ''}',
+              style: kTextStyleSmall.copyWith(
+                color: AppColors.textSecondary,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildCertificationsSection() {
+    final certifications = _clinicDetails?.certifications ?? [];
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.verified, size: 20, color: AppColors.success),
+            const SizedBox(width: kSpacingSmall),
+            Text(
+              'Certifications',
+              style: kTextStyleRegular.copyWith(
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.success.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '${certifications.length} cert${certifications.length != 1 ? 's' : ''}',
+                style: kTextStyleSmall.copyWith(
+                  color: AppColors.success,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: kSpacingMedium),
+        
+        if (certifications.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(kSpacingMedium),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(kBorderRadius),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, color: AppColors.textSecondary, size: 20),
+                const SizedBox(width: kSpacingSmall),
+                Text(
+                  'No certifications uploaded',
+                  style: kTextStyleSmall.copyWith(color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+          )
+        else
+          ...certifications.take(3).map((cert) => Container(
+            margin: const EdgeInsets.only(bottom: kSpacingSmall),
+            padding: const EdgeInsets.all(kSpacingMedium),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(kBorderRadius),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: cert.isActive ? AppColors.success.withOpacity(0.1) : AppColors.textSecondary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Icon(
+                    Icons.verified,
+                    size: 18,
+                    color: cert.isActive ? AppColors.success : AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(width: kSpacingSmall),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        cert.name,
+                        style: kTextStyleSmall.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      if (cert.issuer.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Issued by: ${cert.issuer}',
+                          style: kTextStyleSmall.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                      if (cert.dateExpiry != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Expires: ${_formatDate(cert.dateExpiry!.toDate())}',
+                          style: kTextStyleSmall.copyWith(
+                            color: cert.isExpired ? AppColors.error : AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (cert.documentUrl?.isNotEmpty == true)
+                  Icon(
+                    Icons.image,
+                    size: 16,
+                    color: AppColors.info,
+                  ),
+              ],
+            ),
+          )).toList(),
+          
+        if (certifications.length > 3)
+          Container(
+            padding: const EdgeInsets.all(kSpacingSmall),
+            child: Text(
+              '+ ${certifications.length - 3} more certification${certifications.length - 3 != 1 ? 's' : ''}',
+              style: kTextStyleSmall.copyWith(
+                color: AppColors.textSecondary,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildLicensesSection() {
+    final licenses = _clinicDetails?.licenses ?? [];
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.badge, size: 20, color: AppColors.info),
+            const SizedBox(width: kSpacingSmall),
+            Text(
+              'Licenses',
+              style: kTextStyleRegular.copyWith(
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.info.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '${licenses.length} license${licenses.length != 1 ? 's' : ''}',
+                style: kTextStyleSmall.copyWith(
+                  color: AppColors.info,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: kSpacingMedium),
+        
+        if (licenses.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(kSpacingMedium),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(kBorderRadius),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, color: AppColors.textSecondary, size: 20),
+                const SizedBox(width: kSpacingSmall),
+                Text(
+                  'No licenses uploaded',
+                  style: kTextStyleSmall.copyWith(color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+          )
+        else
+          ...licenses.take(3).map((license) => Container(
+            margin: const EdgeInsets.only(bottom: kSpacingSmall),
+            padding: const EdgeInsets.all(kSpacingMedium),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(kBorderRadius),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: license.isActive ? AppColors.info.withOpacity(0.1) : AppColors.textSecondary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Icon(
+                    Icons.badge,
+                    size: 18,
+                    color: license.isActive ? AppColors.info : AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(width: kSpacingSmall),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        license.licenseId,
+                        style: kTextStyleSmall.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Issue Date: ${_formatDate(license.issueDate.toDate())}',
+                        style: kTextStyleSmall.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Expires: ${_formatDate(license.expiryDate.toDate())}',
+                        style: kTextStyleSmall.copyWith(
+                          color: license.isExpired ? AppColors.error : AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (license.licensePictureUrl?.isNotEmpty == true)
+                  Icon(
+                    Icons.image,
+                    size: 16,
+                    color: AppColors.info,
+                  ),
+              ],
+            ),
+          )).toList(),
+          
+        if (licenses.length > 3)
+          Container(
+            padding: const EdgeInsets.all(kSpacingSmall),
+            child: Text(
+              '+ ${licenses.length - 3} more license${licenses.length - 3 != 1 ? 's' : ''}',
+              style: kTextStyleSmall.copyWith(
+                color: AppColors.textSecondary,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildAdditionalDetailsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.info_outline, size: 20, color: AppColors.textSecondary),
+            const SizedBox(width: kSpacingSmall),
+            Text(
+              'Additional Information',
+              style: kTextStyleRegular.copyWith(
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: kSpacingMedium),
+        
+        Container(
+          padding: const EdgeInsets.all(kSpacingMedium),
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.circular(kBorderRadius),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_clinicDetails!.description.isNotEmpty) ...[
+                _buildInfoRow('Description', _clinicDetails!.description),
+                const SizedBox(height: kSpacingSmall),
+              ],
+              if (_clinicDetails!.operatingHours != null && _clinicDetails!.operatingHours!.isNotEmpty) ...[
+                _buildInfoRow('Operating Hours', _clinicDetails!.operatingHours!),
+                const SizedBox(height: kSpacingSmall),
+              ],
+              if (_clinicDetails!.specialties.isNotEmpty) ...[
+                _buildInfoRow('Specialties', _clinicDetails!.specialties.join(', ')),
+                const SizedBox(height: kSpacingSmall),
+              ],
+              _buildInfoRow('Verification Status', _clinicDetails!.isVerified ? 'Verified' : 'Unverified'),
+              const SizedBox(height: kSpacingSmall),
+              _buildInfoRow('Registration Date', _formatDateTime(_clinicDetails!.createdAt)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 120,
+          child: Text(
+            label,
+            style: kTextStyleSmall.copyWith(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        const SizedBox(width: kSpacingSmall),
+        Expanded(
+          child: Text(
+            value,
+            style: kTextStyleSmall.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ),
+      ],
     );
   }
 

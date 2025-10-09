@@ -7,6 +7,7 @@ import 'package:pawsense/core/widgets/shared/page_header.dart';
 import '../../../core/widgets/super_admin/clinic_management/clinic_summary_cards.dart';
 import '../../../core/widgets/super_admin/clinic_management/clinic_search_and_filter.dart';
 import '../../../core/widgets/super_admin/clinic_management/clinics_list.dart';
+import '../../../core/widgets/super_admin/clinic_management/clinic_details_modal.dart';
 import '../../../core/widgets/shared/pagination_widget.dart';
 import '../../../core/services/super_admin/super_admin_service.dart';
 import '../../../core/services/super_admin/clinic_cache_service.dart';
@@ -378,35 +379,25 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> with Au
   }
 
   void _onApprove(ClinicRegistration clinic) async {
-    final isReapproval = clinic.status == ClinicStatus.suspended;
-    final actionText = isReapproval ? 'Re-approve' : 'Approve';
-    final messageText = isReapproval 
-        ? 'Are you sure you want to re-approve ${clinic.clinicName}? This will restore their access.'
-        : 'Are you sure you want to approve ${clinic.clinicName}?';
-        
-    final result = await showDialog<bool>(
+    // First show the clinic details modal for review
+    final result = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('$actionText Clinic'),
-        content: Text(messageText),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.success,
-              foregroundColor: AppColors.white,
-            ),
-            child: Text(actionText),
-          ),
-        ],
+      builder: (context) => ClinicDetailsModal(
+        clinic: clinic,
+        onStatusChange: (status, reason) {
+          if (status == ClinicStatus.approved) {
+            Navigator.of(context).pop('approve');
+          } else if (status == ClinicStatus.rejected) {
+            Navigator.of(context).pop('reject');
+          } else {
+            Navigator.of(context).pop();
+          }
+        },
       ),
     );
     
-    if (result == true) {
+    // Handle the approval or rejection from the details modal
+    if (result == 'approve') {
       try {
         final isReapproval = clinic.status == ClinicStatus.suspended;
         final success = await SuperAdminService.updateClinicStatus(
@@ -457,6 +448,9 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> with Au
           ),
         );
       }
+    } else if (result == 'reject') {
+      // Handle rejection from the quick actions in the details modal
+      _onReject(clinic);
     }
   }
 

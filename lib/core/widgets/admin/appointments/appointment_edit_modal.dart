@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../models/clinic/appointment_models.dart';
 import '../../../services/clinic/appointment_service.dart';
 import '../../../utils/app_colors.dart';
+import 'appointment_completion_modal.dart';
 
 class AppointmentEditModal extends StatefulWidget {
   final Appointment appointment;
@@ -175,7 +176,7 @@ class _AppointmentEditModalState extends State<AppointmentEditModal> {
                 icon: Icons.task_alt,
                 label: 'Mark as Completed',
                 color: AppColors.success,
-                onPressed: () => _markAsCompleted(),
+                onPressed: _markAsCompleted,
               ),
               const SizedBox(height: 12),
               _buildActionButton(
@@ -271,24 +272,18 @@ class _AppointmentEditModalState extends State<AppointmentEditModal> {
     }
   }
 
-  Future<void> _markAsCompleted() async {
-    setState(() => _isLoading = true);
+  void _markAsCompleted() {
+    // Close the edit modal first
+    Navigator.of(context).pop();
     
-    final success = await AppointmentService.markAppointmentCompleted(widget.appointment.id);
-    
-    setState(() => _isLoading = false);
-    
-    if (success) {
-      widget.onUpdate();
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Marked ${widget.appointment.pet.name}\'s appointment as completed')),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to mark appointment as completed')),
-      );
-    }
+    // Show the appointment completion modal
+    showDialog(
+      context: context,
+      builder: (context) => AppointmentCompletionModal(
+        appointment: widget.appointment,
+        onCompleted: widget.onUpdate,
+      ),
+    );
   }
 
   Future<void> _reAcceptAppointment() async {
