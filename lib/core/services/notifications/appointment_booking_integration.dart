@@ -50,7 +50,7 @@ class AppointmentBookingIntegration {
     String? reason,
   }) async {
     try {
-      await NotificationService.createAppointmentStatusNotification(
+      await NotificationService.updateAppointmentStatusNotification(
         userId: userId,
         appointmentId: appointmentId,
         petName: petName,
@@ -62,9 +62,9 @@ class AppointmentBookingIntegration {
         reason: reason,
       );
       
-      print('✅ Status change notification created: $oldStatus → $newStatus');
+      print('✅ Status change notification updated: $oldStatus → $newStatus');
     } catch (e) {
-      print('❌ Failed to create status change notification: $e');
+      print('❌ Failed to update status change notification: $e');
     }
   }
 }

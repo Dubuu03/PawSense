@@ -128,9 +128,14 @@ class _AlertsPageState extends State<AlertsPage> with WidgetsBindingObserver {
             .map((notification) => NotificationHelper.fromNotificationModel(notification))
             .map((alert) {
               // Apply local read state for instant UI updates
-              // Note: The notification service already handles static cache,
-              // but local state takes precedence for immediate responsiveness
-              if (_locallyReadNotifications.contains(alert.id)) {
+              // However, if the notification is unread from the server (e.g., updated notification),
+              // respect that and remove from local cache
+              if (!alert.isRead && _locallyReadNotifications.contains(alert.id)) {
+                // Notification was updated and marked as unread - remove from local cache
+                _locallyReadNotifications.remove(alert.id);
+                return alert; // Use server state (unread)
+              } else if (_locallyReadNotifications.contains(alert.id)) {
+                // Local state indicates read, server hasn't updated yet
                 return AlertData(
                   id: alert.id,
                   title: alert.title,
@@ -176,9 +181,18 @@ class _AlertsPageState extends State<AlertsPage> with WidgetsBindingObserver {
           _locallyReadNotifications.add(alert.id);
         });
         
-        // Mark as read in backend
-        await NotificationService.markAsRead(alert.id, userId: _userModel?.uid);
-        print('Alert ${alert.id} marked as read on tap');
+        // Mark as read in backend (don't await to avoid delay)
+        NotificationService.markAsRead(alert.id, userId: _userModel?.uid).then((_) {
+          print('Alert ${alert.id} marked as read on tap');
+        }).catchError((e) {
+          print('Error marking alert as read: $e');
+          // Revert local state on error
+          if (mounted) {
+            setState(() {
+              _locallyReadNotifications.remove(alert.id);
+            });
+          }
+        });
       }
       
       // Navigate to alert details page with notification data
@@ -189,11 +203,6 @@ class _AlertsPageState extends State<AlertsPage> with WidgetsBindingObserver {
     } catch (e) {
       print('Error handling alert tap: $e');
       _showErrorMessage('Failed to open notification details');
-      
-      // Revert local state on error
-      setState(() {
-        _locallyReadNotifications.remove(alert.id);
-      });
     }
   }
 
