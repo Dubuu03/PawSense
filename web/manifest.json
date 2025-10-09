@@ -1,11 +1,11 @@
 {
-    "name": "pawsense",
-    "short_name": "pawsense",
+    "name": "PawSense - AI-Powered Veterinary Platform",
+    "short_name": "PawSense",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#ffffff",
+    "theme_color": "#7C3AED",
+    "description": "AI-Powered Veterinary Clinic Management Platform. Smart pet health assessments, appointment scheduling, and clinic management for modern veterinary practices.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
