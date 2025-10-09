@@ -1726,6 +1726,12 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
   }
 
   Widget _buildRemediesSection() {
+    // Don't show remedies if no skin diseases were detected
+    if (_analysisResults.isEmpty || 
+        (_analysisResults.length == 1 && _analysisResults.first.condition == 'No high-confidence detections')) {
+      return const SizedBox.shrink();
+    }
+    
     // Check if we have disease info with remedies
     final hasRemedies = _detectedDisease?.initialRemedies != null;
     final remedies = _detectedDisease?.initialRemedies;
