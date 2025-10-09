@@ -57,6 +57,10 @@ class _UserHomePageState extends State<UserHomePage> {
   List<AppointmentHistoryData> _appointmentHistory = [];
   bool _appointmentHistoryLoading = false;
   
+  // Closest upcoming appointment data
+  String? _nextAppointmentDate;
+  String? _nextAppointmentTime;
+  
   final DataCache _cache = DataCache();
   
   // Notification system
@@ -442,6 +446,9 @@ class _UserHomePageState extends State<UserHomePage> {
         
         final appointmentHistoryData = _convertAppointmentsToHistoryData(cachedAppointments);
         
+        // Calculate closest upcoming appointment from cached data
+        _calculateClosestUpcomingAppointment(cachedAppointments);
+        
         if (mounted) {
           setState(() {
             _appointmentHistory = appointmentHistoryData;
@@ -485,6 +492,9 @@ class _UserHomePageState extends State<UserHomePage> {
       
       final appointmentHistoryData = _convertAppointmentsToHistoryData(validAppointments);
       print('DEBUG: Converted to ${appointmentHistoryData.length} appointment history items');
+      
+      // Calculate closest upcoming appointment from fresh data
+      _calculateClosestUpcomingAppointment(validAppointments);
       
       if (mounted) {
         setState(() {
@@ -550,6 +560,50 @@ class _UserHomePageState extends State<UserHomePage> {
       case booking.AppointmentStatus.rescheduled:
         return 'Rescheduled';
     }
+  }
+
+  void _calculateClosestUpcomingAppointment(List<booking.AppointmentBooking> appointments) {
+    String? nextDate;
+    String? nextTime;
+    
+    if (appointments.isNotEmpty) {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day); // Start of today
+      
+      // Filter to only include confirmed appointments that are today or in the future
+      final upcomingAppointments = appointments.where((appointment) {
+        return appointment.status == booking.AppointmentStatus.confirmed &&
+               (appointment.appointmentDate.isAtSameMomentAs(today) ||
+                appointment.appointmentDate.isAfter(today));
+      }).toList();
+      
+      // Sort by date and time to find the closest one
+      if (upcomingAppointments.isNotEmpty) {
+        upcomingAppointments.sort((a, b) {
+          final dateComparison = a.appointmentDate.compareTo(b.appointmentDate);
+          if (dateComparison != 0) return dateComparison;
+          
+          // If same date, sort by time
+          return a.appointmentTime.compareTo(b.appointmentTime);
+        });
+        
+        final closestAppointment = upcomingAppointments.first;
+        // Format date as "Oct 9" or similar
+        final appointmentDate = closestAppointment.appointmentDate;
+        final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        nextDate = '${months[appointmentDate.month - 1]} ${appointmentDate.day}';
+        nextTime = closestAppointment.appointmentTime;
+        
+        print('DEBUG: Found closest upcoming appointment: $nextDate at $nextTime');
+      } else {
+        print('DEBUG: No upcoming appointments found');
+      }
+    }
+    
+    // Update the state variables
+    _nextAppointmentDate = nextDate;
+    _nextAppointmentTime = nextTime;
   }
 
   List<AIHistoryData> _convertAssessmentResultsToAIHistory(List<AssessmentResult> assessmentResults) {
@@ -875,8 +929,8 @@ class _UserHomePageState extends State<UserHomePage> {
 
                       PetInfoCard(
                         key: _petCardKey,
-                        nextAppointmentDate: null, // No appointment
-                        nextAppointmentTime: null, // No appointment
+                        nextAppointmentDate: _nextAppointmentDate,
+                        nextAppointmentTime: _nextAppointmentTime,
                       ),
 
                       // Add space between pets and health snapshot

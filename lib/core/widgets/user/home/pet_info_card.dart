@@ -494,7 +494,7 @@ class PetInfoCardState extends State<PetInfoCard> {
               ),
               const SizedBox(width: 8),
               const Text(
-                'Appointments',
+                'Next Appointment',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -509,29 +509,33 @@ class PetInfoCardState extends State<PetInfoCard> {
           
           if (hasAppointment) ...[
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: AppColors.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text(
-                widget.nextAppointmentDate!,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primary,
-                  height: 1.2,
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              widget.nextAppointmentTime!,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: AppColors.textSecondary,
-                height: 1.3,
+              child: Column(
+                children: [
+                  Text(
+                    widget.nextAppointmentDate!,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    widget.nextAppointmentTime!,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textSecondary,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
               ),
             ),
           ] else ...[
