@@ -15,12 +15,10 @@ class TransactionNotificationService {
   // Stream subscriptions for monitoring
   StreamSubscription<QuerySnapshot>? _appointmentSubscription;
   StreamSubscription<QuerySnapshot>? _messageSubscription;
-  StreamSubscription<QuerySnapshot>? _assessmentSubscription;
   
   // Track known transactions to detect changes
   Map<String, String> _knownAppointmentStatuses = {};
   Map<String, String> _knownMessageStatuses = {};
-  Set<String> _knownAssessmentIds = {};
   
   String? _currentUserId;
   bool _isInitialized = false;
@@ -36,10 +34,10 @@ class TransactionNotificationService {
     
     _currentUserId = userId;
     
-    // Setup real-time listeners for different transaction types
+        // Setup real-time listeners for different transaction types
     _setupAppointmentListener(userId);
     _setupMessageListener(userId);
-    _setupAssessmentListener(userId);
+    // Assessment listener disabled by user request
     
     _isInitialized = true;
     debugPrint('🔔 Transaction notification service initialized for user: $userId');
@@ -77,23 +75,7 @@ class TransactionNotificationService {
     );
   }
 
-  /// Monitor assessment/AI analysis changes
-  void _setupAssessmentListener(String userId) {
-    _assessmentSubscription = _firestore
-        .collection('assessment_results')
-        .where('userId', isEqualTo: userId)
-        .orderBy('createdAt', descending: true)
-        .limit(10) // Only recent assessments
-        .snapshots()
-        .listen(
-      (snapshot) {
-        _handleAssessmentChanges(snapshot, userId);
-      },
-      onError: (error) {
-        debugPrint('❌ Assessment listener error: $error');
-      },
-    );
-  }
+
 
   /// Handle appointment status changes
   void _handleAppointmentChanges(QuerySnapshot snapshot, String userId) {
@@ -138,19 +120,7 @@ class TransactionNotificationService {
     }
   }
 
-  /// Handle assessment completion
-  void _handleAssessmentChanges(QuerySnapshot snapshot, String userId) {
-    for (final doc in snapshot.docs) {
-      final assessmentId = doc.id;
-      
-      // If this is a new assessment
-      if (!_knownAssessmentIds.contains(assessmentId)) {
-        final data = doc.data() as Map<String, dynamic>;
-        _createAssessmentNotification(assessmentId, data, userId);
-        _knownAssessmentIds.add(assessmentId);
-      }
-    }
-  }
+
 
   /// Create notification for appointment status changes
   Future<void> _createAppointmentNotification(
@@ -240,7 +210,7 @@ class TransactionNotificationService {
         'category': 'message',
         'priority': 'medium',
         'isRead': false,
-        'actionUrl': '/messages/$conversationId',
+        'actionUrl': '/messaging',
         'actionLabel': 'View Message',
         'metadata': {
           'conversationId': conversationId,
@@ -257,59 +227,18 @@ class TransactionNotificationService {
     }
   }
 
-  /// Create notification for assessment completion
-  Future<void> _createAssessmentNotification(
-    String assessmentId, 
-    Map<String, dynamic> data,
-    String userId
-  ) async {
-    try {
-      final petName = data['petName']?.toString() ?? 'Your pet';
-      final confidence = data['confidence']?.toString();
-      
-      String message = 'AI analysis completed for $petName';
-      if (confidence != null) {
-        final confidencePercent = (double.tryParse(confidence) ?? 0) * 100;
-        message += ' with ${confidencePercent.toStringAsFixed(0)}% confidence';
-      }
 
-      await _firestore.collection('notifications').add({
-        'userId': userId,
-        'title': 'Analysis Complete',
-        'message': message,
-        'category': 'assessment',
-        'priority': 'medium',
-        'isRead': false,
-        'actionUrl': '/home?tab=history&subtab=assessment',
-        'actionLabel': 'View Results',
-        'metadata': {
-          'assessmentId': assessmentId,
-          'petName': petName,
-          'type': 'assessment_complete',
-        },
-        'createdAt': Timestamp.now(),
-        'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 14))),
-      });
-
-      debugPrint('🔬 Created assessment notification for: $petName');
-    } catch (e) {
-      debugPrint('❌ Error creating assessment notification: $e');
-    }
-  }
 
   /// Dispose all listeners
   Future<void> dispose() async {
     await _appointmentSubscription?.cancel();
     await _messageSubscription?.cancel();
-    await _assessmentSubscription?.cancel();
     
     _appointmentSubscription = null;
     _messageSubscription = null;
-    _assessmentSubscription = null;
     
     _knownAppointmentStatuses.clear();
     _knownMessageStatuses.clear();
-    _knownAssessmentIds.clear();
     
     _currentUserId = null;
     _isInitialized = false;

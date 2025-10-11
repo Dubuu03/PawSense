@@ -533,7 +533,7 @@ class NotificationService {
                 category: NotificationCategory.message,
                 priority: NotificationPriority.medium,
                 isRead: false,
-                actionUrl: '/messages/${conversationId}',
+                actionUrl: '/messaging',
                 actionLabel: 'Read Messages',
                 createdAt: lastMessageTime,
                 metadata: {

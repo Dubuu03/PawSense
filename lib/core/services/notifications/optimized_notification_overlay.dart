@@ -23,12 +23,18 @@ class OptimizedNotificationOverlay {
   
   // Track known notifications to detect truly new ones
   Set<String> _knownNotificationIds = <String>{};
+  
+  // Track retry attempts to prevent infinite loops
+  Map<String, int> _retryAttempts = <String, int>{};
 
   /// Initialize overlay with real-time notification listening
   void initialize(BuildContext context) {
     if (_isInitialized) return;
     
     _isInitialized = true;
+    
+    // Clean up any existing state
+    _dismissCurrentOverlay();
     
     // Listen to new notifications
     _notificationSubscription = _notificationService.notificationsStream
@@ -42,7 +48,12 @@ class OptimizedNotificationOverlay {
 
   /// Handle new notifications and show popup for unread ones
   void _handleNewNotifications(BuildContext context, List<AlertData> notifications) {
-    if (!context.mounted) return;
+    debugPrint('🔍 DEBUG: _handleNewNotifications called with ${notifications.length} notifications');
+    
+    if (!context.mounted) {
+      debugPrint('⚠️ DEBUG: Context not mounted, returning');
+      return;
+    }
     
     // Find truly new notifications (not seen before)
     final newNotifications = notifications
@@ -51,19 +62,29 @@ class OptimizedNotificationOverlay {
         .where((n) => n.id != _lastShownNotificationId) // Not already shown
         .toList();
     
+    debugPrint('🔍 DEBUG: Found ${newNotifications.length} truly new notifications');
+    for (var notif in newNotifications) {
+      debugPrint('🔍 DEBUG: New notification - ID: ${notif.id}, Title: ${notif.title}');
+    }
+    
     // Update known notifications set
     _knownNotificationIds.addAll(notifications.map((n) => n.id));
     
-    if (newNotifications.isEmpty) return;
+    if (newNotifications.isEmpty) {
+      debugPrint('🔍 DEBUG: No new notifications to show');
+      return;
+    }
     
     // Get the most recent new notification
     final latestNotification = newNotifications.first;
     
-    // Only show popup for recent notifications (last 60 seconds to be more generous)
+    // Only show popup for recent notifications (last 300 seconds for testing)
     final now = DateTime.now();
     final notificationAge = now.difference(latestNotification.timestamp);
     
-    if (notificationAge.inSeconds <= 60) {
+    debugPrint('🔍 DEBUG: Latest notification age: ${notificationAge.inSeconds} seconds');
+    
+    if (notificationAge.inSeconds <= 300) { // Increased to 5 minutes for testing
       debugPrint('🔔 Showing popup for new notification: ${latestNotification.title}');
       _showNotificationPopup(context, latestNotification);
       _lastShownNotificationId = latestNotification.id;
@@ -74,23 +95,58 @@ class OptimizedNotificationOverlay {
 
   /// Show notification popup overlay
   void _showNotificationPopup(BuildContext context, AlertData notification) {
+    if (!context.mounted) {
+      debugPrint('⚠️ Context not mounted, cannot show notification popup');
+      return;
+    }
+    
     // Dismiss any existing overlay
     _dismissCurrentOverlay();
     
-    _currentOverlay = OverlayEntry(
-      builder: (context) => _NotificationPopupWidget(
-        notification: notification,
-        onTap: () => _handleNotificationTap(context, notification),
-        onDismiss: _dismissCurrentOverlay,
-      ),
-    );
-    
-    Overlay.of(context).insert(_currentOverlay!);
-    
-    // Auto dismiss after 4 seconds
-    _dismissTimer = Timer(const Duration(seconds: 4), _dismissCurrentOverlay);
-    
-    debugPrint('🔔 Showing popup for: ${notification.title}');
+    try {
+      // Check if Overlay is available
+      final overlay = Overlay.maybeOf(context);
+      if (overlay == null) {
+        debugPrint('⚠️ No Overlay found, retrying in 1 second...');
+        Future.delayed(const Duration(seconds: 1), () {
+          if (context.mounted) {
+            _showNotificationPopup(context, notification);
+          }
+        });
+        return;
+      }
+      
+      _currentOverlay = OverlayEntry(
+        builder: (context) => _NotificationPopupWidget(
+          notification: notification,
+          onTap: () => _handleNotificationTap(context, notification),
+          onDismiss: _dismissCurrentOverlay,
+        ),
+      );
+      
+      if (overlay.mounted) {
+        overlay.insert(_currentOverlay!);
+        
+        // Auto dismiss after 4 seconds
+        _dismissTimer = Timer(const Duration(seconds: 4), _dismissCurrentOverlay);
+        
+        debugPrint('🔔 Successfully showing popup for: ${notification.title}');
+      } else {
+        debugPrint('⚠️ Overlay not mounted, cannot insert notification popup');
+        _currentOverlay = null;
+      }
+    } catch (e) {
+      debugPrint('❌ Error showing notification popup: $e');
+      _currentOverlay = null;
+      
+      // Retry once after a delay
+      Future.delayed(const Duration(seconds: 2), () {
+        if (context.mounted) {
+          debugPrint('🔄 Retrying notification popup...');
+          _showNotificationPopup(context, notification);
+        }
+      });
+    }
   }
 
   /// Handle notification popup tap
@@ -117,8 +173,14 @@ class OptimizedNotificationOverlay {
     _dismissTimer?.cancel();
     _dismissTimer = null;
     
-    _currentOverlay?.remove();
-    _currentOverlay = null;
+    if (_currentOverlay != null) {
+      try {
+        _currentOverlay!.remove();
+      } catch (e) {
+        debugPrint('⚠️ Error removing overlay: $e');
+      }
+      _currentOverlay = null;
+    }
   }
 
   /// Show notification manually (for testing or specific cases)
@@ -144,6 +206,8 @@ class OptimizedNotificationOverlay {
       debugPrint('📭 No unread notifications to show');
     }
   }
+
+
 
   /// Dispose overlay manager
   void dispose() {

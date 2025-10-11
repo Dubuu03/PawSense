@@ -24,7 +24,6 @@ import 'package:pawsense/core/models/clinic/appointment_booking_model.dart' as b
 import 'package:pawsense/core/services/mobile/appointment_booking_service.dart';
 import 'package:pawsense/core/utils/data_cache.dart';
 import 'package:pawsense/core/services/notifications/notification_service.dart';
-import 'package:pawsense/core/services/notifications/notification_overlay_manager.dart';
 import 'package:pawsense/core/services/notifications/global_notification_manager.dart';
 
 class UserHomePage extends StatefulWidget {
@@ -75,8 +74,6 @@ class _UserHomePageState extends State<UserHomePage> {
   @override
   void dispose() {
     // Global notification manager handles cleanup automatically
-    // Only clean up old notification overlay (fallback)
-    NotificationOverlayManager.clearAll();
     super.dispose();
   }
 

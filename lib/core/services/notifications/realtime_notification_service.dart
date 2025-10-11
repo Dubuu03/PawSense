@@ -241,7 +241,7 @@ class RealTimeNotificationService {
           type: AlertType.message,
           timestamp: (data['updatedAt'] as Timestamp).toDate(),
           isRead: _readStatesCache['message_$conversationId'] ?? false,
-          actionUrl: '/messages/$conversationId',
+          actionUrl: '/messaging',
           actionLabel: 'View Message',
           metadata: {'conversationId': conversationId},
         ));

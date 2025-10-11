@@ -27,15 +27,7 @@ class _GlobalNotificationWrapperState extends State<GlobalNotificationWrapper> {
   Future<void> _initializeNotifications() async {
     try {
       await _notificationManager.initialize();
-      
-      // Initialize overlay after the widget is built
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _notificationManager.initializeOverlay(context);
-        }
-      });
-      
-      debugPrint('🌍 Global notification wrapper initialized');
+      debugPrint('🌍 Global notification wrapper initialized (overlay disabled)');
     } catch (e) {
       debugPrint('❌ Error initializing global notification wrapper: $e');
     }

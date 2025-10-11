@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'realtime_notification_service.dart';
-import 'optimized_notification_overlay.dart';
 import 'transaction_notification_service.dart';
 
 /// Global notification manager that handles all notification services
@@ -14,7 +13,6 @@ class GlobalNotificationManager {
 
   // Core services
   final RealTimeNotificationService _realtimeService = RealTimeNotificationService();
-  final OptimizedNotificationOverlay _overlayService = OptimizedNotificationOverlay();
   final TransactionNotificationService _transactionService = TransactionNotificationService();
   
   // Auth state listener
@@ -69,12 +67,10 @@ class GlobalNotificationManager {
     }
   }
 
-  /// Initialize overlay for a specific context (call from main app widget)
+  /// Initialize overlay for a specific context (call from main app widget) - DISABLED
   void initializeOverlay(BuildContext context) {
-    if (_currentUserId != null) {
-      _overlayService.initialize(context);
-      debugPrint('🔔 Global notification overlay initialized');
-    }
+    // Overlay functionality removed
+    debugPrint('� Overlay functionality disabled');
   }
 
   /// Get unread notification count stream
@@ -98,16 +94,15 @@ class GlobalNotificationManager {
     await _realtimeService.refresh();
   }
 
-  /// Show a manual popup notification (for testing)
+  /// Show a manual popup notification (for testing) - DISABLED
   void showTestPopup(BuildContext context) {
-    _overlayService.showLatestNotification(context);
+    debugPrint('🚫 Popup functionality disabled');
   }
 
   /// Dispose user-specific services
   Future<void> _disposeUserServices() async {
     await _realtimeService.dispose();
     await _transactionService.dispose();
-    _overlayService.dispose();
     _currentUserId = null;
   }
 
