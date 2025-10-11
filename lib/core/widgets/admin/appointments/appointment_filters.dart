@@ -57,6 +57,7 @@ class AppointmentFilters extends StatelessWidget {
                     hintText: 'Search appointments...',
                     onChanged: onSearchChanged,
                     fontSize: kFontSizeRegular - 2,
+                    initialValue: searchQuery,
                   ),
                 ),
                 const SizedBox(width: 12),

@@ -280,10 +280,8 @@ class _OptimizedAppointmentManagementScreenState
         print('✅ Loaded page $page: ${result.appointments.length} appointments. Total: $totalAppointments, Pages: $totalPages');
         print('📋 Appointment IDs on this page: ${result.appointments.map((a) => a.id).take(3).join(", ")}${result.appointments.length > 3 ? "..." : ""}');
         
-        // Temporarily skip filtering for debugging pagination
-        filteredAppointments = List.from(appointments);
-        
-        print('🔍 Showing all appointments without filtering: ${filteredAppointments.length} appointments shown');
+        // Apply filters and sorting to the loaded appointments
+        _applyFilters();
       });
     } catch (e) {
       print('❌ Error loading appointments page $page: $e');
@@ -333,7 +331,8 @@ class _OptimizedAppointmentManagementScreenState
 
   /// Apply filters and sorting to appointments
   void _applyFilters() {
-    filteredAppointments = appointments.where((appointment) {
+    // First, filter all appointments
+    List<AppointmentModels.Appointment> allFiltered = appointments.where((appointment) {
       // Status filter
       bool statusMatch = selectedStatus == 'All Status' ||
           appointment.status.name.toLowerCase() == selectedStatus.toLowerCase();
@@ -347,15 +346,8 @@ class _OptimizedAppointmentManagementScreenState
       return statusMatch && searchMatch;
     }).toList();
     
-    // Apply sorting by date
-    _sortAppointments();
-    
-    print('🔍 Filtered: ${filteredAppointments.length} of ${appointments.length} appointments');
-  }
-
-  /// Sort appointments by booked at date based on current sort order
-  void _sortAppointments() {
-    filteredAppointments.sort((a, b) {
+    // Apply sorting by date to all filtered results
+    allFiltered.sort((a, b) {
       try {
         final dateA = a.createdAt;
         final dateB = b.createdAt;
@@ -367,15 +359,33 @@ class _OptimizedAppointmentManagementScreenState
         }
       } catch (e) {
         print('Error comparing booked at dates for sorting: $e');
-        // Fallback to timestamp comparison
-        if (bookedAtSortOrder == SortOrder.ascending) {
-          return a.createdAt.compareTo(b.createdAt);
-        } else {
-          return b.createdAt.compareTo(a.createdAt);
-        }
+        return 0;
       }
     });
+    
+    // For search mode, show only the current page of filtered results
+    if (searchQuery.isNotEmpty) {
+      final itemsPerPage = 10;
+      final startIndex = (currentPage - 1) * itemsPerPage;
+      final endIndex = (startIndex + itemsPerPage).clamp(0, allFiltered.length);
+      
+      filteredAppointments = allFiltered.sublist(startIndex, endIndex);
+      
+      // Update pagination for search results
+      totalAppointments = allFiltered.length;
+      totalPages = (totalAppointments / itemsPerPage).ceil();
+      if (totalPages == 0) totalPages = 1;
+      
+      print('🔍 Search results: ${allFiltered.length} total matches, showing page $currentPage (${filteredAppointments.length} appointments)');
+      print('📄 Pagination: Page $currentPage of $totalPages');
+    } else {
+      // For no search, show all results from current page load
+      filteredAppointments = allFiltered;
+      print('🔍 Filtered: ${filteredAppointments.length} of ${appointments.length} appointments');
+    }
   }
+
+
 
   /// Toggle booked at sort order
   void _onBookedAtSortChanged() {
@@ -485,7 +495,13 @@ class _OptimizedAppointmentManagementScreenState
         currentPage = page;
       });
       _saveState(); // Save state when page changes
-      _loadPage(page, isPagination: true); // Load new page data with pagination flag
+      
+      // For search mode, just re-apply filters with new page
+      if (searchQuery.isNotEmpty) {
+        _applyFilters(); // This will paginate the filtered results
+      } else {
+        _loadPage(page, isPagination: true); // Load new page data with pagination flag
+      }
     } else {
       print('⚠️ Same page requested, ignoring');
     }
@@ -515,18 +531,19 @@ class _OptimizedAppointmentManagementScreenState
 
   /// Handle search with debouncing
   void _onSearchChanged(String query) {
-    setState(() {
-      searchQuery = query;
-      currentPage = 1; // Reset to first page
-    });
-    _saveState();
-
     // Cancel previous timer
     _searchDebounce?.cancel();
 
-    // Debounce search to avoid excessive filtering
-    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
-      _loadDataWithNewFilter();
+    // Debounce both setState and data loading to prevent UI jumps
+    _searchDebounce = Timer(const Duration(milliseconds: 600), () {
+      if (mounted && query != searchQuery) {
+        setState(() {
+          searchQuery = query;
+          currentPage = 1; // Reset to first page
+        });
+        _saveState();
+        _loadDataWithNewFilter();
+      }
     });
   }
 
@@ -597,9 +614,55 @@ class _OptimizedAppointmentManagementScreenState
       _pageCursors.clear(); // Clear page cursors when filters change
     });
 
-    // Load appointments with the new status filter
-    await _loadPage(1);
+    // If there's a search query, load ALL appointments for comprehensive search
+    if (searchQuery.isNotEmpty) {
+      await _loadAllAppointmentsForSearch();
+    } else {
+      // For no search, use normal pagination
+      await _loadPage(1);
+    }
   }
+
+  /// Load all appointments when searching to ensure comprehensive results
+  Future<void> _loadAllAppointmentsForSearch() async {
+    if (_cachedClinicId == null) return;
+
+    try {
+      print('🔍 Loading ALL appointments for search: "$searchQuery"...');
+      
+      // Load all appointments with status filter but no pagination
+      final result = await PaginatedAppointmentService.getClinicAppointmentsPaginated(
+        clinicId: _cachedClinicId!,
+        page: 1,
+        itemsPerPage: 1000, // Large number to get all appointments
+        status: _getStatusFilterForService(),
+        startDate: startDate,
+        endDate: endDate,
+      );
+
+      setState(() {
+        appointments.clear();
+        appointments.addAll(result.appointments);
+        totalAppointments = result.totalCount ?? result.appointments.length;
+        
+        // Apply search and other filters to the complete dataset
+        _applyFilters();
+        
+        isInitialLoading = false;
+        
+        print('✅ Loaded ${appointments.length} appointments for search');
+        print('🔍 Search results: ${filteredAppointments.length} appointments match "$searchQuery"');
+      });
+    } catch (e) {
+      print('❌ Error loading all appointments for search: $e');
+      setState(() {
+        error = 'Failed to load appointments for search';
+        isInitialLoading = false;
+      });
+    }
+  }
+
+
 
   /// Convert filter status string to AppointmentStatus enum for server-side filtering
   AppointmentStatus? _getStatusFilterForService() {

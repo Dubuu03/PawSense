@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pawsense/core/models/admin/admin_notification_model.dart';
 import 'package:pawsense/core/services/auth/auth_service.dart';
+import 'package:pawsense/core/utils/app_logger.dart';
 
 class AdminNotificationService {
   static final AdminNotificationService _instance = AdminNotificationService._internal();
@@ -16,6 +17,12 @@ class AdminNotificationService {
   
   List<AdminNotificationModel> _notifications = [];
   String? _currentClinicId;
+  
+  // Debouncing and deduplication
+  Timer? _emissionDebounceTimer;
+  String? _lastEmittedDataHash;
+  DateTime? _lastEmissionTime;
+  static const Duration _minEmissionInterval = Duration(seconds: 1);
 
   // Getter for notifications controller (creates if null)
   StreamController<List<AdminNotificationModel>> get _controller {
@@ -40,51 +47,55 @@ class AdminNotificationService {
 
   /// Initialize the service and start listening for notifications
   Future<void> initialize() async {
-    print('🔄 AdminNotificationService.initialize() called');
+    AppLogger.notification('AdminNotificationService.initialize() called');
     
     // Skip if already initialized
     if (_notificationSubscription != null && _currentClinicId != null) {
-      print('✅ AdminNotificationService already initialized with clinicId: $_currentClinicId');
+      AppLogger.notification('AdminNotificationService already initialized with clinicId: $_currentClinicId');
       return;
     }
     
     try {
       final currentUser = await _authService.getCurrentUser();
       if (currentUser == null) {
-        print('⚠️ No current user found during initialization');
+        AppLogger.warning('No current user found during initialization', tag: 'AdminNotificationService');
         return;
       }
 
       // Get clinic ID for admin users
       if (currentUser.role == 'admin') {
-        final clinic = await _authService.getUserClinic();
-        _currentClinicId = clinic?.id;
-        print('🏥 Got clinic ID for admin: $_currentClinicId');
+        _currentClinicId = currentUser.uid; // For admin users, their UID is their clinic ID
+        AppLogger.info('Got clinic ID for admin: $_currentClinicId');
+        
+        // Start listening for notifications
+        await _startListeningToNotifications();
       } else if (currentUser.role == 'super_admin') {
-        // Super admin can see all notifications or handle differently
-        _currentClinicId = 'all';
-        print('👑 Super admin mode - clinic ID set to: $_currentClinicId');
-      }
-
-      if (_currentClinicId != null) {
+        // For testing - super admin can access all clinics, use a default
+        _currentClinicId = 'super_admin_test_clinic'; 
+        AppLogger.info('Super admin mode - clinic ID set to: $_currentClinicId');
+        
+        // Start listening for notifications
         await _startListeningToNotifications();
       } else {
-        print('⚠️ No clinic ID found - cannot start listening');
+        // For non-admin users, we don't start the notification service
+        AppLogger.warning('No clinic ID found - cannot start listening', tag: 'AdminNotificationService');
+        return;
       }
+      
     } catch (e) {
-      print('❌ Error initializing AdminNotificationService: $e');
+      AppLogger.error('Error initializing AdminNotificationService', error: e, tag: 'AdminNotificationService');
     }
   }
 
   /// Start listening to real-time notifications
   Future<void> _startListeningToNotifications() async {
     if (_currentClinicId == null) {
-      print('⚠️ Cannot start listening: _currentClinicId is null');
+      AppLogger.warning('Cannot start listening: _currentClinicId is null', tag: 'AdminNotificationService');
       return;
     }
 
     try {
-      print('🔍 Starting notification listener for clinicId: $_currentClinicId');
+      AppLogger.notification('Starting notification listener for clinicId: $_currentClinicId');
       
       // Use only clinicId filter without limit to avoid composite index requirement
       // Real-time listener: Only ONE active connection to Firestore
@@ -95,58 +106,102 @@ class AdminNotificationService {
 
       _notificationSubscription = query.snapshots().listen(
         (snapshot) {
-          print('📡 Received ${snapshot.docs.length} notification documents from Firestore');
-          
-          // Parse only if needed (use document changes for efficiency)
-          // Only process added/modified/removed documents
+          // Only log if there are actual changes
           if (snapshot.docChanges.isNotEmpty) {
+            AppLogger.notification('Processing ${snapshot.docChanges.length} notification changes');
+            
+            bool hasActualChanges = false;
+            
             for (var change in snapshot.docChanges) {
               final notification = AdminNotificationModel.fromFirestore(change.doc);
               
               switch (change.type) {
                 case DocumentChangeType.added:
                 case DocumentChangeType.modified:
-                  // Update or add notification
-                  _notifications.removeWhere((n) => n.id == notification.id);
-                  _notifications.add(notification);
+                  // Check if this is actually a new/changed notification
+                  final existingIndex = _notifications.indexWhere((n) => n.id == notification.id);
+                  if (existingIndex == -1 || 
+                      _notifications[existingIndex].isRead != notification.isRead ||
+                      _notifications[existingIndex].title != notification.title) {
+                    _notifications.removeWhere((n) => n.id == notification.id);
+                    _notifications.add(notification);
+                    hasActualChanges = true;
+                  }
                   break;
                 case DocumentChangeType.removed:
-                  // Remove notification
+                  final originalLength = _notifications.length;
                   _notifications.removeWhere((n) => n.id == notification.id);
+                  if (_notifications.length < originalLength) {
+                    hasActualChanges = true;
+                  }
                   break;
               }
             }
             
-            // Sort by timestamp descending (most recent first)
-            _notifications.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-            
-            // Keep last 100 for performance (reduced from unlimited)
-            if (_notifications.length > 100) {
-              _notifications = _notifications.take(100).toList();
-            }
-            
-            print('🚀 Emitting ${_notifications.length} notifications to stream');
-            _controller.add(_notifications);
-            print('📱 Updated notifications: ${_notifications.length} total, ${unreadCount} unread');
-            
-            // Debug: Print first few notification titles
-            if (_notifications.isNotEmpty) {
-              print('📋 First few notifications:');
-              for (int i = 0; i < _notifications.length && i < 3; i++) {
-                print('  - ${_notifications[i].title} (read: ${_notifications[i].isRead})');
+            // Only emit if there were actual changes
+            if (hasActualChanges) {
+              // Sort by timestamp descending (most recent first)
+              _notifications.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+              
+              // Keep last 100 for performance
+              if (_notifications.length > 100) {
+                _notifications = _notifications.take(100).toList();
               }
+              
+              // Use debounced emission to prevent spam
+              _debouncedEmit();
             } else {
-              print('📋 No notifications found');
+              AppLogger.notification('No actual changes detected - skipping emission');
             }
           }
         },
         onError: (error) {
-          print('❌ Error listening to notifications: $error');
+          AppLogger.error('Error listening to notifications', error: error, tag: 'AdminNotificationService');
         },
       );
     } catch (e) {
-      print('❌ Error starting notification listener: $e');
+      AppLogger.error('Error starting notification listener', error: e, tag: 'AdminNotificationService');
     }
+  }
+  
+  /// Debounced emission to prevent spam
+  void _debouncedEmit() {
+    // Cancel previous timer
+    _emissionDebounceTimer?.cancel();
+    
+    // Set up debounced emission
+    _emissionDebounceTimer = Timer(const Duration(milliseconds: 500), () {
+      _emitIfChanged();
+    });
+  }
+  
+  /// Emit notifications only if data has changed and rate limit respected
+  void _emitIfChanged() {
+    final now = DateTime.now();
+    
+    // Generate hash of current data
+    final currentDataHash = _notifications.map((n) => '${n.id}_${n.isRead}').join(',');
+    
+    // Skip if data hasn't changed
+    if (currentDataHash == _lastEmittedDataHash) {
+      AppLogger.notification('Skipping emission - data unchanged');
+      return;
+    }
+    
+    // Rate limiting - don't emit more than once per second
+    if (_lastEmissionTime != null && 
+        now.difference(_lastEmissionTime!) < _minEmissionInterval) {
+      AppLogger.notification('Rate limiting emission');
+      return;
+    }
+    
+    // Emit the data
+    _lastEmittedDataHash = currentDataHash;
+    _lastEmissionTime = now;
+    
+    AppLogger.notification('Emitting ${_notifications.length} notifications to stream');
+    _controller.add(_notifications);
+    AppLogger.info('Updated notifications: ${_notifications.length} total, ${unreadCount} unread');
   }
 
   /// Create a new notification (prevents duplicates)
@@ -157,14 +212,14 @@ class AdminNotificationService {
       final docSnapshot = await docRef.get();
       
       if (docSnapshot.exists) {
-        print('⚠️ Notification already exists: ${notification.id}');
+        AppLogger.warning('Notification already exists: ${notification.id}', tag: 'AdminNotificationService');
         return;
       }
       
       await docRef.set(notification.toFirestore());
-      print('✅ Created notification: ${notification.title}');
+      AppLogger.success('Created notification: ${notification.title}');
     } catch (e) {
-      print('❌ Error creating notification: $e');
+      AppLogger.error('Error creating notification', error: e, tag: 'AdminNotificationService');
     }
   }
 
@@ -176,9 +231,9 @@ class AdminNotificationService {
           .doc(notificationId)
           .update({'isRead': true});
       
-      print('✅ Marked notification as read: $notificationId');
+      AppLogger.success('Marked notification as read: $notificationId');
     } catch (e) {
-      print('❌ Error marking notification as read: $e');
+      AppLogger.error('Error marking notification as read', error: e, tag: 'AdminNotificationService');
     }
   }
 
@@ -247,14 +302,26 @@ class AdminNotificationService {
     required String message,
     AdminNotificationPriority priority = AdminNotificationPriority.medium,
     Map<String, dynamic>? metadata,
+    String? notificationSubtype, // e.g., 'created', 'cancelled', 'rescheduled'
   }) async {
     if (_currentClinicId == null) {
       print('⚠️ Cannot create notification: _currentClinicId is null');
       return;
     }
 
+    // Create deterministic ID based on appointment and event type
+    // This prevents duplicates even if called multiple times
+    String notificationId;
+    if (notificationSubtype != null) {
+      // For specific events, use subtype in ID (no timestamp)
+      notificationId = 'appt_${appointmentId}_$notificationSubtype';
+    } else {
+      // For generic notifications, include timestamp
+      notificationId = 'appt_${appointmentId}_${DateTime.now().millisecondsSinceEpoch}';
+    }
+
     final notification = AdminNotificationModel.createAppointmentNotification(
-      id: 'appt_${appointmentId}_${DateTime.now().millisecondsSinceEpoch}',
+      id: notificationId,
       title: title,
       message: message,
       clinicId: _currentClinicId!,
@@ -263,7 +330,7 @@ class AdminNotificationService {
       metadata: metadata,
     );
 
-    print('📝 Creating notification with clinicId: $_currentClinicId');
+    print('📝 Creating notification with ID: $notificationId and clinicId: $_currentClinicId');
     await createNotification(notification);
   }
 
@@ -292,6 +359,35 @@ class AdminNotificationService {
       },
     );
 
+    await createNotification(notification);
+  }
+
+  /// Create transaction-related notifications
+  Future<void> createTransactionNotification({
+    required String transactionId,
+    required String title,
+    required String message,
+    AdminNotificationPriority priority = AdminNotificationPriority.medium,
+    Map<String, dynamic>? metadata,
+  }) async {
+    if (_currentClinicId == null) {
+      print('⚠️ Cannot create transaction notification: _currentClinicId is null');
+      return;
+    }
+
+    final notification = AdminNotificationModel(
+      id: 'txn_${transactionId}_${DateTime.now().millisecondsSinceEpoch}',
+      title: title,
+      message: message,
+      type: AdminNotificationType.transaction,
+      priority: priority,
+      timestamp: DateTime.now(),
+      clinicId: _currentClinicId!,
+      relatedId: transactionId,
+      metadata: metadata,
+    );
+
+    print('💳 Creating transaction notification: $title');
     await createNotification(notification);
   }
 
@@ -365,15 +461,19 @@ class AdminNotificationService {
 
   /// Dispose the service (should only be called on app shutdown)
   void dispose() {
-    print('🧹 Disposing AdminNotificationService');
+    AppLogger.info('Disposing AdminNotificationService');
     _notificationSubscription?.cancel();
     _notificationSubscription = null;
+    _emissionDebounceTimer?.cancel();
+    _emissionDebounceTimer = null;
     if (_notificationsController != null && !_notificationsController!.isClosed) {
       _notificationsController!.close();
       _notificationsController = null;
     }
     _notifications.clear();
     _currentClinicId = null;
+    _lastEmittedDataHash = null;
+    _lastEmissionTime = null;
   }
 
   /// Quick notification helpers for common scenarios

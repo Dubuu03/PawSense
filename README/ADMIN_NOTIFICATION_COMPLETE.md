@@ -22,6 +22,7 @@ The admin notification system provides real-time, optimized notifications for cl
 - **Scroll Detection**: Loads 20 more when scrolling near bottom (200px threshold)
 - **Performance Optimized**: Only renders visible notifications
 - **Smooth Experience**: No lag or jank during scrolling
+- **Filter-Aware**: Respects current filter (all/unread/read) when loading more
 
 ### 4. Time Display ✅
 - **Relative Formatting**: Shows "2 minutes ago", "1 hour ago", etc.
@@ -35,6 +36,21 @@ The admin notification system provides real-time, optimized notifications for cl
 - **Memory Management**: Limits cached notifications to 100 most recent
 - **Index-Free**: Optimized queries don't require composite indexes
 
+### 6. Transaction Notifications 💰 NEW!
+- **Automatic Creation**: Triggered by appointment cancellations/reschedules
+- **Financial Tracking**: Refunds, cancellation fees, reschedule fees
+- **Complete Metadata**: Includes amounts, user info, appointment details
+- **Smart Detection**: Only creates when payment amounts exist
+- **Type Safety**: Structured transaction data with proper typing
+
+### 7. Read/Unread Status Management 📖 NEW!
+- **Visual Indicators**: Blue dot, background tint, bold text for unread
+- **Auto Mark Read**: Tapping notification marks it as read automatically
+- **Filter Tabs**: All, Unread, Read filters for easy navigation
+- **Bulk Operations**: "Mark all as read" button with batch writes
+- **Real-time Updates**: Status changes reflect immediately via stream
+- **Badge Counter**: Shows unread count in header
+
 ## Architecture
 
 ### Core Components
@@ -47,6 +63,9 @@ Location: /lib/core/services/admin/admin_notification_service.dart
 - Single broadcast StreamController
 - Document change detection
 - Automatic sorting and limiting
+- **NEW**: Transaction notification creation
+- **NEW**: Mark as read/unread functionality
+- **NEW**: Batch operations for bulk updates
 
 #### 2. AdminAppointmentNotificationIntegrator
 ```dart
@@ -56,6 +75,9 @@ Location: /lib/core/services/admin/admin_appointment_notification_integrator.dar
 - Initial load skip logic
 - Event-based notification creation
 - Duplicate prevention
+- **NEW**: Creates transaction notifications for cancellations
+- **NEW**: Creates transaction notifications for reschedule fees
+- **NEW**: Extracts payment/refund data from Firestore
 
 #### 3. AdminMessageNotificationIntegrator
 ```dart
@@ -74,6 +96,10 @@ Location: /lib/core/widgets/admin/notifications/admin_notification_dropdown.dart
 - Timer-based time updates
 - Infinite scroll implementation
 - Empty state handling
+- **NEW**: Read/unread filter tabs (All, Unread, Read)
+- **NEW**: Visual read status indicators
+- **NEW**: Auto mark as read on tap
+- **NEW**: Filter-aware infinite scrolling
 
 #### 5. TimeFormatter
 ```dart
@@ -326,6 +352,37 @@ The admin notification system achieves:
 - 🕐 **Live time display** with auto-updates
 - 💰 **99.93% cost reduction** vs polling
 - 📊 **Single DB connection** per collection
+- 💳 **Transaction tracking** for all financial events
+- 📖 **Read/unread management** with visual indicators
+- 🔍 **Smart filtering** (All/Unread/Read tabs)
 - 🎯 **Production-ready** with best practices
 
-This implementation follows Firebase best practices and Flutter performance guidelines while providing an excellent user experience.
+### Notification Categories Now Supported
+
+1. **Appointment Notifications** 📅
+   - New bookings, cancellations, reschedules
+   - Emergency appointments with urgent priority
+   - Confirmation, reminder, missed, completed events
+
+2. **Message Notifications** 💬
+   - New conversations from users
+   - New messages with role filtering
+   - Support requests, feedback, complaints
+
+3. **Transaction Notifications** 💰 NEW!
+   - Cancellation refunds
+   - Cancellation fees
+   - Reschedule fees
+   - Payment tracking
+
+4. **Emergency Notifications** 🚨
+   - Critical appointments
+   - Urgent messages
+   - High-priority alerts
+
+5. **System Notifications** ⚙️
+   - Record deletions
+   - System events
+   - Administrative messages
+
+This implementation follows Firebase best practices and Flutter performance guidelines while providing an excellent user experience with complete financial transparency.

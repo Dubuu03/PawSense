@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pawsense/core/guards/auth_guard.dart';
+import 'package:pawsense/core/utils/app_logger.dart';
 
 /// Service to fetch dynamic dashboard data for admin clinics
 class DashboardService {
@@ -73,10 +74,8 @@ class DashboardService {
           previousEndDate = DateTime(yesterday.year, yesterday.month, yesterday.day, 23, 59, 59);
       }
 
-      // Debug: Print date ranges
-      print('Dashboard Stats - Period: $period');
-      print('Current period: $startDate to $endDate');
-      print('Previous period: $previousStartDate to $previousEndDate');
+      // Log only if needed for debugging
+      AppLogger.dashboard('Stats Period: $period ($startDate to $endDate)');
       
       // Fetch appointments
       final currentAppointments = await _getAppointmentsCount(
@@ -91,7 +90,7 @@ class DashboardService {
         previousEndDate,
       );
       
-      print('Current appointments: $currentAppointments, Previous: $previousAppointments');
+      AppLogger.dashboard('Appointments: current=$currentAppointments, previous=$previousAppointments');
 
       // Fetch completed consultations
       final currentCompletedConsultations = await _getCompletedConsultationsCount(
@@ -145,7 +144,7 @@ class DashboardService {
         period: period,
       );
     } catch (e) {
-      print('Error fetching dashboard stats: $e');
+      AppLogger.error('Error fetching dashboard stats', error: e, tag: 'DashboardService');
       return DashboardStats.empty(period);
     }
   }
@@ -164,18 +163,12 @@ class DashboardService {
           .where('appointmentDate', isLessThanOrEqualTo: Timestamp.fromDate(endDate))
           .get();
 
-      // Debug: Print each appointment date
-      print('Appointments from $startDate to $endDate:');
-      for (final doc in query.docs) {
-        final data = doc.data();
-        final appointmentDate = (data['appointmentDate'] as Timestamp?)?.toDate();
-        print('  - Appointment ID: ${doc.id}, Date: $appointmentDate');
-      }
-      print('Total count: ${query.docs.length}');
+      // Minimal logging for appointment count
+      AppLogger.firebase('Found ${query.docs.length} appointments in date range');
 
       return query.docs.length;
     } catch (e) {
-      print('Error getting appointments count: $e');
+      AppLogger.error('Error getting appointments count', error: e, tag: 'DashboardService');
       return 0;
     }
   }
@@ -208,7 +201,7 @@ class DashboardService {
 
       return count;
     } catch (e) {
-      print('Error getting completed consultations count: $e');
+      AppLogger.error('Error getting completed consultations count', error: e, tag: 'DashboardService');
       return 0;
     }
   }
@@ -238,7 +231,7 @@ class DashboardService {
 
       return uniquePetIds.length;
     } catch (e) {
-      print('Error getting active patients count: $e');
+      AppLogger.error('Error getting active patients count', error: e, tag: 'DashboardService');
       return 0;
     }
   }
@@ -257,7 +250,7 @@ class DashboardService {
     int limit = 10,
   }) async {
     try {
-      print('📊 Fetching recent activities for clinic: $clinicId');
+      AppLogger.dashboard('Fetching recent activities for clinic: $clinicId');
       
       // Fetch appointments and sort in memory to avoid index requirement
       final query = await _firestore
@@ -265,7 +258,7 @@ class DashboardService {
           .where('clinicId', isEqualTo: clinicId)
           .get();
       
-      print('📋 Fetched ${query.docs.length} appointments');
+      AppLogger.firebase('Fetched ${query.docs.length} appointments');
       
       // Sort by updatedAt in memory
       final sortedDocs = query.docs.toList()
@@ -291,7 +284,7 @@ class DashboardService {
         if (userId != null && userId.isNotEmpty) userIds.add(userId);
       }
       
-      print('🔍 Need to fetch ${petIds.length} pets and ${userIds.length} users');
+      AppLogger.firebase('Need to fetch ${petIds.length} pets and ${userIds.length} users');
       
       // Batch fetch all pets (Firestore 'in' query supports up to 10 items)
       final petsMap = <String, String>{};
@@ -319,7 +312,7 @@ class DashboardService {
         }
       }
       
-      print('✅ Fetched ${petsMap.length} pets');
+      AppLogger.firebase('Fetched ${petsMap.length} pets');
       
       // Batch fetch all users
       final usersMap = <String, String>{};
@@ -351,7 +344,7 @@ class DashboardService {
         }
       }
       
-      print('✅ Fetched ${usersMap.length} users');
+      AppLogger.firebase('Fetched ${usersMap.length} users');
       
       // Build activities using the cached maps
       final activities = <RecentActivity>[];
@@ -373,11 +366,11 @@ class DashboardService {
         ));
       }
       
-      print('✅ Built ${activities.length} activities');
+      AppLogger.dashboard('Built ${activities.length} activities');
 
       return activities;
     } catch (e) {
-      print('Error getting recent activities: $e');
+      AppLogger.error('Error getting recent activities', error: e, tag: 'DashboardService');
       return [];
     }
   }
@@ -388,7 +381,7 @@ class DashboardService {
     int limit = 5,
   }) async {
     try {
-      print('🔍 Fetching diseases for clinic: $clinicId');
+      AppLogger.dashboard('Fetching diseases for clinic: $clinicId');
       
       // Get all appointments for this clinic that have assessment results
       final appointmentsQuery = await _firestore
@@ -396,7 +389,7 @@ class DashboardService {
           .where('clinicId', isEqualTo: clinicId)
           .get();
 
-      print('📋 Found ${appointmentsQuery.docs.length} total appointments');
+      AppLogger.firebase('Found ${appointmentsQuery.docs.length} total appointments');
 
       // Collect all unique assessment result IDs
       final assessmentResultIds = <String>{};
@@ -405,25 +398,19 @@ class DashboardService {
       for (final appointmentDoc in appointmentsQuery.docs) {
         final appointmentData = appointmentDoc.data();
         
-        // Debug: Print all keys in the appointment document
-        print('   📋 Appointment ${appointmentDoc.id} keys: ${appointmentData.keys.toList()}');
-        
+        // Remove verbose logging - just count silently
         final assessmentResultId = appointmentData['assessmentResultId'] as String?;
         
         if (assessmentResultId != null && assessmentResultId.isNotEmpty) {
           appointmentsWithAssessment++;
           assessmentResultIds.add(assessmentResultId);
-          print('   📝 Found assessmentResultId: $assessmentResultId');
-        } else {
-          print('   ⚠️  Appointment ${appointmentDoc.id} has NO assessmentResultId');
         }
       }
       
-      print('🔍 Found ${appointmentsWithAssessment}/${appointmentsQuery.docs.length} appointments with assessmentResultId');
-      print('🔍 Need to fetch ${assessmentResultIds.length} unique assessment results');
+      AppLogger.firebase('Found ${appointmentsWithAssessment}/${appointmentsQuery.docs.length} appointments with assessmentResultId');
       
       if (assessmentResultIds.isEmpty) {
-        print('⚠️  No appointments have assessmentResultId field - returning empty disease list');
+        AppLogger.dashboard('No appointments have assessmentResultId field - returning empty disease list');
         return [];
       }
 
@@ -435,25 +422,22 @@ class DashboardService {
         final batch = assessmentIdsList.skip(i).take(10).toList();
         if (batch.isEmpty) break;
         
-        print('   🔎 Querying assessment_results with IDs: $batch');
+        AppLogger.firebase('Querying ${batch.length} assessment results');
         
         final assessmentsQuery = await _firestore
             .collection('assessment_results')
             .where(FieldPath.documentId, whereIn: batch)
             .get();
         
-        print('   📦 Query returned ${assessmentsQuery.docs.length} documents');
-        
         for (final assessmentDoc in assessmentsQuery.docs) {
           if (assessmentDoc.exists) {
             final data = assessmentDoc.data();
             assessmentResultsMap[assessmentDoc.id] = data;
-            print('   ✓ Found document: ${assessmentDoc.id}');
           }
         }
       }
       
-      print('✅ Fetched ${assessmentResultsMap.length} assessment results');
+      AppLogger.firebase('Fetched ${assessmentResultsMap.length} assessment results');
 
       // Count diseases from assessment results
       final diseaseMap = <String, int>{};
@@ -468,15 +452,12 @@ class DashboardService {
         
         if (analysisResults != null && analysisResults.isNotEmpty) {
           assessmentsWithResults++;
-          print('   📄 Assessment has ${analysisResults.length} results');
           
           // Process each analysis result
           for (final result in analysisResults) {
             if (result is Map<String, dynamic>) {
               final condition = result['condition'] as String?;
               final percentage = result['percentage'] as num?;
-              
-              print('      🔬 Condition: $condition, Percentage: $percentage');
               
               // Only count conditions with confidence > 50%
               if (condition != null && 
@@ -485,19 +466,13 @@ class DashboardService {
                   percentage > 50) {
                 diseaseMap[condition] = (diseaseMap[condition] ?? 0) + 1;
                 conditionsFound++;
-                print('      ✅ Added: $condition');
-              } else {
-                print('      ⏭️  Skipped (percentage <= 50 or invalid)');
               }
             }
           }
-        } else {
-          print('   ⚠️  Assessment has no analysisResults array');
         }
       }
 
-      print('📊 Found $conditionsFound conditions from $assessmentsWithResults/${assessmentResultsMap.length} assessments');
-      print('🦠 Disease summary: $diseaseMap');
+      AppLogger.dashboard('Found $conditionsFound conditions from $assessmentsWithResults assessments');
 
       // Sort by count and take top N
       final sortedDiseases = diseaseMap.entries.toList()
@@ -517,10 +492,9 @@ class DashboardService {
         );
       }).toList();
 
-      print('✅ Returning ${result.length} common diseases');
       return result;
     } catch (e) {
-      print('❌ Error getting common diseases: $e');
+      AppLogger.error('Error getting common diseases', error: e, tag: 'DashboardService');
       return [];
     }
   }
@@ -545,7 +519,7 @@ class DashboardService {
 
       return null;
     } catch (e) {
-      print('Error getting current user clinic ID: $e');
+      AppLogger.error('Error getting current user clinic ID', error: e, tag: 'DashboardService');
       return null;
     }
   }

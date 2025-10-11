@@ -9,6 +9,7 @@ import '../../../core/utils/app_colors.dart';
 import '../../../core/services/admin/dashboard_service.dart';
 import '../../../core/services/admin/admin_appointment_notification_integrator.dart';
 import '../../../core/services/admin/admin_message_notification_integrator.dart';
+import '../../../core/utils/app_logger.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key ?? const PageStorageKey('admin_dashboard'));
@@ -37,6 +38,12 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   
   // Notification integrators initialized flag
   bool _notificationIntegratorsInitialized = false;
+  
+  // Debouncing for appointment changes
+  Timer? _refreshDebounceTimer;
+  DateTime? _lastRefreshTime;
+  static const Duration _minRefreshInterval = Duration(seconds: 30); // Minimum 30s between refreshes
+  static const Duration _debounceDelay = Duration(seconds: 2); // 2s debounce delay
 
   @override
   bool get wantKeepAlive => true; // Keep state alive when navigating away
@@ -53,7 +60,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     } else {
       // Data already cached, just restore it
       print('📦 Dashboard data already cached - skipping load');
-      setState(() {
+      _safeSetState(() {
         _currentStats = _statsCache[selectedPeriod.toLowerCase()];
         _recentActivities = _cachedActivities ?? [];
         _diseaseData = _cachedDiseases ?? [];
@@ -68,8 +75,9 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   @override
   void dispose() {
     _saveState();
-    // Cancel listener when widget is disposed
+    // Cancel listener and debounce timer when widget is disposed
     _appointmentsListener?.cancel();
+    _refreshDebounceTimer?.cancel();
     super.dispose();
   }
   
@@ -112,7 +120,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     final storage = PageStorage.of(context);
     final savedPeriod = storage.readState(context, identifier: 'selectedPeriod');
     if (savedPeriod != null && savedPeriod is String) {
-      setState(() {
+      _safeSetState(() {
         selectedPeriod = savedPeriod;
       });
       print('🔄 Restored dashboard state: period="$selectedPeriod"');
@@ -126,12 +134,27 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     print('💾 Saved dashboard state: period="$selectedPeriod"');
   }
 
+  /// Safe setState that prevents lifecycle crashes
+  void _safeSetState(VoidCallback callback) {
+    if (!mounted) {
+      AppLogger.debug('Skipping setState - widget not mounted');
+      return;
+    }
+    
+    try {
+      setState(callback);
+    } catch (e) {
+      AppLogger.error('Error in setState: $e', tag: 'DashboardScreen');
+      // Don't rethrow - just log and continue
+    }
+  }
+
   /// Load dashboard data from Firebase (header already visible)
   Future<void> _loadDashboardData() async {
     if (!mounted) return;
     
     // Don't show full loading state - header is already visible
-    setState(() {
+    _safeSetState(() {
       _isLoadingStats = true; // Only show loading for stats section
     });
 
@@ -140,17 +163,15 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
       final clinicId = await DashboardService.getCurrentUserClinicId();
       
       if (clinicId == null) {
-        print('❌ Error: No clinic ID found for current user');
-        if (mounted) {
-          setState(() {
-            _isLoadingStats = false;
-          });
-        }
+        AppLogger.error('No clinic ID found for current user', tag: 'DashboardScreen');
+        _safeSetState(() {
+          _isLoadingStats = false;
+        });
         return;
       }
 
       _clinicId = clinicId;
-      print('✅ Clinic ID obtained: $_clinicId');
+      AppLogger.info('Clinic ID obtained: $_clinicId');
 
       // Initialize notification integrators for real-time notifications
       _initializeNotificationIntegrators();
@@ -163,48 +184,93 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
       });
 
       // Fetch all dashboard data in parallel
-      print('📥 Loading dashboard data...');
+      AppLogger.info('Loading dashboard data...');
       await Future.wait([
         _loadStats(),
         _loadRecentActivities(),
         _loadDiseaseData(),
       ]);
       
-      print('✅ Dashboard data loaded successfully');
+      AppLogger.success('Dashboard data loaded successfully');
     } catch (e) {
-      print('❌ Error loading dashboard data: $e');
+      AppLogger.error('Error loading dashboard data', error: e, tag: 'DashboardScreen');
     }
   }
   
-  /// Set up Firebase listener for appointments changes
+  /// Set up Firebase listener for appointments changes with debouncing
   void _setupAppointmentsListener() {
     if (_clinicId == null) return;
     
     // Don't set up multiple listeners
     if (_appointmentsListener != null) {
-      print('Firebase listener already active');
+      AppLogger.info('Firebase listener already active');
       return;
     }
     
-    print('Setting up Firebase listener for clinic: $_clinicId');
+    AppLogger.info('Setting up Firebase listener for clinic: $_clinicId');
     
-    // Listen to appointments collection for changes
+    // Listen to appointments collection for changes with debouncing
     _appointmentsListener = FirebaseFirestore.instance
         .collection('appointments')
         .where('clinicId', isEqualTo: _clinicId)
         .snapshots()
         .listen((snapshot) {
-      // When appointments change, clear cache and reload data
-      print('Appointments changed - ${snapshot.docChanges.length} changes detected');
+      // Only process significant changes (not just read operations)
+      final hasSignificantChanges = snapshot.docChanges.any((change) => 
+        change.type == DocumentChangeType.added || 
+        change.type == DocumentChangeType.modified ||
+        change.type == DocumentChangeType.removed
+      );
       
-      // Clear all cached data (stats, activities, diseases)
-      _statsCache.clear();
-      _cachedActivities = null;
-      _cachedDiseases = null;
+      if (!hasSignificantChanges) {
+        AppLogger.debug('Ignoring snapshot with no significant changes');
+        return;
+      }
       
-      // Reload current view data without showing loading state
-      _refreshDataSilently();
+      AppLogger.info('${snapshot.docChanges.length} appointment changes detected');
+      
+      // Implement rate limiting - don't refresh more than once every 30 seconds
+      final now = DateTime.now();
+      if (_lastRefreshTime != null && 
+          now.difference(_lastRefreshTime!) < _minRefreshInterval) {
+        AppLogger.debug('Refresh rate limited - ignoring change');
+        return;
+      }
+      
+      // Cancel previous debounce timer
+      _refreshDebounceTimer?.cancel();
+      
+      // Set up debounced refresh
+      _refreshDebounceTimer = Timer(_debounceDelay, () {
+        if (mounted) {
+          _lastRefreshTime = DateTime.now();
+          
+          // Clear only stats cache, keep activities and diseases longer
+          _statsCache.clear();
+          
+          // Only refresh data if user is likely still viewing
+          _debouncedDataRefresh();
+        }
+      });
     });
+  }
+  
+  /// Debounced data refresh that's less aggressive
+  void _debouncedDataRefresh() {
+    // Only refresh if widget is still mounted
+    if (!mounted) {
+      AppLogger.debug('Widget disposed, skipping refresh');
+      return;
+    }
+    
+    // Only refresh stats which change most frequently
+    _loadStats();
+    
+    // Refresh activities less frequently (every other refresh)
+    if (_recentActivities.isEmpty || DateTime.now().millisecondsSinceEpoch % 2 == 0) {
+      _cachedActivities = null;
+      _loadRecentActivities();
+    }
   }
   
   /// Set up listener only if clinic ID is available and listener doesn't exist
@@ -218,71 +284,31 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     _setupAppointmentsListener();
   }
   
-  /// Refresh data without showing loading indicators
-  Future<void> _refreshDataSilently() async {
-    if (_clinicId == null || !mounted) return;
-    
-    try {
-      // Reload stats for current period
-      final stats = await DashboardService.getClinicDashboardStats(
-        _clinicId!,
-        period: selectedPeriod.toLowerCase(),
-      );
-      
-      // Update cache
-      _statsCache[selectedPeriod.toLowerCase()] = stats;
-      
-      // Reload activities and diseases
-      final activities = await DashboardService.getRecentActivities(
-        _clinicId!,
-        limit: 10,
-      );
-      
-      final diseases = await DashboardService.getCommonDiseases(
-        _clinicId!,
-        limit: 5,
-      );
-      
-      // Update caches
-      _cachedActivities = activities;
-      _cachedDiseases = diseases;
-      
-      // Only update UI if widget is still mounted
-      if (mounted) {
-        setState(() {
-          _currentStats = stats;
-          _recentActivities = activities;
-          _diseaseData = diseases;
-        });
-        print('Dashboard data refreshed silently');
-      }
-    } catch (e) {
-      print('Error refreshing data: $e');
-    }
-  }
+
 
   /// Load statistics based on selected period (with caching)
   Future<void> _loadStats() async {
-    if (_clinicId == null || !mounted) return;
+    // Critical widget lifecycle protection
+    if (_clinicId == null || !mounted) {
+      AppLogger.debug('Skipping _loadStats - widget disposed or invalid state');
+      return;
+    }
 
     final periodKey = selectedPeriod.toLowerCase();
     
     // Check cache first
     if (_statsCache.containsKey(periodKey)) {
-      print('Using cached stats for $periodKey');
-      if (mounted) {
-        setState(() {
-          _currentStats = _statsCache[periodKey];
-        });
-      }
+      AppLogger.debug('Using cached stats for $periodKey');
+      _safeSetState(() {
+        _currentStats = _statsCache[periodKey];
+      });
       return;
     }
 
-    if (mounted) {
-      setState(() {
-        _isLoadingStats = true;
-      });
-    }
+    // Only show loading if widget is still active
+    _safeSetState(() {
+      _isLoadingStats = true;
+    });
 
     try {
       final stats = await DashboardService.getClinicDashboardStats(
@@ -290,24 +316,27 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
         period: periodKey,
       );
 
+      // Check again after async operation - critical!
+      if (!mounted) {
+        AppLogger.debug('Widget disposed during stats loading - skipping setState');
+        return;
+      }
+
       // Store in cache
       _statsCache[periodKey] = stats;
       
-      if (mounted) {
-        setState(() {
-          _currentStats = stats;
-          _isLoadingStats = false;
-        });
-      }
+      // Final check before setState
+      _safeSetState(() {
+        _currentStats = stats;
+        _isLoadingStats = false;
+      });
       
-      print('Stats loaded and cached for $periodKey');
+      AppLogger.dashboard('Stats loaded and cached for $periodKey');
     } catch (e) {
-      print('Error loading stats: $e');
-      if (mounted) {
-        setState(() {
-          _isLoadingStats = false;
-        });
-      }
+      AppLogger.error('Error loading stats', error: e, tag: 'DashboardScreen');
+      _safeSetState(() {
+        _isLoadingStats = false;
+      });
     }
   }
 
@@ -318,11 +347,9 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     // Check cache first
     if (_cachedActivities != null) {
       print('Using cached activities');
-      if (mounted) {
-        setState(() {
-          _recentActivities = _cachedActivities!;
-        });
-      }
+      _safeSetState(() {
+        _recentActivities = _cachedActivities!;
+      });
       return;
     }
 
@@ -334,11 +361,9 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
 
       _cachedActivities = activities;
       
-      if (mounted) {
-        setState(() {
-          _recentActivities = activities;
-        });
-      }
+      _safeSetState(() {
+        _recentActivities = activities;
+      });
       
       print('Activities loaded and cached');
     } catch (e) {
@@ -353,11 +378,9 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     // Check cache first
     if (_cachedDiseases != null) {
       print('Using cached diseases');
-      if (mounted) {
-        setState(() {
-          _diseaseData = _cachedDiseases!;
-        });
-      }
+      _safeSetState(() {
+        _diseaseData = _cachedDiseases!;
+      });
       return;
     }
 
@@ -369,11 +392,9 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
 
       _cachedDiseases = diseases;
       
-      if (mounted) {
-        setState(() {
-          _diseaseData = diseases;
-        });
-      }
+      _safeSetState(() {
+        _diseaseData = diseases;
+      });
       
       print('Diseases loaded and cached');
     } catch (e) {
@@ -470,7 +491,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
           DashboardHeader(
             selectedPeriod: selectedPeriod,
             onPeriodChanged: (period) {
-              setState(() {
+              _safeSetState(() {
                 selectedPeriod = period;
               });
               _loadStats(); // Reload stats when period changes

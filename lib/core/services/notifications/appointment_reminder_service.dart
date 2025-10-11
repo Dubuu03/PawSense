@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pawsense/core/models/notifications/notification_model.dart';
+import 'package:pawsense/core/utils/app_logger.dart';
 
 /// Service for scheduling and managing appointment reminder notifications
 class AppointmentReminderService {
@@ -12,15 +13,15 @@ class AppointmentReminderService {
   /// This runs periodically to check for upcoming appointments and send reminders
   static void startReminderService() {
     if (_isRunning) {
-      print('⏰ Appointment reminder service already running');
+      AppLogger.info('Appointment reminder service already running');
       return;
     }
 
     _isRunning = true;
-    print('🚀 Starting appointment reminder service...');
+    AppLogger.info('Starting appointment reminder service...');
 
-    // Check for reminders every hour
-    _reminderTimer = Timer.periodic(const Duration(hours: 1), (timer) {
+    // OPTIMIZED: Check for reminders every 6 hours instead of every hour to reduce database usage
+    _reminderTimer = Timer.periodic(const Duration(hours: 6), (timer) {
       _checkAndSendReminders();
     });
 
@@ -33,13 +34,13 @@ class AppointmentReminderService {
     _reminderTimer?.cancel();
     _reminderTimer = null;
     _isRunning = false;
-    print('⏸️ Appointment reminder service stopped');
+    AppLogger.info('Appointment reminder service stopped');
   }
 
   /// Check for upcoming appointments and send reminders
   static Future<void> _checkAndSendReminders() async {
     try {
-      print('🔍 Checking for upcoming appointments...');
+      AppLogger.appointment('Checking for upcoming appointments...');
       final now = DateTime.now();
       final startOfDay = DateTime(now.year, now.month, now.day);
       final endOfWeek = startOfDay.add(const Duration(days: 7));
@@ -52,19 +53,21 @@ class AppointmentReminderService {
           .where('appointmentDate', isLessThanOrEqualTo: Timestamp.fromDate(endOfWeek))
           .get();
 
-      print('📅 Found ${appointmentsSnapshot.docs.length} confirmed appointments in next 7 days');
+      AppLogger.appointment('Found ${appointmentsSnapshot.docs.length} confirmed appointments in next 7 days');
 
+      int processedCount = 0;
       for (final doc in appointmentsSnapshot.docs) {
         try {
           await _processAppointmentReminder(doc);
+          processedCount++;
         } catch (e) {
-          print('❌ Error processing appointment ${doc.id}: $e');
+          AppLogger.error('Error processing appointment ${doc.id}', error: e, tag: 'AppointmentReminderService');
         }
       }
 
-      print('✅ Appointment reminder check completed');
+      AppLogger.success('Appointment reminder check completed - processed $processedCount appointments');
     } catch (e) {
-      print('❌ Error checking appointment reminders: $e');
+      AppLogger.error('Error checking appointment reminders', error: e, tag: 'AppointmentReminderService');
     }
   }
 
@@ -97,7 +100,7 @@ class AppointmentReminderService {
             petName = petData?['name'] ?? petData?['petName'] ?? 'Your pet';
           }
         } catch (e) {
-          print('Error fetching pet name: $e');
+          AppLogger.warning('Error fetching pet name, using fallback', tag: 'AppointmentReminderService');
           // Fall back to appointment data if available
           petName = data['petName'] ?? 'Your pet';
         }
@@ -115,7 +118,7 @@ class AppointmentReminderService {
             clinicName = clinicData?['clinicName'] ?? clinicData?['name'] ?? 'the clinic';
           }
         } catch (e) {
-          print('Error fetching clinic name: $e');
+          AppLogger.warning('Error fetching clinic name, using fallback', tag: 'AppointmentReminderService');
           // Fall back to appointment data if available
           clinicName = data['clinicName'] ?? 'the clinic';
         }
@@ -165,9 +168,9 @@ class AppointmentReminderService {
         hoursUntil: hoursUntil,
       );
 
-      print('✅ Sent ${reminderType.name} reminder for appointment $appointmentId');
+      AppLogger.success('Sent ${reminderType.name} reminder for appointment $appointmentId');
     } catch (e) {
-      print('❌ Error processing appointment reminder: $e');
+      AppLogger.error('Error processing appointment reminder', error: e, tag: 'AppointmentReminderService');
     }
   }
 
@@ -245,9 +248,9 @@ class AppointmentReminderService {
   }
 
   /// Manually trigger a reminder check (for testing)
-  static Future<void> checkNow() async {
-    print('🔄 Manual reminder check triggered');
-    await _checkAndSendReminders();
+  static void checkRemindersManually() {
+    AppLogger.info('Manual reminder check triggered');
+    _checkAndSendReminders();
   }
 
   /// Check if service is running

@@ -27,8 +27,10 @@ class AdminNotificationDropdown extends StatefulWidget {
 
 class _AdminNotificationDropdownState extends State<AdminNotificationDropdown> {
   final ScrollController _scrollController = ScrollController();
+  final AdminNotificationService _notificationService = AdminNotificationService();
   int _displayCount = 20; // Initial load
   Timer? _timeUpdateTimer;
+  String _selectedFilter = 'all'; // 'all', 'unread', 'read'
 
   @override
   void initState() {
@@ -51,10 +53,23 @@ class _AdminNotificationDropdownState extends State<AdminNotificationDropdown> {
   void _onScroll() {
     // Check if scrolled to bottom (with 200px threshold)
     if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
-      if (_displayCount < widget.notifications.length) {
+      // Calculate total filtered notifications
+      List<AdminNotificationModel> filteredNotifications;
+      switch (_selectedFilter) {
+        case 'unread':
+          filteredNotifications = widget.notifications.where((n) => !n.isRead).toList();
+          break;
+        case 'read':
+          filteredNotifications = widget.notifications.where((n) => n.isRead).toList();
+          break;
+        default:
+          filteredNotifications = widget.notifications;
+      }
+      
+      if (_displayCount < filteredNotifications.length) {
         setState(() {
           // Load 20 more notifications
-          _displayCount = (_displayCount + 20).clamp(0, widget.notifications.length);
+          _displayCount = (_displayCount + 20).clamp(0, filteredNotifications.length);
         });
       }
     }
@@ -67,8 +82,21 @@ class _AdminNotificationDropdownState extends State<AdminNotificationDropdown> {
       print('   First notification: "${widget.notifications.first.title}" (read: ${widget.notifications.first.isRead})');
     }
     
+    // Filter notifications based on selected filter
+    List<AdminNotificationModel> filteredNotifications;
+    switch (_selectedFilter) {
+      case 'unread':
+        filteredNotifications = widget.notifications.where((n) => !n.isRead).toList();
+        break;
+      case 'read':
+        filteredNotifications = widget.notifications.where((n) => n.isRead).toList();
+        break;
+      default:
+        filteredNotifications = widget.notifications;
+    }
+    
     // Take only the number we want to display (for infinite scroll)
-    final displayNotifications = widget.notifications.take(_displayCount).toList();
+    final displayNotifications = filteredNotifications.take(_displayCount).toList();
     final unreadCount = widget.notifications.where((n) => !n.isRead).length;
     
     print('   Displaying ${displayNotifications.length} notifications, ${unreadCount} unread');
@@ -95,11 +123,14 @@ class _AdminNotificationDropdownState extends State<AdminNotificationDropdown> {
           // Header
           _buildHeader(unreadCount),
           
+          // Filter tabs
+          _buildFilterTabs(),
+          
           // Notifications list
           if (displayNotifications.isEmpty)
             _buildEmptyState()
           else
-            _buildNotificationsList(displayNotifications),
+            _buildNotificationsList(displayNotifications, filteredNotifications.length),
         ],
       ),
     );
@@ -159,6 +190,56 @@ class _AdminNotificationDropdownState extends State<AdminNotificationDropdown> {
     );
   }
 
+  Widget _buildFilterTabs() {
+    return Container(
+      height: 42,
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: AppColors.border)),
+      ),
+      child: Row(
+        children: [
+          _buildFilterTab('All', 'all'),
+          _buildFilterTab('Unread', 'unread'),
+          _buildFilterTab('Read', 'read'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterTab(String label, String value) {
+    final isSelected = _selectedFilter == value;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _selectedFilter = value;
+            _displayCount = 20; // Reset display count when changing filter
+          });
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: isSelected ? AppColors.primary : Colors.transparent,
+                width: 2,
+              ),
+            ),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: kFontSizeSmall,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                color: isSelected ? AppColors.primary : AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildEmptyState() {
     return Container(
       padding: const EdgeInsets.all(32),
@@ -196,13 +277,13 @@ class _AdminNotificationDropdownState extends State<AdminNotificationDropdown> {
     );
   }
 
-  Widget _buildNotificationsList(List<AdminNotificationModel> displayNotifications) {
+  Widget _buildNotificationsList(List<AdminNotificationModel> displayNotifications, int totalFilteredCount) {
     return Flexible(
       child: ListView.separated(
         controller: _scrollController,
         shrinkWrap: true,
         padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: displayNotifications.length + (_displayCount < widget.notifications.length ? 1 : 0),
+        itemCount: displayNotifications.length + (_displayCount < totalFilteredCount ? 1 : 0),
         separatorBuilder: (context, index) => const Divider(
           height: 1,
           color: AppColors.border,
@@ -246,7 +327,14 @@ class _AdminNotificationDropdownState extends State<AdminNotificationDropdown> {
         widget.onNotificationDismiss?.call(notification);
       },
       child: InkWell(
-        onTap: () => widget.onNotificationTap?.call(notification),
+        onTap: () {
+          // Mark as read when tapped
+          if (!notification.isRead) {
+            _notificationService.markAsRead(notification.id);
+          }
+          // Call the tap handler
+          widget.onNotificationTap?.call(notification);
+        },
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -608,7 +696,8 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
   Color _getNotificationColor(AdminNotificationModel notification) {
     switch (notification.type) {
       case AdminNotificationType.appointment:
-        return AppColors.success;
+        // Use different colors based on appointment status
+        return _getAppointmentStatusColor(notification);
       case AdminNotificationType.message:
         return AppColors.info;
       case AdminNotificationType.transaction:
@@ -620,12 +709,37 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
     }
   }
 
+  Color _getAppointmentStatusColor(AdminNotificationModel notification) {
+    // Check metadata for appointment status
+    final status = notification.metadata?['status'] as String?;
+    print('🎨 Getting color for notification: ${notification.title}, status: $status, metadata: ${notification.metadata}');
+    
+    if (status != null) {
+      switch (status.toLowerCase()) {
+        case 'pending':
+          return AppColors.warning; // Orange for pending appointments
+        case 'confirmed':
+          return AppColors.info; // Blue for confirmed appointments  
+        case 'completed':
+          return AppColors.success; // Green for completed appointments
+        case 'cancelled':
+        case 'rejected':
+          return AppColors.error; // Red for cancelled/rejected appointments
+        case 'rescheduled':
+          return AppColors.warning; // Orange for rescheduled appointments
+        default:
+          return AppColors.success; // Default green for appointment notifications
+      }
+    }
+    
+    // Fallback to default appointment color if no status found
+    return AppColors.success;
+  }
+
   IconData _getNotificationIcon(AdminNotificationModel notification) {
     switch (notification.type) {
       case AdminNotificationType.appointment:
-        return notification.priority == AdminNotificationPriority.urgent
-            ? Icons.medical_services
-            : Icons.event_note;
+        return _getAppointmentStatusIcon(notification);
       case AdminNotificationType.message:
         return Icons.message;
       case AdminNotificationType.transaction:
@@ -635,5 +749,37 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
       case AdminNotificationType.system:
         return Icons.info_outline;
     }
+  }
+
+  IconData _getAppointmentStatusIcon(AdminNotificationModel notification) {
+    // Check for urgent priority first
+    if (notification.priority == AdminNotificationPriority.urgent) {
+      return Icons.medical_services;
+    }
+    
+    // Check metadata for appointment status
+    final status = notification.metadata?['status'] as String?;
+    print('🎯 Getting icon for notification: ${notification.title}, status: $status');
+    
+    if (status != null) {
+      switch (status.toLowerCase()) {
+        case 'pending':
+          return Icons.schedule; // Clock icon for pending appointments
+        case 'confirmed':
+          return Icons.event_available; // Calendar check icon for confirmed
+        case 'completed':
+          return Icons.task_alt; // Checkmark icon for completed
+        case 'cancelled':
+        case 'rejected':
+          return Icons.event_busy; // X calendar icon for cancelled/rejected
+        case 'rescheduled':
+          return Icons.update; // Update icon for rescheduled
+        default:
+          return Icons.event_note; // Default calendar note icon
+      }
+    }
+    
+    // Fallback to default appointment icon
+    return Icons.event_note;
   }
 }
