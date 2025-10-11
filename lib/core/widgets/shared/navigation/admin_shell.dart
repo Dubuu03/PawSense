@@ -214,7 +214,8 @@ class _AdminShellState extends State<AdminShell> {
                           : 'Veterinary Clinic Dashboard',
                   userInitials: _userInitials,
                   userName: _userName,
-                  userRole: RoleManager.getRoleDisplayName(_userRole),
+                  userRole: _userRole, // Use actual role, not display name
+                  userRoleDisplay: RoleManager.getRoleDisplayName(_userRole), // Add display name separately
                   onSignOut: _handleSignOut,
                 ),
                 Expanded(

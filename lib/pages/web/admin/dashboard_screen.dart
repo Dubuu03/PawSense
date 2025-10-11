@@ -7,6 +7,8 @@ import '../../../core/widgets/admin/dashboard/dashboard_header.dart';
 import '../../../core/widgets/admin/dashboard/common_diseases_chart.dart';
 import '../../../core/utils/app_colors.dart';
 import '../../../core/services/admin/dashboard_service.dart';
+import '../../../core/services/admin/admin_appointment_notification_integrator.dart';
+import '../../../core/services/admin/admin_message_notification_integrator.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key ?? const PageStorageKey('admin_dashboard'));
@@ -32,6 +34,9 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   
   // Firebase listener subscription
   StreamSubscription? _appointmentsListener;
+  
+  // Notification integrators initialized flag
+  bool _notificationIntegratorsInitialized = false;
 
   @override
   bool get wantKeepAlive => true; // Keep state alive when navigating away
@@ -53,8 +58,10 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
         _recentActivities = _cachedActivities ?? [];
         _diseaseData = _cachedDiseases ?? [];
       });
-      // Still set up listener for updates
+      // Still set up listener for updates and initialize notifications
       _setupAppointmentsListenerIfNeeded();
+      // Initialize notifications after getting clinic ID
+      _ensureNotificationIntegratorsInitialized();
     }
   }
   
@@ -64,6 +71,40 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     // Cancel listener when widget is disposed
     _appointmentsListener?.cancel();
     super.dispose();
+  }
+  
+  /// Initialize notification integrators for real-time notifications
+  void _initializeNotificationIntegrators() {
+    if (_clinicId == null || _notificationIntegratorsInitialized) return;
+    
+    print('🔔 Initializing notification integrators for clinic: $_clinicId');
+    
+    // Initialize notification service first with a small delay to ensure it's ready
+    Future.delayed(const Duration(milliseconds: 500), () {
+      // Initialize appointment notification integrator (static method)
+      AdminAppointmentNotificationIntegrator.initializeAppointmentListeners();
+      
+      // Initialize message notification integrator (static method)
+      AdminMessageNotificationIntegrator.initializeMessageListeners();
+      
+      print('✅ Notification integrators initialized successfully');
+    });
+    
+    _notificationIntegratorsInitialized = true;
+  }
+  
+  /// Ensure notification integrators are initialized (get clinic ID if needed)
+  Future<void> _ensureNotificationIntegratorsInitialized() async {
+    if (_notificationIntegratorsInitialized) return;
+    
+    if (_clinicId == null) {
+      final clinicId = await DashboardService.getCurrentUserClinicId();
+      if (clinicId != null) {
+        _clinicId = clinicId;
+      }
+    }
+    
+    _initializeNotificationIntegrators();
   }
   
   /// Restore state from PageStorage
@@ -110,6 +151,9 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
 
       _clinicId = clinicId;
       print('✅ Clinic ID obtained: $_clinicId');
+
+      // Initialize notification integrators for real-time notifications
+      _initializeNotificationIntegrators();
 
       // Set up real-time listener for appointments (delayed to avoid build conflicts)
       Future.delayed(const Duration(milliseconds: 500), () {

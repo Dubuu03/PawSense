@@ -36,9 +36,10 @@ import 'package:pawsense/pages/web/admin/patient_record_screen.dart';
 import 'package:pawsense/pages/web/admin/clinic_schedule_screen.dart';
 import 'package:pawsense/pages/web/admin/vet_profile_screen.dart';
 import 'package:pawsense/pages/web/admin/messaging_screen.dart';
-import 'package:pawsense/pages/web/admin/notifications_screen.dart';
+
 import 'package:pawsense/pages/web/admin/support_screen.dart';
 import 'package:pawsense/pages/web/admin/settings_screen.dart';
+import 'package:pawsense/core/widgets/admin/notifications/admin_notification_dropdown.dart';
 import 'package:pawsense/pages/web/superadmin/clinic_management_screen.dart';
 import 'package:pawsense/pages/web/superadmin/system_analytics_screen.dart';
 import 'package:pawsense/pages/web/superadmin/user_management_screen.dart';
@@ -305,11 +306,12 @@ class AppRouter {
               );
             },
           ),
+
           GoRoute(
             path: '/admin/notifications',
-            builder: (context, state) => NotificationsScreen(),
+            builder: (context, state) => const AdminNotificationScreen(),
             pageBuilder: (context, state) => NoTransitionPage(
-              child: NotificationsScreen(),
+              child: const AdminNotificationScreen(),
             ),
           ),
           GoRoute(
@@ -356,13 +358,7 @@ class AppRouter {
               child: const UserManagementScreen(),
             ),
           ),
-          GoRoute(
-            path: '/super-admin/notifications',
-            builder: (context, state) => NotificationsScreen(),
-            pageBuilder: (context, state) => NoTransitionPage(
-              child: NotificationsScreen(),
-            ),
-          ),
+
           GoRoute(
             path: '/super-admin/support',
             builder: (context, state) => SupportCenterScreen(),

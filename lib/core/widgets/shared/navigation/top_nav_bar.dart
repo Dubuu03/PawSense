@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../utils/app_colors.dart';
 import '../../../utils/constants.dart';
+import '../../../services/admin/admin_notification_service.dart';
+import '../../../models/admin/admin_notification_model.dart';
+import '../../admin/notifications/admin_notification_dropdown.dart';
 import 'profile_popup_modal.dart';
 
 class TopNavBar extends StatefulWidget {
@@ -8,7 +12,7 @@ class TopNavBar extends StatefulWidget {
   final String userInitials;
   final String userName;
   final String userRole;
-  final bool hasNotifications;
+  final String? userRoleDisplay; // Display name for the role
   final VoidCallback? onProfileTap; // callback when clicking name + avatar
   final VoidCallback? onSignOut; // callback for sign out
 
@@ -18,7 +22,7 @@ class TopNavBar extends StatefulWidget {
     this.userInitials = 'SJ',
     this.userName = 'Dr. Sarah Johnson',
     this.userRole = 'Veterinarian',
-    this.hasNotifications = true,
+    this.userRoleDisplay,
     this.onProfileTap,
     this.onSignOut,
   });
@@ -29,15 +33,33 @@ class TopNavBar extends StatefulWidget {
 
 class _TopNavBarState extends State<TopNavBar> {
   final GlobalKey _profileButtonKey = GlobalKey();
+  final GlobalKey _notificationButtonKey = GlobalKey();
   OverlayEntry? _overlayEntry;
+  OverlayEntry? _notificationOverlay;
   bool _isMenuOpen = false;
+  bool _isNotificationOpen = false;
+  final AdminNotificationService _notificationService = AdminNotificationService();
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize notification service if user is admin or super admin
+    if (widget.userRole.toLowerCase() == 'admin' || 
+        widget.userRole.toLowerCase() == 'super_admin' ||
+        widget.userRole.toLowerCase() == 'super admin') {
+      _notificationService.initialize();
+    }
+  }
 
   @override
   void dispose() {
     // Clean up overlay without setState during disposal
     _overlayEntry?.remove();
+    _notificationOverlay?.remove();
     _overlayEntry = null;
+    _notificationOverlay = null;
     _isMenuOpen = false;
+    _isNotificationOpen = false;
     super.dispose();
   }
 
@@ -122,6 +144,86 @@ class _TopNavBarState extends State<TopNavBar> {
     }
   }
 
+  void _toggleNotificationDropdown() {
+    if (_isNotificationOpen) {
+      _closeNotificationDropdown();
+    } else {
+      _openNotificationDropdown();
+    }
+  }
+
+  void _openNotificationDropdown() {
+    final RenderBox renderBox = _notificationButtonKey.currentContext!.findRenderObject() as RenderBox;
+    final size = renderBox.size;
+    final offset = renderBox.localToGlobal(Offset.zero);
+
+    _notificationOverlay = OverlayEntry(
+      builder: (context) => GestureDetector(
+        onTap: _closeNotificationDropdown,
+        behavior: HitTestBehavior.translucent,
+        child: SizedBox(
+          width: MediaQuery.of(context).size.width,
+          height: MediaQuery.of(context).size.height,
+          child: Stack(
+            children: [
+              Positioned(
+                top: offset.dy + size.height + 8,
+                right: MediaQuery.of(context).size.width - offset.dx - size.width,
+                child: Material(
+                  color: Colors.transparent,
+                  child: StreamBuilder<List<AdminNotificationModel>>(
+                    stream: _notificationService.notificationsStream,
+                    initialData: _notificationService.notifications, // Use current cached notifications
+                    builder: (context, snapshot) {
+                      print('🔄 TopNavBar StreamBuilder: hasData=${snapshot.hasData}, data length=${snapshot.data?.length ?? 0}');
+                      final notifications = snapshot.data ?? [];
+                      print('   Passing ${notifications.length} notifications to dropdown');
+                      return AdminNotificationDropdown(
+                        notifications: notifications,
+                        onMarkAllRead: () {
+                          _notificationService.markAllAsRead();
+                        },
+                        onNotificationTap: (notification) {
+                          _closeNotificationDropdown();
+                          if (!notification.isRead) {
+                            _notificationService.markAsRead(notification.id);
+                          }
+                          if (notification.actionUrl != null) {
+                            context.go(notification.actionUrl!);
+                          }
+                        },
+                        onNotificationDismiss: (notification) {
+                          _notificationService.deleteNotification(notification.id);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    Overlay.of(context).insert(_notificationOverlay!);
+    setState(() {
+      _isNotificationOpen = true;
+    });
+  }
+
+  void _closeNotificationDropdown() {
+    if (_notificationOverlay != null) {
+      _notificationOverlay?.remove();
+      _notificationOverlay = null;
+    }
+    if (mounted && _isNotificationOpen) {
+      setState(() {
+        _isNotificationOpen = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Determine clinic title based on user role
@@ -157,8 +259,11 @@ class _TopNavBarState extends State<TopNavBar> {
           ),
           const Spacer(),
 
-          // Notification button
-          _buildNotificationButton(),
+          // Notification button (only for admin users)
+          if (widget.userRole.toLowerCase() == 'admin' || 
+              widget.userRole.toLowerCase() == 'super_admin' ||
+              widget.userRole.toLowerCase() == 'super admin')
+            _buildNotificationButton(),
           const SizedBox(width: 24),
 
           // User info group (clickable) - using custom overlay approach
@@ -185,7 +290,7 @@ class _TopNavBarState extends State<TopNavBar> {
                         ),
                       ),
                       Text(
-                        widget.userRole,
+                        widget.userRoleDisplay ?? widget.userRole,
                         style: TextStyle(
                           fontSize: kFontSizeSmall,
                           fontWeight: FontWeight.w500,
@@ -213,37 +318,61 @@ class _TopNavBarState extends State<TopNavBar> {
   }
 
   Widget _buildNotificationButton() {
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: AppColors.border,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Stack(
-        children: [
-          Center(
-            child: Icon(
-              Icons.notifications_outlined,
-              color: AppColors.textSecondary,
-              size: 20,
+    return StreamBuilder<List<AdminNotificationModel>>(
+      stream: _notificationService.notificationsStream,
+      builder: (context, snapshot) {
+        final unreadCount = snapshot.data?.where((n) => !n.isRead).length ?? 0;
+        
+        return GestureDetector(
+          key: _notificationButtonKey,
+          onTap: _toggleNotificationDropdown,
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: _isNotificationOpen ? AppColors.primary.withValues(alpha: 0.1) : AppColors.border,
+              borderRadius: BorderRadius.circular(20),
+              border: _isNotificationOpen ? Border.all(color: AppColors.primary) : null,
+            ),
+            child: Stack(
+              children: [
+                Center(
+                  child: Icon(
+                    Icons.notifications_outlined,
+                    color: _isNotificationOpen ? AppColors.primary : AppColors.textSecondary,
+                    size: 20,
+                  ),
+                ),
+                if (unreadCount > 0)
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: AppColors.error,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      child: Text(
+                        unreadCount > 99 ? '99+' : unreadCount.toString(),
+                        style: const TextStyle(
+                          color: AppColors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
-          if (widget.hasNotifications)
-            Positioned(
-              top: 8,
-              right: 8,
-              child: Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: AppColors.error,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-            ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
