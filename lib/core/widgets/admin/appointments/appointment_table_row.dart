@@ -25,6 +25,14 @@ class AppointmentTableRow extends StatelessWidget {
     this.onMarkDone,
   });
 
+  String _formatBookedAtDate(DateTime dateTime) {
+    return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')}';
+  }
+
+  String _formatBookedAtTime(DateTime dateTime) {
+    return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -34,49 +42,42 @@ class AppointmentTableRow extends StatelessWidget {
       ),
       child: Row(
         children: [
+          // Booked At
           Expanded(
-            flex: 1,
-            child: Text(
-              appointment.date,
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
-                color: AppColors.textPrimary,
-                fontSize: kFontSizeSmall,
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 1,
-            child: Row(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: AppColors.textTertiary,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 12),
                 Text(
-                  appointment.time,
+                  _formatBookedAtDate(appointment.createdAt),
                   style: const TextStyle(
                     fontWeight: FontWeight.w500,
                     color: AppColors.textPrimary,
                     fontSize: kFontSizeSmall,
                   ),
                 ),
+                const SizedBox(height: 2),
+                Text(
+                  _formatBookedAtTime(appointment.createdAt),
+                  style: const TextStyle(
+                    fontSize: kFontSizeSmall - 1,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
               ],
             ),
           ),
+          
+          // Pet
           Expanded(
-            flex: 1,
+            flex: 2,
             child: Row(
               children: [
                 // Pet profile picture or emoji fallback
                 Container(
-                  width: 40,
-                  height: 40,
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(color: AppColors.border, width: 1),
@@ -85,14 +86,14 @@ class AppointmentTableRow extends StatelessWidget {
                       ? ClipOval(
                           child: Image.network(
                             appointment.pet.imageUrl!,
-                            width: 40,
-                            height: 40,
+                            width: 32,
+                            height: 32,
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) {
                               return Center(
                                 child: Text(
                                   appointment.pet.emoji,
-                                  style: const TextStyle(fontSize: 20),
+                                  style: const TextStyle(fontSize: 16),
                                 ),
                               );
                             },
@@ -100,8 +101,8 @@ class AppointmentTableRow extends StatelessWidget {
                               if (loadingProgress == null) return child;
                               return const Center(
                                 child: SizedBox(
-                                  width: 20,
-                                  height: 20,
+                                  width: 16,
+                                  height: 16,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
                                     valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
@@ -114,69 +115,122 @@ class AppointmentTableRow extends StatelessWidget {
                       : Center(
                           child: Text(
                             appointment.pet.emoji,
-                            style: const TextStyle(fontSize: 20),
+                            style: const TextStyle(fontSize: 16),
                           ),
                         ),
                 ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      appointment.pet.name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textPrimary,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        appointment.pet.name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.textPrimary,
+                          fontSize: kFontSizeSmall,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                    Text(
-                      appointment.pet.type,
-                      style: const TextStyle(
-                        fontSize: kFontSizeSmall,
-                        color: AppColors.textSecondary,
+                      const SizedBox(height: 2),
+                      Text(
+                        appointment.pet.type,
+                        style: const TextStyle(
+                          fontSize: kFontSizeSmall - 1,
+                          color: AppColors.textSecondary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              appointment.diseaseReason,
-              style: const TextStyle(color: AppColors.textPrimary),
-            ),
-          ),
+          
+          // Owner
           Expanded(
             flex: 2,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   appointment.owner.name,
                   style: const TextStyle(
                     fontWeight: FontWeight.w500,
                     color: AppColors.textPrimary,
+                    fontSize: kFontSizeSmall,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
+                const SizedBox(height: 2),
                 Text(
                   appointment.owner.phone,
                   style: const TextStyle(
+                    fontSize: kFontSizeSmall - 1,
+                    color: AppColors.textSecondary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          
+          // Date & Time
+          Expanded(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  appointment.date,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textPrimary,
                     fontSize: kFontSizeSmall,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  appointment.time,
+                  style: const TextStyle(
+                    fontSize: kFontSizeSmall - 1,
                     color: AppColors.textSecondary,
                   ),
                 ),
               ],
             ),
           ),
+          
+          // Disease/Reason
           Expanded(
-            flex: 1,
+            flex: 2,
+            child: Text(
+              appointment.diseaseReason,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: kFontSizeSmall,
+              ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
+            ),
+          ),
+          
+          // Status
+          Expanded(
+            flex: 2,
             child: StatusBadge(status: appointment.status),
           ),
+          
+          // Actions
           Expanded(
-            flex: 1,
+            flex: 2,
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
                   icon: const Icon(Icons.visibility_outlined, size: 16),
@@ -224,7 +278,6 @@ class AppointmentTableRow extends StatelessWidget {
                     tooltip: 'Edit Appointment',
                   ),
                 ],
-                // No edit button for completed appointments
               ],
             ),
           ),

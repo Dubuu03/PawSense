@@ -14,8 +14,8 @@ class AppointmentTable extends StatelessWidget {
   final Function(Appointment)? onAccept;
   final Function(Appointment)? onReject;
   final Function(Appointment)? onMarkDone;
-  final SortOrder dateSortOrder;
-  final VoidCallback? onDateSortChanged;
+  final SortOrder bookedAtSortOrder;
+  final VoidCallback? onBookedAtSortChanged;
 
   const AppointmentTable({
     super.key,
@@ -26,8 +26,8 @@ class AppointmentTable extends StatelessWidget {
     this.onAccept,
     this.onReject,
     this.onMarkDone,
-    required this.dateSortOrder,
-    this.onDateSortChanged,
+    required this.bookedAtSortOrder,
+    this.onBookedAtSortChanged,
   });
 
   @override
@@ -42,8 +42,8 @@ class AppointmentTable extends StatelessWidget {
       child: Column(
         children: [
           AppointmentTableHeader(
-            dateSortOrder: dateSortOrder,
-            onDateSortChanged: onDateSortChanged,
+            bookedAtSortOrder: bookedAtSortOrder,
+            onBookedAtSortChanged: onBookedAtSortChanged,
           ),
           ...appointments.map((appointment) => AppointmentTableRow(
             appointment: appointment,

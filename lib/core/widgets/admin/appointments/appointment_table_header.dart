@@ -5,13 +5,13 @@ import '../../../utils/constants.dart';
 import '../../../utils/sort_order.dart';
 
 class AppointmentTableHeader extends StatelessWidget {
-  final SortOrder dateSortOrder;
-  final VoidCallback? onDateSortChanged;
+  final SortOrder bookedAtSortOrder;
+  final VoidCallback? onBookedAtSortChanged;
 
   const AppointmentTableHeader({
     super.key,
-    required this.dateSortOrder,
-    this.onDateSortChanged,
+    required this.bookedAtSortOrder,
+    this.onBookedAtSortChanged,
   });
 
   @override
@@ -23,28 +23,29 @@ class AppointmentTableHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
+          // Booked At - Sortable
           Expanded(
-            flex: 1,
+            flex: 2,
             child: GestureDetector(
-              onTap: onDateSortChanged,
+              onTap: onBookedAtSortChanged,
               child: MouseRegion(
-                cursor: onDateSortChanged != null 
+                cursor: onBookedAtSortChanged != null 
                     ? SystemMouseCursors.click 
                     : SystemMouseCursors.basic,
                 child: Row(
                   children: [
                     Text(
-                      'Date',
+                      'Booked At',
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
                         color: AppColors.textPrimary,
                         fontSize: kFontSizeSmall,
                       ),
                     ),
-                    if (onDateSortChanged != null) ...[
+                    if (onBookedAtSortChanged != null) ...[
                       const SizedBox(width: 4),
                       Icon(
-                        dateSortOrder == SortOrder.ascending
+                        bookedAtSortOrder == SortOrder.ascending
                             ? Icons.keyboard_arrow_up
                             : Icons.keyboard_arrow_down,
                         size: 16,
@@ -56,19 +57,10 @@ class AppointmentTableHeader extends StatelessWidget {
               ),
             ),
           ),
+          
+          // Pet
           const Expanded(
-            flex: 1,
-            child: Text(
-              'Time',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-                fontSize: kFontSizeSmall,
-              ),
-            ),
-          ),
-          const Expanded(
-            flex: 1,
+            flex: 2,
             child: Text(
               'Pet',
               style: TextStyle(
@@ -78,18 +70,9 @@ class AppointmentTableHeader extends StatelessWidget {
               ),
             ),
           ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              'Disease/Reason',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-                fontSize: kFontSizeSmall,
-              ),
-            ),
-          ),
-          Expanded(
+          
+          // Owner
+          const Expanded(
             flex: 2,
             child: Text(
               'Owner',
@@ -100,8 +83,36 @@ class AppointmentTableHeader extends StatelessWidget {
               ),
             ),
           ),
-          Expanded(
-            flex: 1,
+          
+          // Date & Time
+          const Expanded(
+            flex: 2,
+            child: Text(
+              'Date & Time',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+                fontSize: kFontSizeSmall,
+              ),
+            ),
+          ),
+          
+          // Disease/Reason
+          const Expanded(
+            flex: 2,
+            child: Text(
+              'Disease/Reason',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+                fontSize: kFontSizeSmall,
+              ),
+            ),
+          ),
+          
+          // Status
+          const Expanded(
+            flex: 2,
             child: Text(
               'Status',
               style: TextStyle(
@@ -111,8 +122,10 @@ class AppointmentTableHeader extends StatelessWidget {
               ),
             ),
           ),
-          Expanded(
-            flex: 1,
+          
+          // Actions
+          const Expanded(
+            flex: 2,
             child: Text(
               'Actions',
               style: TextStyle(

@@ -8,6 +8,9 @@ class Clinic {
   final String email;
   final String? website;
   final String status; // pending, approved, suspended, rejected
+  final String scheduleStatus; // pending, in_progress, completed
+  final bool isVisible; // Only true when schedule is completed
+  final DateTime? scheduleCompletedAt;
   final DateTime createdAt;
 
   Clinic({
@@ -19,6 +22,9 @@ class Clinic {
     required this.email,
     this.website,
     this.status = 'pending',
+    this.scheduleStatus = 'pending',
+    this.isVisible = false,
+    this.scheduleCompletedAt,
     required this.createdAt,
   });
 
@@ -31,6 +37,9 @@ class Clinic {
     'email': email,
     'website': website,
     'status': status,
+    'scheduleStatus': scheduleStatus,
+    'isVisible': isVisible,
+    'scheduleCompletedAt': scheduleCompletedAt?.toIso8601String(),
     'createdAt': createdAt.toIso8601String(),
   };
 
@@ -44,6 +53,11 @@ class Clinic {
       email: map['email'] ?? '',
       website: map['website'],
       status: map['status'] ?? 'pending',
+      scheduleStatus: map['scheduleStatus'] ?? 'pending',
+      isVisible: map['isVisible'] ?? false,
+      scheduleCompletedAt: map['scheduleCompletedAt'] != null 
+          ? DateTime.parse(map['scheduleCompletedAt'])
+          : null,
       createdAt: DateTime.parse(map['createdAt']),
     );
   }
@@ -57,6 +71,9 @@ class Clinic {
     String? email,
     String? website,
     String? status,
+    String? scheduleStatus,
+    bool? isVisible,
+    DateTime? scheduleCompletedAt,
     DateTime? createdAt,
   }) {
     return Clinic(
@@ -68,13 +85,16 @@ class Clinic {
       email: email ?? this.email,
       website: website ?? this.website,
       status: status ?? this.status,
+      scheduleStatus: scheduleStatus ?? this.scheduleStatus,
+      isVisible: isVisible ?? this.isVisible,
+      scheduleCompletedAt: scheduleCompletedAt ?? this.scheduleCompletedAt,
       createdAt: createdAt ?? this.createdAt,
     );
   }
 
   @override
   String toString() {
-    return 'Clinic(id: $id, userId: $userId, clinicName: $clinicName, address: $address, phone: $phone, email: $email, website: $website, status: $status, createdAt: $createdAt)';
+    return 'Clinic(id: $id, userId: $userId, clinicName: $clinicName, address: $address, phone: $phone, email: $email, website: $website, status: $status, scheduleStatus: $scheduleStatus, isVisible: $isVisible, scheduleCompletedAt: $scheduleCompletedAt, createdAt: $createdAt)';
   }
 
   @override
@@ -89,6 +109,9 @@ class Clinic {
         other.email == email &&
         other.website == website &&
         other.status == status &&
+        other.scheduleStatus == scheduleStatus &&
+        other.isVisible == isVisible &&
+        other.scheduleCompletedAt == scheduleCompletedAt &&
         other.createdAt == createdAt;
   }
 
@@ -102,6 +125,13 @@ class Clinic {
         email.hashCode ^
         website.hashCode ^
         status.hashCode ^
+        scheduleStatus.hashCode ^
+        isVisible.hashCode ^
+        scheduleCompletedAt.hashCode ^
         createdAt.hashCode;
   }
+
+  // Helper methods for schedule status
+  bool get needsScheduleSetup => status == 'approved' && scheduleStatus != 'completed';
+  bool get canAcceptAppointments => status == 'approved' && scheduleStatus == 'completed' && isVisible;
 }

@@ -6,12 +6,14 @@ class SummaryCard extends StatelessWidget {
   final int count;
   final String label;
   final Color color;
+  final bool isLoading;
 
   const SummaryCard({
     super.key,
     required this.count,
     required this.label,
     required this.color,
+    this.isLoading = false,
   });
 
   @override
@@ -33,14 +35,23 @@ class SummaryCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              count.toString(),
-              style: TextStyle(
-                fontSize: kFontSizeRegular +2,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
+            isLoading 
+                ? SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      color: color,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : Text(
+                    count.toString(),
+                    style: TextStyle(
+                      fontSize: kFontSizeRegular + 2,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                  ),
             const SizedBox(height: 4),
             Text(
               label,

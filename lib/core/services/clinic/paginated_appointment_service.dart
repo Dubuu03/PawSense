@@ -113,6 +113,36 @@ class PaginatedAppointmentService {
     }
   }
 
+  /// Get appointment counts by status for a clinic (for status badges/summary)
+  static Future<AppointmentStatusCounts> getAppointmentStatusCounts({
+    required String clinicId,
+  }) async {
+    try {
+      // Fetch all counts in parallel for better performance
+      final futures = await Future.wait([
+        getAppointmentCount(clinicId: clinicId, status: AppointmentStatus.pending),
+        getAppointmentCount(clinicId: clinicId, status: AppointmentStatus.confirmed),
+        getAppointmentCount(clinicId: clinicId, status: AppointmentStatus.completed),
+        getAppointmentCount(clinicId: clinicId, status: AppointmentStatus.cancelled),
+      ]);
+
+      return AppointmentStatusCounts(
+        pendingCount: futures[0],
+        confirmedCount: futures[1],
+        completedCount: futures[2],
+        cancelledCount: futures[3],
+      );
+    } catch (e) {
+      print('❌ Error getting appointment status counts: $e');
+      return AppointmentStatusCounts(
+        pendingCount: 0,
+        confirmedCount: 0,
+        completedCount: 0,
+        cancelledCount: 0,
+      );
+    }
+  }
+
   /// Convert AppointmentBooking to Appointment for display
   static Future<AppointmentModels.Appointment?> _convertBookingToAppointment(
       AppointmentBooking booking) async {
@@ -306,4 +336,27 @@ class PaginatedAppointmentResult {
     required this.lastDocument,
     required this.hasMore,
   });
+}
+
+/// Result class for appointment status counts
+class AppointmentStatusCounts {
+  final int pendingCount;
+  final int confirmedCount;
+  final int completedCount;
+  final int cancelledCount;
+
+  AppointmentStatusCounts({
+    required this.pendingCount,
+    required this.confirmedCount,
+    required this.completedCount,
+    required this.cancelledCount,
+  });
+
+  /// Get total count of all appointments
+  int get totalCount => pendingCount + confirmedCount + completedCount + cancelledCount;
+
+  @override
+  String toString() {
+    return 'AppointmentStatusCounts(pending: $pendingCount, confirmed: $confirmedCount, completed: $completedCount, cancelled: $cancelledCount, total: $totalCount)';
+  }
 }
