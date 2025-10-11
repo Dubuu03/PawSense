@@ -358,20 +358,6 @@ class AppRouter {
             ),
           ),
           GoRoute(
-            path: '/super-admin/notifications',
-            builder: (context, state) => NotificationsScreen(),
-            pageBuilder: (context, state) => NoTransitionPage(
-              child: NotificationsScreen(),
-            ),
-          ),
-          GoRoute(
-            path: '/super-admin/support',
-            builder: (context, state) => SupportCenterScreen(),
-            pageBuilder: (context, state) => NoTransitionPage(
-              child: SupportCenterScreen(),
-            ),
-          ),
-          GoRoute(
             path: '/super-admin/system-settings',
             builder: (context, state) => const SystemSettingsScreen(),
             pageBuilder: (context, state) => NoTransitionPage(
