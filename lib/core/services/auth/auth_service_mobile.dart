@@ -28,7 +28,6 @@ class AuthService {
     required String firstName,
     required String lastName,
     required String contactNumber,
-    DateTime? dateOfBirth,
     required bool agreedToTerms,
     required String address,
   }) async {

@@ -209,9 +209,6 @@ class SuperAdminService {
       if (user.address != null) {
         updateData['address'] = user.address;
       }
-      if (user.dateOfBirth != null) {
-        updateData['dateOfBirth'] = Timestamp.fromDate(user.dateOfBirth!);
-      }
       if (user.profileImageUrl != null) {
         updateData['profileImageUrl'] = user.profileImageUrl;
       }

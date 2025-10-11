@@ -76,7 +76,6 @@ class AppRouter {
             email: extra['email'] as String,
             uid: extra['uid'] as String,
             contactNumber: extra['contactNumber'] as String,
-            dateOfBirth: extra['dateOfBirth'] as DateTime?,
             agreedToTerms: extra['agreedToTerms'] as bool,
             address: extra['address'] as String,
           );

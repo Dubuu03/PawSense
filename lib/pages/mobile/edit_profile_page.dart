@@ -38,7 +38,6 @@ class _EditProfilePageState extends State<EditProfilePage>
   bool _isLoading = false;
   bool _isUploadingImage = false;
   bool _isLoadingData = true;
-  DateTime? _selectedDateOfBirth;
   String? _profileImageUrl;
   UserModel? _currentUser; // Store the current user data
   late AnimationController _fadeController;
@@ -129,7 +128,6 @@ class _EditProfilePageState extends State<EditProfilePage>
       _usernameController.text = _currentUser!.username;
       _contactNumberController.text = _currentUser!.contactNumber ?? '';
       _addressController.text = _currentUser!.address ?? '';
-      _selectedDateOfBirth = _currentUser!.dateOfBirth;
       _profileImageUrl = _currentUser!.profileImageUrl;
     }
   }
@@ -182,33 +180,7 @@ class _EditProfilePageState extends State<EditProfilePage>
     }
   }
 
-  Future<void> _selectDate() async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDateOfBirth ?? DateTime.now().subtract(const Duration(days: 365 * 18)),
-      firstDate: DateTime(1900),
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
-              primary: AppColors.primary,
-              onPrimary: Colors.white,
-              surface: Colors.white,
-              onSurface: AppColors.textPrimary,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
 
-    if (picked != null && picked != _selectedDateOfBirth) {
-      setState(() {
-        _selectedDateOfBirth = picked;
-      });
-    }
-  }
 
   Future<void> _saveProfile() async {
     // Clear previous errors
@@ -232,7 +204,6 @@ class _EditProfilePageState extends State<EditProfilePage>
         username: _usernameController.text.trim(),
         contactNumber: _contactNumberController.text.trim(),
         address: _addressController.text.trim(),
-        dateOfBirth: _selectedDateOfBirth,
         profileImageUrl: _profileImageUrl,
         updatedAt: DateTime.now(),
       );
@@ -440,11 +411,6 @@ class _EditProfilePageState extends State<EditProfilePage>
                       },
                       errorKey: 'address',
                     ),
-                    
-                    const SizedBox(height: 16),
-                    
-                    // Date of Birth Field
-                    _buildDateField(),
                     
                     const SizedBox(height: 40),
                     
@@ -687,62 +653,5 @@ class _EditProfilePageState extends State<EditProfilePage>
     );
   }
 
-  Widget _buildDateField() {
-    return Container(
-      height: 56,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 6,
-            offset: Offset(0, 2),
-            spreadRadius: 1,
-          ),
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 12,
-            offset: Offset(0, 4),
-            spreadRadius: 0,
-          ),
-        ],
-      ),
-      child: GestureDetector(
-        onTap: _selectDate,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            border: Border.all(
-              color: AppColors.border,
-              width: 0.5,
-            ),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.calendar_today_outlined, color: AppColors.primary, size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  _selectedDateOfBirth != null
-                      ? '${_selectedDateOfBirth!.day}/${_selectedDateOfBirth!.month}/${_selectedDateOfBirth!.year}'
-                      : 'Date of Birth',
-                  style: kTextStyleSmall.copyWith(
-                    color: _selectedDateOfBirth != null
-                        ? AppColors.textPrimary
-                        : AppColors.textPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              Icon(Icons.arrow_drop_down, color: AppColors.textSecondary),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+
 }

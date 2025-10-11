@@ -37,7 +37,6 @@ class _UserDetailsModalState extends State<UserDetailsModal>
   late TextEditingController _suspensionReasonController;
   
   late String _selectedRole;
-  DateTime? _dateOfBirth;
   bool _isActive = true;
 
   @override
@@ -57,7 +56,6 @@ class _UserDetailsModalState extends State<UserDetailsModal>
     _suspensionReasonController = TextEditingController(text: widget.user.suspensionReason ?? '');
     
     _selectedRole = widget.user.role;
-    _dateOfBirth = widget.user.dateOfBirth;
     _isActive = widget.user.isActive;
   }
 
@@ -74,30 +72,7 @@ class _UserDetailsModalState extends State<UserDetailsModal>
     super.dispose();
   }
 
-  Future<void> _selectDateOfBirth() async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: _dateOfBirth ?? DateTime.now().subtract(const Duration(days: 6570)),
-      firstDate: DateTime(1900),
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: Theme.of(context).colorScheme.copyWith(
-              primary: AppColors.primary,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
 
-    if (picked != null && picked != _dateOfBirth) {
-      setState(() {
-        _dateOfBirth = picked;
-      });
-    }
-  }
 
   void _toggleEditMode() {
     setState(() {
@@ -136,7 +111,6 @@ class _UserDetailsModalState extends State<UserDetailsModal>
         address: _addressController.text.trim().isNotEmpty 
             ? _addressController.text.trim() 
             : null,
-        dateOfBirth: _dateOfBirth,
         isActive: _isActive,
         suspensionReason: _suspensionReasonController.text.trim().isNotEmpty 
             ? _suspensionReasonController.text.trim() 
@@ -388,23 +362,13 @@ class _UserDetailsModalState extends State<UserDetailsModal>
             
             const SizedBox(height: kSpacingLarge),
             
-            // Contact and Date of Birth
-            Row(
-              children: [
-                Expanded(
-                  child: _buildFormField(
-                    label: 'Contact Number',
-                    controller: _contactNumberController,
-                    enabled: _isEditing,
-                    keyboardType: TextInputType.phone,
-                    hintText: 'Enter contact number',
-                  ),
-                ),
-                const SizedBox(width: kSpacingMedium),
-                Expanded(
-                  child: _buildDatePickerField(),
-                ),
-              ],
+            // Contact Number
+            _buildFormField(
+              label: 'Contact Number',
+              controller: _contactNumberController,
+              enabled: _isEditing,
+              keyboardType: TextInputType.phone,
+              hintText: 'Enter contact number',
             ),
             
             const SizedBox(height: kSpacingLarge),
@@ -814,69 +778,7 @@ class _UserDetailsModalState extends State<UserDetailsModal>
     );
   }
 
-  Widget _buildDatePickerField() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Date of Birth',
-          style: kTextStyleRegular.copyWith(
-            fontWeight: FontWeight.w600,
-            color: AppColors.textPrimary,
-          ),
-        ),
-        const SizedBox(height: kSpacingSmall),
-        Container(
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(kBorderRadius),
-            border: Border.all(color: AppColors.border),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-                spreadRadius: 0,
-              ),
-            ],
-          ),
-          child: InkWell(
-            onTap: _isEditing ? _selectDateOfBirth : null,
-            borderRadius: BorderRadius.circular(kBorderRadius),
-            child: Container(
-              height: 56,
-              padding: const EdgeInsets.symmetric(horizontal: kSpacingMedium),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(kBorderRadius),
-                color: AppColors.white,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _dateOfBirth != null
-                          ? '${_dateOfBirth!.day}/${_dateOfBirth!.month}/${_dateOfBirth!.year}'
-                          : 'Select date of birth',
-                      style: kTextStyleRegular.copyWith(
-                        color: _dateOfBirth != null 
-                            ? AppColors.textPrimary
-                            : AppColors.textTertiary,
-                      ),
-                    ),
-                  ),
-                  Icon(
-                    Icons.calendar_today,
-                    color: _isEditing ? AppColors.textSecondary : AppColors.textTertiary,
-                    size: kIconSizeMedium,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+
 
   Widget _buildActionButtons() {
     return Container(

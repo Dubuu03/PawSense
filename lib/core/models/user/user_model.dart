@@ -9,7 +9,6 @@ class UserModel {
   final bool darkTheme;
   final String role; // user | admin | super_admin
   final DateTime createdAt;
-  final DateTime? dateOfBirth;
   final String? contactNumber;
   final bool? agreedToTerms;
   final String? address;
@@ -31,7 +30,6 @@ class UserModel {
     this.darkTheme = false,
     this.role = 'user',
     required this.createdAt,
-    this.dateOfBirth,
     this.contactNumber,
     this.agreedToTerms = true,
     this.address,
@@ -54,7 +52,6 @@ class UserModel {
     'darkTheme': darkTheme,
     'role': role,
     'createdAt': createdAt.toIso8601String(),
-    'dateOfBirth': dateOfBirth?.toIso8601String(),
     'contactNumber': contactNumber,
     'agreedToTerms': agreedToTerms,
     'address': address,
@@ -77,8 +74,6 @@ class UserModel {
       darkTheme: map['darkTheme'] ?? false,
       role: map['role'] ?? 'user',
       createdAt: _parseDateTime(map['createdAt']) ?? DateTime.now(),
-      // After
-      dateOfBirth: _parseDateTime(map['dateOfBirth']),
       contactNumber: map['contactNumber'],
       agreedToTerms: map['agreedToTerms'] ?? true,
       address: map['address'],
@@ -118,7 +113,6 @@ class UserModel {
     bool? darkTheme,
     String? role,
     DateTime? createdAt,
-    DateTime? dateOfBirth,
     String? contactNumber,
     bool? agreedToTerms,
     String? address,
@@ -137,7 +131,6 @@ class UserModel {
       darkTheme: darkTheme ?? this.darkTheme,
       role: role ?? this.role,
       createdAt: createdAt ?? this.createdAt,
-      dateOfBirth: dateOfBirth ?? this.dateOfBirth,
       contactNumber: contactNumber ?? this.contactNumber,
       agreedToTerms: agreedToTerms ?? this.agreedToTerms,
       address: address ?? this.address,

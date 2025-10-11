@@ -2,9 +2,7 @@
 // This would be run as part of integration tests
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../lib/core/services/clinic/realtime_appointment_listener.dart';
-import '../lib/core/services/clinic/paginated_appointment_service.dart';
 
 void main() {
   group('Real-Time Appointment Updates', () {
@@ -42,13 +40,9 @@ void main() {
     });
 
     test('should handle multiple callback types', () {
-      var statusCountCalled = false;
-      var appointmentListCalled = false;
-      var dashboardCalled = false;
-
-      void statusCallback() => statusCountCalled = true;
-      void appointmentCallback() => appointmentListCalled = true;
-      void dashboardCallback() => dashboardCalled = true;
+      void statusCallback() {}
+      void appointmentCallback() {}
+      void dashboardCallback() {}
 
       listener.registerStatusCountCallback(statusCallback);
       listener.registerAppointmentListCallback(appointmentCallback);
@@ -76,8 +70,7 @@ void main() {
     test('should cleanup properly', () {
       listener.setupListener(testClinicId);
       
-      var callbackCalled = false;
-      listener.registerStatusCountCallback(() => callbackCalled = true);
+      listener.registerStatusCountCallback(() {});
 
       expect(listener.isListening, isTrue);
       expect(listener.totalCallbacks, equals(1));
@@ -151,19 +144,15 @@ void main() {
 }
 
 // Mock implementation for testing (would be in separate file)
-class MockRealTimeAppointmentListener extends RealTimeAppointmentListener {
+class MockRealTimeAppointmentListener {
   final List<String> _loggedEvents = [];
   
-  @override
   void setupListener(String clinicId) {
     _loggedEvents.add('setupListener: $clinicId');
-    super.setupListener(clinicId);
   }
 
-  @override
   void cleanup() {
     _loggedEvents.add('cleanup');
-    super.cleanup();
   }
 
   List<String> get loggedEvents => List.from(_loggedEvents);

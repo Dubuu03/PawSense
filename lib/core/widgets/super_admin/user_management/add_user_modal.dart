@@ -28,7 +28,6 @@ class _AddUserModalState extends State<AddUserModal> {
   // Step 1: Additional Details
   final TextEditingController _contactNumberController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
-  DateTime? _dateOfBirth;
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
 
@@ -86,7 +85,6 @@ class _AddUserModalState extends State<AddUserModal> {
         address: _addressController.text.trim().isNotEmpty 
             ? _addressController.text.trim() 
             : null,
-        dateOfBirth: _dateOfBirth,
         isActive: true,
         agreedToTerms: true,
         updatedAt: DateTime.now(),
@@ -116,30 +114,7 @@ class _AddUserModalState extends State<AddUserModal> {
     }
   }
 
-  Future<void> _selectDateOfBirth() async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: _dateOfBirth ?? DateTime.now().subtract(const Duration(days: 6570)), // ~18 years ago
-      firstDate: DateTime(1900),
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: Theme.of(context).colorScheme.copyWith(
-              primary: AppColors.primary,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
 
-    if (picked != null && picked != _dateOfBirth) {
-      setState(() {
-        _dateOfBirth = picked;
-      });
-    }
-  }
 
   Widget _buildFormField({
     required String label,
@@ -565,10 +540,7 @@ class _AddUserModalState extends State<AddUserModal> {
                 hintText: 'Enter contact number',
               ),
             ),
-            const SizedBox(width: kSpacingMedium),
-            Expanded(
-              child: _buildDatePickerField(),
-            ),
+
           ],
         ),
 
@@ -614,66 +586,7 @@ class _AddUserModalState extends State<AddUserModal> {
     );
   }
 
-  Widget _buildDatePickerField() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Date of Birth',
-          style: kTextStyleRegular.copyWith(
-            fontWeight: FontWeight.w600,
-            color: AppColors.textPrimary,
-          ),
-        ),
-        const SizedBox(height: kSpacingSmall),
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(kBorderRadius),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-                spreadRadius: 0,
-              ),
-            ],
-          ),
-          child: InkWell(
-            onTap: _selectDateOfBirth,
-            borderRadius: BorderRadius.circular(kBorderRadius),
-            child: Container(
-              height: 56,
-              padding: const EdgeInsets.symmetric(horizontal: kSpacingMedium),
-              decoration: BoxDecoration(
-                border: Border.all(color: AppColors.border),
-                borderRadius: BorderRadius.circular(kBorderRadius),
-                color: AppColors.white,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _dateOfBirth != null
-                          ? '${_dateOfBirth!.day}/${_dateOfBirth!.month}/${_dateOfBirth!.year}'
-                          : 'Select date of birth',
-                      style: kTextStyleRegular.copyWith(
-                        color: _dateOfBirth != null ? AppColors.textPrimary : AppColors.textTertiary,
-                      ),
-                    ),
-                  ),
-                  Icon(
-                    Icons.calendar_today,
-                    color: AppColors.textSecondary,
-                    size: kIconSizeMedium,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+
 
   Widget _buildActionButtons() {
     return Row(

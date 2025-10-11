@@ -275,7 +275,6 @@ class OptimizedDataService {
       email: 'sarah.johnson@pawsense.com',
       contactNumber: '+1234567890',
       address: '123 Veterinary Street, Pet City',
-      dateOfBirth: DateTime(1985, 5, 15),
       role: 'admin',
       createdAt: DateTime.now().subtract(const Duration(days: 30)),
     );

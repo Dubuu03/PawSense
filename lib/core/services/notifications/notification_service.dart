@@ -50,12 +50,6 @@ class NotificationService {
     _appointmentNotificationCache[cacheKey] = hasRealNotification;
   }
 
-  /// Clear appointment notification cache (useful when appointments are deleted)
-  static void _clearAppointmentCache(String userId, String appointmentId) {
-    final cacheKey = '${userId}_$appointmentId';
-    _appointmentNotificationCache.remove(cacheKey);
-  }
-
   /// Get user notifications stream
   static Stream<List<NotificationModel>> getUserNotifications(String userId) {
     return _firestore

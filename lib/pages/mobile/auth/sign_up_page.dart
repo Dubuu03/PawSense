@@ -353,7 +353,6 @@ class _SignUpPageState extends State<SignUpPage>
         firstName: formattedFirstName,
         lastName: formattedLastName,
         contactNumber: _phoneController.text.trim(),
-        dateOfBirth: null,
         agreedToTerms: _acceptTerms,
         address: _addressController.text.trim(),
       );
