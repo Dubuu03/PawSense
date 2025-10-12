@@ -74,54 +74,56 @@ class DiseaseStatisticsCards extends StatelessWidget {
         border: Border.all(color: AppColors.border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: Offset(0, 2),
+            color: Colors.black.withOpacity(kShadowOpacity),
+            spreadRadius: kShadowSpreadRadius,
+            blurRadius: kShadowBlurRadius,
+            offset: kShadowOffset,
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Icon
-          Container(
-            padding: EdgeInsets.all(kSpacingMedium),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(kBorderRadiusSmall),
-            ),
-            child: Icon(icon, color: color, size: 28),
-          ),
-          SizedBox(width: kSpacingMedium),
-          // Text
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: kTextStyleSmall.copyWith(
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w500,
-                  ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: EdgeInsets.all(kSpacingSmall),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(kBorderRadiusSmall),
                 ),
-                SizedBox(height: 4),
-                loading
-                    ? Text(
-                        'Loading...',
-                        style: kTextStyleLarge.copyWith(
-                          color: AppColors.textSecondary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      )
-                    : Text(
-                        value.toString(),
-                        style: kTextStyleLarge.copyWith(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 28,
-                        ),
+                child: Icon(
+                  icon,
+                  color: color,
+                  size: kIconSizeLarge,
+                ),
+              ),
+              loading
+                  ? Container(
+                      width: 40,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: AppColors.border,
+                        borderRadius: BorderRadius.circular(4),
                       ),
-              ],
+                    )
+                  : Text(
+                      value.toString(),
+                      style: kTextStyleTitle.copyWith(
+                        color: color,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+            ],
+          ),
+          SizedBox(height: kSpacingMedium),
+          Text(
+            title,
+            style: kTextStyleSmall.copyWith(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],

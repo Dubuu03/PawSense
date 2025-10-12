@@ -68,24 +68,25 @@ class BreedStatisticsCards extends StatelessWidget {
         border: Border.all(color: AppColors.border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: kShadowOpacity),
+            color: Colors.black.withOpacity(kShadowOpacity),
+            spreadRadius: kShadowSpreadRadius,
             blurRadius: kShadowBlurRadius,
             offset: kShadowOffset,
-            spreadRadius: kShadowSpreadRadius,
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                width: 48,
-                height: 48,
+                padding: EdgeInsets.all(kSpacingSmall),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(kBorderRadiusSmall),
                 ),
                 child: Icon(
                   icon,
@@ -93,13 +94,11 @@ class BreedStatisticsCards extends StatelessWidget {
                   size: kIconSizeLarge,
                 ),
               ),
-              Spacer(),
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
+              Text(
+                value,
+                style: kTextStyleTitle.copyWith(
                   color: color,
-                  shape: BoxShape.circle,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ],
@@ -107,18 +106,9 @@ class BreedStatisticsCards extends StatelessWidget {
           SizedBox(height: kSpacingMedium),
           Text(
             title,
-            style: kTextStyleRegular.copyWith(
+            style: kTextStyleSmall.copyWith(
               color: AppColors.textSecondary,
               fontWeight: FontWeight.w500,
-            ),
-          ),
-          SizedBox(height: kSpacingSmall / 2),
-          Text(
-            value,
-            style: kTextStyleHeader.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.bold,
-              fontSize: 32,
             ),
           ),
         ],
@@ -133,38 +123,54 @@ class BreedStatisticsCards extends StatelessWidget {
         (index) => Expanded(
           child: Container(
             margin: EdgeInsets.only(
-              right: index < 3 ? kSpacingLarge : 0,
+              right: index < 3 ? kSpacingMedium : 0,
             ),
             padding: EdgeInsets.all(kSpacingLarge),
             decoration: BoxDecoration(
               color: AppColors.white,
               borderRadius: BorderRadius.circular(kBorderRadius),
               border: Border.all(color: AppColors.border),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(kShadowOpacity),
+                  spreadRadius: kShadowSpreadRadius,
+                  blurRadius: kShadowBlurRadius,
+                  offset: kShadowOffset,
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(kSpacingSmall),
+                      decoration: BoxDecoration(
+                        color: AppColors.border,
+                        borderRadius: BorderRadius.circular(kBorderRadiusSmall),
+                      ),
+                      child: SizedBox(
+                        width: kIconSizeLarge,
+                        height: kIconSizeLarge,
+                      ),
+                    ),
+                    Container(
+                      width: 40,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: AppColors.border,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ],
                 ),
                 SizedBox(height: kSpacingMedium),
                 Container(
-                  width: 100,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                SizedBox(height: kSpacingSmall),
-                Container(
-                  width: 60,
-                  height: 32,
+                  width: 80,
+                  height: 14,
                   decoration: BoxDecoration(
                     color: AppColors.border,
                     borderRadius: BorderRadius.circular(4),

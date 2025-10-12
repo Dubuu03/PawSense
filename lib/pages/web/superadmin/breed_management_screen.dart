@@ -36,8 +36,8 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> {
   @override
   void initState() {
     super.initState();
-    _loadBreeds();
-    _loadStatistics();
+    _loadStatistics(); // Load stats first
+    _loadBreeds(); // Then load breeds
   }
   
   @override
@@ -116,8 +116,8 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> {
             await PetBreedsService.createBreed(breed);
             Navigator.of(context).pop();
             _showSuccessSnackBar('Breed created successfully!');
-            _loadBreeds();
             _loadStatistics();
+            _loadBreeds();
           } catch (e) {
             _showErrorSnackBar(e.toString());
           }
@@ -137,8 +137,8 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> {
             await PetBreedsService.updateBreed(breed.id, updatedBreed);
             Navigator.of(context).pop();
             _showSuccessSnackBar('Breed updated successfully!');
-            _loadBreeds();
             _loadStatistics();
+            _loadBreeds();
           } catch (e) {
             _showErrorSnackBar(e.toString());
           }
@@ -164,8 +164,8 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> {
               try {
                 await PetBreedsService.deleteBreed(breed.id);
                 _showSuccessSnackBar('Breed deleted successfully!');
-                _loadBreeds();
                 _loadStatistics();
+                _loadBreeds();
               } catch (e) {
                 _showErrorSnackBar('Failed to delete breed: $e');
               }
@@ -184,6 +184,7 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> {
     try {
       await PetBreedsService.toggleBreedStatus(breed.id, isActive);
       _showSuccessSnackBar('Breed status updated!');
+      _loadStatistics();
       _loadBreeds();
     } catch (e) {
       _showErrorSnackBar('Failed to update status: $e');

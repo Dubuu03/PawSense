@@ -21,6 +21,7 @@ class DiseasesManagementScreen extends StatefulWidget {
 
 class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> {
   bool _isLoading = true;
+  bool _isLoadingStats = true;
   List<SkinDiseaseModel> _filteredDiseases = [];
   Map<String, int> _statistics = {};
 
@@ -36,7 +37,28 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> {
   @override
   void initState() {
     super.initState();
-    _loadDiseases();
+    _loadStatistics(); // Load stats first
+    _loadDiseases(); // Then load diseases
+  }
+
+  Future<void> _loadStatistics() async {
+    setState(() {
+      _isLoadingStats = true;
+    });
+
+    try {
+      final stats = await SkinDiseasesService.getDiseaseStatistics();
+
+      setState(() {
+        _statistics = stats;
+        _isLoadingStats = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingStats = false;
+      });
+      print('Error loading statistics: $e');
+    }
   }
 
   Future<void> _loadDiseases() async {
@@ -56,11 +78,8 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> {
         sortBy: _sortBy,
       );
 
-      final stats = await SkinDiseasesService.getDiseaseStatistics();
-
       setState(() {
         _filteredDiseases = diseases;
-        _statistics = stats;
         _isLoading = false;
       });
     } catch (e) {
@@ -130,6 +149,7 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> {
             ),
           );
         }
+        _loadStatistics();
         _loadDiseases();
       } catch (e) {
         if (mounted) {
@@ -252,7 +272,10 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> {
       context: context,
       builder: (context) => AddEditDiseaseModal(
         disease: disease,
-        onSuccess: _loadDiseases,
+        onSuccess: () {
+          _loadStatistics();
+          _loadDiseases();
+        },
       ),
     );
   }
@@ -261,7 +284,10 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> {
     showDialog(
       context: context,
       builder: (context) => AddEditDiseaseModal(
-        onSuccess: _loadDiseases,
+        onSuccess: () {
+          _loadStatistics();
+          _loadDiseases();
+        },
       ),
     );
   }
@@ -308,7 +334,7 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> {
               // Statistics Cards
               DiseaseStatisticsCards(
                 statistics: _statistics,
-                isLoading: _isLoading,
+                isLoading: _isLoadingStats,
               ),
 
               const SizedBox(height: 24),
