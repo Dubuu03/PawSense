@@ -23,14 +23,18 @@ class PaginatedAppointmentService {
           .collection('appointments')
           .where('clinicId', isEqualTo: clinicId);
 
-      // Add date filters if provided
+      // Add date filters if provided (normalize to start and end of day)
       if (startDate != null) {
+        // Set to start of day (00:00:00)
+        final normalizedStartDate = DateTime(startDate.year, startDate.month, startDate.day, 0, 0, 0);
         query = query.where('appointmentDate',
-            isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
+            isGreaterThanOrEqualTo: Timestamp.fromDate(normalizedStartDate));
       }
       if (endDate != null) {
+        // Set to end of day (23:59:59)
+        final normalizedEndDate = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
         query = query.where('appointmentDate',
-            isLessThanOrEqualTo: Timestamp.fromDate(endDate));
+            isLessThanOrEqualTo: Timestamp.fromDate(normalizedEndDate));
       }
 
       // Add status filter if provided
