@@ -127,32 +127,63 @@ class _DiseaseCardState extends State<DiseaseCard> {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: widget.disease.imageUrl.isNotEmpty
-            ? Image.network(
-                widget.disease.imageUrl,
-                fit: BoxFit.cover,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Center(
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        value: loadingProgress.expectedTotalBytes != null
-                            ? loadingProgress.cumulativeBytesLoaded /
-                                loadingProgress.expectedTotalBytes!
-                            : null,
-                      ),
-                    ),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) {
-                  return _buildPlaceholderIcon();
-                },
-              )
+            ? _buildDiseaseImage()
             : _buildPlaceholderIcon(),
       ),
     );
+  }
+
+  Widget _buildDiseaseImage() {
+    // Check if imageUrl is a network URL or a local asset filename
+    final isNetworkImage = widget.disease.imageUrl.startsWith('http://') || 
+                           widget.disease.imageUrl.startsWith('https://');
+    
+    if (isNetworkImage) {
+      // Use network image
+      return Image.network(
+        widget.disease.imageUrl,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Center(
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                        loadingProgress.expectedTotalBytes!
+                    : null,
+              ),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return _buildPlaceholderIcon();
+        },
+      );
+    } else {
+      // Use asset image - construct path from filename
+      final assetPath = 'assets/img/skin_diseases/${widget.disease.imageUrl}';
+      return Image.asset(
+        assetPath,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          // If asset fails, try as network image
+          if (widget.disease.imageUrl.contains('.')) {
+            return Image.network(
+              widget.disease.imageUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return _buildPlaceholderIcon();
+              },
+            );
+          }
+          return _buildPlaceholderIcon();
+        },
+      );
+    }
   }
 
   Widget _buildPlaceholderIcon() {
@@ -227,14 +258,29 @@ class _DiseaseCardState extends State<DiseaseCard> {
   }
 
   Widget _buildSpeciesChips() {
-    final supportsCats = widget.disease.species.contains('cats');
-    final supportsDogs = widget.disease.species.contains('dogs');
+    // Check for species in case-insensitive manner and handle various formats
+    final speciesLower = widget.disease.species.map((s) => s.toLowerCase()).toList();
+    final supportsCats = speciesLower.any((s) => s.contains('cat'));
+    final supportsDogs = speciesLower.any((s) => s.contains('dog'));
+    final supportsBoth = speciesLower.contains('both');
+
+    // If no specific species found, show empty state
+    if (!supportsCats && !supportsDogs && !supportsBoth) {
+      return Text(
+        'Not specified',
+        style: TextStyle(
+          fontSize: 12,
+          color: Colors.grey.shade400,
+          fontStyle: FontStyle.italic,
+        ),
+      );
+    }
 
     return Wrap(
       spacing: 6,
       runSpacing: 4,
       children: [
-        if (supportsCats)
+        if (supportsCats || supportsBoth)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
@@ -258,7 +304,7 @@ class _DiseaseCardState extends State<DiseaseCard> {
               ],
             ),
           ),
-        if (supportsDogs)
+        if (supportsDogs || supportsBoth)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
@@ -340,40 +386,20 @@ class _DiseaseCardState extends State<DiseaseCard> {
       );
     }
 
-    final firstCategory = widget.disease.categories.first;
-    final remaining = widget.disease.categories.length - 1;
+    // Show all categories separated by commas
+    final categoriesText = widget.disease.categories.join(', ');
 
-    return Row(
-      children: [
-        Flexible(
-          child: Text(
-            firstCategory,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey.shade700,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
+    return Tooltip(
+      message: categoriesText,
+      child: Text(
+        categoriesText,
+        style: TextStyle(
+          fontSize: 12,
+          color: Colors.grey.shade700,
         ),
-        if (remaining > 0) ...[
-          const SizedBox(width: 4),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              '+$remaining',
-              style: const TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: AppColors.primary,
-              ),
-            ),
-          ),
-        ],
-      ],
+        overflow: TextOverflow.ellipsis,
+        maxLines: 2,
+      ),
     );
   }
 
