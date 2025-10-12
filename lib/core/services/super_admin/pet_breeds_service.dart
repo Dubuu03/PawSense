@@ -41,8 +41,7 @@ class PetBreedsService {
       if (searchQuery != null && searchQuery.isNotEmpty) {
         final query = searchQuery.toLowerCase();
         breeds = breeds.where((breed) {
-          return breed.name.toLowerCase().contains(query) ||
-                 breed.description.toLowerCase().contains(query);
+          return breed.name.toLowerCase().contains(query);
         }).toList();
         print('🔍 After search filtering: ${breeds.length} breeds');
       }
@@ -261,8 +260,7 @@ class PetBreedsService {
       final results = snapshot.docs
           .map((doc) => PetBreed.fromFirestore(doc))
           .where((breed) {
-            return breed.name.toLowerCase().contains(queryLower) ||
-                   breed.description.toLowerCase().contains(queryLower);
+            return breed.name.toLowerCase().contains(queryLower);
           })
           .toList();
       
@@ -276,8 +274,8 @@ class PetBreedsService {
 
   /// Validate breed data before save
   static String? validateBreed(PetBreed breed) {
-    if (breed.name.isEmpty || breed.name.length < 3) {
-      return 'Breed name must be at least 3 characters';
+    if (breed.name.isEmpty || breed.name.length < 2) {
+      return 'Breed name must be at least 2 characters';
     }
 
     if (breed.name.length > 50) {
@@ -292,25 +290,7 @@ class PetBreedsService {
       return 'Species must be either cat or dog';
     }
 
-    if (breed.description.length > 200) {
-      return 'Description must be less than 200 characters';
-    }
-
-    if (breed.imageUrl.isNotEmpty && !_isValidUrl(breed.imageUrl)) {
-      return 'Invalid image URL format';
-    }
-
     return null; // No errors
-  }
-
-  /// Validate URL format
-  static bool _isValidUrl(String url) {
-    try {
-      final uri = Uri.parse(url);
-      return uri.hasScheme && (uri.scheme == 'http' || uri.scheme == 'https');
-    } catch (e) {
-      return false;
-    }
   }
 
   /// Get real-time stream of breeds

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:pawsense/core/models/user/pet_model.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
-import 'package:pawsense/core/utils/breed_options.dart';
 import 'pet_avatar.dart';
 
 class PetCard extends StatelessWidget {
@@ -131,29 +130,11 @@ class PetCard extends StatelessWidget {
   }
 
   // Helper method to format and validate breed display
+  // Since this is used in build context, we'll simplify to just return the breed
+  // Validation can be done during pet creation/edit, not during display
   String _getFormattedBreed(String petType, String breed) {
-    try {
-      // Get valid breeds for the pet type
-      final validBreeds = BreedOptions.getBreedsForPetType(petType);
-      
-      // Check if the breed is in the valid list
-      if (validBreeds.contains(breed)) {
-        return breed;
-      }
-      
-      // If breed is not found, try to find a close match
-      final lowerBreed = breed.toLowerCase();
-      for (final validBreed in validBreeds) {
-        if (validBreed.toLowerCase() == lowerBreed) {
-          return validBreed;
-        }
-      }
-      
-      // If no match found, return the original breed with a note
-      return '$breed (Custom)';
-    } catch (e) {
-      // If there's any error, just return the original breed
-      return breed;
-    }
+    // Simply return the breed as is
+    // The breed has already been validated during pet creation
+    return breed;
   }
 }

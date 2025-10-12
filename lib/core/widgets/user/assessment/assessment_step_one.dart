@@ -85,9 +85,8 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
     _weightController.addListener(_updatePetData);
     _notesController.addListener(_updateNotesData);
     
-    _filteredBreeds = BreedOptions.getBreedsForPetType(
-      widget.assessmentData['selectedPetType'] ?? 'Dog'
-    );
+    // Load breeds asynchronously
+    _loadBreeds();
     
     // Initialize with existing data if available
     if (widget.assessmentData['selectedPet'] != null) {
@@ -189,7 +188,7 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
       });
       
       // Update breed options for the new pet type
-      _filteredBreeds = BreedOptions.getBreedsForPetType(newPetType ?? 'Dog');
+      _loadBreedsForPetType(newPetType ?? 'Dog');
       
       // Clear breed field if it was filled
       if (_breedController.text.isNotEmpty) {
@@ -205,6 +204,13 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
       }
     }
   }
+  
+  Future<void> _loadBreedsForPetType(String petType) async {
+    final breeds = await BreedOptions.getBreedsForPetType(petType);
+    setState(() {
+      _filteredBreeds = breeds;
+    });
+  }
 
   @override
   void dispose() {
@@ -217,12 +223,35 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
     _breedFocusNode.dispose();
     super.dispose();
   }
+  
+  Future<void> _loadBreeds() async {
+    final petType = widget.assessmentData['selectedPetType'] ?? 'Dog';
+    final breeds = await BreedOptions.getBreedsForPetType(petType);
+    setState(() {
+      _filteredBreeds = breeds;
+    });
+  }
 
   void _onBreedTextChanged() {
-    final petType = widget.assessmentData['selectedPetType'] ?? 'Dog';
+    final query = _breedController.text;
     setState(() {
-      _filteredBreeds = BreedOptions.filterBreeds(_breedController.text, petType);
-      _showBreedDropdown = _breedController.text.isNotEmpty && _breedFocusNode.hasFocus;
+      // Filter from the current _filteredBreeds list
+      if (query.isEmpty) {
+        // Don't filter if query is empty (show all breeds)
+        _showBreedDropdown = false;
+      } else {
+        final petType = widget.assessmentData['selectedPetType'] ?? 'Dog';
+        // Load all breeds for the pet type first
+        BreedOptions.getBreedsForPetType(petType).then((breeds) {
+          final filtered = BreedOptions.filterBreeds(breeds, query);
+          if (mounted) {
+            setState(() {
+              _filteredBreeds = filtered;
+            });
+          }
+        });
+        _showBreedDropdown = _breedFocusNode.hasFocus;
+      }
     });
     
     // Update validation state when text changes
@@ -299,9 +328,9 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
     final breed = _breedController.text.trim();
     if (breed.isEmpty) return false;
     
-    final petType = widget.assessmentData['selectedPetType']?.toString() ?? 'Dog';
-    final validBreeds = BreedOptions.getBreedsForPetType(petType);
-    return validBreeds.contains(breed);
+    // Check if breed exists in current filtered breeds list
+    // This is synchronous and uses the cached breeds already loaded
+    return _filteredBreeds.contains(breed);
   }
 
   void _triggerValidation() {

@@ -340,45 +340,39 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> {
       ),
       child: Row(
         children: [
-          // Image + Name column
-          SizedBox(width: 60 + kSpacingMedium), // Image width + spacing
-          Expanded(
-            flex: 2,
-            child: Text('BREED NAME', style: _headerStyle()),
-          ),
-          SizedBox(width: kSpacingMedium),
-          
-          // Species column
-          Expanded(
-            flex: 1,
-            child: Text('SPECIES', style: _headerStyle()),
-          ),
-          SizedBox(width: kSpacingMedium),
-          
-          // Description column
+          // Breed Name column
           Expanded(
             flex: 3,
-            child: Text('DESCRIPTION', style: _headerStyle()),
+            child: Padding(
+              padding: EdgeInsets.only(right: kSpacingSmall),
+              child: Text('BREED NAME', style: _headerStyle()),
+            ),
           ),
-          SizedBox(width: kSpacingMedium),
+          
+          // Species column
+          SizedBox(
+            width: 100,
+            child: Text('SPECIES', style: _headerStyle()),
+          ),
+          SizedBox(width: kSpacingLarge),
           
           // Status column
           SizedBox(
             width: 100,
             child: Center(child: Text('STATUS', style: _headerStyle())),
           ),
-          SizedBox(width: kSpacingMedium),
+          SizedBox(width: kSpacingLarge),
           
           // Date column
           SizedBox(
-            width: 120,
+            width: 100,
             child: Text('DATE ADDED', style: _headerStyle(), textAlign: TextAlign.center),
           ),
-          SizedBox(width: kSpacingMedium),
+          SizedBox(width: kSpacingLarge),
           
           // Actions column
           SizedBox(
-            width: 96,
+            width: 80,
             child: Text('ACTIONS', style: _headerStyle(), textAlign: TextAlign.right),
           ),
         ],

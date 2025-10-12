@@ -27,8 +27,8 @@ class BreedCard extends StatelessWidget {
       hoverColor: AppColors.primary.withValues(alpha: 0.05),
       child: Container(
         padding: EdgeInsets.symmetric(
-          horizontal: kSpacingMedium,
-          vertical: kSpacingMedium + 4,
+          horizontal: kSpacingMedium + 4,
+          vertical: kSpacingMedium,
         ),
         decoration: BoxDecoration(
           border: Border(
@@ -37,52 +37,33 @@ class BreedCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Breed image + name column (matching header width)
-            SizedBox(
-              width: 60, // Fixed width for image
-              child: _buildBreedImage(),
-            ),
-            SizedBox(width: kSpacingMedium),
-            
             // Breed name
             Expanded(
-              flex: 2,
-              child: Text(
-                breed.name,
-                style: kTextStyleRegular.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w600,
+              flex: 3,
+              child: Padding(
+                padding: EdgeInsets.only(right: kSpacingSmall),
+                child: Text(
+                  breed.name,
+                  style: kTextStyleRegular.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
               ),
             ),
-            SizedBox(width: kSpacingMedium),
             
             // Species chip
-            Expanded(
-              flex: 1,
+            SizedBox(
+              width: 100,
               child: _buildSpeciesChip(),
             ),
-            SizedBox(width: kSpacingMedium),
-            
-            // Description
-            Expanded(
-              flex: 3,
-              child: Text(
-                breed.getFormattedDescription(),
-                style: kTextStyleSmall.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            SizedBox(width: kSpacingMedium),
+            SizedBox(width: kSpacingLarge),
             
             // Status toggle
             SizedBox(
-              width: 100, // Fixed width for consistency
+              width: 100,
               child: Center(
                 child: Switch(
                   value: breed.isActive,
@@ -91,11 +72,11 @@ class BreedCard extends StatelessWidget {
                 ),
               ),
             ),
-            SizedBox(width: kSpacingMedium),
+            SizedBox(width: kSpacingLarge),
             
             // Date added
             SizedBox(
-              width: 120, // Fixed width for dates
+              width: 100,
               child: Text(
                 _formatDate(breed.createdAt),
                 style: kTextStyleSmall.copyWith(
@@ -104,11 +85,11 @@ class BreedCard extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
             ),
-            SizedBox(width: kSpacingMedium),
+            SizedBox(width: kSpacingLarge),
             
             // Actions
             SizedBox(
-              width: 96, // Fixed width for action buttons
+              width: 80,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -121,7 +102,7 @@ class BreedCard extends StatelessWidget {
                     padding: EdgeInsets.all(8),
                     constraints: BoxConstraints(),
                   ),
-                  SizedBox(width: 4),
+                  SizedBox(width: kSpacingSmall),
                   IconButton(
                     icon: Icon(Icons.delete_outline, size: 20),
                     color: AppColors.error,
@@ -137,50 +118,6 @@ class BreedCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildBreedImage() {
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: AppColors.border,
-        border: Border.all(color: AppColors.border, width: 2),
-      ),
-      child: ClipOval(
-        child: breed.imageUrl.isNotEmpty
-            ? Image.network(
-                breed.imageUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return _buildFallbackIcon();
-                },
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Center(
-                    child: CircularProgressIndicator(
-                      value: loadingProgress.expectedTotalBytes != null
-                          ? loadingProgress.cumulativeBytesLoaded /
-                              loadingProgress.expectedTotalBytes!
-                          : null,
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-                    ),
-                  );
-                },
-              )
-            : _buildFallbackIcon(),
-      ),
-    );
-  }
-
-  Widget _buildFallbackIcon() {
-    return Icon(
-      Icons.pets,
-      color: breed.species == 'cat' ? Color(0xFFFF9500) : Color(0xFF007AFF),
-      size: 24,
     );
   }
 

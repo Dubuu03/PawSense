@@ -1,16 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Model for pet breed data
+/// Simplified for user display - only essential information
 class PetBreed {
   final String id;
   final String name;
   final String species; // 'cat' or 'dog'
-  final String description;
-  final String imageUrl;
-  final List<String> commonHealthIssues;
-  final String averageLifespan;
-  final String sizeCategory;
-  final String coatType;
   final String status; // 'active' or 'inactive'
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -20,12 +15,6 @@ class PetBreed {
     required this.id,
     required this.name,
     required this.species,
-    this.description = '',
-    this.imageUrl = '',
-    this.commonHealthIssues = const [],
-    this.averageLifespan = '',
-    this.sizeCategory = '',
-    this.coatType = '',
     this.status = 'active',
     required this.createdAt,
     required this.updatedAt,
@@ -39,12 +28,6 @@ class PetBreed {
       id: doc.id,
       name: data['name'] ?? '',
       species: data['species'] ?? 'dog',
-      description: data['description'] ?? '',
-      imageUrl: data['imageUrl'] ?? '',
-      commonHealthIssues: List<String>.from(data['commonHealthIssues'] ?? []),
-      averageLifespan: data['averageLifespan'] ?? '',
-      sizeCategory: data['sizeCategory'] ?? '',
-      coatType: data['coatType'] ?? '',
       status: data['status'] ?? 'active',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -58,12 +41,6 @@ class PetBreed {
       id: json['id'] ?? '',
       name: json['name'] ?? '',
       species: json['species'] ?? 'dog',
-      description: json['description'] ?? '',
-      imageUrl: json['imageUrl'] ?? '',
-      commonHealthIssues: List<String>.from(json['commonHealthIssues'] ?? []),
-      averageLifespan: json['averageLifespan'] ?? '',
-      sizeCategory: json['sizeCategory'] ?? '',
-      coatType: json['coatType'] ?? '',
       status: json['status'] ?? 'active',
       createdAt: json['createdAt'] is Timestamp 
           ? (json['createdAt'] as Timestamp).toDate()
@@ -80,12 +57,6 @@ class PetBreed {
     return {
       'name': name,
       'species': species,
-      'description': description,
-      'imageUrl': imageUrl,
-      'commonHealthIssues': commonHealthIssues,
-      'averageLifespan': averageLifespan,
-      'sizeCategory': sizeCategory,
-      'coatType': coatType,
       'status': status,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
@@ -98,12 +69,6 @@ class PetBreed {
     String? id,
     String? name,
     String? species,
-    String? description,
-    String? imageUrl,
-    List<String>? commonHealthIssues,
-    String? averageLifespan,
-    String? sizeCategory,
-    String? coatType,
     String? status,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -113,12 +78,6 @@ class PetBreed {
       id: id ?? this.id,
       name: name ?? this.name,
       species: species ?? this.species,
-      description: description ?? this.description,
-      imageUrl: imageUrl ?? this.imageUrl,
-      commonHealthIssues: commonHealthIssues ?? this.commonHealthIssues,
-      averageLifespan: averageLifespan ?? this.averageLifespan,
-      sizeCategory: sizeCategory ?? this.sizeCategory,
-      coatType: coatType ?? this.coatType,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -131,13 +90,6 @@ class PetBreed {
 
   /// Get species display name
   String get speciesDisplayName => species == 'cat' ? 'Cat' : 'Dog';
-
-  /// Get formatted description (truncated if needed)
-  String getFormattedDescription({int maxLength = 60}) {
-    if (description.isEmpty) return 'No description';
-    if (description.length <= maxLength) return description;
-    return '${description.substring(0, maxLength)}...';
-  }
 
   @override
   String toString() {
@@ -242,56 +194,6 @@ enum BreedSortOption {
         return 'Species';
       case BreedSortOption.dateAdded:
         return 'Date Added';
-    }
-  }
-}
-
-/// Size category options
-class SizeCategory {
-  static const String small = 'small';
-  static const String medium = 'medium';
-  static const String large = 'large';
-  static const String extraLarge = 'extra_large';
-
-  static List<String> get all => [small, medium, large, extraLarge];
-
-  static String getDisplayName(String category) {
-    switch (category) {
-      case small:
-        return 'Small';
-      case medium:
-        return 'Medium';
-      case large:
-        return 'Large';
-      case extraLarge:
-        return 'Extra Large';
-      default:
-        return category;
-    }
-  }
-}
-
-/// Coat type options
-class CoatType {
-  static const String short = 'short';
-  static const String medium = 'medium';
-  static const String long = 'long';
-  static const String hairless = 'hairless';
-
-  static List<String> get all => [short, medium, long, hairless];
-
-  static String getDisplayName(String type) {
-    switch (type) {
-      case short:
-        return 'Short';
-      case medium:
-        return 'Medium';
-      case long:
-        return 'Long';
-      case hairless:
-        return 'Hairless';
-      default:
-        return type;
     }
   }
 }

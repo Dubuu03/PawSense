@@ -21,13 +21,8 @@ class AddEditBreedModal extends StatefulWidget {
 class _AddEditBreedModalState extends State<AddEditBreedModal> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _descriptionController = TextEditingController();
-  final _imageUrlController = TextEditingController();
-  final _lifespanController = TextEditingController();
   
   String _selectedSpecies = 'dog';
-  String _selectedSize = SizeCategory.medium;
-  String _selectedCoat = CoatType.short;
   bool _isActive = true;
   bool _isSaving = false;
   
@@ -36,16 +31,7 @@ class _AddEditBreedModalState extends State<AddEditBreedModal> {
     super.initState();
     if (widget.breed != null) {
       _nameController.text = widget.breed!.name;
-      _descriptionController.text = widget.breed!.description;
-      _imageUrlController.text = widget.breed!.imageUrl;
-      _lifespanController.text = widget.breed!.averageLifespan;
       _selectedSpecies = widget.breed!.species;
-      _selectedSize = widget.breed!.sizeCategory.isEmpty 
-          ? SizeCategory.medium 
-          : widget.breed!.sizeCategory;
-      _selectedCoat = widget.breed!.coatType.isEmpty 
-          ? CoatType.short 
-          : widget.breed!.coatType;
       _isActive = widget.breed!.isActive;
     }
   }
@@ -53,9 +39,6 @@ class _AddEditBreedModalState extends State<AddEditBreedModal> {
   @override
   void dispose() {
     _nameController.dispose();
-    _descriptionController.dispose();
-    _imageUrlController.dispose();
-    _lifespanController.dispose();
     super.dispose();
   }
   
@@ -76,12 +59,6 @@ class _AddEditBreedModalState extends State<AddEditBreedModal> {
         id: widget.breed?.id ?? '',
         name: _nameController.text.trim(),
         species: _selectedSpecies,
-        description: _descriptionController.text.trim(),
-        imageUrl: _imageUrlController.text.trim(),
-        commonHealthIssues: [], // No health issues needed
-        averageLifespan: _lifespanController.text.trim(),
-        sizeCategory: _selectedSize,
-        coatType: _selectedCoat,
         status: _isActive ? 'active' : 'inactive',
         createdAt: widget.breed?.createdAt ?? DateTime.now(),
         updatedAt: DateTime.now(),
@@ -100,9 +77,9 @@ class _AddEditBreedModalState extends State<AddEditBreedModal> {
     return Dialog(
       backgroundColor: Colors.transparent,
       child: Container(
-        width: 800,
+        width: 600,
         constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.9,
+          maxHeight: MediaQuery.of(context).size.height * 0.8,
         ),
         decoration: BoxDecoration(
           color: AppColors.white,
@@ -113,7 +90,7 @@ class _AddEditBreedModalState extends State<AddEditBreedModal> {
           children: [
             // Header
             Container(
-              padding: EdgeInsets.all(kSpacingLarge),
+              padding: EdgeInsets.all(kSpacingMedium + 4),
               decoration: BoxDecoration(
                 color: AppColors.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.only(
@@ -123,8 +100,8 @@ class _AddEditBreedModalState extends State<AddEditBreedModal> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.pets, color: AppColors.primary, size: 24),
-                  SizedBox(width: kSpacingMedium),
+                  Icon(Icons.pets, color: AppColors.primary, size: 22),
+                  SizedBox(width: kSpacingSmall + 4),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -136,6 +113,7 @@ class _AddEditBreedModalState extends State<AddEditBreedModal> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
+                        SizedBox(height: 2),
                         Text(
                           'Fill in the details below',
                           style: kTextStyleSmall.copyWith(
@@ -146,17 +124,20 @@ class _AddEditBreedModalState extends State<AddEditBreedModal> {
                     ),
                   ),
                   IconButton(
-                    icon: Icon(Icons.close),
+                    icon: Icon(Icons.close, size: 20),
                     onPressed: () => Navigator.of(context).pop(),
+                    padding: EdgeInsets.all(8),
+                    constraints: BoxConstraints(),
+                    splashRadius: 20,
                   ),
                 ],
               ),
             ),
             
             // Form content
-            Expanded(
+            Flexible(
               child: SingleChildScrollView(
-                padding: EdgeInsets.all(kSpacingLarge),
+                padding: EdgeInsets.all(kSpacingMedium + 4),
                 child: Form(
                   key: _formKey,
                   child: Column(
@@ -172,8 +153,8 @@ class _AddEditBreedModalState extends State<AddEditBreedModal> {
                           if (value == null || value.trim().isEmpty) {
                             return 'Breed name is required';
                           }
-                          if (value.trim().length < 3) {
-                            return 'Breed name must be at least 3 characters';
+                          if (value.trim().length < 2) {
+                            return 'Breed name must be at least 2 characters';
                           }
                           if (value.trim().length > 50) {
                             return 'Breed name must be less than 50 characters';
@@ -181,7 +162,7 @@ class _AddEditBreedModalState extends State<AddEditBreedModal> {
                           return null;
                         },
                       ),
-                      SizedBox(height: kSpacingLarge),
+                      SizedBox(height: kSpacingMedium + 4),
                       
                       // Species (Radio buttons)
                       Text(
@@ -196,7 +177,13 @@ class _AddEditBreedModalState extends State<AddEditBreedModal> {
                         children: [
                           Expanded(
                             child: RadioListTile<String>(
-                              title: Text('Cat'),
+                              contentPadding: EdgeInsets.zero,
+                              title: Row(
+                                children: [
+                                  Text('🐱 ', style: TextStyle(fontSize: 18)),
+                                  Text('Cat'),
+                                ],
+                              ),
                               value: 'cat',
                               groupValue: _selectedSpecies,
                               onChanged: (value) {
@@ -205,9 +192,16 @@ class _AddEditBreedModalState extends State<AddEditBreedModal> {
                               activeColor: AppColors.primary,
                             ),
                           ),
+                          SizedBox(width: kSpacingSmall),
                           Expanded(
                             child: RadioListTile<String>(
-                              title: Text('Dog'),
+                              contentPadding: EdgeInsets.zero,
+                              title: Row(
+                                children: [
+                                  Text('🐶 ', style: TextStyle(fontSize: 18)),
+                                  Text('Dog'),
+                                ],
+                              ),
                               value: 'dog',
                               groupValue: _selectedSpecies,
                               onChanged: (value) {
@@ -218,73 +212,42 @@ class _AddEditBreedModalState extends State<AddEditBreedModal> {
                           ),
                         ],
                       ),
-                      SizedBox(height: kSpacingLarge),
+                      SizedBox(height: kSpacingMedium),
                       
-                      // Description
-                      _buildTextField(
-                        controller: _descriptionController,
-                        label: 'Description',
-                        hint: 'Brief description of the breed',
-                        maxLines: 3,
-                        maxLength: 200,
-                        validator: (value) {
-                          if (value != null && value.length > 200) {
-                            return 'Description must be less than 200 characters';
-                          }
-                          return null;
-                        },
-                      ),
-                      SizedBox(height: kSpacingLarge),
-                      
-                      // Image URL
-                      _buildTextField(
-                        controller: _imageUrlController,
-                        label: 'Breed Image URL',
-                        hint: 'https://example.com/image.jpg',
-                        prefixIcon: Icons.image,
-                      ),
-                      SizedBox(height: kSpacingLarge),
-                      
-                      // Row: Lifespan, Size, Coat
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildTextField(
-                              controller: _lifespanController,
-                              label: 'Average Lifespan',
-                              hint: '12-15 years',
-                            ),
-                          ),
-                          SizedBox(width: kSpacingMedium),
-                          Expanded(
-                            child: _buildDropdown(
-                              label: 'Size Category',
-                              value: _selectedSize,
-                              items: SizeCategory.all,
-                              onChanged: (value) {
-                                setState(() => _selectedSize = value!);
-                              },
-                              getDisplayName: SizeCategory.getDisplayName,
-                            ),
-                          ),
-                          SizedBox(width: kSpacingMedium),
-                          Expanded(
-                            child: _buildDropdown(
-                              label: 'Coat Type',
-                              value: _selectedCoat,
-                              items: CoatType.all,
-                              onChanged: (value) {
-                                setState(() => _selectedCoat = value!);
-                              },
-                              getDisplayName: CoatType.getDisplayName,
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: kSpacingLarge),
-                      
-                      // Status toggle (system settings style)
+                      // Status toggle
                       _buildStatusToggle(),
+                      
+                      SizedBox(height: kSpacingMedium),
+                      
+                      // Info box
+                      Container(
+                        padding: EdgeInsets.all(kSpacingSmall + 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(kBorderRadiusSmall),
+                          border: Border.all(
+                            color: AppColors.primary.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              color: AppColors.primary,
+                              size: 18,
+                            ),
+                            SizedBox(width: kSpacingSmall + 4),
+                            Expanded(
+                              child: Text(
+                                'Active breeds will be available for users when adding their pets.',
+                                style: kTextStyleSmall.copyWith(
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -293,7 +256,7 @@ class _AddEditBreedModalState extends State<AddEditBreedModal> {
             
             // Footer buttons
             Container(
-              padding: EdgeInsets.all(kSpacingLarge),
+              padding: EdgeInsets.all(kSpacingMedium + 4),
               decoration: BoxDecoration(
                 border: Border(top: BorderSide(color: AppColors.border)),
               ),
@@ -304,21 +267,21 @@ class _AddEditBreedModalState extends State<AddEditBreedModal> {
                     onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
                     child: Text('Cancel'),
                   ),
-                  SizedBox(width: kSpacingMedium),
+                  SizedBox(width: kSpacingSmall + 4),
                   ElevatedButton(
                     onPressed: _isSaving ? null : _handleSave,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
                       padding: EdgeInsets.symmetric(
-                        horizontal: kSpacingXLarge,
-                        vertical: kSpacingMedium,
+                        horizontal: kSpacingLarge,
+                        vertical: kSpacingSmall + 4,
                       ),
                     ),
                     child: _isSaving
                         ? SizedBox(
-                            width: 20,
-                            height: 20,
+                            width: 18,
+                            height: 18,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
@@ -385,8 +348,8 @@ class _AddEditBreedModalState extends State<AddEditBreedModal> {
   }
   
   Widget _buildStatusToggle() {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: kSpacingMedium),
+    return Container(
+      padding: EdgeInsets.symmetric(vertical: kSpacingSmall),
       child: Row(
         children: [
           Expanded(
@@ -400,11 +363,11 @@ class _AddEditBreedModalState extends State<AddEditBreedModal> {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                SizedBox(height: kSpacingSmall / 2),
+                SizedBox(height: 4),
                 Text(
                   _isActive 
-                      ? 'Breed is currently active and visible' 
-                      : 'Breed is currently inactive and hidden',
+                      ? 'Breed is currently active and visible to users' 
+                      : 'Breed is currently inactive and hidden from users',
                   style: kTextStyleSmall.copyWith(
                     color: AppColors.textSecondary,
                   ),
@@ -421,43 +384,6 @@ class _AddEditBreedModalState extends State<AddEditBreedModal> {
           ),
         ],
       ),
-    );
-  }
-  
-  Widget _buildDropdown({
-    required String label,
-    required String value,
-    required List<String> items,
-    required Function(String?) onChanged,
-    required String Function(String) getDisplayName,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: kTextStyleRegular.copyWith(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        SizedBox(height: kSpacingSmall),
-        DropdownButtonFormField<String>(
-          value: value,
-          decoration: InputDecoration(
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(kBorderRadiusSmall),
-            ),
-          ),
-          items: items.map((item) {
-            return DropdownMenuItem(
-              value: item,
-              child: Text(getDisplayName(item)),
-            );
-          }).toList(),
-          onChanged: onChanged,
-        ),
-      ],
     );
   }
 }

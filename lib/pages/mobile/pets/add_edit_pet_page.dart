@@ -72,9 +72,10 @@ class _AddEditPetPageState extends State<AddEditPetPage> {
     _updateAvailableBreeds();
   }
 
-  void _updateAvailableBreeds() {
+  Future<void> _updateAvailableBreeds() async {
+    final breeds = await BreedOptions.getBreedsForPetType(_selectedPetType);
     setState(() {
-      _availableBreeds = BreedOptions.getBreedsForPetType(_selectedPetType);
+      _availableBreeds = breeds;
       if (_availableBreeds.isNotEmpty && !_availableBreeds.contains(_selectedBreed)) {
         _selectedBreed = _availableBreeds.first;
       }

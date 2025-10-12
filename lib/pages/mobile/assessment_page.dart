@@ -34,6 +34,9 @@ class _AssessmentPageState extends State<AssessmentPage> {
   
   // Data to be passed between steps
   late Map<String, dynamic> assessmentData;
+  
+  // Cached breeds for validation
+  List<String> _cachedBreeds = [];
 
   @override
   void initState() {
@@ -51,6 +54,14 @@ class _AssessmentPageState extends State<AssessmentPage> {
       'selectedPetType': widget.selectedPetType ?? 'Dog', // Use constructor parameter or default
       'petSelectionMode': 'existing', // Track if user is in 'existing' or 'new' pet mode
     };
+    
+    // Preload breeds for validation
+    _loadBreeds();
+  }
+  
+  Future<void> _loadBreeds() async {
+    final petType = assessmentData['selectedPetType']?.toString() ?? 'Dog';
+    _cachedBreeds = await BreedOptions.getBreedsForPetType(petType);
   }
 
   @override
@@ -229,10 +240,8 @@ class _AssessmentPageState extends State<AssessmentPage> {
       return false;
     }
 
-    final petType = assessmentData['selectedPetType']?.toString() ?? 'Dog';
-    final validBreeds = BreedOptions.getBreedsForPetType(petType);
-    
-    return validBreeds.contains(breed);
+    // Use cached breeds for synchronous validation
+    return _cachedBreeds.contains(breed);
   }
 
   /// Validates behaviors/symptoms selection
@@ -261,9 +270,9 @@ class _AssessmentPageState extends State<AssessmentPage> {
     }
 
     final petType = assessmentData['selectedPetType']?.toString() ?? 'Dog';
-    final validBreeds = BreedOptions.getBreedsForPetType(petType);
     
-    if (!validBreeds.contains(breed)) {
+    // Use cached breeds for synchronous validation
+    if (!_cachedBreeds.contains(breed)) {
       return 'Please select a valid breed from the list. "$breed" is not a recognized ${petType.toLowerCase()} breed.';
     }
 

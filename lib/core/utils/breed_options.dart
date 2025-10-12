@@ -1,171 +1,122 @@
+import 'package:pawsense/core/services/super_admin/pet_breeds_service.dart';
+import 'package:pawsense/core/models/breeds/pet_breed_model.dart';
+
+/// Utility class for fetching and managing breed options for users
+/// Fetches only active breeds from Firebase that are managed by super admin
 class BreedOptions {
-  static const List<String> dogBreeds = [
-    'Labrador Retriever',
-    'Golden Retriever',
-    'German Shepherd',
-    'Bulldog',
-    'Poodle',
-    'Beagle',
-    'Rottweiler',
-    'Yorkshire Terrier',
-    'Dachshund',
-    'Siberian Husky',
-    'Boxer',
-    'Border Collie',
-    'Australian Shepherd',
-    'Shih Tzu',
-    'Boston Terrier',
-    'Pomeranian',
-    'Australian Cattle Dog',
-    'Cocker Spaniel',
-    'Brittany',
-    'Springer Spaniel',
-    'Mastiff',
-    'Cane Corso',
-    'Great Dane',
-    'Chihuahua',
-    'Maltese',
-    'Havanese',
-    'Cavalier King Charles Spaniel',
-    'French Bulldog',
-    'Bernese Mountain Dog',
-    'Weimaraner',
-    'Collie',
-    'Basset Hound',
-    'Newfoundland',
-    'Saint Bernard',
-    'Bloodhound',
-    'Rhodesian Ridgeback',
-    'Vizsla',
-    'Whippet',
-    'Greyhound',
-    'Afghan Hound',
-    'Saluki',
-    'Irish Setter',
-    'English Setter',
-    'Gordon Setter',
-    'Pointer',
-    'Chesapeake Bay Retriever',
-    'Flat-Coated Retriever',
-    'Nova Scotia Duck Tolling Retriever',
-    'Weimaraner',
-    'Pharaoh Hound',
-    'Basenji',
-    'Akita',
-    'Shiba Inu',
-    'Chow Chow',
-    'Shar Pei',
-    'Dalmatian',
-    'Great Pyrenees',
-    'Anatolian Shepherd',
-    'Tibetan Mastiff',
-    'Komondor',
-    'Puli',
-    'Standard Schnauzer',
-    'Giant Schnauzer',
-    'Miniature Schnauzer',
-    'Wire Fox Terrier',
-    'Smooth Fox Terrier',
-    'Jack Russell Terrier',
-    'Parson Russell Terrier',
-    'Scottish Terrier',
-    'West Highland White Terrier',
-    'Cairn Terrier',
-    'Bull Terrier',
-    'Staffordshire Bull Terrier',
-    'American Staffordshire Terrier',
-    'Pit Bull Terrier',
-    'Airedale Terrier',
-    'Welsh Terrier',
-    'Lakeland Terrier',
-    'Bedlington Terrier',
-    'Kerry Blue Terrier',
-    'Soft Coated Wheaten Terrier',
-    'Irish Wolfhound',
-    'Scottish Deerhound',
-    'Borzoi',
-    'Italian Greyhound',
-    'Chinese Crested',
-    'Xoloitzcuintli',
-    'Peruvian Inca Orchid',
-    'American Hairless Terrier',
+  // Cache for breeds to avoid excessive Firebase calls
+  static List<PetBreed>? _cachedBreeds;
+  static DateTime? _lastFetchTime;
+  static const Duration _cacheExpiry = Duration(minutes: 30);
+
+  /// Fallback breeds in case Firebase is unavailable
+  static const List<String> _fallbackDogBreeds = [
     'Mixed Breed',
     'Unknown',
   ];
 
-  static const List<String> catBreeds = [
-    'Persian',
-    'Maine Coon',
-    'Ragdoll',
-    'British Shorthair',
-    'Siamese',
-    'Abyssinian',
-    'Birman',
-    'Oriental Shorthair',
-    'Sphynx',
-    'Devon Rex',
-    'Cornish Rex',
-    'Scottish Fold',
-    'American Shorthair',
-    'Russian Blue',
-    'Manx',
-    'Norwegian Forest Cat',
-    'Siberian',
-    'Turkish Angora',
-    'Burmese',
-    'Tonkinese',
-    'Balinese',
-    'Javanese',
-    'Himalayan',
-    'Exotic Shorthair',
-    'Selkirk Rex',
-    'LaPerm',
-    'Bombay',
-    'Chartreux',
-    'Korat',
-    'Egyptian Mau',
-    'Ocicat',
-    'Bengal',
-    'Savannah',
-    'Munchkin',
-    'Singapura',
-    'Somali',
-    'Turkish Van',
-    'Ragamuffin',
-    'Nebelung',
-    'Pixie-Bob',
-    'American Bobtail',
-    'Japanese Bobtail',
-    'Kurilian Bobtail',
-    'American Curl',
-    'Highlander',
-    'Chausie',
-    'Safari',
-    'Serengeti',
-    'Toyger',
-    'Domestic Shorthair',
-    'Domestic Longhair',
+  static const List<String> _fallbackCatBreeds = [
     'Mixed Breed',
     'Unknown',
   ];
 
-  static List<String> getBreedsForPetType(String petType) {
-    switch (petType.toLowerCase()) {
-      case 'dog':
-        return dogBreeds;
-      case 'cat':
-        return catBreeds;
-      default:
-        return [...dogBreeds, ...catBreeds];
+  /// Get breeds for a specific pet type (fetches from Firebase)
+  /// Returns only active breeds managed by the admin
+  static Future<List<String>> getBreedsForPetType(String petType) async {
+    try {
+      // Check cache validity
+      if (_cachedBreeds != null && _lastFetchTime != null) {
+        final cacheAge = DateTime.now().difference(_lastFetchTime!);
+        if (cacheAge < _cacheExpiry) {
+          return _extractBreedNames(_cachedBreeds!, petType);
+        }
+      }
+
+      // Fetch active breeds from Firebase
+      final breeds = await PetBreedsService.fetchAllBreeds(
+        statusFilter: 'active', // Only active breeds
+        sortBy: 'name_asc',
+      );
+
+      // Update cache
+      _cachedBreeds = breeds;
+      _lastFetchTime = DateTime.now();
+
+      return _extractBreedNames(breeds, petType);
+    } catch (e) {
+      print('⚠️ Error fetching breeds from Firebase: $e');
+      print('📦 Using fallback breed list');
+      
+      // Return fallback breeds if Firebase fails
+      return _getFallbackBreeds(petType);
     }
   }
 
-  static List<String> filterBreeds(String query, String petType) {
-    final breeds = getBreedsForPetType(petType);
+  /// Extract breed names from PetBreed objects based on species
+  static List<String> _extractBreedNames(List<PetBreed> breeds, String petType) {
+    final species = petType.toLowerCase();
+    
+    // Filter by species and extract names
+    final filteredBreeds = breeds
+        .where((breed) => breed.species.toLowerCase() == species && breed.isActive)
+        .map((breed) => breed.name)
+        .toList();
+
+    // Add fallback options if list is empty
+    if (filteredBreeds.isEmpty) {
+      return _getFallbackBreeds(petType);
+    }
+
+    // Always include Mixed Breed and Unknown at the end
+    if (!filteredBreeds.contains('Mixed Breed')) {
+      filteredBreeds.add('Mixed Breed');
+    }
+    if (!filteredBreeds.contains('Unknown')) {
+      filteredBreeds.add('Unknown');
+    }
+
+    return filteredBreeds;
+  }
+
+  /// Get fallback breeds when Firebase is unavailable
+  static List<String> _getFallbackBreeds(String petType) {
+    switch (petType.toLowerCase()) {
+      case 'dog':
+        return List<String>.from(_fallbackDogBreeds);
+      case 'cat':
+        return List<String>.from(_fallbackCatBreeds);
+      default:
+        return [..._fallbackDogBreeds, ..._fallbackCatBreeds];
+    }
+  }
+
+  /// Filter breeds by search query
+  static List<String> filterBreeds(List<String> breeds, String query) {
     if (query.isEmpty) return breeds;
     
     return breeds
         .where((breed) => breed.toLowerCase().contains(query.toLowerCase()))
         .toList();
+  }
+
+  /// Clear the cache (useful after admin updates breeds)
+  static void clearCache() {
+    _cachedBreeds = null;
+    _lastFetchTime = null;
+  }
+
+  /// Pre-load breeds into cache
+  static Future<void> preloadBreeds() async {
+    try {
+      final breeds = await PetBreedsService.fetchAllBreeds(
+        statusFilter: 'active',
+        sortBy: 'name_asc',
+      );
+      _cachedBreeds = breeds;
+      _lastFetchTime = DateTime.now();
+      print('✅ Breeds preloaded into cache: ${breeds.length} active breeds');
+    } catch (e) {
+      print('⚠️ Failed to preload breeds: $e');
+    }
   }
 }
