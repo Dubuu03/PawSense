@@ -276,9 +276,9 @@ class _DiseaseCardState extends State<DiseaseCard> {
       );
     }
 
-    return Wrap(
-      spacing: 6,
-      runSpacing: 4,
+    // Use Row to keep chips in a single line
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         if (supportsCats || supportsBoth)
           Container(
@@ -304,6 +304,8 @@ class _DiseaseCardState extends State<DiseaseCard> {
               ],
             ),
           ),
+        if ((supportsCats || supportsBoth) && (supportsDogs || supportsBoth))
+          const SizedBox(width: 6),
         if (supportsDogs || supportsBoth)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

@@ -5,6 +5,7 @@ import 'package:pawsense/core/widgets/shared/page_header.dart';
 import 'package:pawsense/core/widgets/super_admin/disease_management/disease_statistics_cards.dart';
 import 'package:pawsense/core/widgets/super_admin/disease_management/disease_search_and_filter.dart';
 import 'package:pawsense/core/widgets/super_admin/disease_management/disease_card.dart';
+import 'package:pawsense/core/widgets/super_admin/disease_management/add_edit_disease_modal.dart';
 
 class DiseasesManagementScreen extends StatefulWidget {
   const DiseasesManagementScreen({super.key});
@@ -184,11 +185,20 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> {
   }
 
   void _handleEdit(SkinDiseaseModel disease) {
-    // TODO: Implement edit modal in next phase
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Edit modal for "${disease.name}" - coming in next phase'),
-        backgroundColor: Colors.blue,
+    showDialog(
+      context: context,
+      builder: (context) => AddEditDiseaseModal(
+        disease: disease,
+        onSuccess: _loadDiseases,
+      ),
+    );
+  }
+
+  void _handleAdd() {
+    showDialog(
+      context: context,
+      builder: (context) => AddEditDiseaseModal(
+        onSuccess: _loadDiseases,
       ),
     );
   }
@@ -203,10 +213,32 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const PageHeader(
-                title: 'Skin Diseases Management',
-                subtitle:
-                    'Manage AI-detectable skin diseases and informational resources',
+              Row(
+                children: [
+                  const Expanded(
+                    child: PageHeader(
+                      title: 'Skin Diseases Management',
+                      subtitle:
+                          'Manage AI-detectable skin diseases and informational resources',
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: _handleAdd,
+                    icon: const Icon(Icons.add, size: 20),
+                    label: const Text('Add Disease'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF8B5CF6),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 16,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
 
