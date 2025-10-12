@@ -29,6 +29,7 @@ class _AddEditPetPageState extends State<AddEditPetPage> {
   
   UserModel? _user;
   bool _loading = false;
+  bool _loadingBreeds = true;
   String _selectedPetType = 'Dog';
   String _selectedBreed = '';
   List<String> _availableBreeds = [];
@@ -73,13 +74,47 @@ class _AddEditPetPageState extends State<AddEditPetPage> {
   }
 
   Future<void> _updateAvailableBreeds() async {
-    final breeds = await BreedOptions.getBreedsForPetType(_selectedPetType);
     setState(() {
-      _availableBreeds = breeds;
-      if (_availableBreeds.isNotEmpty && !_availableBreeds.contains(_selectedBreed)) {
-        _selectedBreed = _availableBreeds.first;
-      }
+      _loadingBreeds = true;
     });
+    
+    try {
+      final breeds = await BreedOptions.getBreedsForPetType(_selectedPetType);
+      
+      if (mounted) {
+        setState(() {
+          _availableBreeds = breeds;
+          _loadingBreeds = false;
+          
+          // If editing and the breed exists in the list, keep it
+          // Otherwise, select the first breed (usually "Mixed Breed" or "Unknown")
+          if (_availableBreeds.isNotEmpty) {
+            if (_selectedBreed.isEmpty || !_availableBreeds.contains(_selectedBreed)) {
+              _selectedBreed = _availableBreeds.first;
+            }
+          }
+        });
+      }
+    } catch (e) {
+      print('Error loading breeds: $e');
+      
+      if (mounted) {
+        // Fallback to basic breeds if Firebase fails
+        setState(() {
+          _availableBreeds = ['Mixed Breed', 'Unknown'];
+          _selectedBreed = 'Mixed Breed';
+          _loadingBreeds = false;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not load breed list. Using default options.'),
+            backgroundColor: AppColors.warning,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _pickPetImage() async {
@@ -135,6 +170,17 @@ class _AddEditPetPageState extends State<AddEditPetPage> {
 
   Future<void> _savePet() async {
     if (!_formKey.currentState!.validate() || _user == null) {
+      return;
+    }
+
+    // Validate breed selection
+    if (_selectedBreed.isEmpty || !_availableBreeds.contains(_selectedBreed)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a valid breed'),
+          backgroundColor: AppColors.error,
+        ),
+      );
       return;
     }
 
@@ -366,18 +412,90 @@ class _AddEditPetPageState extends State<AddEditPetPage> {
               const SizedBox(height: 24),
               
               // Breed Dropdown
-              PetFormDropdownField(
-                label: 'Breed',
-                value: _selectedBreed.isEmpty ? _availableBreeds.first : _selectedBreed,
-                items: _availableBreeds,
-                onChanged: (value) {
-                  setState(() {
-                    _selectedBreed = value!;
-                  });
-                },
-              ),
+              _loadingBreeds
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Breed',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: AppColors.border),
+                            borderRadius: BorderRadius.circular(12),
+                            color: AppColors.white,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                'Loading breeds...',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    )
+                  : PetFormDropdownField(
+                      label: 'Breed',
+                      value: _selectedBreed.isEmpty && _availableBreeds.isNotEmpty 
+                          ? _availableBreeds.first 
+                          : _selectedBreed,
+                      items: _availableBreeds,
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedBreed = value!;
+                        });
+                      },
+                    ),
               
-              const SizedBox(height: 24),
+              const SizedBox(height: 8),
+              
+              // Breed info helper text
+              if (!_loadingBreeds && _availableBreeds.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        size: 14,
+                        color: AppColors.textSecondary,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '${_availableBreeds.length} breeds available for ${_selectedPetType}s',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               
               // Age and Weight Row
               Row(
