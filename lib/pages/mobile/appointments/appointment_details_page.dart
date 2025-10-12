@@ -230,8 +230,9 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
             const SizedBox(height: kMobileSizedBoxXLarge),
           ],
           
-          // Cancel button (only for pending appointments)
-          if (appointment.status == AppointmentStatus.pending) ...[
+          // Cancel button (only for pending/confirmed appointments)
+          if (appointment.status == AppointmentStatus.pending ||
+              appointment.status == AppointmentStatus.confirmed) ...[
             _buildCancelButton(appointment),
             const SizedBox(height: kMobileSizedBoxXLarge),
           ],

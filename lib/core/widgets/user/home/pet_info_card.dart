@@ -508,57 +508,170 @@ class PetInfoCardState extends State<PetInfoCard> {
           const SizedBox(height: 12),
           
           if (hasAppointment) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
+            // Complete date format (e.g., "Monday, October 14, 2025")
+            Text(
+              _formatCompleteDate(widget.nextAppointmentDate!),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primary,
+                height: 1.2,
               ),
-              child: Column(
-                children: [
-                  Text(
-                    widget.nextAppointmentDate!,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primary,
-                      height: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    widget.nextAppointmentTime!,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textSecondary,
-                      height: 1.3,
-                    ),
-                  ),
-                ],
+            ),
+            const SizedBox(height: 6),
+            // Time range format (e.g., "9:00 - 10:00")
+            Text(
+              _formatTimeRange(widget.nextAppointmentTime!),
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textSecondary,
+                height: 1.3,
               ),
             ),
           ] else ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.textSecondary.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text(
-                'No Appointments\nToday',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.textSecondary,
-                  height: 1.4,
-                ),
+            const Text(
+              'No Appointments\nToday',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textSecondary,
+                height: 1.4,
               ),
             ),
           ],
         ],
       ),
     );
+  }
+
+  String _formatCompleteDate(String dateStr) {
+    try {
+      DateTime date;
+      
+      // Handle different date formats
+      if (dateStr.contains('-')) {
+        // ISO format like "2025-10-13" or "10-13-2025"
+        date = DateTime.parse(dateStr);
+      } else if (dateStr.contains('/')) {
+        // Format like "10/13/2025" or "13/10/2025"
+        final parts = dateStr.split('/');
+        if (parts.length == 3) {
+          date = DateTime(int.parse(parts[2]), int.parse(parts[0]), int.parse(parts[1]));
+        } else {
+          throw FormatException('Invalid date format');
+        }
+      } else if (dateStr.toLowerCase().contains('oct') || dateStr.toLowerCase().contains('nov') || 
+                 dateStr.toLowerCase().contains('dec') || dateStr.toLowerCase().contains('jan') ||
+                 dateStr.toLowerCase().contains('feb') || dateStr.toLowerCase().contains('mar') ||
+                 dateStr.toLowerCase().contains('apr') || dateStr.toLowerCase().contains('may') ||
+                 dateStr.toLowerCase().contains('jun') || dateStr.toLowerCase().contains('jul') ||
+                 dateStr.toLowerCase().contains('aug') || dateStr.toLowerCase().contains('sep')) {
+        // Handle formats like "Oct 13" or "October 13"
+        final now = DateTime.now();
+        final monthMap = {
+          'jan': 1, 'january': 1,
+          'feb': 2, 'february': 2,
+          'mar': 3, 'march': 3,
+          'apr': 4, 'april': 4,
+          'may': 5,
+          'jun': 6, 'june': 6,
+          'jul': 7, 'july': 7,
+          'aug': 8, 'august': 8,
+          'sep': 9, 'september': 9,
+          'oct': 10, 'october': 10,
+          'nov': 11, 'november': 11,
+          'dec': 12, 'december': 12,
+        };
+        
+        String lowerDateStr = dateStr.toLowerCase();
+        int? month;
+        int? day;
+        
+        // Find month
+        for (final entry in monthMap.entries) {
+          if (lowerDateStr.contains(entry.key)) {
+            month = entry.value;
+            break;
+          }
+        }
+        
+        // Extract day number
+        final dayMatch = RegExp(r'\d+').firstMatch(dateStr);
+        if (dayMatch != null) {
+          day = int.parse(dayMatch.group(0)!);
+        }
+        
+        if (month != null && day != null) {
+          // Use current year if not specified
+          date = DateTime(now.year, month, day);
+        } else {
+          throw FormatException('Could not parse month/day');
+        }
+      } else {
+        // Try direct parsing as fallback
+        date = DateTime.parse(dateStr);
+      }
+      
+      final List<String> months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      final String month = months[date.month - 1];
+      
+      return '$month ${date.day}, ${date.year}';
+    } catch (e) {
+      print('DEBUG: Date parsing failed for "$dateStr": $e');
+      // If all parsing fails, try to at least add the year if it's missing
+      if (!dateStr.contains('2025') && !dateStr.contains('2024') && !dateStr.contains('2026')) {
+        return '$dateStr, 2025';
+      }
+      return dateStr;
+    }
+  }
+
+  String _formatTimeRange(String timeStr) {
+    try {
+      // If timeStr already contains a range (e.g., "9:00 AM - 10:00 AM"), return as is
+      if (timeStr.contains(' - ')) {
+        return timeStr;
+      }
+      
+      // If it's a single time, create a 1-hour range
+      // Parse time like "9:00 AM" or "09:00"
+      DateTime startTime;
+      if (timeStr.contains('AM') || timeStr.contains('PM')) {
+        // 12-hour format
+        final parts = timeStr.split(' ');
+        final timeParts = parts[0].split(':');
+        int hour = int.parse(timeParts[0]);
+        final minute = int.parse(timeParts[1]);
+        final isAM = parts[1] == 'AM';
+        
+        if (!isAM && hour != 12) hour += 12;
+        if (isAM && hour == 12) hour = 0;
+        
+        startTime = DateTime(2025, 1, 1, hour, minute);
+      } else {
+        // 24-hour format
+        final timeParts = timeStr.split(':');
+        final hour = int.parse(timeParts[0]);
+        final minute = int.parse(timeParts[1]);
+        startTime = DateTime(2025, 1, 1, hour, minute);
+      }
+      
+      final endTime = startTime.add(const Duration(hours: 1));
+      
+      // Format both times in 12-hour format
+      String formatTime(DateTime time) {
+        final hour12 = time.hour == 0 ? 12 : time.hour > 12 ? time.hour - 12 : time.hour;
+        final period = time.hour < 12 ? 'AM' : 'PM';
+        return '${hour12}:${time.minute.toString().padLeft(2, '0')} $period';
+      }
+      
+      return '${formatTime(startTime)} - ${formatTime(endTime)}';
+    } catch (e) {
+      // If parsing fails, return the original string
+      return timeStr;
+    }
   }
 }
