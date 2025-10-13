@@ -25,6 +25,7 @@ import 'package:pawsense/core/services/mobile/appointment_booking_service.dart';
 import 'package:pawsense/core/utils/data_cache.dart';
 import 'package:pawsense/core/services/notifications/notification_service.dart';
 import 'package:pawsense/core/services/notifications/global_notification_manager.dart';
+import 'dart:async';
 
 class UserHomePage extends StatefulWidget {
   const UserHomePage({super.key});
@@ -54,6 +55,7 @@ class _UserHomePageState extends State<UserHomePage> {
   // Dynamic appointment history data from database
   List<AppointmentHistoryData> _appointmentHistory = [];
   bool _appointmentHistoryLoading = false;
+  StreamSubscription<List<booking.AppointmentBooking>>? _appointmentStreamSubscription;
   
   // Closest upcoming appointment data
   String? _nextAppointmentDate;
@@ -74,6 +76,7 @@ class _UserHomePageState extends State<UserHomePage> {
   @override
   void dispose() {
     // Global notification manager handles cleanup automatically
+    _appointmentStreamSubscription?.cancel();
     super.dispose();
   }
 
@@ -205,13 +208,11 @@ class _UserHomePageState extends State<UserHomePage> {
 
   // Public method to refresh appointment history (can be called after booking appointment)
   void refreshAppointmentHistory({bool forceRefresh = true}) {
-    // When called externally (like after booking), usually want fresh data
+    // With streams, the data will automatically update, but we can restart the stream if needed
     if (_userModel != null) {
-      // Invalidate cache when new appointment is booked
-      final cacheKey = 'user_appointments_${_userModel!.uid}';
-      _cache.invalidate(cacheKey);
+      print('DEBUG: Refreshing appointment history stream');
+      _fetchAppointmentHistory(forceRefresh: forceRefresh);
     }
-    _fetchAppointmentHistory(forceRefresh: forceRefresh);
   }
 
   Future<void> _fetchUser() async {
@@ -448,28 +449,8 @@ class _UserHomePageState extends State<UserHomePage> {
     
     print('DEBUG: Fetching appointment history for user: ${_userModel!.uid}, forceRefresh: $forceRefresh');
     
-    final cacheKey = 'user_appointments_${_userModel!.uid}';
-    
-    // Try to get cached data first (unless forcing refresh)
-    if (!forceRefresh) {
-      final cachedAppointments = _cache.get<List<booking.AppointmentBooking>>(cacheKey);
-      if (cachedAppointments != null) {
-        print('DEBUG: Using cached appointments (${cachedAppointments.length} appointments)');
-        
-        final appointmentHistoryData = _convertAppointmentsToHistoryData(cachedAppointments);
-        
-        // Calculate closest upcoming appointment from cached data
-        _calculateClosestUpcomingAppointment(cachedAppointments);
-        
-        if (mounted) {
-          setState(() {
-            _appointmentHistory = appointmentHistoryData;
-            _appointmentHistoryLoading = false;
-          });
-        }
-        return;
-      }
-    }
+    // Cancel existing subscription if any
+    await _appointmentStreamSubscription?.cancel();
     
     // Show loading only if we don't have data yet
     final showLoading = _appointmentHistory.isEmpty;
@@ -481,41 +462,55 @@ class _UserHomePageState extends State<UserHomePage> {
     }
 
     try {
-      print('DEBUG: Fetching appointments from API for user: ${_userModel!.uid}');
-      final appointments = await AppointmentBookingService.getUserAppointments(_userModel!.uid);
-      print('DEBUG: Fetched ${appointments.length} appointments from API');
+      print('DEBUG: Setting up real-time appointment stream');
       
-      // Verify all appointments belong to the current user
-      final invalidAppointments = appointments.where((appointment) => appointment.userId != _userModel!.uid).toList();
-      if (invalidAppointments.isNotEmpty) {
-        print('ERROR: Found ${invalidAppointments.length} appointments that do not belong to current user!');
-        print('Current user: ${_userModel!.uid}');
-        for (var appointment in invalidAppointments) {
-          print('Invalid appointment: ${appointment.id} belongs to user: ${appointment.userId}');
-        }
-      }
+      // Subscribe to real-time updates
+      _appointmentStreamSubscription = AppointmentBookingService
+          .getUserAppointmentsStream(_userModel!.uid)
+          .listen(
+        (appointments) {
+          print('DEBUG: Received ${appointments.length} appointments from stream');
+          
+          // Verify all appointments belong to the current user
+          final invalidAppointments = appointments.where((appointment) => appointment.userId != _userModel!.uid).toList();
+          if (invalidAppointments.isNotEmpty) {
+            print('ERROR: Found ${invalidAppointments.length} appointments that do not belong to current user!');
+            print('Current user: ${_userModel!.uid}');
+            for (var appointment in invalidAppointments) {
+              print('Invalid appointment: ${appointment.id} belongs to user: ${appointment.userId}');
+            }
+          }
+          
+          // Filter to only include appointments for current user (safety check)
+          final validAppointments = appointments.where((appointment) => appointment.userId == _userModel!.uid).toList();
+          print('DEBUG: After filtering, ${validAppointments.length} valid appointments for current user');
+          
+          final appointmentHistoryData = _convertAppointmentsToHistoryData(validAppointments);
+          print('DEBUG: Converted to ${appointmentHistoryData.length} appointment history items');
+          
+          // Calculate closest upcoming appointment from real-time data
+          _calculateClosestUpcomingAppointment(validAppointments);
+          
+          if (mounted) {
+            setState(() {
+              _appointmentHistory = appointmentHistoryData;
+              _appointmentHistoryLoading = false;
+            });
+          }
+        },
+        onError: (error) {
+          print('Error in appointment stream: $error');
+          if (mounted) {
+            setState(() {
+              _appointmentHistoryLoading = false;
+            });
+          }
+        },
+      );
       
-      // Filter to only include appointments for current user (safety check)
-      final validAppointments = appointments.where((appointment) => appointment.userId == _userModel!.uid).toList();
-      print('DEBUG: After filtering, ${validAppointments.length} valid appointments for current user');
-      
-      // Cache the fresh data (3 minutes TTL)
-      _cache.put(cacheKey, validAppointments, ttl: const Duration(minutes: 3));
-      
-      final appointmentHistoryData = _convertAppointmentsToHistoryData(validAppointments);
-      print('DEBUG: Converted to ${appointmentHistoryData.length} appointment history items');
-      
-      // Calculate closest upcoming appointment from fresh data
-      _calculateClosestUpcomingAppointment(validAppointments);
-      
-      if (mounted) {
-        setState(() {
-          _appointmentHistory = appointmentHistoryData;
-          _appointmentHistoryLoading = false;
-        });
-      }
+      print('DEBUG: Successfully subscribed to appointment stream');
     } catch (e) {
-      print('Error fetching appointment history: $e');
+      print('Error setting up appointment stream: $e');
       if (mounted) {
         setState(() {
           _appointmentHistoryLoading = false;

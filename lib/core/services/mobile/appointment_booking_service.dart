@@ -85,6 +85,24 @@ class AppointmentBookingService {
     }
   }
 
+  /// Stream user's appointments in real-time
+  static Stream<List<AppointmentBooking>> getUserAppointmentsStream(String userId) {
+    return _firestore
+        .collection(_collection)
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .map((snapshot) {
+      final appointments = snapshot.docs
+          .map((doc) => AppointmentBooking.fromMap(doc.data(), doc.id))
+          .toList();
+      
+      // Sort by appointment date in descending order (latest first)
+      appointments.sort((a, b) => b.appointmentDate.compareTo(a.appointmentDate));
+      
+      return appointments;
+    });
+  }
+
   /// Get upcoming appointments for user
   static Future<List<AppointmentBooking>> getUpcomingAppointments(String userId) async {
     try {
