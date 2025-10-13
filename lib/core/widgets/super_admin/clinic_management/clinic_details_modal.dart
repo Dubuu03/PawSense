@@ -117,6 +117,149 @@ class _ClinicDetailsModalState extends State<ClinicDetailsModal> with TickerProv
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 
+  void _showImageZoomDialog(String imageUrl, String title) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => GestureDetector(
+        onTap: () => Navigator.of(context).pop(),
+        child: Dialog(
+          backgroundColor: Colors.black87,
+          insetPadding: EdgeInsets.zero,
+          child: Container(
+            width: MediaQuery.of(context).size.width,
+            height: MediaQuery.of(context).size.height,
+            color: Colors.transparent,
+            child: Stack(
+              children: [
+                // Image - Full screen
+                Center(
+                  child: GestureDetector(
+                    onTap: () {},
+                    child: SizedBox(
+                      width: MediaQuery.of(context).size.width,
+                      height: MediaQuery.of(context).size.height,
+                      child: InteractiveViewer(
+                        panEnabled: true,
+                        minScale: 0.5,
+                        maxScale: 4.0,
+                        child: Image.network(
+                          imageUrl,
+                          fit: BoxFit.contain,
+                          width: double.infinity,
+                          height: double.infinity,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Container(
+                              color: Colors.black87,
+                              child: const Center(
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                ),
+                              ),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: Colors.black87,
+                              child: const Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.broken_image, size: 80, color: Colors.white),
+                                    SizedBox(height: 16),
+                                    Text(
+                                      'Failed to load image',
+                                      style: TextStyle(color: Colors.white, fontSize: 16),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                // Title bar at top
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withOpacity(0.7),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () => Navigator.of(context).pop(),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.5),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.close,
+                              color: Colors.white,
+                              size: 24,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // Hint text at bottom
+                Positioned(
+                  bottom: 40,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.8),
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                      child: const Text(
+                        'Pinch to zoom • Drag to pan',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _saveChanges() async {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
@@ -278,12 +421,7 @@ class _ClinicDetailsModalState extends State<ClinicDetailsModal> with TickerProv
                   children: [
                     _buildStatusChip(),
                     const SizedBox(width: kSpacingMedium),
-                    Text(
-                      'License: ${widget.clinic.licenseNumber}',
-                      style: kTextStyleSmall.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
+                    
                   ],
                 ),
               ],
@@ -713,69 +851,86 @@ class _ClinicDetailsModalState extends State<ClinicDetailsModal> with TickerProv
             ),
           )
         else
-          ...certifications.take(3).map((cert) => Container(
-            margin: const EdgeInsets.only(bottom: kSpacingSmall),
-            padding: const EdgeInsets.all(kSpacingMedium),
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(kBorderRadius),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: cert.isActive ? AppColors.success.withOpacity(0.1) : AppColors.textSecondary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Icon(
-                    Icons.verified,
-                    size: 18,
-                    color: cert.isActive ? AppColors.success : AppColors.textSecondary,
-                  ),
+          ...certifications.take(3).map((cert) => Tooltip(
+            message: cert.documentUrl?.isNotEmpty == true
+                ? 'Click to view certificate image'
+                : 'No certificate image available',
+            child: InkWell(
+              onTap: cert.documentUrl?.isNotEmpty == true
+                  ? () => _showImageZoomDialog(cert.documentUrl!, cert.name)
+                  : null,
+              child: Container(
+                margin: const EdgeInsets.only(bottom: kSpacingSmall),
+                padding: const EdgeInsets.all(kSpacingMedium),
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(kBorderRadius),
+                  border: Border.all(color: AppColors.border),
                 ),
-                const SizedBox(width: kSpacingSmall),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        cert.name,
-                        style: kTextStyleSmall.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: cert.isActive ? AppColors.success.withOpacity(0.1) : AppColors.textSecondary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        Icons.verified,
+                        size: 18,
+                        color: cert.isActive ? AppColors.success : AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(width: kSpacingSmall),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            cert.name,
+                            style: kTextStyleSmall.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          if (cert.issuer.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              'Issued by: ${cert.issuer}',
+                              style: kTextStyleSmall.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                          if (cert.dateExpiry != null) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              'Expires: ${_formatDate(cert.dateExpiry!.toDate())}',
+                              style: kTextStyleSmall.copyWith(
+                                color: cert.isExpired ? AppColors.error : AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    if (cert.documentUrl?.isNotEmpty == true)
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: AppColors.info.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Icon(
+                          Icons.zoom_in,
+                          size: 16,
+                          color: AppColors.info,
                         ),
                       ),
-                      if (cert.issuer.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          'Issued by: ${cert.issuer}',
-                          style: kTextStyleSmall.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                      if (cert.dateExpiry != null) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          'Expires: ${_formatDate(cert.dateExpiry!.toDate())}',
-                          style: kTextStyleSmall.copyWith(
-                            color: cert.isExpired ? AppColors.error : AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
+                  ],
                 ),
-                if (cert.documentUrl?.isNotEmpty == true)
-                  Icon(
-                    Icons.image,
-                    size: 16,
-                    color: AppColors.info,
-                  ),
-              ],
+              ),
             ),
           )).toList(),
           
@@ -850,65 +1005,82 @@ class _ClinicDetailsModalState extends State<ClinicDetailsModal> with TickerProv
             ),
           )
         else
-          ...licenses.take(3).map((license) => Container(
-            margin: const EdgeInsets.only(bottom: kSpacingSmall),
-            padding: const EdgeInsets.all(kSpacingMedium),
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(kBorderRadius),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: license.isActive ? AppColors.info.withOpacity(0.1) : AppColors.textSecondary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Icon(
-                    Icons.badge,
-                    size: 18,
-                    color: license.isActive ? AppColors.info : AppColors.textSecondary,
-                  ),
+          ...licenses.take(3).map((license) => Tooltip(
+            message: license.licensePictureUrl?.isNotEmpty == true
+                ? 'Click to view license image'
+                : 'No license image available',
+            child: InkWell(
+              onTap: license.licensePictureUrl?.isNotEmpty == true
+                  ? () => _showImageZoomDialog(license.licensePictureUrl!, license.licenseId)
+                  : null,
+              child: Container(
+                margin: const EdgeInsets.only(bottom: kSpacingSmall),
+                padding: const EdgeInsets.all(kSpacingMedium),
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(kBorderRadius),
+                  border: Border.all(color: AppColors.border),
                 ),
-                const SizedBox(width: kSpacingSmall),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        license.licenseId,
-                        style: kTextStyleSmall.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: license.isActive ? AppColors.info.withOpacity(0.1) : AppColors.textSecondary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        Icons.badge,
+                        size: 18,
+                        color: license.isActive ? AppColors.info : AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(width: kSpacingSmall),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            license.licenseId,
+                            style: kTextStyleSmall.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Issue Date: ${_formatDate(license.issueDate.toDate())}',
+                            style: kTextStyleSmall.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Expires: ${_formatDate(license.expiryDate.toDate())}',
+                            style: kTextStyleSmall.copyWith(
+                              color: license.isExpired ? AppColors.error : AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (license.licensePictureUrl?.isNotEmpty == true)
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: AppColors.info.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Icon(
+                          Icons.zoom_in,
+                          size: 16,
+                          color: AppColors.info,
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Issue Date: ${_formatDate(license.issueDate.toDate())}',
-                        style: kTextStyleSmall.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Expires: ${_formatDate(license.expiryDate.toDate())}',
-                        style: kTextStyleSmall.copyWith(
-                          color: license.isExpired ? AppColors.error : AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
+                  ],
                 ),
-                if (license.licensePictureUrl?.isNotEmpty == true)
-                  Icon(
-                    Icons.image,
-                    size: 16,
-                    color: AppColors.info,
-                  ),
-              ],
+              ),
             ),
           )).toList(),
           
@@ -968,7 +1140,6 @@ class _ClinicDetailsModalState extends State<ClinicDetailsModal> with TickerProv
                 _buildInfoRow('Specialties', _clinicDetails!.specialties.join(', ')),
                 const SizedBox(height: kSpacingSmall),
               ],
-              _buildInfoRow('Verification Status', _clinicDetails!.isVerified ? 'Verified' : 'Unverified'),
               const SizedBox(height: kSpacingSmall),
               _buildInfoRow('Registration Date', _formatDateTime(_clinicDetails!.createdAt)),
             ],

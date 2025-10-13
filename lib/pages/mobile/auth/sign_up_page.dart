@@ -712,7 +712,7 @@ class _SignUpPageState extends State<SignUpPage>
                         ),
                       ),
 
-                      SizedBox(height: 16),
+                      SizedBox(height: 20),
 
                       // Sign in link
                       Row(
