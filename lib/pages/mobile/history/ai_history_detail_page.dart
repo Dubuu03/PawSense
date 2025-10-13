@@ -238,8 +238,7 @@ class _AIHistoryDetailPageState extends State<AIHistoryDetailPage> {
             child: PrimaryButton(
               text: 'Download as PDF',
               icon: Icons.download,
-              onPressed: _isGeneratingPDF ? null : _generatePDF,
-              isLoading: _isGeneratingPDF,
+              onPressed: _generatePDF,
             ),
           ),
           
@@ -422,43 +421,69 @@ class _AIHistoryDetailPageState extends State<AIHistoryDetailPage> {
               scrollDirection: Axis.horizontal,
               itemCount: assessment.imageUrls.length,
               itemBuilder: (context, index) {
-                return Container(
-                  margin: EdgeInsets.only(
-                    right: index < assessment.imageUrls.length - 1 ? kMobileSizedBoxMedium : 0,
-                  ),
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.border, width: 1),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(7),
-                    child: Image.network(
-                      assessment.imageUrls[index],
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: AppColors.border,
-                          child: Icon(
-                            Icons.image_not_supported,
-                            color: AppColors.textSecondary,
-                            size: 40,
+                return GestureDetector(
+                  onTap: () => _showFullscreenImage(assessment.imageUrls[index], index, assessment),
+                  child: Container(
+                    margin: EdgeInsets.only(
+                      right: index < assessment.imageUrls.length - 1 ? kMobileSizedBoxMedium : 0,
+                    ),
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.border, width: 1),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(7),
+                      child: Stack(
+                        children: [
+                          Image.network(
+                            assessment.imageUrls[index],
+                            fit: BoxFit.cover,
+                            width: 120,
+                            height: 120,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: AppColors.border,
+                                child: Icon(
+                                  Icons.image_not_supported,
+                                  color: AppColors.textSecondary,
+                                  size: 40,
+                                ),
+                              );
+                            },
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Container(
+                                color: AppColors.border,
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
-                        );
-                      },
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return Container(
-                          color: AppColors.border,
-                          child: Center(
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.primary,
+                          // Subtle tap indicator overlay
+                          Positioned(
+                            bottom: 4,
+                            right: 4,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Icon(
+                                Icons.zoom_in,
+                                color: Colors.white,
+                                size: 16,
+                              ),
                             ),
                           ),
-                        );
-                      },
+                        ],
+                      ),
                     ),
                   ),
                 );
@@ -488,8 +513,24 @@ class _AIHistoryDetailPageState extends State<AIHistoryDetailPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          
-          
+          Row(
+            children: [
+              Icon(
+                Icons.medical_services,
+                color: AppColors.warning,
+                size: 20,
+              ),
+              const SizedBox(width: kMobileSizedBoxMedium),
+              Text(
+                'Reported Symptoms',
+                style: kMobileTextStyleTitle.copyWith(
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: kMobileSizedBoxLarge),
           Wrap(
             spacing: 8,
@@ -535,7 +576,24 @@ class _AIHistoryDetailPageState extends State<AIHistoryDetailPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          
+          Row(
+            children: [
+              Icon(
+                Icons.visibility,
+                color: AppColors.primary,
+                size: 20,
+              ),
+              const SizedBox(width: kMobileSizedBoxMedium),
+              Text(
+                'AI Detection Results',
+                style: kMobileTextStyleTitle.copyWith(
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: kMobileSizedBoxLarge),
           ...assessment.detectionResults.asMap().entries.map((entry) {
             final index = entry.key;
@@ -868,12 +926,162 @@ class _AIHistoryDetailPageState extends State<AIHistoryDetailPage> {
     return sortedDetections.first;
   }
 
+  /// Show fullscreen image viewer
+  void _showFullscreenImage(String imageUrl, int index, AssessmentResult assessment) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: EdgeInsets.zero,
+          child: Stack(
+            children: [
+              // Fullscreen image
+              Center(
+                child: InteractiveViewer(
+                  minScale: 0.5,
+                  maxScale: 4.0,
+                  child: Image.network(
+                    imageUrl,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        padding: const EdgeInsets.all(kMobilePaddingLarge),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.image_not_supported,
+                              color: Colors.white,
+                              size: 64,
+                            ),
+                            const SizedBox(height: kMobileSizedBoxMedium),
+                            Text(
+                              'Failed to load image',
+                              style: kMobileTextStyleTitle.copyWith(
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Center(
+                        child: CircularProgressIndicator(
+                          value: loadingProgress.expectedTotalBytes != null
+                              ? loadingProgress.cumulativeBytesLoaded /
+                                  loadingProgress.expectedTotalBytes!
+                              : null,
+                          color: AppColors.primary,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              // Close button
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 16,
+                right: 16,
+                child: Material(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(20),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Icon(
+                        Icons.close,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // Image counter
+              Positioned(
+                bottom: MediaQuery.of(context).padding.bottom + 16,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      '${index + 1} / ${assessment.imageUrls.length}',
+                      style: kMobileTextStyleSubtitle.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _generatePDF() async {
     if (_assessmentResult == null || _isGeneratingPDF) return;
     
     setState(() => _isGeneratingPDF = true);
     
     try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.all(kMobilePaddingLarge),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(kMobileBorderRadiusCard),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: AppColors.primary),
+                  const SizedBox(height: kMobileSizedBoxLarge),
+                  Text(
+                    'Generating PDF...',
+                    style: kMobileTextStyleTitle.copyWith(
+                      color: AppColors.textPrimary,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: kMobileSizedBoxMedium),
+                  Text(
+                    'Please wait while we create your assessment report',
+                    style: kMobileTextStyleSubtitle.copyWith(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+
       // Get current user
       final authService = AuthService();
       final currentUser = authService.currentUser;
@@ -897,6 +1105,11 @@ class _AIHistoryDetailPageState extends State<AIHistoryDetailPage> {
       // Save PDF to device
       final fileName = 'PawSense_Assessment_${_assessmentResult!.petName}_${DateTime.now().millisecondsSinceEpoch}';
       final filePath = await PDFGenerationService.savePDFToDevice(pdfBytes, fileName);
+
+      // Close loading dialog
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
 
       setState(() => _isGeneratingPDF = false);
 
@@ -937,6 +1150,11 @@ class _AIHistoryDetailPageState extends State<AIHistoryDetailPage> {
       );
 
     } catch (e) {
+      // Close loading dialog if still showing
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+      
       setState(() => _isGeneratingPDF = false);
       
       print('Error generating PDF: $e');
