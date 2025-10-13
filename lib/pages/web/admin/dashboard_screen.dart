@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pawsense/core/widgets/admin/dashboard/recent_activity_list.dart';
 import '../../../core/widgets/admin/dashboard/stats_cards_list.dart';
+import '../../../core/widgets/admin/dashboard/loading_stats_card.dart';
 import '../../../core/widgets/admin/dashboard/dashboard_header.dart';
 import '../../../core/widgets/admin/dashboard/common_diseases_chart.dart';
 import '../../../core/utils/app_colors.dart';
@@ -402,32 +403,37 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     }
   }
 
-  /// Build loading skeleton for stats cards
+  /// Build loading skeleton for stats cards with static UI (title & icons)
   Widget _buildLoadingStatsCards() {
+    // Static card configurations with titles and icons
+    final loadingCards = [
+      {
+        'title': 'Total Appointments',
+        'icon': Icons.calendar_today,
+        'iconColor': AppColors.primary,
+      },
+      {
+        'title': 'Consultations Completed',
+        'icon': Icons.check_circle_outline,
+        'iconColor': AppColors.success,
+      },
+      {
+        'title': 'Active Patients',
+        'icon': Icons.favorite_outline,
+        'iconColor': AppColors.info,
+      },
+    ];
+
     return Row(
-      children: List.generate(3, (index) {
+      children: List.generate(loadingCards.length, (index) {
+        final card = loadingCards[index];
         return Expanded(
           child: Padding(
-            padding: EdgeInsets.only(right: index < 2 ? 16 : 0),
-            child: Container(
-              height: 120,
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Center(
-                child: CircularProgressIndicator(
-                  color: AppColors.primary,
-                  strokeWidth: 2,
-                ),
-              ),
+            padding: EdgeInsets.only(right: index < loadingCards.length - 1 ? 16 : 0),
+            child: LoadingStatsCard(
+              title: card['title'] as String,
+              icon: card['icon'] as IconData,
+              iconColor: card['iconColor'] as Color,
             ),
           ),
         );
