@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:html' as html;
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:pawsense/core/models/user/user_model.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants.dart';
@@ -544,6 +547,163 @@ class _UserManagementScreenState extends State<UserManagementScreen> with Automa
     }
   }
 
+  Future<void> _handleExportCSV() async {
+    // Show loading indicator
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              SizedBox(width: 16),
+              Text('Preparing export...'),
+            ],
+          ),
+          duration: Duration(seconds: 30),
+          backgroundColor: Colors.blue,
+        ),
+      );
+    }
+
+    try {
+      // Convert filter strings to API format
+      String? roleFilter;
+      if (_selectedRole != 'All Roles' && _selectedRole.isNotEmpty) {
+        roleFilter = _selectedRole.toLowerCase().replaceAll(' ', '_');
+      }
+      
+      String? statusFilter;
+      if (_selectedStatus != 'All Status' && _selectedStatus.isNotEmpty) {
+        if (_selectedStatus == 'Active') {
+          statusFilter = 'active';
+        } else if (_selectedStatus == 'Suspended') statusFilter = 'suspended';
+      }
+
+      // Fetch ALL filtered users (not just current page)
+      final result = await SuperAdminService.getPaginatedUsersWithStatus(
+        page: 1,
+        itemsPerPage: 999999, // Get all matching records
+        roleFilter: roleFilter,
+        statusFilter: statusFilter,
+        searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
+      );
+
+      final allFilteredUsers = result['users'] as List<Map<String, dynamic>>;
+
+      if (allFilteredUsers.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).clearSnackBars();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No users to export'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Generate CSV content
+      final csvContent = _generateCSV(allFilteredUsers);
+
+      // Create blob and download
+      final bytes = utf8.encode(csvContent);
+      final blob = html.Blob([bytes]);
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final anchor = html.document.createElement('a') as html.AnchorElement
+        ..href = url
+        ..style.display = 'none'
+        ..download = 'pawsense_users_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.csv';
+
+      html.document.body?.children.add(anchor);
+      anchor.click();
+
+      html.document.body?.children.remove(anchor);
+      html.Url.revokeObjectUrl(url);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Exported ${allFilteredUsers.length} users to CSV'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+
+      print('📊 Exported ${allFilteredUsers.length} users to CSV');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error exporting CSV: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      print('❌ Error exporting CSV: $e');
+    }
+  }
+
+  String _generateCSV(List<Map<String, dynamic>> usersWithStatus) {
+    final buffer = StringBuffer();
+    
+    // CSV Headers
+    buffer.writeln(
+      'UID,Username,First Name,Last Name,Email,Contact Number,Address,Role,'
+      'Status,Suspension Reason,Suspended At,Created At,Updated At'
+    );
+
+    // CSV Rows
+    for (final userMap in usersWithStatus) {
+      final user = userMap['user'] as UserModel;
+      final isActive = userMap['isActive'] as bool;
+      final suspensionReason = userMap['suspensionReason'] as String?;
+      
+      buffer.writeln(
+        '${_escapeCsv(user.uid)},'
+        '${_escapeCsv(user.username)},'
+        '${_escapeCsv(user.firstName ?? '')},'
+        '${_escapeCsv(user.lastName ?? '')},'
+        '${_escapeCsv(user.email)},'
+        '${_escapeCsv(user.contactNumber ?? '')},'
+        '${_escapeCsv(user.address ?? '')},'
+        '${_escapeCsv(_formatRole(user.role))},'
+        '${isActive ? 'Active' : 'Suspended'},'
+        '${_escapeCsv(suspensionReason ?? '')},'
+        '${user.suspendedAt != null ? DateFormat('yyyy-MM-dd HH:mm:ss').format(user.suspendedAt!) : ''},'
+        '${DateFormat('yyyy-MM-dd HH:mm:ss').format(user.createdAt)},'
+        '${user.updatedAt != null ? DateFormat('yyyy-MM-dd HH:mm:ss').format(user.updatedAt!) : ''}'
+      );
+    }
+
+    return buffer.toString();
+  }
+
+  String _formatRole(String role) {
+    // Convert role format: 'pet_owner' -> 'Pet Owner'
+    return role.split('_').map((word) => 
+      word[0].toUpperCase() + word.substring(1)
+    ).join(' ');
+  }
+
+  String _escapeCsv(String value) {
+    // Escape double quotes and wrap in quotes if contains comma, newline, or quotes
+    if (value.contains(',') || value.contains('\n') || value.contains('"')) {
+      return '"${value.replaceAll('"', '""')}"';
+    }
+    return value;
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
@@ -599,12 +759,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> with Automa
               onSearchChanged: _onSearchChanged,
               onRoleChanged: _onRoleFilterChanged,
               onStatusChanged: _onStatusFilterChanged,
-              onExportData: () {
-                // TODO: Implement export functionality
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Export functionality coming soon')),
-                );
-              },
+              onExportData: _handleExportCSV,
             ),
             
             SizedBox(height: kSpacingLarge),

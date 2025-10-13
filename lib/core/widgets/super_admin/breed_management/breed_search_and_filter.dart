@@ -12,6 +12,7 @@ class BreedSearchAndFilter extends StatelessWidget {
   final Function(BreedStatus) onStatusChanged;
   final BreedSortOption selectedSort;
   final Function(BreedSortOption) onSortChanged;
+  final VoidCallback onExportCSV;
 
   const BreedSearchAndFilter({
     super.key,
@@ -23,6 +24,7 @@ class BreedSearchAndFilter extends StatelessWidget {
     required this.onStatusChanged,
     required this.selectedSort,
     required this.onSortChanged,
+    required this.onExportCSV,
   });
 
   @override
@@ -107,6 +109,25 @@ class BreedSearchAndFilter extends StatelessWidget {
                   items: BreedSortOption.values,
                   onChanged: onSortChanged,
                   getLabel: (sort) => sort.displayName,
+                ),
+              ),
+              SizedBox(width: kSpacingMedium),
+              
+              // Export Button
+              ElevatedButton.icon(
+                onPressed: onExportCSV,
+                icon: Icon(Icons.download, size: 18),
+                label: Text('Export', style: kTextStyleRegular.copyWith(fontWeight: FontWeight.w500)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.success,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: kSpacingLarge,
+                    vertical: kSpacingMedium + 2,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(kBorderRadiusSmall),
+                  ),
                 ),
               ),
             ],

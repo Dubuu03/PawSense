@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
+import 'package:pawsense/core/utils/constants.dart';
+import 'package:pawsense/core/widgets/shared/search_field.dart';
 
 class DiseaseSearchAndFilter extends StatefulWidget {
   final String searchQuery;
@@ -46,14 +48,14 @@ class DiseaseSearchAndFilter extends StatefulWidget {
 }
 
 class _DiseaseSearchAndFilterState extends State<DiseaseSearchAndFilter> {
-  final TextEditingController _searchController = TextEditingController();
+  late TextEditingController _searchController;
   Timer? _debounce;
-  bool _showAdvancedFilters = true; // Changed to true - show filters by default
+  bool _showAdvancedFilters = false;
 
   @override
   void initState() {
     super.initState();
-    _searchController.text = widget.searchQuery;
+    _searchController = TextEditingController(text: widget.searchQuery);
   }
 
   @override
@@ -70,15 +72,6 @@ class _DiseaseSearchAndFilterState extends State<DiseaseSearchAndFilter> {
     });
   }
 
-  bool get _hasActiveFilters {
-    return widget.detectionFilter != null ||
-        widget.speciesFilter.isNotEmpty ||
-        widget.severityFilter != null ||
-        widget.categoriesFilter.isNotEmpty ||
-        widget.contagiousFilter != null ||
-        widget.searchQuery.isNotEmpty;
-  }
-
   int get _activeFilterCount {
     int count = 0;
     if (widget.detectionFilter != null) count++;
@@ -92,39 +85,165 @@ class _DiseaseSearchAndFilterState extends State<DiseaseSearchAndFilter> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(kSpacingLarge),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(kBorderRadius),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(kShadowOpacity),
+            spreadRadius: kShadowSpreadRadius,
+            blurRadius: kShadowBlurRadius,
+            offset: kShadowOffset,
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Search Bar, Sort, Filters Toggle, and Export
+          // Main Row: Search + Dropdowns + Export
           Row(
             children: [
-              Expanded(child: _buildSearchBar()),
-              const SizedBox(width: 12),
-              _buildSortDropdown(),
-              const SizedBox(width: 8),
-              _buildFiltersToggle(),
-              const SizedBox(width: 8),
-              _buildExportButton(),
+              // Search Field
+              Expanded(
+                flex: 3,
+                child: SearchField(
+                  hintText: 'Search diseases by name, symptoms, or categories...',
+                  controller: _searchController,
+                  onChanged: _onSearchChanged,
+                ),
+              ),
+              SizedBox(width: kSpacingMedium),
+
+              // Detection Method Dropdown
+              Expanded(
+                child: _buildDropdownFilter(
+                  label: 'Detection',
+                  value: widget.detectionFilter ?? 'all',
+                  items: [
+                    {'value': 'all', 'label': 'All Detection'},
+                    {'value': 'ai', 'label': '✨ AI-Detectable'},
+                    {'value': 'info', 'label': 'ℹ️ Info Only'},
+                  ],
+                  onChanged: (value) => widget.onDetectionChanged(value == 'all' ? null : value),
+                ),
+              ),
+              SizedBox(width: kSpacingMedium),
+
+              // Severity Dropdown
+              Expanded(
+                child: _buildDropdownFilter(
+                  label: 'Severity',
+                  value: widget.severityFilter ?? 'all',
+                  items: [
+                    {'value': 'all', 'label': 'All Severity'},
+                    {'value': 'mild', 'label': 'Mild'},
+                    {'value': 'moderate', 'label': 'Moderate'},
+                    {'value': 'severe', 'label': 'Severe'},
+                    {'value': 'varies', 'label': 'Varies'},
+                  ],
+                  onChanged: (value) => widget.onSeverityChanged(value == 'all' ? null : value),
+                ),
+              ),
+              SizedBox(width: kSpacingMedium),
+
+              // Sort Dropdown
+              Expanded(
+                child: _buildDropdownFilter(
+                  label: 'Sort',
+                  value: widget.sortBy,
+                  items: [
+                    {'value': 'name_asc', 'label': 'A-Z'},
+                    {'value': 'name_desc', 'label': 'Z-A'},
+                    {'value': 'date_added', 'label': 'Newest'},
+                    {'value': 'date_updated', 'label': 'Updated'},
+                    {'value': 'most_viewed', 'label': 'Popular'},
+                    {'value': 'severity', 'label': 'Severity'},
+                  ],
+                  onChanged: widget.onSortChanged,
+                ),
+              ),
+              SizedBox(width: kSpacingMedium),
+
+              // Advanced Filters Toggle
+              OutlinedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _showAdvancedFilters = !_showAdvancedFilters;
+                  });
+                },
+                icon: Icon(
+                  _showAdvancedFilters ? Icons.filter_alt : Icons.filter_alt_outlined,
+                  size: kIconSizeMedium,
+                ),
+                label: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Filters', style: kTextStyleRegular.copyWith(fontWeight: FontWeight.w500)),
+                    if (_activeFilterCount > 0) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: AppColors.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                        child: Center(
+                          child: Text(
+                            '$_activeFilterCount',
+                            style: const TextStyle(
+                              color: AppColors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _showAdvancedFilters ? AppColors.primary : AppColors.textSecondary,
+                  side: BorderSide(
+                    color: _showAdvancedFilters ? AppColors.primary : AppColors.border,
+                    width: _showAdvancedFilters ? 1.5 : 1,
+                  ),
+                  padding: EdgeInsets.symmetric(horizontal: kSpacingLarge, vertical: kSpacingMedium),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(kBorderRadiusSmall),
+                  ),
+                ),
+              ),
+              SizedBox(width: kSpacingMedium),
+
+              // Export Button
+              ElevatedButton.icon(
+                onPressed: widget.onExportCSV,
+                icon: Icon(Icons.download_outlined, size: kIconSizeMedium),
+                label: Text('Export', style: kTextStyleRegular.copyWith(fontWeight: FontWeight.w500)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.success,
+                  foregroundColor: AppColors.white,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: kSpacingLarge,
+                    vertical: kSpacingMedium,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(kBorderRadiusSmall),
+                  ),
+                  elevation: 0,
+                ),
+              ),
             ],
           ),
 
-          // Quick Filters - Always Visible
-          if (_hasActiveFilters) ...[
-            const SizedBox(height: 16),
-            _buildActiveFiltersChips(),
-          ],
-
-          // Advanced Filters - Collapsible
+          // Advanced Filters Panel
           if (_showAdvancedFilters) ...[
-            const SizedBox(height: 16),
-            const Divider(height: 1),
-            const SizedBox(height: 16),
+            SizedBox(height: kSpacingLarge),
+            Divider(color: AppColors.border),
+            SizedBox(height: kSpacingLarge),
             _buildAdvancedFilters(),
           ],
         ],
@@ -132,226 +251,44 @@ class _DiseaseSearchAndFilterState extends State<DiseaseSearchAndFilter> {
     );
   }
 
-  Widget _buildSearchBar() {
-    return TextField(
-      controller: _searchController,
-      onChanged: _onSearchChanged,
+  Widget _buildDropdownFilter({
+    required String label,
+    required String value,
+    required List<Map<String, String>> items,
+    required Function(String) onChanged,
+  }) {
+    return DropdownButtonFormField<String>(
+      value: value,
       decoration: InputDecoration(
-        hintText: 'Search diseases...',
-        hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
-        prefixIcon: Icon(Icons.search, color: Colors.grey.shade400, size: 20),
-        suffixIcon: widget.searchQuery.isNotEmpty
-            ? IconButton(
-                icon: Icon(Icons.clear, color: Colors.grey.shade400, size: 18),
-                onPressed: () {
-                  _searchController.clear();
-                  widget.onSearchChanged('');
-                },
-              )
-            : null,
+        labelText: label,
+        labelStyle: kTextStyleRegular.copyWith(color: AppColors.textSecondary),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(kBorderRadiusSmall),
+          borderSide: BorderSide(color: AppColors.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(kBorderRadiusSmall),
+          borderSide: BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppColors.primary, width: 2),
+          borderRadius: BorderRadius.circular(kBorderRadiusSmall),
+          borderSide: BorderSide(color: AppColors.primary, width: 1.5),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        contentPadding: EdgeInsets.symmetric(horizontal: kSpacingMedium, vertical: 12),
         filled: true,
-        fillColor: Colors.grey.shade50,
-        isDense: true,
+        fillColor: AppColors.white,
       ),
-    );
-  }
-
-  Widget _buildFiltersToggle() {
-    return OutlinedButton.icon(
-      onPressed: () {
-        setState(() {
-          _showAdvancedFilters = !_showAdvancedFilters;
-        });
-      },
-      icon: Icon(
-        _showAdvancedFilters ? Icons.filter_alt : Icons.filter_alt_outlined,
-        size: 18,
-      ),
-      label: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('Filters'),
-          if (_activeFilterCount > 0) ...[
-            const SizedBox(width: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: const BoxDecoration(
-                color: AppColors.primary,
-                shape: BoxShape.circle,
-              ),
-              constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
-              child: Center(
-                child: Text(
-                  '$_activeFilterCount',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: _showAdvancedFilters ? AppColors.primary : Colors.grey.shade700,
-        side: BorderSide(
-          color: _showAdvancedFilters ? AppColors.primary : Colors.grey.shade300,
-          width: _showAdvancedFilters ? 2 : 1,
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSortDropdown() {
-    return Container(
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: DropdownButton<String>(
-        value: widget.sortBy,
-        underline: const SizedBox(),
-        icon: Icon(Icons.sort, color: Colors.grey.shade600, size: 18),
-        style: TextStyle(fontSize: 14, color: Colors.grey.shade800),
-        isDense: true,
-        items: const [
-          DropdownMenuItem(value: 'name_asc', child: Text('A-Z')),
-          DropdownMenuItem(value: 'name_desc', child: Text('Z-A')),
-          DropdownMenuItem(value: 'date_added', child: Text('Newest')),
-          DropdownMenuItem(value: 'date_updated', child: Text('Updated')),
-          DropdownMenuItem(value: 'most_viewed', child: Text('Popular')),
-          DropdownMenuItem(value: 'severity', child: Text('Severity')),
-        ],
-        onChanged: (value) {
-          if (value != null) widget.onSortChanged(value);
-        },
-      ),
-    );
-  }
-
-  Widget _buildExportButton() {
-    return IconButton(
-      onPressed: widget.onExportCSV,
-      icon: const Icon(Icons.file_download_outlined),
-      tooltip: 'Export to CSV',
-      style: IconButton.styleFrom(
-        foregroundColor: Colors.grey.shade700,
-        side: BorderSide(color: Colors.grey.shade300),
-        padding: const EdgeInsets.all(12),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActiveFiltersChips() {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        if (widget.detectionFilter != null)
-          _buildActiveChip(
-            label: widget.detectionFilter == 'ai' ? '✨ AI-Detectable' : 'ℹ️ Info Only',
-            onRemove: () => widget.onDetectionChanged(null),
+      style: kTextStyleRegular.copyWith(color: AppColors.textPrimary),
+      items: items.map((item) {
+        return DropdownMenuItem(
+          value: item['value']!,
+          child: Text(
+            item['label']!,
+            style: kTextStyleRegular.copyWith(color: AppColors.textPrimary),
           ),
-        ...widget.speciesFilter.map((species) => _buildActiveChip(
-              label: species == 'cats' ? '🐱 Cats' : '🐶 Dogs',
-              onRemove: () {
-                final newList = List<String>.from(widget.speciesFilter);
-                newList.remove(species);
-                widget.onSpeciesChanged(newList);
-              },
-            )),
-        if (widget.severityFilter != null)
-          _buildActiveChip(
-            label: '${widget.severityFilter![0].toUpperCase()}${widget.severityFilter!.substring(1)}',
-            onRemove: () => widget.onSeverityChanged(null),
-          ),
-        ...widget.categoriesFilter.map((category) => _buildActiveChip(
-              label: category,
-              onRemove: () {
-                final newList = List<String>.from(widget.categoriesFilter);
-                newList.remove(category);
-                widget.onCategoriesChanged(newList);
-              },
-            )),
-        if (widget.contagiousFilter != null)
-          _buildActiveChip(
-            label: widget.contagiousFilter! ? '⚠️ Contagious' : '✓ Non-Contagious',
-            onRemove: () => widget.onContagiousChanged(null),
-          ),
-        if (_activeFilterCount > 1)
-          TextButton.icon(
-            onPressed: widget.onClearFilters,
-            icon: const Icon(Icons.clear_all, size: 16),
-            label: const Text('Clear All'),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.grey.shade600,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              textStyle: const TextStyle(fontSize: 13),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildActiveChip({
-    required String label,
-    required VoidCallback onRemove,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: AppColors.primary.withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: AppColors.primary,
-            ),
-          ),
-          const SizedBox(width: 6),
-          InkWell(
-            onTap: onRemove,
-            borderRadius: BorderRadius.circular(10),
-            child: const Icon(
-              Icons.close,
-              size: 16,
-              color: AppColors.primary,
-            ),
-          ),
-        ],
-      ),
+        );
+      }).toList(),
+      onChanged: (val) => onChanged(val!),
     );
   }
 
@@ -359,52 +296,49 @@ class _DiseaseSearchAndFilterState extends State<DiseaseSearchAndFilter> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Detection & Species Row
+        Row(
+          children: [
+            Text(
+              'Advanced Filters',
+              style: kTextStyleRegular.copyWith(
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const Spacer(),
+            if (_activeFilterCount > 0)
+              TextButton.icon(
+                onPressed: widget.onClearFilters,
+                icon: Icon(Icons.clear_all, size: kIconSizeSmall),
+                label: Text('Clear All', style: kTextStyleSmall),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.error,
+                  padding: EdgeInsets.symmetric(horizontal: kSpacingSmall, vertical: 4),
+                ),
+              ),
+          ],
+        ),
+        SizedBox(height: kSpacingMedium),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: _buildCompactFilterSection(
-                'Detection Method',
-                _buildDetectionFilter(),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildCompactFilterSection(
+              child: _buildFilterGroup(
                 'Species',
                 _buildSpeciesFilter(),
               ),
             ),
-          ],
-        ),
-
-        const SizedBox(height: 16),
-
-        // Severity & Contagious Row
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+            SizedBox(width: kSpacingLarge),
             Expanded(
-              child: _buildCompactFilterSection(
-                'Severity',
-                _buildSeverityFilter(),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildCompactFilterSection(
+              child: _buildFilterGroup(
                 'Contagious',
                 _buildContagiousFilter(),
               ),
             ),
           ],
         ),
-
-        const SizedBox(height: 16),
-
-        // Categories - Full Width
-        _buildCompactFilterSection(
+        SizedBox(height: kSpacingLarge),
+        _buildFilterGroup(
           'Categories',
           _buildCategoriesFilter(),
         ),
@@ -412,54 +346,32 @@ class _DiseaseSearchAndFilterState extends State<DiseaseSearchAndFilter> {
     );
   }
 
-  Widget _buildCompactFilterSection(String title, Widget child) {
+  Widget _buildFilterGroup(String title, Widget child) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           title,
-          style: TextStyle(
-            fontSize: 12,
+          style: kTextStyleSmall.copyWith(
             fontWeight: FontWeight.w600,
-            color: Colors.grey.shade600,
+            color: AppColors.textSecondary,
             letterSpacing: 0.5,
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: kSpacingSmall),
         child,
       ],
     );
   }
 
-  Widget _buildDetectionFilter() {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        _buildCompactChip(
-          label: '✨ AI',
-          isSelected: widget.detectionFilter == 'ai',
-          onTap: () => widget.onDetectionChanged(
-            widget.detectionFilter == 'ai' ? null : 'ai',
-          ),
-        ),
-        _buildCompactChip(
-          label: 'ℹ️ Info',
-          isSelected: widget.detectionFilter == 'info',
-          onTap: () => widget.onDetectionChanged(
-            widget.detectionFilter == 'info' ? null : 'info',
-          ),
-        ),
-      ],
-    );
-  }
+
 
   Widget _buildSpeciesFilter() {
     return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+      spacing: kSpacingSmall,
+      runSpacing: kSpacingSmall,
       children: [
-        _buildCompactChip(
+        _buildFilterChip(
           label: '🐱 Cats',
           isSelected: widget.speciesFilter.contains('cats'),
           onTap: () {
@@ -472,7 +384,7 @@ class _DiseaseSearchAndFilterState extends State<DiseaseSearchAndFilter> {
             widget.onSpeciesChanged(newList);
           },
         ),
-        _buildCompactChip(
+        _buildFilterChip(
           label: '🐶 Dogs',
           isSelected: widget.speciesFilter.contains('dogs'),
           onTap: () {
@@ -489,63 +401,22 @@ class _DiseaseSearchAndFilterState extends State<DiseaseSearchAndFilter> {
     );
   }
 
-  Widget _buildSeverityFilter() {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        _buildCompactChip(
-          label: 'Mild',
-          isSelected: widget.severityFilter == 'mild',
-          color: const Color(0xFF10B981),
-          onTap: () => widget.onSeverityChanged(
-            widget.severityFilter == 'mild' ? null : 'mild',
-          ),
-        ),
-        _buildCompactChip(
-          label: 'Moderate',
-          isSelected: widget.severityFilter == 'moderate',
-          color: const Color(0xFFFF9500),
-          onTap: () => widget.onSeverityChanged(
-            widget.severityFilter == 'moderate' ? null : 'moderate',
-          ),
-        ),
-        _buildCompactChip(
-          label: 'Severe',
-          isSelected: widget.severityFilter == 'severe',
-          color: const Color(0xFFEF4444),
-          onTap: () => widget.onSeverityChanged(
-            widget.severityFilter == 'severe' ? null : 'severe',
-          ),
-        ),
-        _buildCompactChip(
-          label: 'Varies',
-          isSelected: widget.severityFilter == 'varies',
-          color: Colors.grey.shade600,
-          onTap: () => widget.onSeverityChanged(
-            widget.severityFilter == 'varies' ? null : 'varies',
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildCategoriesFilter() {
     final categories = [
-      'Allergic',
+      'Parasitic',
       'Bacterial',
       'Fungal',
-      'Parasitic',
-      'Hormonal',
+      'Allergic',
+      'Autoimmune',
       'Other',
     ];
 
     return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+      spacing: kSpacingSmall,
+      runSpacing: kSpacingSmall,
       children: categories.map((category) {
         final isSelected = widget.categoriesFilter.contains(category);
-        return _buildCompactChip(
+        return _buildFilterChip(
           label: category,
           isSelected: isSelected,
           onTap: () {
@@ -564,21 +435,19 @@ class _DiseaseSearchAndFilterState extends State<DiseaseSearchAndFilter> {
 
   Widget _buildContagiousFilter() {
     return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+      spacing: kSpacingSmall,
+      runSpacing: kSpacingSmall,
       children: [
-        _buildCompactChip(
+        _buildFilterChip(
           label: '⚠️ Yes',
           isSelected: widget.contagiousFilter == true,
-          color: const Color(0xFFEF4444),
           onTap: () => widget.onContagiousChanged(
             widget.contagiousFilter == true ? null : true,
           ),
         ),
-        _buildCompactChip(
+        _buildFilterChip(
           label: '✓ No',
           isSelected: widget.contagiousFilter == false,
-          color: const Color(0xFF10B981),
           onTap: () => widget.onContagiousChanged(
             widget.contagiousFilter == false ? null : false,
           ),
@@ -587,32 +456,29 @@ class _DiseaseSearchAndFilterState extends State<DiseaseSearchAndFilter> {
     );
   }
 
-  Widget _buildCompactChip({
+  Widget _buildFilterChip({
     required String label,
     required bool isSelected,
-    Color? color,
     required VoidCallback onTap,
   }) {
-    final chipColor = color ?? AppColors.primary;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(kBorderRadiusSmall),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: EdgeInsets.symmetric(horizontal: kSpacingMedium, vertical: kSpacingSmall),
         decoration: BoxDecoration(
-          color: isSelected ? chipColor.withOpacity(0.1) : Colors.grey.shade50,
+          color: isSelected ? AppColors.primary.withOpacity(0.1) : AppColors.white,
           border: Border.all(
-            color: isSelected ? chipColor : Colors.grey.shade300,
+            color: isSelected ? AppColors.primary : AppColors.border,
             width: isSelected ? 1.5 : 1,
           ),
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(kBorderRadiusSmall),
         ),
         child: Text(
           label,
-          style: TextStyle(
-            fontSize: 12,
+          style: kTextStyleSmall.copyWith(
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-            color: isSelected ? chipColor : Colors.grey.shade700,
+            color: isSelected ? AppColors.primary : AppColors.textSecondary,
           ),
         ),
       ),

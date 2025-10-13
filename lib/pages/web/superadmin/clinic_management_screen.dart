@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:html' as html;
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:pawsense/core/models/clinic/clinic_registration_model.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants.dart';
@@ -650,6 +653,148 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> with Au
     }
   }
 
+  Future<void> _handleExportCSV() async {
+    // Show loading indicator
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              SizedBox(width: 16),
+              Text('Preparing export...'),
+            ],
+          ),
+          duration: Duration(seconds: 30),
+          backgroundColor: Colors.blue,
+        ),
+      );
+    }
+
+    try {
+      // Convert filter string to API format
+      String? statusFilter;
+      if (_selectedStatus.isNotEmpty && _selectedStatus != 'All Status') {
+        statusFilter = _selectedStatus.toLowerCase();
+      }
+
+      // Fetch ALL filtered clinics (not just current page)
+      final result = await SuperAdminService.getPaginatedClinicRegistrations(
+        page: 1,
+        itemsPerPage: 999999, // Get all matching records
+        statusFilter: statusFilter,
+        searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
+      );
+
+      final allFilteredClinics = result['clinics'] as List<ClinicRegistration>;
+
+      if (allFilteredClinics.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).clearSnackBars();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No clinics to export'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Generate CSV content
+      final csvContent = _generateCSV(allFilteredClinics);
+
+      // Create blob and download
+      final bytes = utf8.encode(csvContent);
+      final blob = html.Blob([bytes]);
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final anchor = html.document.createElement('a') as html.AnchorElement
+        ..href = url
+        ..style.display = 'none'
+        ..download = 'pawsense_clinics_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.csv';
+
+      html.document.body?.children.add(anchor);
+      anchor.click();
+
+      html.document.body?.children.remove(anchor);
+      html.Url.revokeObjectUrl(url);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Exported ${allFilteredClinics.length} clinics to CSV'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+
+      print('📊 Exported ${allFilteredClinics.length} clinics to CSV');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error exporting CSV: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      print('❌ Error exporting CSV: $e');
+    }
+  }
+
+  String _generateCSV(List<ClinicRegistration> clinics) {
+    final buffer = StringBuffer();
+    
+    // CSV Headers
+    buffer.writeln(
+      'ID,Clinic Name,Admin Name,Admin ID,Email,Phone,Address,License Number,'
+      'Status,Application Date,Approved Date,Rejection Reason,Suspension Reason'
+    );
+
+    // CSV Rows
+    for (final clinic in clinics) {
+      buffer.writeln(
+        '${_escapeCsv(clinic.id)},'
+        '${_escapeCsv(clinic.clinicName)},'
+        '${_escapeCsv(clinic.adminName)},'
+        '${_escapeCsv(clinic.adminId)},'
+        '${_escapeCsv(clinic.email)},'
+        '${_escapeCsv(clinic.phone)},'
+        '${_escapeCsv(clinic.address)},'
+        '${_escapeCsv(clinic.licenseNumber)},'
+        '${_formatStatus(clinic.status)},'
+        '${DateFormat('yyyy-MM-dd HH:mm:ss').format(clinic.applicationDate)},'
+        '${clinic.approvedDate != null ? DateFormat('yyyy-MM-dd HH:mm:ss').format(clinic.approvedDate!) : ''},'
+        '${_escapeCsv(clinic.rejectionReason ?? '')},'
+        '${_escapeCsv(clinic.suspensionReason ?? '')}'
+      );
+    }
+
+    return buffer.toString();
+  }
+
+  String _formatStatus(ClinicStatus status) {
+    return status.toString().split('.').last.toUpperCase();
+  }
+
+  String _escapeCsv(String value) {
+    // Escape double quotes and wrap in quotes if contains comma, newline, or quotes
+    if (value.contains(',') || value.contains('\n') || value.contains('"')) {
+      return '"${value.replaceAll('"', '""')}"';
+    }
+    return value;
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
@@ -696,12 +841,7 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> with Au
               selectedStatus: _selectedStatus,
               onSearchChanged: _onSearchChanged,
               onStatusChanged: _onStatusFilterChanged,
-              onExportData: () {
-                // TODO: Implement export functionality
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Export functionality coming soon')),
-                );
-              },
+              onExportData: _handleExportCSV,
             ),
             
             SizedBox(height: kSpacingLarge),

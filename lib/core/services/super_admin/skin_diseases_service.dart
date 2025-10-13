@@ -76,6 +76,57 @@ class SkinDiseasesService {
     }
   }
 
+  /// Fetch paginated diseases with optional filters and sorting
+  static Future<Map<String, dynamic>> getPaginatedDiseases({
+    int page = 1,
+    int itemsPerPage = 10,
+    String? detectionFilter,
+    List<String>? speciesFilter,
+    String? severityFilter,
+    List<String>? categoriesFilter,
+    bool? contagiousFilter,
+    String? searchQuery,
+    String sortBy = 'name_asc',
+  }) async {
+    try {
+      // Fetch all matching diseases first
+      final allDiseases = await fetchAllDiseases(
+        detectionFilter: detectionFilter,
+        speciesFilter: speciesFilter,
+        severityFilter: severityFilter,
+        categoriesFilter: categoriesFilter,
+        contagiousFilter: contagiousFilter,
+        searchQuery: searchQuery,
+        sortBy: sortBy,
+      );
+
+      // Calculate pagination
+      final totalDiseases = allDiseases.length;
+      final totalPages = (totalDiseases / itemsPerPage).ceil();
+      final validPage = page.clamp(1, totalPages > 0 ? totalPages : 1);
+
+      // Get paginated subset
+      final startIndex = (validPage - 1) * itemsPerPage;
+      final endIndex = (startIndex + itemsPerPage).clamp(0, totalDiseases);
+      final paginatedDiseases = allDiseases.sublist(
+        startIndex.clamp(0, totalDiseases),
+        endIndex,
+      );
+
+      print('📄 Diseases Pagination: page $validPage/$totalPages, showing ${paginatedDiseases.length}/$totalDiseases diseases');
+
+      return {
+        'diseases': paginatedDiseases,
+        'totalDiseases': totalDiseases,
+        'totalPages': totalPages,
+        'currentPage': validPage,
+      };
+    } catch (e) {
+      print('Error fetching paginated diseases: $e');
+      rethrow;
+    }
+  }
+
   /// Fetch single disease by ID
   static Future<SkinDiseaseModel?> fetchDiseaseById(String id) async {
     try {

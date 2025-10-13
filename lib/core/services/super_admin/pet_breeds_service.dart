@@ -57,6 +57,56 @@ class PetBreedsService {
     }
   }
 
+  /// Get paginated breeds with optional filtering and sorting
+  static Future<Map<String, dynamic>> getPaginatedBreeds({
+    int page = 1,
+    int itemsPerPage = 10,
+    String? speciesFilter,
+    String? statusFilter,
+    String? searchQuery,
+    String sortBy = 'name_asc',
+  }) async {
+    try {
+      // Fetch all matching breeds first
+      final allBreeds = await fetchAllBreeds(
+        speciesFilter: speciesFilter,
+        statusFilter: statusFilter,
+        searchQuery: searchQuery,
+        sortBy: sortBy,
+      );
+
+      // Calculate pagination
+      final totalBreeds = allBreeds.length;
+      final totalPages = (totalBreeds / itemsPerPage).ceil();
+      final validPage = page.clamp(1, totalPages > 0 ? totalPages : 1);
+
+      // Get paginated subset
+      final startIndex = (validPage - 1) * itemsPerPage;
+      final endIndex = (startIndex + itemsPerPage).clamp(0, totalBreeds);
+      final paginatedBreeds = allBreeds.sublist(
+        startIndex.clamp(0, totalBreeds),
+        endIndex,
+      );
+
+      print('📄 Breeds Pagination: page $validPage/$totalPages, showing ${paginatedBreeds.length}/$totalBreeds breeds');
+
+      return {
+        'breeds': paginatedBreeds,
+        'totalBreeds': totalBreeds,
+        'totalPages': totalPages,
+        'currentPage': validPage,
+      };
+    } catch (e) {
+      print('❌ Error fetching paginated breeds: $e');
+      return {
+        'breeds': <PetBreed>[],
+        'totalBreeds': 0,
+        'totalPages': 0,
+        'currentPage': 1,
+      };
+    }
+  }
+
   /// Sort breeds based on sort option
   static List<PetBreed> _sortBreeds(List<PetBreed> breeds, String sortBy) {
     switch (sortBy) {

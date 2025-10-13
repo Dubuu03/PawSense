@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:html' as html;
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants.dart';
 import 'package:pawsense/core/models/breeds/pet_breed_model.dart';
@@ -36,8 +39,8 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> {
   @override
   void initState() {
     super.initState();
-    _loadBreeds();
-    _loadStatistics();
+    _loadStatistics(); // Load stats first
+    _loadBreeds(); // Then load breeds
   }
   
   @override
@@ -116,8 +119,8 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> {
             await PetBreedsService.createBreed(breed);
             Navigator.of(context).pop();
             _showSuccessSnackBar('Breed created successfully!');
-            _loadBreeds();
             _loadStatistics();
+            _loadBreeds();
           } catch (e) {
             _showErrorSnackBar(e.toString());
           }
@@ -137,8 +140,8 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> {
             await PetBreedsService.updateBreed(breed.id, updatedBreed);
             Navigator.of(context).pop();
             _showSuccessSnackBar('Breed updated successfully!');
-            _loadBreeds();
             _loadStatistics();
+            _loadBreeds();
           } catch (e) {
             _showErrorSnackBar(e.toString());
           }
@@ -164,8 +167,8 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> {
               try {
                 await PetBreedsService.deleteBreed(breed.id);
                 _showSuccessSnackBar('Breed deleted successfully!');
-                _loadBreeds();
                 _loadStatistics();
+                _loadBreeds();
               } catch (e) {
                 _showErrorSnackBar('Failed to delete breed: $e');
               }
@@ -184,10 +187,138 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> {
     try {
       await PetBreedsService.toggleBreedStatus(breed.id, isActive);
       _showSuccessSnackBar('Breed status updated!');
+      _loadStatistics();
       _loadBreeds();
     } catch (e) {
       _showErrorSnackBar('Failed to update status: $e');
     }
+  }
+
+  Future<void> _handleExportCSV() async {
+    // Show loading indicator
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              SizedBox(width: 16),
+              Text('Preparing export...'),
+            ],
+          ),
+          duration: Duration(seconds: 30),
+          backgroundColor: Colors.blue,
+        ),
+      );
+    }
+
+    try {
+      // Fetch ALL filtered breeds (not just current page)
+      final result = await PetBreedsService.getPaginatedBreeds(
+        page: 1,
+        itemsPerPage: 999999, // Get all matching records
+        speciesFilter: _selectedSpecies == BreedSpecies.all ? null : _selectedSpecies.value,
+        statusFilter: _selectedStatus == BreedStatus.all ? null : _selectedStatus.value,
+        searchQuery: _searchQuery,
+        sortBy: _selectedSort.value,
+      );
+
+      final allFilteredBreeds = result['breeds'] as List<PetBreed>;
+
+      if (allFilteredBreeds.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).clearSnackBars();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No breeds to export'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Generate CSV content
+      final csvContent = _generateCSV(allFilteredBreeds);
+
+      // Create blob and download
+      final bytes = utf8.encode(csvContent);
+      final blob = html.Blob([bytes]);
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final anchor = html.document.createElement('a') as html.AnchorElement
+        ..href = url
+        ..style.display = 'none'
+        ..download = 'pawsense_breeds_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.csv';
+
+      html.document.body?.children.add(anchor);
+      anchor.click();
+
+      html.document.body?.children.remove(anchor);
+      html.Url.revokeObjectUrl(url);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Exported ${allFilteredBreeds.length} breeds to CSV'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+
+      print('📊 Exported ${allFilteredBreeds.length} breeds to CSV');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error exporting CSV: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      print('❌ Error exporting CSV: $e');
+    }
+  }
+
+  String _generateCSV(List<PetBreed> breeds) {
+    final buffer = StringBuffer();
+    
+    // CSV Headers
+    buffer.writeln(
+      'ID,Name,Species,Status,Created By,Created At,Updated At'
+    );
+
+    // CSV Rows
+    for (final breed in breeds) {
+      buffer.writeln(
+        '${_escapeCsv(breed.id)},'
+        '${_escapeCsv(breed.name)},'
+        '${_escapeCsv(breed.species)},'
+        '${_escapeCsv(breed.status)},'
+        '${_escapeCsv(breed.createdBy)},'
+        '${DateFormat('yyyy-MM-dd HH:mm:ss').format(breed.createdAt)},'
+        '${DateFormat('yyyy-MM-dd HH:mm:ss').format(breed.updatedAt)}'
+      );
+    }
+
+    return buffer.toString();
+  }
+
+  String _escapeCsv(String value) {
+    // Escape double quotes and wrap in quotes if contains comma, newline, or quotes
+    if (value.contains(',') || value.contains('\n') || value.contains('"')) {
+      return '"${value.replaceAll('"', '""')}"';
+    }
+    return value;
   }
   
   void _showSuccessSnackBar(String message) {
@@ -269,6 +400,7 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> {
                     onStatusChanged: _onStatusChanged,
                     selectedSort: _selectedSort,
                     onSortChanged: _onSortChanged,
+                    onExportCSV: _handleExportCSV,
                   ),
                   SizedBox(height: kSpacingLarge),
                   

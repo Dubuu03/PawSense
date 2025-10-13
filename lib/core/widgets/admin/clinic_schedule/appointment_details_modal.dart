@@ -260,67 +260,425 @@ class _AppointmentDetailsModalState extends State<AppointmentDetailsModal> {
   }
 
   List<Widget> _buildAssessmentResults() {
-    final analysisResults = _assessmentData!['analysisResults'] as List?;
-    
-    if (analysisResults == null || analysisResults.isEmpty) {
-      return [
-        const Text(
-          'No analysis results available',
-          style: TextStyle(color: Colors.grey),
+    final widgets = <Widget>[];
+
+    // Pet Information from Assessment
+    final petName = _assessmentData!['petName'] as String?;
+    final petType = _assessmentData!['petType'] as String?;
+    final petBreed = _assessmentData!['petBreed'] as String?;
+    final petAge = _assessmentData!['petAge'] as int?;
+    final petWeight = _assessmentData!['petWeight'] as num?;
+
+    if (petName != null || petType != null || petBreed != null || petAge != null || petWeight != null) {
+      widgets.add(
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.purple.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.purple.shade200),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.pets, size: 16, color: Colors.purple.shade700),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Pet Information',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.purple.shade700,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (petName != null) _buildInfoRow('Name', petName),
+              if (petType != null) _buildInfoRow('Type', petType),
+              if (petBreed != null) _buildInfoRow('Breed', petBreed),
+              if (petAge != null) _buildInfoRow('Age', '$petAge years'),
+              if (petWeight != null) _buildInfoRow('Weight', '${petWeight.toStringAsFixed(1)} kg'),
+            ],
+          ),
         ),
-      ];
+      );
+      widgets.add(const SizedBox(height: 16));
     }
-    
-    return analysisResults.map<Widget>((result) {
-      if (result is! Map<String, dynamic>) return const SizedBox.shrink();
-      
-      final condition = result['condition'] as String?;
-      final percentage = result['percentage'] as num?;
-      final colorHex = result['colorHex'] as String?;
-      
-      if (condition == null || percentage == null) return const SizedBox.shrink();
-      
-      Color conditionColor = const Color(0xFF7C3AED);
-      if (colorHex != null && colorHex.startsWith('#')) {
-        try {
-          conditionColor = Color(int.parse(colorHex.substring(1), radix: 16) + 0xFF000000);
-        } catch (e) {
-          // Use default color if parsing fails
-        }
-      }
-      
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Row(
+
+    // Symptoms
+    final symptoms = _assessmentData!['symptoms'] as List?;
+    if (symptoms != null && symptoms.isNotEmpty) {
+      widgets.add(
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 12,
-              height: 12,
-              decoration: BoxDecoration(
-                color: conditionColor,
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                condition,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w500,
+            Row(
+              children: [
+                Icon(Icons.healing, size: 16, color: Colors.red.shade700),
+                const SizedBox(width: 8),
+                Text(
+                  'Reported Symptoms',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red.shade700,
+                  ),
                 ),
-              ),
+              ],
             ),
-            Text(
-              '${percentage.toStringAsFixed(1)}%',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: conditionColor,
-              ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: symptoms.map<Widget>((symptom) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: Text(
+                    symptom.toString(),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.red.shade900,
+                    ),
+                  ),
+                );
+              }).toList(),
             ),
           ],
         ),
       );
-    }).toList();
+      widgets.add(const SizedBox(height: 16));
+    }
+
+    // Analysis Results
+    final analysisResults = _assessmentData!['analysisResults'] as List?;
+    if (analysisResults != null && analysisResults.isNotEmpty) {
+      widgets.add(
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.analytics, size: 16, color: Colors.blue.shade700),
+                const SizedBox(width: 8),
+                Text(
+                  'AI Analysis Results',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue.shade700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ...analysisResults.map<Widget>((result) {
+              if (result is! Map<String, dynamic>) return const SizedBox.shrink();
+              
+              final condition = result['condition'] as String?;
+              final percentage = result['percentage'] as num?;
+              final colorHex = result['colorHex'] as String?;
+              
+              if (condition == null || percentage == null) return const SizedBox.shrink();
+              
+              Color conditionColor = const Color(0xFF7C3AED);
+              if (colorHex != null && colorHex.startsWith('#')) {
+                try {
+                  conditionColor = Color(int.parse(colorHex.substring(1), radix: 16) + 0xFF000000);
+                } catch (e) {
+                  // Use default color if parsing fails
+                }
+              }
+              
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: conditionColor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        condition,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '${percentage.toStringAsFixed(1)}%',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: conditionColor,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ],
+        ),
+      );
+      widgets.add(const SizedBox(height: 16));
+    }
+
+    // Detection Results (Images with detections)
+    final detectionResults = _assessmentData!['detectionResults'] as List?;
+    if (detectionResults != null && detectionResults.isNotEmpty) {
+      widgets.add(
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.image_search, size: 16, color: Colors.green.shade700),
+                const SizedBox(width: 8),
+                Text(
+                  'Detection Results',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green.shade700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ...detectionResults.asMap().entries.map<Widget>((entry) {
+              final index = entry.key;
+              final detection = entry.value;
+              
+              if (detection is! Map<String, dynamic>) return const SizedBox.shrink();
+              
+              final imageUrl = detection['imageUrl'] as String?;
+              final detections = detection['detections'] as List?;
+              
+              if (imageUrl == null) return const SizedBox.shrink();
+              
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Image ${index + 1}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        imageUrl,
+                        height: 200,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            height: 200,
+                            color: Colors.grey.shade200,
+                            child: const Center(
+                              child: Icon(Icons.broken_image, size: 48, color: Colors.grey),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  if (detections != null && detections.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.green.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Detected (${detections.length}):',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green.shade900,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          ...detections.map<Widget>((det) {
+                            if (det is! Map<String, dynamic>) return const SizedBox.shrink();
+                            
+                            final label = det['label'] as String?;
+                            final confidence = det['confidence'] as num?;
+                            
+                            if (label == null || confidence == null) return const SizedBox.shrink();
+                            
+                            final confidencePercent = (confidence * 100).toStringAsFixed(1);
+                            
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.check_circle,
+                                    size: 14,
+                                    color: Colors.green.shade700,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      label,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.green.shade900,
+                                      ),
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.shade700,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Text(
+                                      '$confidencePercent%',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                ],
+              );
+            }).toList(),
+          ],
+        ),
+      );
+    }
+
+    // Uploaded Images (if different from detection images)
+    final imageUrls = _assessmentData!['imageUrls'] as List?;
+    if (imageUrls != null && imageUrls.isNotEmpty) {
+      widgets.add(
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.photo_library, size: 16, color: Colors.orange.shade700),
+                const SizedBox(width: 8),
+                Text(
+                  'Uploaded Images',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange.shade700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+                childAspectRatio: 1,
+              ),
+              itemCount: imageUrls.length,
+              itemBuilder: (context, index) {
+                final url = imageUrls[index].toString();
+                return Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      url,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: Colors.grey.shade200,
+                          child: const Center(
+                            child: Icon(Icons.broken_image, size: 32, color: Colors.grey),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (widgets.isEmpty) {
+      return [
+        const Text(
+          'No assessment data available',
+          style: TextStyle(color: Colors.grey),
+        ),
+      ];
+    }
+
+    return widgets;
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          Text(
+            '$label: ',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: Colors.black87,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey[700],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

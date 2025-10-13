@@ -1,8 +1,11 @@
 // screens/optimized_appointment_management_screen.dart
 import 'dart:async';
+import 'dart:convert';
+import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import '../../../core/utils/app_colors.dart';
 import '../../../core/utils/sort_order.dart';
 import '../../../core/models/clinic/appointment_models.dart' as AppointmentModels;
@@ -586,22 +589,247 @@ class _OptimizedAppointmentManagementScreenState
     _loadDataWithNewFilter();
   }
 
-  /// Handle export data (placeholder - no function yet)
-  void _onExportData() {
-    // TODO: Implement export functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.info_outline, color: AppColors.white, size: 20),
-            SizedBox(width: 8),
-            Text('Export functionality coming soon'),
-          ],
+  /// Handle export data - exports ALL filtered appointments to CSV
+  Future<void> _onExportData() async {
+    if (_cachedClinicId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to export: Clinic information not available'),
+          backgroundColor: Colors.red,
         ),
-        backgroundColor: AppColors.info,
-        duration: Duration(seconds: 3),
-      ),
+      );
+      return;
+    }
+
+    // Show loading indicator
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              SizedBox(width: 16),
+              Text('Preparing export...'),
+            ],
+          ),
+          duration: Duration(seconds: 30),
+          backgroundColor: Colors.blue,
+        ),
+      );
+    }
+
+    try {
+      print('📊 Exporting appointments with filters...');
+      
+      // Fetch ALL filtered appointments (not just current page)
+      final result = await PaginatedAppointmentService.getClinicAppointmentsPaginated(
+        clinicId: _cachedClinicId!,
+        page: 1,
+        itemsPerPage: 999999, // Get all matching records
+        status: _getStatusFilterForService(),
+        startDate: startDate,
+        endDate: endDate,
+      );
+
+      List<AppointmentModels.Appointment> allAppointments = result.appointments;
+
+      // Apply search filter if present (client-side)
+      if (searchQuery.isNotEmpty) {
+        allAppointments = allAppointments.where((appointment) {
+          return appointment.pet.name.toLowerCase().contains(searchQuery.toLowerCase()) ||
+              appointment.owner.name.toLowerCase().contains(searchQuery.toLowerCase()) ||
+              appointment.diseaseReason.toLowerCase().contains(searchQuery.toLowerCase());
+        }).toList();
+      }
+
+      // Apply sorting
+      allAppointments.sort((a, b) {
+        try {
+          final dateA = a.createdAt;
+          final dateB = b.createdAt;
+          
+          if (bookedAtSortOrder == SortOrder.ascending) {
+            return dateA.compareTo(dateB);
+          } else {
+            return dateB.compareTo(dateA);
+          }
+        } catch (e) {
+          return 0;
+        }
+      });
+
+      if (allAppointments.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).clearSnackBars();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No appointments to export'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Generate CSV content (with AI diagnosis data)
+      final csvContent = await _generateCSV(allAppointments);
+
+      // Create blob and download
+      final bytes = utf8.encode(csvContent);
+      final blob = html.Blob([bytes]);
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      
+      // Create filename with clinic name and timestamp
+      final clinicNameSafe = _cachedClinicName?.replaceAll(RegExp(r'[^\w\s-]'), '') ?? 'clinic';
+      final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+      final filename = 'appointments_${clinicNameSafe}_$timestamp.csv';
+      
+      final anchor = html.document.createElement('a') as html.AnchorElement
+        ..href = url
+        ..style.display = 'none'
+        ..download = filename;
+
+      html.document.body?.children.add(anchor);
+      anchor.click();
+
+      html.document.body?.children.remove(anchor);
+      html.Url.revokeObjectUrl(url);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Exported ${allAppointments.length} appointments to CSV'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+
+      print('📊 Exported ${allAppointments.length} appointments to $filename');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error exporting CSV: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      print('❌ Error exporting CSV: $e');
+    }
+  }
+
+  Future<String> _generateCSV(List<AppointmentModels.Appointment> appointments) async {
+    final buffer = StringBuffer();
+    
+    // CSV Headers
+    buffer.writeln(
+      'Appointment ID,Pet Name,Pet Type,Pet Breed,Pet Age,Owner Name,Owner Email,Owner Phone,'
+      'Disease/Reason,Appointment Date,Appointment Time,Time Slot,Status,Booked At,'
+      'Veterinarian ID,AI Diagnosis Results,Diagnosis,Treatment,Prescription,'
+      'Clinic Notes,Needs Follow-up,Follow-up Date,Follow-up Time,Cancel Reason,Cancelled At,Completed At'
     );
+
+    // CSV Rows
+    for (final appointment in appointments) {
+      // Format dates
+      final bookedAt = DateFormat('yyyy-MM-dd HH:mm:ss').format(appointment.createdAt);
+      final completedAt = appointment.completedAt != null 
+          ? DateFormat('yyyy-MM-dd HH:mm:ss').format(appointment.completedAt!) 
+          : '';
+      final cancelledAt = appointment.cancelledAt != null
+          ? DateFormat('yyyy-MM-dd HH:mm:ss').format(appointment.cancelledAt!)
+          : '';
+      
+      // Get status display name
+      final status = _formatStatus(appointment.status);
+      
+      // Get AI diagnosis results if available
+      String aiDiagnosisResults = '';
+      if (appointment.assessmentResultId != null && appointment.assessmentResultId!.isNotEmpty) {
+        try {
+          final assessmentDoc = await FirebaseFirestore.instance
+              .collection('assessment_results')
+              .doc(appointment.assessmentResultId)
+              .get();
+          
+          if (assessmentDoc.exists) {
+            final data = assessmentDoc.data();
+            final analysisResults = data?['analysisResults'] as List?;
+            
+            if (analysisResults != null && analysisResults.isNotEmpty) {
+              final results = List<Map<String, dynamic>>.from(
+                analysisResults.where((r) => r is Map<String, dynamic>).cast<Map<String, dynamic>>(),
+              )..sort((a, b) {
+                  final percentA = a['percentage'] as num? ?? 0;
+                  final percentB = b['percentage'] as num? ?? 0;
+                  return percentB.compareTo(percentA);
+                });
+              
+              aiDiagnosisResults = results.map((r) {
+                final condition = r['condition'] as String? ?? 'Unknown';
+                final percentage = r['percentage'] as num? ?? 0;
+                return '$condition (${percentage.toStringAsFixed(1)}%)';
+              }).join('; ');
+            }
+          }
+        } catch (e) {
+          aiDiagnosisResults = 'Error loading';
+        }
+      }
+      
+      buffer.writeln(
+        '${_escapeCsv(appointment.id)},'
+        '${_escapeCsv(appointment.pet.name)},'
+        '${_escapeCsv(appointment.pet.type)},'
+        '${_escapeCsv(appointment.pet.breed ?? '')},'
+        '${appointment.pet.age ?? ''},'
+        '${_escapeCsv(appointment.owner.name)},'
+        '${_escapeCsv(appointment.owner.email ?? '')},'
+        '${_escapeCsv(appointment.owner.phone)},'
+        '${_escapeCsv(appointment.diseaseReason)},'
+        '${_escapeCsv(appointment.date)},'
+        '${_escapeCsv(appointment.time)},'
+        '${_escapeCsv(appointment.timeSlot)},'
+        '$status,'
+        '$bookedAt,'
+        '${_escapeCsv(appointment.veterinarianId ?? '')},'
+        '${_escapeCsv(aiDiagnosisResults)},'
+        '${_escapeCsv(appointment.diagnosis ?? '')},'
+        '${_escapeCsv(appointment.treatment ?? '')},'
+        '${_escapeCsv(appointment.prescription ?? '')},'
+        '${_escapeCsv(appointment.clinicNotes ?? '')},'
+        '${appointment.needsFollowUp == true ? 'Yes' : 'No'},'
+        '${_escapeCsv(appointment.followUpDate ?? '')},'
+        '${_escapeCsv(appointment.followUpTime ?? '')},'
+        '${_escapeCsv(appointment.cancelReason ?? '')},'
+        '$cancelledAt,'
+        '$completedAt'
+      );
+    }
+
+    return buffer.toString();
+  }
+
+  String _formatStatus(AppointmentModels.AppointmentStatus status) {
+    return status.name.toUpperCase();
+  }
+
+  String _escapeCsv(String value) {
+    // Escape double quotes and wrap in quotes if contains comma, newline, or quotes
+    if (value.contains(',') || value.contains('\n') || value.contains('"')) {
+      return '"${value.replaceAll('"', '""')}"';
+    }
+    return value;
   }
 
   /// Load fresh data when filter changes to ensure all matching appointments are shown
