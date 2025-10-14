@@ -74,6 +74,9 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
   List<String> _availableTimeSlots = [];
   bool _loadingTimeSlots = false;
   
+  // Holiday dates for the selected clinic
+  List<DateTime> _holidayDates = [];
+  
   // Real-time listener management
   StreamSubscription<DocumentSnapshot>? _scheduleListener;
   
@@ -265,6 +268,9 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
       // Setup real-time listener if not already exists
       await _setupScheduleListener(clinicId);
       
+      // Load holidays for this clinic
+      await _loadHolidays(clinicId);
+      
       // Check cache first
       final cachedEntry = _scheduleCache[clinicId];
       if (cachedEntry != null && !cachedEntry.isExpired) {
@@ -292,6 +298,22 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
     } catch (e) {
       print('❌ Error loading clinic schedule: $e');
       // Don't block user from booking, just log the error
+    }
+  }
+  
+  /// Load holidays for a clinic
+  Future<void> _loadHolidays(String clinicId) async {
+    try {
+      final holidays = await ClinicScheduleService.getHolidays(clinicId);
+      setState(() {
+        _holidayDates = holidays;
+      });
+      print('✅ Loaded ${holidays.length} holidays for clinic: $clinicId');
+    } catch (e) {
+      print('❌ Error loading holidays: $e');
+      setState(() {
+        _holidayDates = [];
+      });
     }
   }
   
@@ -392,6 +414,9 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
       
       // Update UI if this is the currently selected clinic
       if (_selectedClinicId == clinicId && mounted) {
+        // Reload holidays when schedule updates
+        await _loadHolidays(clinicId);
+        
         setState(() {
           _clinicSchedule = schedule;
           
@@ -412,7 +437,7 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
             SnackBar(
               content: Row(
                 children: [
-    
+                  const Icon(Icons.info_outline, color: Colors.white, size: 20),
                   const SizedBox(width: 8),
                   const Expanded(
                     child: Text('Clinic schedule updated'),
@@ -590,6 +615,18 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
   bool _isDateEnabled(DateTime date) {
     if (_clinicSchedule == null) return true; // Allow all dates if schedule not loaded
     
+    // First check if date is a holiday (compare date-only)
+    final dateOnly = DateTime(date.year, date.month, date.day);
+    final isHoliday = _holidayDates.any((holiday) {
+      final holidayOnly = DateTime(holiday.year, holiday.month, holiday.day);
+      return holidayOnly == dateOnly;
+    });
+    
+    if (isHoliday) {
+      return false; // Holidays are closed
+    }
+    
+    // Then check regular schedule
     const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     final dayName = daysOfWeek[date.weekday - 1];
     final daySchedule = _clinicSchedule!.schedules[dayName];
@@ -1380,6 +1417,13 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
   }
 
   Widget _buildDateField() {
+    // Check if selected date is a holiday
+    final dateOnly = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
+    final isSelectedDateHoliday = _holidayDates.any((holiday) {
+      final holidayOnly = DateTime(holiday.year, holiday.month, holiday.day);
+      return holidayOnly == dateOnly;
+    });
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1409,8 +1453,9 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
               initialDate: initialDate,
               firstDate: DateTime.now(),
               lastDate: DateTime.now().add(const Duration(days: 365)),
+              helpText: 'Select Appointment Date',
               selectableDayPredicate: (DateTime date) {
-                // Disable dates where clinic is closed
+                // Disable dates where clinic is closed or it's a holiday
                 return _isDateEnabled(date);
               },
               builder: (context, child) {
@@ -1436,16 +1481,24 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: isSelectedDateHoliday ? AppColors.error : AppColors.border),
               borderRadius: BorderRadius.circular(8),
+              color: isSelectedDateHoliday ? AppColors.error.withOpacity(0.05) : Colors.white,
             ),
             child: Row(
               children: [
-                Icon(Icons.calendar_today, size: 18, color: AppColors.primary),
+                Icon(
+                  isSelectedDateHoliday ? Icons.event_busy : Icons.calendar_today, 
+                  size: 18, 
+                  color: isSelectedDateHoliday ? AppColors.error : AppColors.primary,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
-                  style: const TextStyle(fontSize: 16),
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: isSelectedDateHoliday ? AppColors.error : AppColors.textPrimary,
+                  ),
                 ),
                 const Spacer(),
                 Icon(Icons.arrow_drop_down, color: AppColors.textSecondary),
@@ -1453,6 +1506,33 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
             ),
           ),
         ),
+        if (isSelectedDateHoliday) ...[
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(Icons.info_outline, size: 14, color: AppColors.error),
+              const SizedBox(width: 4),
+              Text(
+                'Clinic is closed on this date (Holiday)',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.error,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+        ] else if (_holidayDates.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Gray dates are closed or holidays',
+            style: TextStyle(
+              fontSize: 11,
+              color: AppColors.textTertiary,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
       ],
     );
   }
