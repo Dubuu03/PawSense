@@ -31,7 +31,7 @@ class AIHistoryData {
   });
 }
 
-class AIHistoryList extends StatefulWidget {
+class AIHistoryList extends StatelessWidget {
   final List<AIHistoryData> aiHistory;
 
   const AIHistoryList({
@@ -40,94 +40,18 @@ class AIHistoryList extends StatefulWidget {
   });
 
   @override
-  State<AIHistoryList> createState() => _AIHistoryListState();
-}
-
-class _AIHistoryListState extends State<AIHistoryList> {
-  final ScrollController _scrollController = ScrollController();
-  final int _itemsPerPage = 10;
-  int _currentPage = 1;
-  List<AIHistoryData> _displayedItems = [];
-  bool _isLoadingMore = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadInitialData();
-    _scrollController.addListener(_onScroll);
-  }
-
-  @override
-  void didUpdateWidget(AIHistoryList oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // Reset and reload when data changes
-    if (oldWidget.aiHistory != widget.aiHistory) {
-      _currentPage = 1;
-      _loadInitialData();
-    }
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _loadInitialData() {
-    setState(() {
-      _displayedItems = widget.aiHistory.take(_itemsPerPage).toList();
-    });
-  }
-
-  void _loadMore() {
-    if (_isLoadingMore || _displayedItems.length >= widget.aiHistory.length) {
-      return;
-    }
-
-    setState(() {
-      _isLoadingMore = true;
-    });
-
-    // Simulate network delay for smooth UX
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) {
-        final nextPage = _currentPage + 1;
-        final startIndex = _currentPage * _itemsPerPage;
-        final endIndex = (startIndex + _itemsPerPage).clamp(0, widget.aiHistory.length);
-        
-        setState(() {
-          _displayedItems.addAll(widget.aiHistory.sublist(startIndex, endIndex));
-          _currentPage = nextPage;
-          _isLoadingMore = false;
-        });
-      }
-    });
-  }
-
-  void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
-      _loadMore();
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    if (widget.aiHistory.isEmpty) {
+    if (aiHistory.isEmpty) {
       return _buildEmptyState();
     }
 
+    // Use ListView.builder for better performance with all items
     return ListView.builder(
-      controller: _scrollController,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: _displayedItems.length + (_isLoadingMore ? 1 : 0),
+      itemCount: aiHistory.length,
       itemBuilder: (context, index) {
-        // Show loading indicator at the end
-        if (index == _displayedItems.length) {
-          return _buildLoadingIndicator();
-        }
-
-        final item = _displayedItems[index];
+        final item = aiHistory[index];
         return AIHistoryItem(
           data: item,
           onTap: () {
@@ -135,22 +59,6 @@ class _AIHistoryListState extends State<AIHistoryList> {
           },
         );
       },
-    );
-  }
-
-  Widget _buildLoadingIndicator() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: kMobilePaddingMedium),
-      child: Center(
-        child: SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-          ),
-        ),
-      ),
     );
   }
 

@@ -28,7 +28,7 @@ class AppointmentHistoryData {
   });
 }
 
-class AppointmentHistoryList extends StatefulWidget {
+class AppointmentHistoryList extends StatelessWidget {
   final List<AppointmentHistoryData> appointmentHistory;
   final VoidCallback? onAppointmentUpdated;
 
@@ -39,103 +39,18 @@ class AppointmentHistoryList extends StatefulWidget {
   });
 
   @override
-  State<AppointmentHistoryList> createState() => _AppointmentHistoryListState();
-}
-
-class _AppointmentHistoryListState extends State<AppointmentHistoryList> {
-  final ScrollController _scrollController = ScrollController();
-  final int _itemsPerPage = 10;
-  int _currentPage = 1;
-  List<AppointmentHistoryData> _displayedItems = [];
-  bool _isLoadingMore = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadInitialData();
-    _scrollController.addListener(_onScroll);
-  }
-
-  @override
-  void didUpdateWidget(AppointmentHistoryList oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // Reset and reload when data changes
-    if (oldWidget.appointmentHistory != widget.appointmentHistory) {
-      _currentPage = 1;
-      _loadInitialData();
-    }
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _loadInitialData() {
-    // Sort appointments by date (most recent first)
-    final sortedAppointments = List<AppointmentHistoryData>.from(widget.appointmentHistory);
-    sortedAppointments.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-
-    setState(() {
-      _displayedItems = sortedAppointments.take(_itemsPerPage).toList();
-    });
-  }
-
-  void _loadMore() {
-    if (_isLoadingMore || _displayedItems.length >= widget.appointmentHistory.length) {
-      return;
-    }
-
-    setState(() {
-      _isLoadingMore = true;
-    });
-
-    // Simulate network delay for smooth UX
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) {
-        // Sort appointments by date (most recent first)
-        final sortedAppointments = List<AppointmentHistoryData>.from(widget.appointmentHistory);
-        sortedAppointments.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-
-        final nextPage = _currentPage + 1;
-        final startIndex = _currentPage * _itemsPerPage;
-        final endIndex = (startIndex + _itemsPerPage).clamp(0, sortedAppointments.length);
-        
-        setState(() {
-          _displayedItems.addAll(sortedAppointments.sublist(startIndex, endIndex));
-          _currentPage = nextPage;
-          _isLoadingMore = false;
-        });
-      }
-    });
-  }
-
-  void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
-      _loadMore();
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    if (widget.appointmentHistory.isEmpty) {
+    if (appointmentHistory.isEmpty) {
       return _buildEmptyState();
     }
 
-    return ListView.builder(
-      controller: _scrollController,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _displayedItems.length + (_isLoadingMore ? 1 : 0),
-      itemBuilder: (context, index) {
-        // Show loading indicator at the end
-        if (index == _displayedItems.length) {
-          return _buildLoadingIndicator();
-        }
+    // Sort appointments by date (most recent first)
+    final sortedAppointments = List<AppointmentHistoryData>.from(appointmentHistory);
+    sortedAppointments.sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
-        final item = _displayedItems[index];
-        return AppointmentHistoryItem(
+    return Column(
+      children: [
+        ...sortedAppointments.map((item) => AppointmentHistoryItem(
           data: item,
           onTap: () {
             _showAppointmentDetails(context, item.id);
@@ -143,9 +58,9 @@ class _AppointmentHistoryListState extends State<AppointmentHistoryList> {
           onDetailsPressed: () {
             _showAppointmentDetails(context, item.id);
           },
-          onAppointmentUpdated: widget.onAppointmentUpdated,
-        );
-      },
+          onAppointmentUpdated: onAppointmentUpdated,
+        )),
+      ],
     );
   }
 
@@ -154,23 +69,7 @@ class _AppointmentHistoryListState extends State<AppointmentHistoryList> {
       MaterialPageRoute(
         builder: (context) => AppointmentHistoryDetailModal(
           appointmentId: appointmentId,
-          onAppointmentUpdated: widget.onAppointmentUpdated,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLoadingIndicator() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: kMobilePaddingMedium),
-      child: Center(
-        child: SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-          ),
+          onAppointmentUpdated: onAppointmentUpdated,
         ),
       ),
     );
