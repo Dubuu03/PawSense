@@ -325,7 +325,7 @@ class _EditServiceModalState extends State<EditServiceModal> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Price (\$)',
+                              'Price (\PHP)',
                               style: TextStyle(
                                 fontSize: kFontSizeRegular,
                                 fontWeight: FontWeight.w600,

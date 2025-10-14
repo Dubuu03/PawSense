@@ -7,6 +7,11 @@ import 'specialization_service.dart';
 /// Main VetProfileService that delegates to specialized services
 /// This maintains backward compatibility while using the new modular architecture
 class VetProfileService {
+  /// Stream current vet's profile data for real-time updates (delegates to ProfileManagementService)
+  static Stream<Map<String, dynamic>?> streamVetProfile() {
+    return ProfileManagementService.streamVetProfile();
+  }
+  
   /// Get current vet's profile data (delegates to ProfileManagementService)
   static Future<Map<String, dynamic>?> getVetProfile({bool forceRefresh = false}) async {
     return await ProfileManagementService.getVetProfile(forceRefresh: forceRefresh);

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
@@ -26,6 +27,7 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
   bool _isLoading = true;
   String? _errorMessage;
   Key _rebuildKey = UniqueKey(); // Add unique key for forcing rebuilds
+  StreamSubscription<Map<String, dynamic>?>? _profileSubscription;
 
   Map<String, dynamic> _vetProfile = {};
   List<Map<String, dynamic>> _specializations = [];
@@ -38,6 +40,12 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
     _loadVetProfile();
   }
 
+  @override
+  void dispose() {
+    _profileSubscription?.cancel();
+    super.dispose();
+  }
+
   Future<void> _loadVetProfile({bool forceRefresh = false}) async {
     print('DEBUG VetProfileScreen: _loadVetProfile called with forceRefresh: $forceRefresh');
     setState(() {
@@ -46,111 +54,103 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
     });
 
     try {
-      final profileData = await VetProfileService.getVetProfile(forceRefresh: forceRefresh);
-      print('DEBUG VetProfileScreen: profileData received, specializations: ${profileData?['specializations']}');
-      print('DEBUG: Profile data received: $profileData');
+      // Cancel existing subscription if any
+      _profileSubscription?.cancel();
       
-      if (profileData != null) {
-        setState(() {
-          // Extract basic clinic info
-          final clinic = profileData['clinic'] as Map<String, dynamic>?;
-          final clinicDetails = profileData['clinicDetails'] as Map<String, dynamic>?;
-          final user = profileData['user'] as Map<String, dynamic>?;
+      // Use stream for real-time updates
+      _profileSubscription = VetProfileService.streamVetProfile().listen(
+        (profileData) {
+          if (!mounted) return;
           
-          _vetProfile = {
-            'clinicName': clinic?['clinicName'] ?? 'Unknown Clinic',
-            'doctorName': user?['username'] ?? 'Unknown Doctor',
-            'email': clinic?['email'] ?? user?['email'] ?? 'No email',
-            'phone': clinic?['phone'] ?? 'No phone',
-            'address': clinic?['address'] ?? 'No address',
-            'website': clinic?['website'] ?? clinicDetails?['website'],
-          };
+          print('🔄 VetProfileScreen: Received profile update from stream');
+          print('DEBUG: Profile data received: $profileData');
+          
+          if (profileData != null) {
+            setState(() {
+              // Extract basic clinic info
+              final clinic = profileData['clinic'] as Map<String, dynamic>?;
+              final clinicDetails = profileData['clinicDetails'] as Map<String, dynamic>?;
+              final user = profileData['user'] as Map<String, dynamic>?;
+              
+              _vetProfile = {
+                'clinicName': clinic?['clinicName'] ?? 'Unknown Clinic',
+                'doctorName': user?['username'] ?? 'Unknown Doctor',
+                'email': clinic?['email'] ?? user?['email'] ?? 'No email',
+                'phone': clinic?['phone'] ?? 'No phone',
+                'address': clinic?['address'] ?? 'No address',
+                'website': clinic?['website'] ?? clinicDetails?['website'],
+              };
 
-          // Extract services and map to UI format
-          final servicesData = List<Map<String, dynamic>>.from(profileData['services'] ?? []);
-          print('DEBUG: Raw services data: $servicesData');
-          print('DEBUG: Services count: ${servicesData.length}');
-          
-          // Print each service individually to see the actual field names
-          for (int i = 0; i < servicesData.length; i++) {
-            print('DEBUG: Service $i fields: ${servicesData[i].keys.toList()}');
-            print('DEBUG: Service $i serviceName: "${servicesData[i]['serviceName']}"');
-            print('DEBUG: Service $i values: ${servicesData[i]}');
-          }
-          
-          _services = servicesData.map((service) => {
-            'id': service['id'],
-            'title': service['serviceName'] ?? service['name'] ?? 'Unnamed Service',
-            'description': service['serviceDescription'] ?? service['description'] ?? '',
-            'duration': service['duration'] ?? '30 mins', // Keep as string for now
-            'price': service['estimatedPrice'] ?? service['price'] ?? '0',
-            'category': service['category'],
-            'isActive': service['isActive'] ?? true,
-            'clinicId': service['clinicId'],
-            'createdAt': service['createdAt'],
-            'createdBy': service['createdBy'],
-            'updatedAt': service['updatedAt'],
-            'updatedBy': service['updatedBy'],
-          }).toList();
-          
-          print('DEBUG: Mapped services: $_services');
+              // Extract services and map to UI format
+              final servicesData = List<Map<String, dynamic>>.from(profileData['services'] ?? []);
+              print('🔄 Services count from stream: ${servicesData.length}');
+              
+              _services = servicesData.map((service) => {
+                'id': service['id'],
+                'title': service['serviceName'] ?? service['name'] ?? 'Unnamed Service',
+                'description': service['serviceDescription'] ?? service['description'] ?? '',
+                'duration': service['duration'] ?? '30 mins',
+                'price': service['estimatedPrice'] ?? service['price'] ?? '0',
+                'category': service['category'],
+                'isActive': service['isActive'] ?? true,
+                'clinicId': service['clinicId'],
+                'createdAt': service['createdAt'],
+                'createdBy': service['createdBy'],
+                'updatedAt': service['updatedAt'],
+                'updatedBy': service['updatedBy'],
+              }).toList();
+              
+              print('🔄 Mapped services: ${_services.length} items');
 
-          // Check if we have basic data but no services
-          if (_services.isEmpty) {
-            print('DEBUG: No services found in profile data');
-          }
+              // Extract certifications
+              _certifications = List<Map<String, dynamic>>.from(profileData['certifications'] ?? []);
+              print('🔄 Certifications: ${_certifications.length} items');
 
-          // Extract certifications
-          _certifications = List<Map<String, dynamic>>.from(profileData['certifications'] ?? []);
-          print('DEBUG: Raw certifications data: ${profileData['certifications']}');
-          print('DEBUG: Mapped certifications: $_certifications');
-          print('DEBUG: Certifications count: ${_certifications.length}');
+              // Extract specializations with backwards compatibility
+              final dynamic specializationsData = profileData['specializations'] ?? [];
+              
+              if (specializationsData is List<String>) {
+                // Old format: convert strings to maps
+                _specializations = specializationsData.map((specialty) => {
+                  'title': specialty.toString(),
+                  'level': 'Expert',
+                  'hasCertification': true,
+                }).toList();
+              } else {
+                // New format: already maps
+                _specializations = List<Map<String, dynamic>>.from(specializationsData).map((spec) => {
+                  'title': spec['title'] ?? '',
+                  'level': spec['level'] ?? 'Expert',
+                  'hasCertification': spec['hasCertification'] ?? true,
+                }).toList();
+              }
+              
+              print('🔄 Specializations: ${_specializations.length} items');
 
-          // Extract specializations with backwards compatibility
-          final dynamic specializationsData = profileData['specializations'] ?? [];
-          
-          if (specializationsData is List<String>) {
-            // Old format: convert strings to maps
-            _specializations = specializationsData.map((specialty) => {
-              'title': specialty.toString(),
-              'level': 'Expert',
-              'hasCertification': true,
-            }).toList();
+              _isLoading = false;
+              _errorMessage = null;
+              
+              print('✅ VetProfileScreen: State updated successfully');
+            });
           } else {
-            // New format: already maps
-            _specializations = List<Map<String, dynamic>>.from(specializationsData).map((spec) => {
-              'title': spec['title'] ?? '',
-              'level': spec['level'] ?? 'Expert',
-              'hasCertification': spec['hasCertification'] ?? true,
-            }).toList();
+            setState(() {
+              _errorMessage = 'Failed to load profile data. This might mean you don\'t have clinic data set up yet.';
+              _isLoading = false;
+            });
           }
-          
-          print('DEBUG VetProfileScreen: Final specializations count: ${_specializations.length}');
-          print('DEBUG VetProfileScreen: Specializations titles: ${_specializations.map((s) => s['title']).toList()}');
-
-
-          _isLoading = false;
-
-          print('DEBUG VetProfileScreen: setState completed, UI should refresh');
-          print('DEBUG VetProfileScreen: Current state - _specializations: ${_specializations.length} items');
-
-          // Force a rebuild to ensure UI updates
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              setState(() {
-                print('DEBUG VetProfileScreen: Force rebuild triggered');
-              });
-            }
-          });
-        });
-      } else {
-        setState(() {
-          _errorMessage = 'Failed to load profile data. This might mean you don\'t have clinic data set up yet.';
-          _isLoading = false;
-        });
-      }
+        },
+        onError: (error) {
+          print('❌ VetProfileScreen stream error: $error');
+          if (mounted) {
+            setState(() {
+              _errorMessage = 'Error loading profile: $error\n\nThis usually means you need to add sample data first.';
+              _isLoading = false;
+            });
+          }
+        },
+      );
     } catch (e) {
-      print('DEBUG: Error in _loadVetProfile: $e');
+      print('❌ Error in _loadVetProfile: $e');
       setState(() {
         _errorMessage = 'Error loading profile: $e\n\nThis usually means you need to add sample data first.';
         _isLoading = false;
@@ -216,8 +216,8 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
       context: context,
       builder: (context) => AddServiceModal(
         onServiceAdded: () {
-          // Reload the profile data to show the new service
-          _loadVetProfile();
+          // Stream will automatically update the UI
+          print('🔄 Service added, stream will update UI automatically');
         },
       ),
     );
@@ -245,8 +245,8 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
       builder: (context) => EditServiceModal(
         service: service,
         onServiceUpdated: () {
-          // Reload the profile data to show the updated service
-          _loadVetProfile();
+          // Stream will automatically update the UI
+          print('🔄 Service updated, stream will update UI automatically');
         },
       ),
     );
@@ -360,28 +360,7 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
       context: context,
       builder: (context) => AddCertificationModal(
         onCertificationAdded: () async {
-          print('DEBUG VetProfileScreen: Modal callback - certification added, refreshing data...');
-
-          // Clear all existing state completely
-          if (mounted) {
-            setState(() {
-              _isLoading = true;
-              _errorMessage = null;
-              _vetProfile.clear();
-              _specializations.clear();
-              _services.clear();
-              _certifications.clear();
-              _rebuildKey = UniqueKey();
-              print('DEBUG VetProfileScreen: State cleared, new rebuild key: $_rebuildKey');
-            });
-          }
-
-          // Small delay to ensure modal is fully closed
-          await Future.delayed(Duration(milliseconds: 200));
-
-          // Reload the profile data with force refresh
-          await _loadVetProfile(forceRefresh: true);
-          print('DEBUG VetProfileScreen: Modal callback - certification refresh completed');
+          print('🔄 Certification added, stream will update UI automatically');
 
           // Show success message
           if (mounted) {
@@ -470,28 +449,7 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
       context: context,
       builder: (context) => AddSpecializationModal(
         onSpecializationAdded: () async {
-          print('DEBUG VetProfileScreen: Modal callback - specialization added, refreshing data...');
-
-          // Clear all existing state completely
-          if (mounted) {
-            setState(() {
-              _isLoading = true;
-              _errorMessage = null;
-              _vetProfile.clear();
-              _specializations.clear();
-              _services.clear();
-              _certifications.clear();
-              _rebuildKey = UniqueKey();
-              print('DEBUG VetProfileScreen: State cleared, new rebuild key: $_rebuildKey');
-            });
-          }
-
-          // Small delay to ensure modal is fully closed
-          await Future.delayed(Duration(milliseconds: 200));
-
-          // Reload the profile data with force refresh
-          await _loadVetProfile(forceRefresh: true);
-          print('DEBUG VetProfileScreen: Modal callback - data refresh completed');
+          print('🔄 Specialization added, stream will update UI automatically');
 
           // Show success message
           if (mounted) {
@@ -510,31 +468,13 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
 
   /// Delete specialization
   Future<void> _deleteSpecialization(String specialization) async {
-    print('DEBUG VetProfileScreen: Delete specialization called for: $specialization');
-
-    // Clear all existing state completely
-    if (mounted) {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = null;
-        _vetProfile.clear();
-        _specializations.clear();
-        _services.clear();
-        _certifications.clear();
-        _rebuildKey = UniqueKey();
-        print('DEBUG VetProfileScreen: State cleared for deletion, new rebuild key: $_rebuildKey');
-      });
-    }
+    print('🔄 VetProfileScreen: Delete specialization called for: $specialization');
 
     final success = await VetProfileService.deleteSpecialization(specialization);
-    print('DEBUG VetProfileScreen: Delete specialization result: $success');
+    print('🔄 VetProfileScreen: Delete specialization result: $success');
 
     if (success) {
-      // Small delay to ensure backend operation is complete
-      await Future.delayed(Duration(milliseconds: 300));
-
-      // Reload with force refresh to get updated data
-      await _loadVetProfile(forceRefresh: true);
+      // Stream will automatically update the UI
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -546,9 +486,6 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
       }
     } else {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to delete specialization'),

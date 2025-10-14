@@ -6,6 +6,27 @@ import 'package:pawsense/core/models/clinic/clinic_details_model.dart';
 class ClinicDetailsService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   
+  /// Stream clinic details by clinic ID for real-time updates
+  static Stream<ClinicDetails?> streamClinicDetails(String clinicId) {
+    return _firestore
+        .collection('clinicDetails')
+        .where('clinicId', isEqualTo: clinicId)
+        .limit(1)
+        .snapshots()
+        .map((snapshot) {
+      if (snapshot.docs.isNotEmpty) {
+        try {
+          final rawData = snapshot.docs.first.data();
+          return ClinicDetails.fromMap(rawData);
+        } catch (e) {
+          print('Error parsing clinic details stream: $e');
+          return null;
+        }
+      }
+      return null;
+    });
+  }
+  
   /// Get clinic details by user ID (clinic ID)
   static Future<ClinicDetails?> getClinicDetails(String clinicId) async {
     try {

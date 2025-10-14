@@ -1,10 +1,12 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
 import 'package:pawsense/core/models/clinic/clinic_details_model.dart';
 import 'package:pawsense/core/models/clinic/clinic_service_model.dart';
+import 'package:pawsense/core/services/clinic/clinic_details_service.dart';
 
-class ClinicServicesList extends StatelessWidget {
+class ClinicServicesList extends StatefulWidget {
   final ClinicDetails clinic;
 
   const ClinicServicesList({
@@ -13,8 +15,46 @@ class ClinicServicesList extends StatelessWidget {
   });
 
   @override
+  State<ClinicServicesList> createState() => _ClinicServicesListState();
+}
+
+class _ClinicServicesListState extends State<ClinicServicesList> {
+  late ClinicDetails _currentClinic;
+  StreamSubscription<ClinicDetails?>? _clinicSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentClinic = widget.clinic;
+    _listenToClinicUpdates();
+  }
+
+  @override
+  void dispose() {
+    _clinicSubscription?.cancel();
+    super.dispose();
+  }
+
+  void _listenToClinicUpdates() {
+    _clinicSubscription = ClinicDetailsService.streamClinicDetails(widget.clinic.clinicId)
+        .listen((updatedClinic) {
+      if (updatedClinic != null && mounted) {
+        setState(() {
+          _currentClinic = updatedClinic;
+        });
+        print('🔄 Services updated in real-time for clinic: ${updatedClinic.clinicName}');
+      }
+    }, onError: (error) {
+      print('❌ Error listening to clinic updates: $error');
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (clinic.services.isEmpty) {
+    // Filter to show only active services
+    final activeServices = _currentClinic.services.where((service) => service.isActive).toList();
+    
+    if (activeServices.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(kMobilePaddingMedium),
         decoration: BoxDecoration(
@@ -64,7 +104,7 @@ class ClinicServicesList extends StatelessWidget {
                   ),
                   const SizedBox(height: kMobileSizedBoxSmall),
                   Text(
-                    'No Services Listed',
+                    'No Services Available',
                     style: kMobileTextStyleTitle.copyWith(
                       fontWeight: FontWeight.w600,
                       color: AppColors.textPrimary,
@@ -72,7 +112,7 @@ class ClinicServicesList extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'This clinic hasn\'t listed their services yet.',
+                    'This clinic has no active services at the moment.',
                     style: kMobileTextStyleSubtitle.copyWith(
                       fontSize: 11,
                       color: AppColors.textSecondary,
@@ -114,7 +154,7 @@ class ClinicServicesList extends StatelessWidget {
               const SizedBox(width: kMobileSizedBoxMedium),
               Expanded(
                 child: Text(
-                  'Services (${clinic.services.length})',
+                  'Services (${activeServices.length})',
                   style: kMobileTextStyleTitle.copyWith(
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
@@ -125,10 +165,10 @@ class ClinicServicesList extends StatelessWidget {
           ),
           const SizedBox(height: kMobileSizedBoxMedium),
           
-          // Show services in a more compact grid layout
-          ...clinic.services.take(6).map((service) => _buildServiceItem(service)),
+          // Show only active services in a more compact grid layout
+          ...activeServices.take(6).map((service) => _buildServiceItem(service)),
           
-          if (clinic.services.length > 6) ...[
+          if (activeServices.length > 6) ...[
             const SizedBox(height: kMobileSizedBoxSmall),
             Center(
               child: TextButton(
@@ -136,7 +176,7 @@ class ClinicServicesList extends StatelessWidget {
                   // Show all services
                 },
                 child: Text(
-                  'View All ${clinic.services.length} Services',
+                  'View All ${activeServices.length} Services',
                   style: kMobileTextStyleViewAll.copyWith(
                     color: AppColors.primary,
                     fontWeight: FontWeight.w600,

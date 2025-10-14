@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
@@ -30,11 +31,18 @@ class _ClinicDetailsPageState extends State<ClinicDetailsPage> {
   ClinicDetails? _clinicDetails;
   bool _isLoading = true;
   String? _errorMessage;
+  StreamSubscription<ClinicDetails?>? _clinicSubscription;
 
   @override
   void initState() {
     super.initState();
     _loadClinicDetails();
+  }
+
+  @override
+  void dispose() {
+    _clinicSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadClinicDetails() async {
@@ -44,17 +52,38 @@ class _ClinicDetailsPageState extends State<ClinicDetailsPage> {
         _errorMessage = null;
       });
 
-      final clinicDetails = await ClinicDetailsService.getClinicDetails(widget.clinicId);
-      
-      setState(() {
-        _clinicDetails = clinicDetails;
-        _isLoading = false;
+      // Cancel existing subscription if any
+      _clinicSubscription?.cancel();
+
+      // Use stream for real-time updates
+      _clinicSubscription = ClinicDetailsService.streamClinicDetails(widget.clinicId)
+          .listen((clinicDetails) {
+        if (mounted) {
+          setState(() {
+            _clinicDetails = clinicDetails;
+            _isLoading = false;
+            _errorMessage = clinicDetails == null ? 'Clinic not found' : null;
+          });
+          if (clinicDetails != null) {
+            print('🔄 Clinic details updated in real-time: ${clinicDetails.clinicName}');
+          }
+        }
+      }, onError: (error) {
+        if (mounted) {
+          setState(() {
+            _errorMessage = error.toString();
+            _isLoading = false;
+          });
+          print('❌ Error streaming clinic details: $error');
+        }
       });
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _isLoading = false;
+        });
+      }
     }
   }
 
