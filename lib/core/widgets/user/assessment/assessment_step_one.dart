@@ -746,6 +746,7 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
                   pet.petName,
                   style: kMobileTextStyleServiceTitle.copyWith(
                     fontWeight: FontWeight.w500,
+                    color: AppColors.textPrimary,
                   ),
                 ),
                 subtitle: Text(

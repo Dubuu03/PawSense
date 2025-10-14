@@ -37,7 +37,7 @@ class PawSenseApp extends StatelessWidget {
         title: 'PawSense - Your Pet Care Companion',
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
-        themeMode: ThemeMode.system,
+        themeMode: ThemeMode.light, // Always use light mode
         routerConfig: AppRouter.router,
       ),
     );
