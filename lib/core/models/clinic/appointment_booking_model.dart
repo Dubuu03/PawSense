@@ -89,6 +89,24 @@ class AppointmentBooking {
 
   /// Create from Firestore document
   factory AppointmentBooking.fromMap(Map<String, dynamic> map, String documentId) {
+    // Helper function to safely convert Timestamp to DateTime
+    DateTime _safeTimestampToDate(dynamic value, DateTime defaultValue) {
+      if (value == null) return defaultValue;
+      if (value is Timestamp) return value.toDate();
+      if (value is DateTime) return value;
+      return defaultValue;
+    }
+
+    // Helper function for nullable DateTime
+    DateTime? _safeTimestampToDateNullable(dynamic value) {
+      if (value == null) return null;
+      if (value is Timestamp) return value.toDate();
+      if (value is DateTime) return value;
+      return null;
+    }
+
+    final now = DateTime.now();
+    
     return AppointmentBooking(
       id: documentId,
       userId: map['userId'] ?? '',
@@ -96,7 +114,7 @@ class AppointmentBooking {
       clinicId: map['clinicId'] ?? '',
       serviceName: map['serviceName'] ?? '',
       serviceId: map['serviceId'] ?? '',
-      appointmentDate: (map['appointmentDate'] as Timestamp).toDate(),
+      appointmentDate: _safeTimestampToDate(map['appointmentDate'], now),
       appointmentTime: map['appointmentTime'] ?? '',
       notes: map['notes'] ?? '',
       status: AppointmentStatus.values.firstWhere(
@@ -109,16 +127,12 @@ class AppointmentBooking {
       ),
       estimatedPrice: map['estimatedPrice']?.toDouble(),
       duration: map['duration'],
-      createdAt: (map['createdAt'] as Timestamp).toDate(),
-      updatedAt: (map['updatedAt'] as Timestamp).toDate(),
+      createdAt: _safeTimestampToDate(map['createdAt'], now),
+      updatedAt: _safeTimestampToDate(map['updatedAt'], now),
       cancelReason: map['cancelReason'],
-      cancelledAt: map['cancelledAt'] != null 
-          ? (map['cancelledAt'] as Timestamp).toDate() 
-          : null,
+      cancelledAt: _safeTimestampToDateNullable(map['cancelledAt']),
       rescheduleReason: map['rescheduleReason'],
-      rescheduledAt: map['rescheduledAt'] != null 
-          ? (map['rescheduledAt'] as Timestamp).toDate() 
-          : null,
+      rescheduledAt: _safeTimestampToDateNullable(map['rescheduledAt']),
       assessmentResultId: map['assessmentResultId'],
     );
   }

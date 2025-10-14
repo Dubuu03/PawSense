@@ -229,56 +229,65 @@ class AppointmentTableRow extends StatelessWidget {
           // Actions
           Expanded(
             flex: 2,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.visibility_outlined, size: 16),
-                  onPressed: onView,
-                  color: AppColors.textSecondary,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                  tooltip: 'View Appointment Details',
-                ),
-                if (appointment.status == AppointmentStatus.pending) ...[
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
                   IconButton(
-                    icon: const Icon(Icons.check, size: 16),
-                    onPressed: onAccept,
-                    color: AppColors.success,
-                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                    tooltip: 'Accept Appointment',
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 16),
-                    onPressed: onReject,
-                    color: AppColors.error,
-                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                    tooltip: 'Reject Appointment',
-                  ),
-                ] else if (appointment.status == AppointmentStatus.confirmed) ...[
-                  IconButton(
-                    icon: const Icon(Icons.task_alt, size: 16),
-                    onPressed: onMarkDone,
-                    color: AppColors.success,
-                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                    tooltip: 'Mark as Done',
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.edit_outlined, size: 16),
-                    onPressed: onEdit,
+                    icon: const Icon(Icons.visibility_outlined, size: 16),
+                    onPressed: onView,
                     color: AppColors.textSecondary,
                     constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                    tooltip: 'Edit Appointment',
+                    padding: const EdgeInsets.all(4),
+                    tooltip: 'View Appointment Details',
                   ),
-                ] else if (appointment.status == AppointmentStatus.cancelled) ...[
-                  IconButton(
-                    icon: const Icon(Icons.edit_outlined, size: 16),
-                    onPressed: onEdit,
-                    color: AppColors.textSecondary,
-                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                    tooltip: 'Edit Appointment',
-                  ),
+                  if (appointment.status == AppointmentStatus.pending) ...[
+                    IconButton(
+                      icon: const Icon(Icons.check, size: 16),
+                      onPressed: onAccept,
+                      color: AppColors.success,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      padding: const EdgeInsets.all(4),
+                      tooltip: 'Accept Appointment',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 16),
+                      onPressed: onReject,
+                      color: AppColors.error,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      padding: const EdgeInsets.all(4),
+                      tooltip: 'Reject Appointment',
+                    ),
+                  ] else if (appointment.status == AppointmentStatus.confirmed) ...[
+                    IconButton(
+                      icon: const Icon(Icons.task_alt, size: 16),
+                      onPressed: onMarkDone,
+                      color: AppColors.success,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      padding: const EdgeInsets.all(4),
+                      tooltip: 'Mark as Done',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined, size: 16),
+                      onPressed: onEdit,
+                      color: AppColors.textSecondary,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      padding: const EdgeInsets.all(4),
+                      tooltip: 'Edit Appointment',
+                    ),
+                  ] else if (appointment.status == AppointmentStatus.cancelled) ...[
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined, size: 16),
+                      onPressed: onEdit,
+                      color: AppColors.textSecondary,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      padding: const EdgeInsets.all(4),
+                      tooltip: 'Edit Appointment',
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ],

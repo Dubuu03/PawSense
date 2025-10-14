@@ -1136,8 +1136,8 @@ class _OptimizedAppointmentManagementScreenState
           ),
         ),
 
-        // Pagination Controls (hidden during initial load)
-        if (!isInitialLoading && totalPages > 1) ...[
+        // Pagination Controls (hidden during initial load and filter changes)
+        if (!isInitialLoading && !_isLoading && totalPages > 1) ...[
           const SizedBox(height: 24),
           PaginationWidget(
             currentPage: currentPage,

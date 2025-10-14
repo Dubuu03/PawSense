@@ -36,7 +36,7 @@ class DashboardHeader extends StatelessWidget {
             ),
         SizedBox(height: 4),
         Text(
-          'Welcome back, Dr. Johnson',
+          'Welcome back, Dr. Johnson', // make this dynamic later and fetch from user profile
           style: TextStyle(
             fontSize: kFontSizeRegular,
             color: AppColors.textSecondary,
