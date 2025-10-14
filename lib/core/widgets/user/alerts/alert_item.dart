@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 
 enum AlertType {
@@ -60,18 +61,19 @@ class AlertItem extends StatelessWidget {
   final AlertData alert;
   final VoidCallback? onTap;
   final VoidCallback? onMarkAsRead;
+  final VoidCallback? onDelete;
 
   const AlertItem({
     super.key,
     required this.alert,
     this.onTap,
     this.onMarkAsRead,
+    this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+    final alertContent = Container(
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(12),
@@ -190,6 +192,43 @@ class AlertItem extends StatelessWidget {
           ),
         ),
       ),
+    );
+
+    // Wrap with Slidable if this is a message alert and onDelete is provided
+    if (alert.type == AlertType.message && onDelete != null) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        child: Slidable(
+          key: ValueKey(alert.id),
+          endActionPane: ActionPane(
+            motion: const ScrollMotion(),
+            dismissible: DismissiblePane(onDismissed: () {
+              onDelete?.call();
+            }),
+            children: [
+              SlidableAction(
+                onPressed: (context) {
+                  onDelete?.call();
+                },
+                backgroundColor: AppColors.error,
+                foregroundColor: AppColors.white,
+                icon: Icons.delete,
+                label: 'Delete',
+                borderRadius: const BorderRadius.only(
+                  topRight: Radius.circular(12),
+                  bottomRight: Radius.circular(12),
+                ),
+              ),
+            ],
+          ),
+          child: alertContent,
+        ),
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: alertContent,
     );
   }
 

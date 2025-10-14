@@ -9,6 +9,7 @@ class OptimizedAlertList extends StatefulWidget {
   final List<AlertData> alerts;
   final Function(AlertData)? onAlertTap;
   final Function(AlertData)? onMarkAsRead;
+  final Function(AlertData)? onDelete;
   final VoidCallback? onLoadMore;
   final bool hasMore;
   final bool isLoading;
@@ -19,6 +20,7 @@ class OptimizedAlertList extends StatefulWidget {
     required this.alerts,
     this.onAlertTap,
     this.onMarkAsRead,
+    this.onDelete,
     this.onLoadMore,
     this.hasMore = false,
     this.isLoading = false,
@@ -154,6 +156,9 @@ class _OptimizedAlertListState extends State<OptimizedAlertList> {
               alert: item.alert!,
               onTap: () => widget.onAlertTap?.call(item.alert!),
               onMarkAsRead: () => widget.onMarkAsRead?.call(item.alert!),
+              onDelete: item.alert!.type == AlertType.message 
+                  ? () => widget.onDelete?.call(item.alert!)
+                  : null,
             );
           }
         },

@@ -43,15 +43,6 @@ class _AlertsPageState extends State<AlertsPage> with WidgetsBindingObserver {
   }
 
   @override
-  void didUpdateWidget(AlertsPage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // Refresh notifications when returning to this page
-    if (_userModel != null) {
-      _loadInitialNotifications();
-    }
-  }
-
-  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed && mounted && _userModel != null) {
@@ -59,19 +50,6 @@ class _AlertsPageState extends State<AlertsPage> with WidgetsBindingObserver {
       print('🔄 App resumed, refreshing notifications...');
       _refreshNotifications();
     }
-  }
-
-  // Called when the route is popped (user navigates back)
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Force refresh when returning to this page
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _userModel != null) {
-        print('🔄 Dependencies changed, refreshing notifications...');
-        _loadInitialNotifications();
-      }
-    });
   }
 
   @override
@@ -87,9 +65,6 @@ class _AlertsPageState extends State<AlertsPage> with WidgetsBindingObserver {
     try {
       final userModel = await AuthGuard.getCurrentUser();
       if (userModel != null && mounted) {
-        // Run migration for existing notifications (one-time fix)
-        NotificationService.migrateUserNotifications(userModel.uid);
-        
         setState(() {
           _userModel = userModel;
         });
@@ -116,7 +91,9 @@ class _AlertsPageState extends State<AlertsPage> with WidgetsBindingObserver {
         _loading = true;
       });
       
+      print('📥 Loading notifications for user: ${_userModel!.uid}');
       final result = await PaginatedNotificationService.getNotificationsWithCache(_userModel!.uid);
+      print('📥 Loaded ${result.notifications.length} notifications');
       
       if (mounted) {
         setState(() {
@@ -284,6 +261,62 @@ class _AlertsPageState extends State<AlertsPage> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _handleDelete(AlertData alert) async {
+    if (!mounted) return;
+    
+    // Show confirmation dialog for message deletion
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Message'),
+        content: const Text('Are you sure you want to delete this message? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: AppColors.white,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    // Optimistically remove from UI
+    setState(() {
+      _notifications.removeWhere((n) => n.id == alert.id);
+    });
+
+    try {
+      await NotificationService.deleteNotification(alert.id);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Message deleted'),
+            duration: Duration(seconds: 2),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error deleting notification: $e');
+      _showErrorMessage('Failed to delete message');
+      
+      // Revert by refreshing
+      if (mounted) {
+        await _refreshNotifications();
+      }
+    }
+  }
+
 
 
   @override
@@ -340,6 +373,7 @@ class _AlertsPageState extends State<AlertsPage> with WidgetsBindingObserver {
                   alerts: _notifications,
                   onAlertTap: _handleAlertTap,
                   onMarkAsRead: _handleMarkAsRead,
+                  onDelete: _handleDelete,
                   onLoadMore: _loadMoreNotifications,
                   hasMore: _hasMore,
                   isLoading: _loading,
