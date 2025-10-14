@@ -442,7 +442,7 @@ class _AlertsPageState extends State<AlertsPage> with WidgetsBindingObserver {
   void _showCameraDialog() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
+      backgroundColor: AppColors.background,
       isScrollControlled: true,
       builder: (context) => const PetAssessmentModal(),
     );

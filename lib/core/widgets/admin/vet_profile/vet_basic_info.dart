@@ -71,10 +71,11 @@ class VetProfileBasicInfo extends StatelessWidget {
             icon: Icons.location_on_outlined,
             text: address,
           ),
-          ContactInfoTile(
-            icon: Icons.language_outlined,
-            text: website,
-          ),
+          if (website.isNotEmpty)
+            ContactInfoTile(
+              icon: Icons.language_outlined,
+              text: website,
+            ),
         ],
       ),
     );
