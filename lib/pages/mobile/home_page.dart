@@ -18,6 +18,7 @@ import 'package:pawsense/core/widgets/user/home/history_section.dart';
 import 'package:pawsense/core/widgets/user/home/ai_history_list.dart';
 import 'package:pawsense/core/widgets/user/home/appointment_history_list.dart';
 import 'package:pawsense/core/widgets/user/shared/modals/pet_assessment_modal.dart';
+import 'package:pawsense/core/widgets/shared/ui/scroll_to_top_fab.dart';
 import 'package:pawsense/core/services/user/assessment_result_service.dart';
 import 'package:pawsense/core/models/user/assessment_result_model.dart';
 import 'package:pawsense/core/models/clinic/appointment_booking_model.dart' as booking;
@@ -43,6 +44,7 @@ class _UserHomePageState extends State<UserHomePage> {
   final GlobalKey<PetInfoCardState> _petCardKey = GlobalKey<PetInfoCardState>();
   bool _hasInitiallyLoaded = false; // Track if initial load is complete
   bool _isInternalTabSwitch = false; // Track if this is just a tab switch
+  final ScrollController _historyScrollController = ScrollController(); // Scroll controller for history tab
 
   // Dynamic health data generated from AI history
   List<HealthData> _healthData = [];
@@ -77,6 +79,7 @@ class _UserHomePageState extends State<UserHomePage> {
   void dispose() {
     // Global notification manager handles cleanup automatically
     _appointmentStreamSubscription?.cancel();
+    _historyScrollController.dispose();
     super.dispose();
   }
 
@@ -860,7 +863,9 @@ class _UserHomePageState extends State<UserHomePage> {
       body: _loading 
           ? _buildLoadingState()
           : _userModel != null 
-              ? _buildHomeContent()
+              ? _currentTabIndex == 1 
+                  ? _buildHistoryWithScrollToTop()
+                  : _buildHomeContent()
               : _buildErrorState(),
       bottomNavigationBar: UserBottomNavBar(
         currentIndex: _currentNavIndex,
@@ -1032,6 +1037,60 @@ class _UserHomePageState extends State<UserHomePage> {
         // Refresh appointment history when an appointment is updated (e.g., cancelled)
         refreshAppointmentHistory(forceRefresh: true);
       },
+    );
+  }
+
+  Widget _buildHistoryWithScrollToTop() {
+    return Stack(
+      children: [
+        RefreshIndicator(
+          onRefresh: () async {
+            await _fetchAssessmentHistory(forceRefresh: true);
+            await _fetchAppointmentHistory(forceRefresh: true);
+          },
+          color: AppColors.primary,
+          child: SingleChildScrollView(
+            controller: _historyScrollController,
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              children: [
+                // Tab Toggle
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: kMobileMarginHorizontal, vertical: kMobileSizedBoxXLarge),
+                  child: TabToggle(
+                    selectedIndex: _currentTabIndex,
+                    onTabChanged: (index) {
+                      if (mounted) {
+                        setState(() {
+                          _currentTabIndex = index;
+                          _isInternalTabSwitch = true;
+                        });
+                      }
+                    },
+                    tabs: const ['Dashboard', 'History'],
+                  ),
+                ),
+                
+                // History Content
+                _buildHistoryContent(),
+                
+                const SizedBox(height: 32), // Bottom padding
+              ],
+            ),
+          ),
+        ),
+        
+        // Scroll to Top FAB
+        Positioned(
+          right: 16,
+          bottom: 16,
+          child: ScrollToTopFab(
+            scrollController: _historyScrollController,
+            showThreshold: 200.0,
+            tooltip: 'Scroll to top',
+          ),
+        ),
+      ],
     );
   }
 
