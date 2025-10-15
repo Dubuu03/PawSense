@@ -35,6 +35,16 @@ class ScreenStateService {
   String _breedSelectedStatus = 'all';
   String _breedSelectedSort = 'name_asc';
 
+  // Disease Management State
+  int _diseaseCurrentPage = 1;
+  String _diseaseSearchQuery = '';
+  String? _diseaseDetectionFilter;
+  List<String> _diseaseSpeciesFilter = [];
+  String? _diseaseSeverityFilter;
+  List<String> _diseaseCategoriesFilter = [];
+  bool? _diseaseContagiousFilter;
+  String _diseaseSortBy = 'name_asc';
+
   // Clinic Management Getters & Setters
   int get clinicCurrentPage => _clinicCurrentPage;
   String get clinicSearchQuery => _clinicSearchQuery;
@@ -174,6 +184,49 @@ class ScreenStateService {
     _breedSelectedSort = 'name_asc';
   }
 
+  // Disease Management Getters & Setters
+  int get diseaseCurrentPage => _diseaseCurrentPage;
+  String get diseaseSearchQuery => _diseaseSearchQuery;
+  String? get diseaseDetectionFilter => _diseaseDetectionFilter;
+  List<String> get diseaseSpeciesFilter => _diseaseSpeciesFilter;
+  String? get diseaseSeverityFilter => _diseaseSeverityFilter;
+  List<String> get diseaseCategoriesFilter => _diseaseCategoriesFilter;
+  bool? get diseaseContagiousFilter => _diseaseContagiousFilter;
+  String get diseaseSortBy => _diseaseSortBy;
+
+  void saveDiseaseState({
+    required int currentPage,
+    required String searchQuery,
+    required String? detectionFilter,
+    required List<String> speciesFilter,
+    required String? severityFilter,
+    required List<String> categoriesFilter,
+    required bool? contagiousFilter,
+    required String sortBy,
+  }) {
+    _diseaseCurrentPage = currentPage;
+    _diseaseSearchQuery = searchQuery;
+    _diseaseDetectionFilter = detectionFilter;
+    _diseaseSpeciesFilter = List.from(speciesFilter);
+    _diseaseSeverityFilter = severityFilter;
+    _diseaseCategoriesFilter = List.from(categoriesFilter);
+    _diseaseContagiousFilter = contagiousFilter;
+    _diseaseSortBy = sortBy;
+    print('💾 Saved disease management state: page=$currentPage, detection="$detectionFilter", species=$speciesFilter, severity="$severityFilter", categories=$categoriesFilter, contagious=$contagiousFilter, sort="$sortBy", search="$searchQuery"');
+  }
+
+  /// Reset disease state to defaults
+  void resetDiseaseState() {
+    _diseaseCurrentPage = 1;
+    _diseaseSearchQuery = '';
+    _diseaseDetectionFilter = null;
+    _diseaseSpeciesFilter = [];
+    _diseaseSeverityFilter = null;
+    _diseaseCategoriesFilter = [];
+    _diseaseContagiousFilter = null;
+    _diseaseSortBy = 'name_asc';
+  }
+
   /// Reset all states
   void resetAllStates() {
     resetClinicState();
@@ -181,5 +234,6 @@ class ScreenStateService {
     resetAppointmentState();
     resetScheduleState();
     resetBreedState();
+    resetDiseaseState();
   }
 }

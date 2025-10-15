@@ -22,7 +22,6 @@ class DiseaseStatisticsCards extends StatelessWidget {
             statistics['total'] ?? 0,
             Icons.medical_services,
             AppColors.primary,
-            isLoading,
           ),
         ),
         SizedBox(width: kSpacingLarge),
@@ -32,7 +31,6 @@ class DiseaseStatisticsCards extends StatelessWidget {
             statistics['ai'] ?? 0,
             Icons.auto_awesome,
             Color(0xFF8B5CF6),
-            isLoading,
           ),
         ),
         SizedBox(width: kSpacingLarge),
@@ -42,7 +40,6 @@ class DiseaseStatisticsCards extends StatelessWidget {
             statistics['info'] ?? 0,
             Icons.info_outline,
             Color(0xFF6B7280),
-            isLoading,
           ),
         ),
         SizedBox(width: kSpacingLarge),
@@ -52,7 +49,6 @@ class DiseaseStatisticsCards extends StatelessWidget {
             statistics['categories'] ?? 0,
             Icons.category_outlined,
             Color(0xFF10B981),
-            isLoading,
           ),
         ),
       ],
@@ -64,7 +60,6 @@ class DiseaseStatisticsCards extends StatelessWidget {
     int value,
     IconData icon,
     Color color,
-    bool loading,
   ) {
     return Container(
       padding: EdgeInsets.all(kSpacingLarge),
@@ -100,22 +95,13 @@ class DiseaseStatisticsCards extends StatelessWidget {
                   size: kIconSizeLarge,
                 ),
               ),
-              loading
-                  ? Container(
-                      width: 40,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: AppColors.border,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    )
-                  : Text(
-                      value.toString(),
-                      style: kTextStyleTitle.copyWith(
-                        color: color,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+              Text(
+                value.toString(),
+                style: kTextStyleTitle.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ],
           ),
           SizedBox(height: kSpacingMedium),

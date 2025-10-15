@@ -30,7 +30,6 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> with Auto
   bool _isLoading = true;
   bool _isInitialLoad = true;
   bool _isPaginationLoading = false; // Separate loading state for pagination
-  bool _isLoadingStats = true;
   
   // Pagination - fixed at 10 items per page
   int _currentPage = 1;
@@ -170,7 +169,6 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> with Auto
         if (cachedStats != null) {
           setState(() {
             _statistics = cachedStats;
-            _isLoadingStats = false;
           });
         }
         return;
@@ -181,7 +179,6 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> with Auto
     setState(() {
       if (_isInitialLoad) {
         _isLoading = true;
-        _isLoadingStats = true;
       } else if (isPagination) {
         _isPaginationLoading = true;
       }
@@ -245,7 +242,6 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> with Auto
         _isLoading = false;
         _isInitialLoad = false;
         _isPaginationLoading = false;
-        _isLoadingStats = false;
       });
       
       print('✅ Loaded ${breeds.length} breeds on page $_currentPage of $_totalPages (total: $totalBreeds)');
@@ -255,10 +251,16 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> with Auto
         _isLoading = false;
         _isInitialLoad = false;
         _isPaginationLoading = false;
-        _isLoadingStats = false;
       });
       _showErrorSnackBar('Failed to load breeds: $e');
     }
+  }
+  
+  /// Check if any filters are actively applied (non-default values)
+  bool get _hasActiveFilters {
+    return _searchQuery.isNotEmpty ||
+        _selectedSpecies != BreedSpecies.all ||
+        _selectedStatus != BreedStatus.all;
   }
   
   void _onSearchChanged(String query) {
@@ -621,7 +623,6 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> with Auto
             // Statistics Cards
             BreedStatisticsCards(
               statistics: _statistics,
-              isLoading: _isLoadingStats,
             ),
             SizedBox(height: kSpacingLarge),
             
@@ -821,63 +822,82 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> with Auto
 
   Widget _buildEmptyState() {
     return Container(
-      padding: EdgeInsets.all(kSpacingXLarge * 2),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.pets, size: 80, color: AppColors.textSecondary),
-          SizedBox(height: kSpacingLarge),
-          Text(
-            'No breeds found',
-            style: kTextStyleLarge.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          SizedBox(height: kSpacingSmall),
-          Text(
-            _searchQuery.isNotEmpty
-                ? 'Try adjusting your search or filters'
-                : 'Add your first breed to get started',
-            style: kTextStyleRegular.copyWith(color: AppColors.textSecondary),
-          ),
-          SizedBox(height: kSpacingLarge),
-          ElevatedButton.icon(
-            onPressed: _searchQuery.isNotEmpty || _selectedSpecies != BreedSpecies.all || _selectedStatus != BreedStatus.all
-                ? () {
-                    setState(() {
-                      _searchQuery = '';
-                      _selectedSpecies = BreedSpecies.all;
-                      _selectedStatus = BreedStatus.all;
-                    });
-                    _loadBreeds();
-                  }
-                : _showAddBreedModal,
-            icon: Icon(_searchQuery.isNotEmpty ? Icons.clear : Icons.add),
-            label: Text(_searchQuery.isNotEmpty ? 'Clear Filters' : 'Add First Breed'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-            ),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(kBorderRadius),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: Offset(0, 2),
+            spreadRadius: 0,
           ),
         ],
+      ),
+      child: Center(
+        child: Padding(
+          padding: EdgeInsets.all(kSpacingXLarge * 2),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(Icons.pets, size: 80, color: AppColors.textTertiary),
+              SizedBox(height: kSpacingLarge),
+              Text(
+                'No breeds found',
+                style: kTextStyleLarge.copyWith(
+                  color: AppColors.textPrimary,
+                  fontSize: 20,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: kSpacingSmall),
+              Text(
+                _hasActiveFilters
+                    ? 'Try adjusting your search or filters'
+                    : 'Add your first breed to get started',
+                style: kTextStyleRegular.copyWith(color: AppColors.textSecondary),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
   
   Widget _buildLoadingState() {
-    return Center(
-      child: Padding(
-        padding: EdgeInsets.all(kSpacingXLarge * 2),
-        child: Column(
-          children: [
-            CircularProgressIndicator(color: AppColors.primary),
-            SizedBox(height: kSpacingMedium),
-            Text(
-              'Loading breeds...',
-              style: kTextStyleRegular.copyWith(color: AppColors.textSecondary),
-            ),
-          ],
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(kBorderRadius),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: Offset(0, 2),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: Center(
+        child: Padding(
+          padding: EdgeInsets.all(kSpacingXLarge * 2),
+          child: Column(
+            children: [
+              CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+              ),
+              SizedBox(height: kSpacingMedium),
+              Text(
+                'Loading breeds...',
+                style: kTextStyleRegular.copyWith(color: AppColors.textSecondary),
+              ),
+            ],
+          ),
         ),
       ),
     );

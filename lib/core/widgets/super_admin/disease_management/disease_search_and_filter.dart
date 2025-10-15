@@ -279,12 +279,14 @@ class _DiseaseSearchAndFilterState extends State<DiseaseSearchAndFilter> {
         fillColor: AppColors.white,
       ),
       style: kTextStyleRegular.copyWith(color: AppColors.textPrimary),
+      isExpanded: true,
       items: items.map((item) {
         return DropdownMenuItem(
           value: item['value']!,
           child: Text(
             item['label']!,
             style: kTextStyleRegular.copyWith(color: AppColors.textPrimary),
+            overflow: TextOverflow.ellipsis,
           ),
         );
       }).toList(),

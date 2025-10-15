@@ -14,10 +14,6 @@ class BreedStatisticsCards extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading) {
-      return _buildLoadingState();
-    }
-
     return Row(
       children: [
         Expanded(
@@ -112,74 +108,6 @@ class BreedStatisticsCards extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildLoadingState() {
-    return Row(
-      children: List.generate(
-        4,
-        (index) => Expanded(
-          child: Container(
-            margin: EdgeInsets.only(
-              right: index < 3 ? kSpacingMedium : 0,
-            ),
-            padding: EdgeInsets.all(kSpacingLarge),
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(kBorderRadius),
-              border: Border.all(color: AppColors.border),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(kShadowOpacity),
-                  spreadRadius: kShadowSpreadRadius,
-                  blurRadius: kShadowBlurRadius,
-                  offset: kShadowOffset,
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(kSpacingSmall),
-                      decoration: BoxDecoration(
-                        color: AppColors.border,
-                        borderRadius: BorderRadius.circular(kBorderRadiusSmall),
-                      ),
-                      child: SizedBox(
-                        width: kIconSizeLarge,
-                        height: kIconSizeLarge,
-                      ),
-                    ),
-                    Container(
-                      width: 40,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: AppColors.border,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: kSpacingMedium),
-                Container(
-                  width: 80,
-                  height: 14,
-                  decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }

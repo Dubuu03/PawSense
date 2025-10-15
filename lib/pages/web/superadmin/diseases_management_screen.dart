@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pawsense/core/utils/file_downloader.dart' as file_downloader;
 import 'package:pawsense/core/models/skin_disease/skin_disease_model.dart';
 import 'package:pawsense/core/services/super_admin/skin_diseases_service.dart';
+import 'package:pawsense/core/services/super_admin/disease_cache_service.dart';
+import 'package:pawsense/core/services/super_admin/screen_state_service.dart';
 import 'package:pawsense/core/widgets/shared/page_header.dart';
 import 'package:pawsense/core/widgets/shared/pagination_widget.dart';
 import 'package:pawsense/core/widgets/super_admin/disease_management/disease_statistics_cards.dart';
@@ -13,16 +16,17 @@ import 'package:pawsense/core/widgets/super_admin/disease_management/add_edit_di
 import 'package:pawsense/core/widgets/super_admin/disease_management/disease_detail_modal.dart';
 
 class DiseasesManagementScreen extends StatefulWidget {
-  const DiseasesManagementScreen({super.key});
+  const DiseasesManagementScreen({Key? key}) : super(key: key ?? const PageStorageKey('disease_management'));
 
   @override
   State<DiseasesManagementScreen> createState() =>
       _DiseasesManagementScreenState();
 }
 
-class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> {
+class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> with AutomaticKeepAliveClientMixin {
   bool _isLoading = true;
-  bool _isLoadingStats = true;
+  bool _isInitialLoad = true;
+  bool _isPaginationLoading = false; // Separate loading state for pagination
   List<SkinDiseaseModel> _filteredDiseases = [];
   Map<String, int> _statistics = {};
 
@@ -41,64 +45,178 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> {
   bool? _contagiousFilter;
   String _sortBy = 'name_asc';
 
+  // Services
+  final _cacheService = DiseaseCacheService();
+  final _stateService = ScreenStateService();
+  
+  // Debouncing
+  Timer? _debounceTimer;
+  final Duration _debounceDuration = Duration(milliseconds: 500);
+
+  @override
+  bool get wantKeepAlive => true; // Keep state alive when navigating away
+
   @override
   void initState() {
     super.initState();
-    _loadStatistics(); // Load stats first
-    _loadDiseases(); // Then load diseases
+    _restoreState();
+    _loadDiseases();
   }
 
-  Future<void> _loadStatistics() async {
-    setState(() {
-      _isLoadingStats = true;
-    });
+  @override
+  void dispose() {
+    _saveState();
+    _debounceTimer?.cancel();
+    super.dispose();
+  }
 
-    try {
-      final stats = await SkinDiseasesService.getDiseaseStatistics();
+  /// Restore state from ScreenStateService
+  void _restoreState() {
+    _currentPage = _stateService.diseaseCurrentPage;
+    _searchQuery = _stateService.diseaseSearchQuery;
+    _detectionFilter = _stateService.diseaseDetectionFilter;
+    _speciesFilter = List.from(_stateService.diseaseSpeciesFilter);
+    _severityFilter = _stateService.diseaseSeverityFilter;
+    _categoriesFilter = List.from(_stateService.diseaseCategoriesFilter);
+    _contagiousFilter = _stateService.diseaseContagiousFilter;
+    _sortBy = _stateService.diseaseSortBy;
+    
+    print('🔄 Restored disease management state: page=$_currentPage, detection="$_detectionFilter", species=$_speciesFilter, severity="$_severityFilter", sort="$_sortBy", search="$_searchQuery"');
+  }
 
-      setState(() {
-        _statistics = stats;
-        _isLoadingStats = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isLoadingStats = false;
-      });
-      print('Error loading statistics: $e');
+  /// Save current state to ScreenStateService
+  void _saveState() {
+    _stateService.saveDiseaseState(
+      currentPage: _currentPage,
+      searchQuery: _searchQuery,
+      detectionFilter: _detectionFilter,
+      speciesFilter: _speciesFilter,
+      severityFilter: _severityFilter,
+      categoriesFilter: _categoriesFilter,
+      contagiousFilter: _contagiousFilter,
+      sortBy: _sortBy,
+    );
+  }
+
+  Future<void> _loadDiseases({bool forceRefresh = false, bool isPagination = false}) async {
+    // Check if filters changed (clear cache if so)
+    final filtersChanged = _cacheService.hasFiltersChanged(
+      _detectionFilter,
+      _speciesFilter,
+      _severityFilter,
+      _categoriesFilter,
+      _contagiousFilter,
+      _searchQuery,
+      _sortBy,
+    );
+    if (filtersChanged && !_isInitialLoad) {
+      _cacheService.invalidateCacheForFilterChange();
     }
-  }
-
-  Future<void> _loadDiseases() async {
+    
+    // Try to load from multi-page cache first
+    if (!forceRefresh && !_isInitialLoad) {
+      final cachedPage = _cacheService.getCachedPage(
+        detectionFilter: _detectionFilter,
+        speciesFilter: _speciesFilter,
+        severityFilter: _severityFilter,
+        categoriesFilter: _categoriesFilter,
+        contagiousFilter: _contagiousFilter,
+        searchQuery: _searchQuery,
+        sortBy: _sortBy,
+        page: _currentPage,
+      );
+      
+      if (cachedPage != null) {
+        print('📦 Using cached page data - no network call needed');
+        setState(() {
+          _filteredDiseases = cachedPage.diseases;
+          _totalDiseases = cachedPage.totalDiseases;
+          _totalPages = cachedPage.totalPages;
+          _isPaginationLoading = false;
+        });
+        
+        // Load stats from cache if available
+        final cachedStats = _cacheService.cachedStats;
+        if (cachedStats != null) {
+          setState(() {
+            _statistics = cachedStats;
+          });
+        }
+        return;
+      }
+    }
+    
+    // Set appropriate loading state
     setState(() {
-      _isLoading = true;
+      if (_isInitialLoad) {
+        _isLoading = true;
+      } else if (isPagination) {
+        _isPaginationLoading = true;
+      }
     });
 
     try {
-      final result = await SkinDiseasesService.getPaginatedDiseases(
-        page: _currentPage,
-        itemsPerPage: _itemsPerPage,
+      print('🔄 Loading diseases from Firestore...');
+      print('Selected Detection: "$_detectionFilter", Species: $_speciesFilter, Severity: "$_severityFilter", Categories: $_categoriesFilter, Contagious: $_contagiousFilter, Sort: "$_sortBy"');
+      
+      // Fetch statistics and paginated diseases in parallel for better performance
+      final results = await Future.wait([
+        SkinDiseasesService.getDiseaseStatistics(),
+        SkinDiseasesService.getPaginatedDiseases(
+          page: _currentPage,
+          itemsPerPage: _itemsPerPage,
+          detectionFilter: _detectionFilter,
+          speciesFilter: _speciesFilter.isEmpty ? null : _speciesFilter,
+          severityFilter: _severityFilter,
+          categoriesFilter: _categoriesFilter.isEmpty ? null : _categoriesFilter,
+          contagiousFilter: _contagiousFilter,
+          searchQuery: _searchQuery.isEmpty ? null : _searchQuery,
+          sortBy: _sortBy,
+        ),
+      ]);
+      
+      final stats = results[0] as Map<String, int>;
+      final paginatedResult = results[1];
+
+      final diseases = paginatedResult['diseases'] as List<SkinDiseaseModel>;
+      final totalDiseases = paginatedResult['totalDiseases'] as int;
+      final totalPages = paginatedResult['totalPages'] as int;
+      final currentPage = paginatedResult['currentPage'] as int;
+      
+      // Update cache with current page data
+      _cacheService.updateCache(
+        diseases: diseases,
+        totalDiseases: totalDiseases,
+        totalPages: totalPages,
+        stats: stats,
         detectionFilter: _detectionFilter,
-        speciesFilter: _speciesFilter.isEmpty ? null : _speciesFilter,
+        speciesFilter: _speciesFilter,
         severityFilter: _severityFilter,
-        categoriesFilter:
-            _categoriesFilter.isEmpty ? null : _categoriesFilter,
+        categoriesFilter: _categoriesFilter,
         contagiousFilter: _contagiousFilter,
-        searchQuery: _searchQuery.isEmpty ? null : _searchQuery,
+        searchQuery: _searchQuery,
         sortBy: _sortBy,
+        page: _currentPage,
       );
 
       setState(() {
-        _filteredDiseases = result['diseases'] as List<SkinDiseaseModel>;
-        _totalDiseases = result['totalDiseases'] as int;
-        _totalPages = result['totalPages'] as int;
-        _currentPage = result['currentPage'] as int;
+        _filteredDiseases = diseases;
+        _totalDiseases = totalDiseases;
+        _totalPages = totalPages;
+        _currentPage = currentPage;
+        _statistics = stats;
         _isLoading = false;
+        _isInitialLoad = false;
+        _isPaginationLoading = false;
       });
       
-      print('✅ Loaded ${_filteredDiseases.length} diseases on page $_currentPage of $_totalPages (total: $_totalDiseases)');
+      print('✅ Loaded ${diseases.length} diseases on page $_currentPage of $_totalPages (total: $totalDiseases)');
     } catch (e) {
+      print('❌ Error loading diseases: $e');
       setState(() {
         _isLoading = false;
+        _isInitialLoad = false;
+        _isPaginationLoading = false;
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -111,15 +229,30 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> {
     }
   }
 
+  /// Check if any filters are actively applied (non-default values)
+  bool get _hasActiveFilters {
+    return _searchQuery.isNotEmpty ||
+        _detectionFilter != null ||
+        _speciesFilter.isNotEmpty ||
+        _severityFilter != null ||
+        _categoriesFilter.isNotEmpty ||
+        _contagiousFilter != null;
+  }
+
   void _applyFilters() {
-    _loadDiseases();
+    setState(() {
+      _currentPage = 1; // Reset to first page
+    });
+    _saveState(); // Save state when filters change
+    _loadDiseases(); // Reload with new filters (will clear cache)
   }
 
   void _onPageChanged(int page) {
     setState(() {
       _currentPage = page;
     });
-    _loadDiseases();
+    _saveState(); // Save state when page changes
+    _loadDiseases(isPagination: true); // Load new page data from server with pagination flag
   }
 
   void _clearFilters() {
@@ -131,8 +264,10 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> {
       _categoriesFilter = [];
       _contagiousFilter = null;
       _sortBy = 'name_asc';
+      _currentPage = 1; // Reset to first page
     });
-    _loadDiseases();
+    _saveState(); // Save state when clearing filters
+    _loadDiseases(); // Reload with cleared filters (will clear cache)
   }
 
   Future<void> _handleDelete(SkinDiseaseModel disease) async {
@@ -170,8 +305,21 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> {
             ),
           );
         }
-        _loadStatistics();
-        _loadDiseases();
+        
+        // Remove disease from local list and cache
+        setState(() {
+          _filteredDiseases.removeWhere((d) => d.id == disease.id);
+          _totalDiseases = _totalDiseases > 0 ? _totalDiseases - 1 : 0;
+        });
+        
+        _cacheService.removeDiseaseFromCache(disease.id);
+        
+        // If current page is now empty and not the first page, go back one page
+        if (_filteredDiseases.isEmpty && _currentPage > 1) {
+          _currentPage--;
+          _saveState();
+          _loadDiseases();
+        }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -333,8 +481,9 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> {
       builder: (context) => AddEditDiseaseModal(
         disease: disease,
         onSuccess: () {
-          _loadStatistics();
-          _loadDiseases();
+          // Invalidate cache and reload to get fresh data
+          _cacheService.invalidateCache();
+          _loadDiseases(forceRefresh: true);
         },
       ),
     );
@@ -345,8 +494,9 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> {
       context: context,
       builder: (context) => AddEditDiseaseModal(
         onSuccess: () {
-          _loadStatistics();
-          _loadDiseases();
+          // Invalidate cache and reload to get fresh data
+          _cacheService.invalidateCache();
+          _loadDiseases(forceRefresh: true);
         },
       ),
     );
@@ -354,6 +504,8 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
+    
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
       body: SingleChildScrollView(
@@ -394,7 +546,6 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> {
               // Statistics Cards
               DiseaseStatisticsCards(
                 statistics: _statistics,
-                isLoading: _isLoadingStats,
               ),
 
               const SizedBox(height: 24),
@@ -412,7 +563,12 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> {
                   setState(() {
                     _searchQuery = value;
                   });
-                  _applyFilters();
+                  
+                  // Debounce search to avoid excessive API calls
+                  _debounceTimer?.cancel();
+                  _debounceTimer = Timer(_debounceDuration, () {
+                    _applyFilters();
+                  });
                 },
                 onDetectionChanged: (value) {
                   setState(() {
@@ -456,29 +612,60 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> {
 
               const SizedBox(height: 24),
 
-              // Diseases Table
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade200),
-                ),
-                child: Column(
-                  children: [
-                    // Table Header
-                    _buildTableHeader(),
-
-                    const Divider(height: 1),
-
-                    // Table Content
-                    if (_isLoading)
-                      _buildLoadingState()
-                    else if (_filteredDiseases.isEmpty)
-                      _buildEmptyState()
-                    else
-                      _buildDiseasesList(),
-                  ],
-                ),
+              // Diseases Table with pagination loading overlay
+              Stack(
+                children: [
+                  _isLoading ? _buildLoadingState() : _buildDiseasesTable(),
+                  
+                  // Show loading overlay during pagination
+                  if (_isPaginationLoading)
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const SizedBox(
+                                  width: 40,
+                                  height: 40,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 3,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8B5CF6)),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Loading page $_currentPage...',
+                                  style: const TextStyle(
+                                    color: Color(0xFF1F2937),
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
 
               // Pagination
@@ -489,7 +676,7 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> {
                   totalPages: _totalPages,
                   totalItems: _totalDiseases,
                   onPageChanged: _onPageChanged,
-                  isLoading: _isLoading,
+                  isLoading: _isPaginationLoading,
                 ),
               ],
             ],
@@ -499,16 +686,50 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> {
     );
   }
 
+  Widget _buildDiseasesTable() {
+    if (_filteredDiseases.isEmpty) {
+      return _buildEmptyState();
+    }
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Table header
+          _buildTableHeader(),
+          
+          // Divider
+          const Divider(height: 1, thickness: 1, color: Color(0xFFE5E7EB)),
+          
+          // Disease rows
+          _buildDiseasesList(),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTableHeader() {
     return Container(
-      height: 56,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 12,
+      ),
       decoration: BoxDecoration(
         color: Colors.grey.shade50,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(12),
-          topRight: Radius.circular(12),
-        ),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
       ),
       child: Row(
         children: [
@@ -522,37 +743,81 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> {
           ),
 
           // Detection - Fixed 100px
-          SizedBox(
+          const SizedBox(
             width: 100,
-            child: _buildHeaderText('DETECTION'),
+            child: Text(
+              'DETECTION',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF6B7280),
+                letterSpacing: 0.8,
+              ),
+            ),
           ),
           const SizedBox(width: 16),
 
           // Species - Fixed 120px
-          SizedBox(
+          const SizedBox(
             width: 120,
-            child: _buildHeaderText('SPECIES'),
+            child: Text(
+              'SPECIES',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF6B7280),
+                letterSpacing: 0.8,
+              ),
+            ),
           ),
           const SizedBox(width: 16),
 
           // Severity - Fixed 100px
-          SizedBox(
+          const SizedBox(
             width: 100,
-            child: Center(child: _buildHeaderText('SEVERITY')),
+            child: Center(
+              child: Text(
+                'SEVERITY',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF6B7280),
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ),
           ),
           const SizedBox(width: 16),
 
           // Categories - Fixed 120px
-          SizedBox(
+          const SizedBox(
             width: 120,
-            child: _buildHeaderText('CATEGORIES'),
+            child: Text(
+              'CATEGORIES',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF6B7280),
+                letterSpacing: 0.8,
+              ),
+            ),
           ),
           const SizedBox(width: 16),
 
           // Contagious - Fixed 100px
-          SizedBox(
+          const SizedBox(
             width: 100,
-            child: Center(child: _buildHeaderText('CONTAGIOUS')),
+            child: Center(
+              child: Text(
+                'CONTAGIOUS',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF6B7280),
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ),
           ),
           const SizedBox(width: 16),
 
@@ -570,10 +835,10 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> {
     return Text(
       text,
       textAlign: textAlign,
-      style: TextStyle(
+      style: const TextStyle(
         fontSize: 11,
         fontWeight: FontWeight.w600,
-        color: Colors.grey.shade600,
+        color: Color(0xFF6B7280),
         letterSpacing: 0.8,
       ),
     );
@@ -597,50 +862,94 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> {
   }
 
   Widget _buildLoadingState() {
-    return const Padding(
-      padding: EdgeInsets.all(80.0),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
       child: Center(
-        child: CircularProgressIndicator(),
+        child: Padding(
+          padding: const EdgeInsets.all(80.0),
+          child: Column(
+            children: [
+              const CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8B5CF6)),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Loading diseases...',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildEmptyState() {
-    return Padding(
-      padding: const EdgeInsets.all(80.0),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
       child: Center(
-        child: Column(
-          children: [
-            Icon(
-              Icons.medical_services_outlined,
-              size: 64,
-              color: Colors.grey.shade300,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No diseases found',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey.shade600,
+        child: Padding(
+          padding: const EdgeInsets.all(80.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.medical_services_outlined,
+                size: 80,
+                color: Colors.grey.shade300,
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _searchQuery.isNotEmpty ||
-                      _detectionFilter != null ||
-                      _speciesFilter.isNotEmpty ||
-                      _severityFilter != null ||
-                      _categoriesFilter.isNotEmpty ||
-                      _contagiousFilter != null
-                  ? 'Try adjusting your filters'
-                  : 'No diseases have been added yet',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade500,
+              const SizedBox(height: 24),
+              Text(
+                'No diseases found',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade800,
+                ),
+                textAlign: TextAlign.center,
               ),
-            ),
-          ],
+              const SizedBox(height: 8),
+              Text(
+                _hasActiveFilters
+                    ? 'Try adjusting your search or filters'
+                    : 'Add your first disease to get started',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
       ),
     );
