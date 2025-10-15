@@ -69,41 +69,47 @@ class DiseaseFilters extends StatelessWidget {
                 if (index == 1) {
                   return Padding(
                     padding: const EdgeInsets.only(right: 8),
-                    child: GestureDetector(
-                      onTap: onDetectionMethodToggled,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: selectedDetectionMethod == 'ai'
-                              ? AppColors.primary
-                              : AppColors.white,
-                          border: Border.all(
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: onDetectionMethodToggled,
+                        borderRadius: BorderRadius.circular(20),
+                        child: Ink(
+                          decoration: BoxDecoration(
                             color: selectedDetectionMethod == 'ai'
                                 ? AppColors.primary
-                                : AppColors.border,
-                            width: 1.5,
+                                : AppColors.white,
+                            border: Border.all(
+                              color: selectedDetectionMethod == 'ai'
+                                  ? AppColors.primary
+                                  : AppColors.border,
+                              width: 1.5,
+                            ),
+                            borderRadius: BorderRadius.circular(20),
                           ),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '✨',
-                              style: TextStyle(fontSize: 13),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '✨',
+                                  style: TextStyle(fontSize: 14),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'AI Detectable',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: selectedDetectionMethod == 'ai'
+                                        ? AppColors.white
+                                        : AppColors.textPrimary,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 5),
-                            Text(
-                              'AI Detectable',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: selectedDetectionMethod == 'ai'
-                                    ? AppColors.white
-                                    : AppColors.textPrimary,
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                     ),

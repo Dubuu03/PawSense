@@ -18,43 +18,49 @@ class CategoryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected 
-              ? AppColors.primary 
-              : AppColors.white,
-          border: Border.all(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Ink(
+          decoration: BoxDecoration(
             color: isSelected 
                 ? AppColors.primary 
-                : AppColors.border,
-            width: 1,
+                : AppColors.white,
+            border: Border.all(
+              color: isSelected 
+                  ? AppColors.primary 
+                  : AppColors.border,
+              width: 1.5,
+            ),
+            borderRadius: BorderRadius.circular(20),
           ),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Icon based on category
-            Text(
-              _getCategoryIcon(label),
-              style: const TextStyle(fontSize: 14),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Icon based on category
+                Text(
+                  _getCategoryIcon(label),
+                  style: const TextStyle(fontSize: 14),
+                ),
+                const SizedBox(width: 6),
+                // Label
+                Text(
+                  _formatLabel(label),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: isSelected 
+                        ? AppColors.white 
+                        : AppColors.textPrimary,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 6),
-            // Label
-            Text(
-              _formatLabel(label),
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: isSelected 
-                    ? AppColors.white 
-                    : AppColors.textPrimary,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

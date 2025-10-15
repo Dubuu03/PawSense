@@ -260,14 +260,20 @@ class _SkinDiseaseLibraryPageState extends State<SkinDiseaseLibraryPage> {
                     ),
                   ),
                   
-                  // Filter chips component (Categories + AI Detectable)
-                  SliverToBoxAdapter(
-                    child: DiseaseFilters(
-                      categories: _categories,
-                      selectedCategory: _selectedCategory,
-                      selectedDetectionMethod: _selectedDetectionMethod,
-                      onCategorySelected: _onCategorySelected,
-                      onDetectionMethodToggled: _onDetectionMethodToggled,
+                  // Filter chips component (Categories + AI Detectable) - STICKY
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: _StickyHeaderDelegate(
+                      child: Container(
+                        color: AppColors.background,
+                        child: DiseaseFilters(
+                          categories: _categories,
+                          selectedCategory: _selectedCategory,
+                          selectedDetectionMethod: _selectedDetectionMethod,
+                          onCategorySelected: _onCategorySelected,
+                          onDetectionMethodToggled: _onDetectionMethodToggled,
+                        ),
+                      ),
                     ),
                   ),
                   
@@ -300,5 +306,28 @@ class _SkinDiseaseLibraryPageState extends State<SkinDiseaseLibraryPage> {
               ),
             ),
     );
+  }
+}
+
+/// Sticky header delegate for categories section
+class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final Widget child;
+
+  _StickyHeaderDelegate({required this.child});
+
+  @override
+  double get minExtent => 165; // Minimum height when sticky (increased to prevent overflow)
+
+  @override
+  double get maxExtent => 165; // Maximum height
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return child;
+  }
+
+  @override
+  bool shouldRebuild(covariant _StickyHeaderDelegate oldDelegate) {
+    return true; // Always rebuild to reflect state changes
   }
 }

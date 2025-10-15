@@ -18,54 +18,53 @@ class DiseaseSearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: kMobileMarginHorizontal),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      margin: const EdgeInsets.symmetric(
+        horizontal: kMobileMarginHorizontal,
+        vertical: 8,
+      ),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border, width: 1),
         boxShadow: kMobileCardShadowSmall,
       ),
-      child: Row(
-        children: [
-          Icon(
+      child: TextField(
+        controller: controller,
+        onChanged: onChanged,
+        decoration: InputDecoration(
+          hintText: 'Search skin diseases...',
+          hintStyle: TextStyle(
+            fontSize: 15,
+            color: AppColors.textTertiary,
+          ),
+          prefixIcon: Icon(
             Icons.search,
             color: AppColors.textSecondary,
-            size: 20,
+            size: 22,
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              onChanged: onChanged,
-              decoration: InputDecoration(
-                hintText: 'Search skin diseases...',
-                hintStyle: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textTertiary,
-                ),
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.zero,
-              ),
-              style: const TextStyle(
-                fontSize: 14,
-                color: AppColors.textPrimary,
-              ),
-            ),
+          suffixIcon: hasQuery
+              ? GestureDetector(
+                  onTap: () {
+                    controller.clear();
+                    onChanged('');
+                  },
+                  child: Icon(
+                    Icons.clear,
+                    color: AppColors.textSecondary,
+                    size: 20,
+                  ),
+                )
+              : null,
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
           ),
-          if (hasQuery)
-            GestureDetector(
-              onTap: () {
-                controller.clear();
-                onChanged('');
-              },
-              child: Icon(
-                Icons.clear,
-                color: AppColors.textSecondary,
-                size: 18,
-              ),
-            ),
-        ],
+        ),
+        style: const TextStyle(
+          fontSize: 15,
+          color: AppColors.textPrimary,
+        ),
       ),
     );
   }

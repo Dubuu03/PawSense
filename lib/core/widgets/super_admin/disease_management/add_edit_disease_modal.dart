@@ -1,8 +1,10 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:pawsense/core/models/skin_disease/skin_disease_model.dart';
 import 'package:pawsense/core/services/super_admin/skin_diseases_service.dart';
+import 'package:pawsense/core/services/cloudinary/cloudinary_service.dart';
 
 class AddEditDiseaseModal extends StatefulWidget {
   final SkinDiseaseModel? disease;
@@ -24,6 +26,9 @@ class _AddEditDiseaseModalState extends State<AddEditDiseaseModal>
   final _formKey = GlobalKey<FormState>();
   bool _isSaving = false;
   String? _errorMessage; // Error message to display in modal
+  
+  // Cloudinary service
+  final _cloudinaryService = CloudinaryService();
 
   // Tab 1: Basic Info
   final _nameController = TextEditingController();
@@ -144,7 +149,12 @@ class _AddEditDiseaseModalState extends State<AddEditDiseaseModal>
         final whenToSeekHelp = remedies['whenToSeekHelp'] as Map<String, dynamic>?;
         if (whenToSeekHelp != null) {
           _seekHelpTitle.text = whenToSeekHelp['title'] ?? 'When to Seek Veterinary Help';
-          _seekHelpUrgency = whenToSeekHelp['urgency']?.toString() ?? 'moderate';
+          
+          // Validate and normalize urgency value
+          final rawUrgency = whenToSeekHelp['urgency']?.toString() ?? 'moderate';
+          const validUrgencies = ['low', 'moderate', 'high', 'emergency'];
+          _seekHelpUrgency = validUrgencies.contains(rawUrgency) ? rawUrgency : 'moderate';
+          
           final actions = whenToSeekHelp['actions'] as List<dynamic>?;
           if (actions != null) {
             for (var action in actions) {
@@ -344,9 +354,7 @@ class _AddEditDiseaseModalState extends State<AddEditDiseaseModal>
             'actions': _getControllerValues(_seekHelpActions),
           },
         },
-        imageUrl: _imageUrlController.text.trim().isEmpty
-            ? 'placeholder.jpg'
-            : _imageUrlController.text.trim(),
+        imageUrl: _imageUrlController.text.trim(),
         viewCount: widget.disease?.viewCount ?? 0,
         createdAt: widget.disease?.createdAt ?? DateTime.now(),
         updatedAt: DateTime.now(),
@@ -1077,75 +1085,55 @@ class _AddEditDiseaseModalState extends State<AddEditDiseaseModal>
       );
 
       if (result != null) {
-        // Get file extension
-        final extension = result.files.single.extension ?? 'jpg';
-        
-        // Generate filename from disease name (sanitize it)
-        final sanitizedName = _nameController.text.trim()
-            .toLowerCase()
-            .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
-            .replaceAll(RegExp(r'-+'), '-')
-            .replaceAll(RegExp(r'^-|-$'), '');
-        final filename = '$sanitizedName.$extension';
+        try {
+          String cloudinaryUrl;
 
-        // On desktop/mobile platforms, save to assets folder
-        if (result.files.single.path != null) {
-          try {
-            final pickedFile = File(result.files.single.path!);
+          // Upload to Cloudinary based on platform
+          if (kIsWeb && result.files.single.bytes != null) {
+            // Web platform - use bytes
+            final bytes = result.files.single.bytes!;
+            final fileName = result.files.single.name;
             
-            // Get the project's assets directory path
-            final projectPath = Directory.current.path;
-            final assetsDir = Directory('$projectPath\\assets\\img\\skin_diseases');
-            
-            // Create directory if it doesn't exist
-            if (!await assetsDir.exists()) {
-              await assetsDir.create(recursive: true);
-            }
-
-            // Copy file to assets directory
-            final destinationPath = '${assetsDir.path}\\$filename';
-            final savedFile = await pickedFile.copy(destinationPath);
-
-            setState(() {
-              _selectedImageFile = savedFile;
-              _imageUrlController.text = filename;
-              _isUploadingImage = false;
-            });
-
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('✅ Image saved successfully as: $filename'),
-                  backgroundColor: Colors.green,
-                  duration: const Duration(seconds: 3),
-                ),
-              );
-            }
-          } catch (e) {
-            // If saving fails, provide instructions
-            setState(() {
-              _imageUrlController.text = filename;
-              _isUploadingImage = false;
-            });
-            
-            _showError(
-              'Auto-save failed. Please manually save your image to:\n'
-              'assets\\img\\skin_diseases\\$filename\n\n'
-              'Error: ${e.toString()}'
+            cloudinaryUrl = await _cloudinaryService.uploadImageFromBytes(
+              bytes,
+              fileName,
+              folder: 'skin_diseases',
             );
+          } else if (result.files.single.path != null) {
+            // Mobile/Desktop - use file path
+            final filePath = result.files.single.path!;
+            
+            cloudinaryUrl = await _cloudinaryService.uploadImageFromFile(
+              filePath,
+              folder: 'skin_diseases',
+            );
+          } else {
+            throw Exception('Unable to access file data');
           }
-        } else {
-          // Web platform - file.bytes available but no path
+
+          // Update image URL in controller
           setState(() {
-            _imageUrlController.text = filename;
+            _imageUrlController.text = cloudinaryUrl;
             _isUploadingImage = false;
           });
-          
-          _showError(
-            'Running on web platform. Please manually save your image to:\n'
-            'assets\\img\\skin_diseases\\$filename\n\n'
-            'Then restart the app to see the preview.'
-          );
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('✅ Image uploaded successfully to Cloudinary'),
+                backgroundColor: Colors.green,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+
+          print('✅ Image uploaded to Cloudinary: $cloudinaryUrl');
+        } catch (e) {
+          setState(() {
+            _isUploadingImage = false;
+          });
+          _showError('Failed to upload image to Cloudinary: ${e.toString()}');
+          print('❌ Cloudinary upload error: $e');
         }
       } else {
         setState(() {
@@ -1157,6 +1145,7 @@ class _AddEditDiseaseModalState extends State<AddEditDiseaseModal>
         _isUploadingImage = false;
       });
       _showError('Error: ${e.toString()}');
+      print('❌ Image picker error: $e');
     }
   }
 
@@ -1169,7 +1158,7 @@ class _AddEditDiseaseModalState extends State<AddEditDiseaseModal>
           _buildSectionTitle('Image', required: true),
           const SizedBox(height: 8),
           Text(
-            'Upload an image file or provide a URL',
+            'Upload an image file to Cloudinary or provide a URL',
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey.shade600,
@@ -1189,8 +1178,8 @@ class _AddEditDiseaseModalState extends State<AddEditDiseaseModal>
                           height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.upload_file),
-                  label: Text(_isUploadingImage ? 'Uploading...' : 'Upload Image from Computer'),
+                      : const Icon(Icons.cloud_upload),
+                  label: Text(_isUploadingImage ? 'Uploading to Cloudinary...' : 'Upload Image to Cloudinary'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF8B5CF6),
                     foregroundColor: Colors.white,
@@ -1228,16 +1217,16 @@ class _AddEditDiseaseModalState extends State<AddEditDiseaseModal>
           TextFormField(
             controller: _imageUrlController,
             decoration: InputDecoration(
-              hintText: 'Enter filename (e.g., ringworm.jpg) or URL',
+              hintText: 'Enter Cloudinary URL or other image URL',
               prefixIcon: const Icon(Icons.link),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
-              helperText: 'Filename only if image already exists in assets folder',
+              helperText: 'Full URL required (e.g., https://res.cloudinary.com/...)',
             ),
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
-                return 'Image URL or filename is required';
+                return 'Image URL is required';
               }
               return null;
             },
@@ -1306,9 +1295,9 @@ class _AddEditDiseaseModalState extends State<AddEditDiseaseModal>
                 ),
                 const SizedBox(height: 12),
                 _buildGuideline('Use clear, high-quality images showing the disease clearly'),
-                _buildGuideline('Click "Upload Image" to select and save image to assets folder'),
-                _buildGuideline('Uploaded images are automatically saved with proper naming'),
-                _buildGuideline('For network images, use full URLs starting with http:// or https://'),
+                _buildGuideline('Click "Upload Image" to automatically upload to Cloudinary'),
+                _buildGuideline('Images are stored securely in the cloud with automatic optimization'),
+                _buildGuideline('Alternatively, paste any HTTPS image URL'),
                 _buildGuideline('Recommended size: 800x600 pixels or larger'),
                 _buildGuideline('Supported formats: JPG, PNG, WebP'),
               ],
@@ -1343,8 +1332,26 @@ class _AddEditDiseaseModalState extends State<AddEditDiseaseModal>
       );
     }
 
-    // Otherwise, try to load from URL or asset path
+    // Try to load from URL (Cloudinary or other)
     final imageUrl = _imageUrlController.text.trim();
+    
+    if (imageUrl.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.image_outlined, color: Colors.grey.shade400, size: 48),
+            const SizedBox(height: 8),
+            Text(
+              'No image uploaded',
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Check if it's a network URL
     final isNetworkImage =
         imageUrl.startsWith('http://') || imageUrl.startsWith('https://');
 
@@ -1371,8 +1378,19 @@ class _AddEditDiseaseModalState extends State<AddEditDiseaseModal>
                 Icon(Icons.error_outline, color: Colors.red.shade400, size: 48),
                 const SizedBox(height: 8),
                 Text(
-                  'Failed to load image',
+                  'Failed to load image from URL',
                   style: TextStyle(color: Colors.red.shade700),
+                ),
+                const SizedBox(height: 4),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    imageUrl,
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 10),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),
@@ -1380,7 +1398,7 @@ class _AddEditDiseaseModalState extends State<AddEditDiseaseModal>
         },
       );
     } else {
-      // Local asset
+      // Legacy support: Try loading as local asset
       final assetPath = 'assets/img/skin_diseases/$imageUrl';
       return Image.asset(
         assetPath,
@@ -1394,9 +1412,20 @@ class _AddEditDiseaseModalState extends State<AddEditDiseaseModal>
                     color: Colors.grey.shade400, size: 48),
                 const SizedBox(height: 8),
                 Text(
-                  'Asset not found: $assetPath',
+                  'Asset not found',
                   style: TextStyle(color: Colors.grey.shade600),
                   textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 4),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    assetPath,
+                    style: TextStyle(color: Colors.grey.shade500, fontSize: 10),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),
