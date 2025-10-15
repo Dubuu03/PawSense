@@ -7,25 +7,36 @@ import 'package:pawsense/core/utils/file_downloader.dart' as file_downloader;
 import 'package:pawsense/core/utils/constants.dart';
 import 'package:pawsense/core/models/breeds/pet_breed_model.dart';
 import 'package:pawsense/core/services/super_admin/pet_breeds_service.dart';
+import 'package:pawsense/core/services/super_admin/breed_cache_service.dart';
+import 'package:pawsense/core/services/super_admin/screen_state_service.dart';
 import 'package:pawsense/core/widgets/shared/page_header.dart';
+import 'package:pawsense/core/widgets/shared/pagination_widget.dart';
 import 'package:pawsense/core/widgets/super_admin/breed_management/breed_statistics_cards.dart';
 import 'package:pawsense/core/widgets/super_admin/breed_management/breed_search_and_filter.dart';
 import 'package:pawsense/core/widgets/super_admin/breed_management/breed_card.dart';
 import 'package:pawsense/core/widgets/super_admin/breed_management/add_edit_breed_modal.dart';
 
 class BreedManagementScreen extends StatefulWidget {
-  const BreedManagementScreen({super.key});
+  const BreedManagementScreen({Key? key}) : super(key: key ?? const PageStorageKey('breed_management'));
 
   @override
   State<BreedManagementScreen> createState() => _BreedManagementScreenState();
 }
 
-class _BreedManagementScreenState extends State<BreedManagementScreen> {
+class _BreedManagementScreenState extends State<BreedManagementScreen> with AutomaticKeepAliveClientMixin {
   List<PetBreed> _filteredBreeds = [];
   Map<String, int> _statistics = {};
   
   bool _isLoading = true;
+  bool _isInitialLoad = true;
+  bool _isPaginationLoading = false; // Separate loading state for pagination
   bool _isLoadingStats = true;
+  
+  // Pagination - fixed at 10 items per page
+  int _currentPage = 1;
+  int _totalBreeds = 0;
+  int _totalPages = 0;
+  final int _itemsPerPage = 10;
   
   // Filters
   String _searchQuery = '';
@@ -33,80 +44,270 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> {
   BreedStatus _selectedStatus = BreedStatus.all;
   BreedSortOption _selectedSort = BreedSortOption.nameAsc;
   
+  // Services
+  final _cacheService = BreedCacheService();
+  final _stateService = ScreenStateService();
+  
   // Debouncing
   Timer? _debounceTimer;
+  final Duration _debounceDuration = Duration(milliseconds: 500);
+
+  @override
+  bool get wantKeepAlive => true; // Keep state alive when navigating away
   
   @override
   void initState() {
     super.initState();
-    _loadStatistics(); // Load stats first
-    _loadBreeds(); // Then load breeds
+    _restoreState();
+    _loadBreeds();
   }
   
   @override
   void dispose() {
+    _saveState();
     _debounceTimer?.cancel();
     super.dispose();
   }
-  
-  Future<void> _loadBreeds() async {
-    setState(() => _isLoading = true);
+
+  /// Restore state from ScreenStateService
+  void _restoreState() {
+    _currentPage = _stateService.breedCurrentPage;
+    _searchQuery = _stateService.breedSearchQuery;
     
-    try {
-      final breeds = await PetBreedsService.fetchAllBreeds(
-        speciesFilter: _selectedSpecies == BreedSpecies.all ? null : _selectedSpecies.value,
-        statusFilter: _selectedStatus == BreedStatus.all ? null : _selectedStatus.value,
+    // Convert string back to enum
+    switch (_stateService.breedSelectedSpecies) {
+      case 'all':
+        _selectedSpecies = BreedSpecies.all;
+        break;
+      case 'cat':
+        _selectedSpecies = BreedSpecies.cat;
+        break;
+      case 'dog':
+        _selectedSpecies = BreedSpecies.dog;
+        break;
+      default:
+        _selectedSpecies = BreedSpecies.all;
+    }
+    
+    switch (_stateService.breedSelectedStatus) {
+      case 'all':
+        _selectedStatus = BreedStatus.all;
+        break;
+      case 'active':
+        _selectedStatus = BreedStatus.active;
+        break;
+      case 'inactive':
+        _selectedStatus = BreedStatus.inactive;
+        break;
+      default:
+        _selectedStatus = BreedStatus.all;
+    }
+    
+    switch (_stateService.breedSelectedSort) {
+      case 'name_asc':
+        _selectedSort = BreedSortOption.nameAsc;
+        break;
+      case 'name_desc':
+        _selectedSort = BreedSortOption.nameDesc;
+        break;
+      case 'species':
+        _selectedSort = BreedSortOption.species;
+        break;
+      case 'date_added':
+        _selectedSort = BreedSortOption.dateAdded;
+        break;
+      default:
+        _selectedSort = BreedSortOption.nameAsc;
+    }
+    
+    print('🔄 Restored breed management state: page=$_currentPage, species="${_selectedSpecies.value}", status="${_selectedStatus.value}", sort="${_selectedSort.value}", search="$_searchQuery"');
+  }
+
+  /// Save current state to ScreenStateService
+  void _saveState() {
+    _stateService.saveBreedState(
+      currentPage: _currentPage,
+      searchQuery: _searchQuery,
+      selectedSpecies: _selectedSpecies.value,
+      selectedStatus: _selectedStatus.value,
+      selectedSort: _selectedSort.value,
+    );
+  }
+  
+  Future<void> _loadBreeds({bool forceRefresh = false, bool isPagination = false}) async {
+    // Check if filters changed (clear cache if so)
+    final filtersChanged = _cacheService.hasFiltersChanged(
+      _selectedSpecies.value,
+      _selectedStatus.value,
+      _searchQuery,
+      _selectedSort.value,
+    );
+    if (filtersChanged && !_isInitialLoad) {
+      _cacheService.invalidateCacheForFilterChange();
+    }
+    
+    // Try to load from multi-page cache first
+    if (!forceRefresh && !_isInitialLoad) {
+      final cachedPage = _cacheService.getCachedPage(
+        speciesFilter: _selectedSpecies.value,
+        statusFilter: _selectedStatus.value,
         searchQuery: _searchQuery,
         sortBy: _selectedSort.value,
+        page: _currentPage,
+      );
+      
+      if (cachedPage != null) {
+        print('📦 Using cached page data - no network call needed');
+        setState(() {
+          _filteredBreeds = cachedPage.breeds;
+          _totalBreeds = cachedPage.totalBreeds;
+          _totalPages = cachedPage.totalPages;
+          _isPaginationLoading = false;
+        });
+        
+        // Load stats from cache if available
+        final cachedStats = _cacheService.cachedStats;
+        if (cachedStats != null) {
+          setState(() {
+            _statistics = cachedStats;
+            _isLoadingStats = false;
+          });
+        }
+        return;
+      }
+    }
+    
+    // Set appropriate loading state
+    setState(() {
+      if (_isInitialLoad) {
+        _isLoading = true;
+        _isLoadingStats = true;
+      } else if (isPagination) {
+        _isPaginationLoading = true;
+      }
+    });
+    
+    try {
+      print('🔄 Loading breeds from Firestore...');
+      print('Selected Species: "${_selectedSpecies.value}", Status: "${_selectedStatus.value}", Sort: "${_selectedSort.value}"');
+      
+      // Convert filter strings to API format
+      String? speciesFilter;
+      if (_selectedSpecies != BreedSpecies.all) {
+        speciesFilter = _selectedSpecies.value;
+      }
+      
+      String? statusFilter;
+      if (_selectedStatus != BreedStatus.all) {
+        statusFilter = _selectedStatus.value;
+      }
+      
+      print('Filters - Species: $speciesFilter, Status: $statusFilter, Search: $_searchQuery, Sort: ${_selectedSort.value}');
+      
+      // Fetch statistics and paginated breeds in parallel for better performance
+      final results = await Future.wait([
+        PetBreedsService.getBreedStatistics(),
+        PetBreedsService.getPaginatedBreeds(
+          page: _currentPage,
+          itemsPerPage: _itemsPerPage,
+          speciesFilter: speciesFilter,
+          statusFilter: statusFilter,
+          searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
+          sortBy: _selectedSort.value,
+        ),
+      ]);
+      
+      final stats = results[0] as Map<String, int>;
+      final paginatedResult = results[1];
+      
+      final breeds = paginatedResult['breeds'] as List<PetBreed>;
+      final totalBreeds = paginatedResult['totalBreeds'] as int;
+      final totalPages = paginatedResult['totalPages'] as int;
+      
+      // Update cache with current page data
+      _cacheService.updateCache(
+        breeds: breeds,
+        totalBreeds: totalBreeds,
+        totalPages: totalPages,
+        stats: stats,
+        speciesFilter: _selectedSpecies.value,
+        statusFilter: _selectedStatus.value,
+        searchQuery: _searchQuery,
+        sortBy: _selectedSort.value,
+        page: _currentPage,
       );
       
       setState(() {
         _filteredBreeds = breeds;
+        _totalBreeds = totalBreeds;
+        _totalPages = totalPages;
+        _statistics = stats;
         _isLoading = false;
+        _isInitialLoad = false;
+        _isPaginationLoading = false;
+        _isLoadingStats = false;
       });
+      
+      print('✅ Loaded ${breeds.length} breeds on page $_currentPage of $_totalPages (total: $totalBreeds)');
     } catch (e) {
-      print('Error loading breeds: $e');
-      setState(() => _isLoading = false);
+      print('❌ Error loading breeds: $e');
+      setState(() {
+        _isLoading = false;
+        _isInitialLoad = false;
+        _isPaginationLoading = false;
+        _isLoadingStats = false;
+      });
       _showErrorSnackBar('Failed to load breeds: $e');
     }
   }
   
-  Future<void> _loadStatistics() async {
-    setState(() => _isLoadingStats = true);
-    
-    try {
-      final stats = await PetBreedsService.getBreedStatistics();
-      setState(() {
-        _statistics = stats;
-        _isLoadingStats = false;
-      });
-    } catch (e) {
-      print('Error loading statistics: $e');
-      setState(() => _isLoadingStats = false);
-    }
-  }
-  
   void _onSearchChanged(String query) {
+    setState(() {
+      _searchQuery = query;
+      _currentPage = 1; // Reset to first page
+    });
+    _saveState(); // Save state when search changes
+    
+    // Debounce search to avoid excessive API calls
     _debounceTimer?.cancel();
-    _debounceTimer = Timer(Duration(milliseconds: 500), () {
-      setState(() => _searchQuery = query);
-      _loadBreeds();
+    _debounceTimer = Timer(_debounceDuration, () {
+      _loadBreeds(); // Reload with new search after debounce (will clear cache)
     });
   }
   
   void _onSpeciesChanged(BreedSpecies species) {
-    setState(() => _selectedSpecies = species);
-    _loadBreeds();
+    setState(() {
+      _selectedSpecies = species;
+      _currentPage = 1; // Reset to first page
+    });
+    _saveState(); // Save state when filter changes
+    _loadBreeds(); // Reload with new filter immediately (will clear cache)
   }
   
   void _onStatusChanged(BreedStatus status) {
-    setState(() => _selectedStatus = status);
-    _loadBreeds();
+    setState(() {
+      _selectedStatus = status;
+      _currentPage = 1; // Reset to first page
+    });
+    _saveState(); // Save state when filter changes
+    _loadBreeds(); // Reload with new filter immediately (will clear cache)
   }
   
   void _onSortChanged(BreedSortOption sort) {
-    setState(() => _selectedSort = sort);
-    _loadBreeds();
+    setState(() {
+      _selectedSort = sort;
+      _currentPage = 1; // Reset to first page
+    });
+    _saveState(); // Save state when sort changes
+    _loadBreeds(); // Reload with new sort immediately (will clear cache)
+  }
+
+  void _onPageChanged(int page) {
+    setState(() {
+      _currentPage = page;
+    });
+    _saveState(); // Save state when page changes
+    _loadBreeds(isPagination: true); // Load new page data from server with pagination flag
   }
   
   void _showAddBreedModal() {
@@ -119,8 +320,10 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> {
             await PetBreedsService.createBreed(breed);
             Navigator.of(context).pop();
             _showSuccessSnackBar('Breed created successfully!');
-            _loadStatistics();
-            _loadBreeds();
+            
+            // Invalidate cache and reload to get fresh data
+            _cacheService.invalidateCache();
+            _loadBreeds(forceRefresh: true);
           } catch (e) {
             _showErrorSnackBar(e.toString());
           }
@@ -140,8 +343,18 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> {
             await PetBreedsService.updateBreed(breed.id, updatedBreed);
             Navigator.of(context).pop();
             _showSuccessSnackBar('Breed updated successfully!');
-            _loadStatistics();
-            _loadBreeds();
+            
+            // Update the local breed item
+            final updatedBreedWithId = updatedBreed.copyWith(id: breed.id);
+            setState(() {
+              final idx = _filteredBreeds.indexWhere((b) => b.id == breed.id);
+              if (idx != -1) {
+                _filteredBreeds[idx] = updatedBreedWithId;
+              }
+            });
+            
+            // Update cache without full reload
+            _cacheService.updateBreedInCache(updatedBreedWithId);
           } catch (e) {
             _showErrorSnackBar(e.toString());
           }
@@ -167,8 +380,21 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> {
               try {
                 await PetBreedsService.deleteBreed(breed.id);
                 _showSuccessSnackBar('Breed deleted successfully!');
-                _loadStatistics();
-                _loadBreeds();
+                
+                // Remove breed from local list and cache
+                setState(() {
+                  _filteredBreeds.removeWhere((b) => b.id == breed.id);
+                  _totalBreeds = _totalBreeds > 0 ? _totalBreeds - 1 : 0;
+                });
+                
+                _cacheService.removeBreedFromCache(breed.id);
+                
+                // If current page is now empty and not the first page, go back one page
+                if (_filteredBreeds.isEmpty && _currentPage > 1) {
+                  _currentPage--;
+                  _saveState();
+                  _loadBreeds();
+                }
               } catch (e) {
                 _showErrorSnackBar('Failed to delete breed: $e');
               }
@@ -187,8 +413,22 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> {
     try {
       await PetBreedsService.toggleBreedStatus(breed.id, isActive);
       _showSuccessSnackBar('Breed status updated!');
-      _loadStatistics();
-      _loadBreeds();
+      
+      // Update the local breed item
+      final updatedBreed = breed.copyWith(
+        status: isActive ? 'active' : 'inactive',
+        updatedAt: DateTime.now(),
+      );
+      
+      setState(() {
+        final idx = _filteredBreeds.indexWhere((b) => b.id == breed.id);
+        if (idx != -1) {
+          _filteredBreeds[idx] = updatedBreed;
+        }
+      });
+      
+      // Update cache without full reload
+      _cacheService.updateBreedInCache(updatedBreed);
     } catch (e) {
       _showErrorSnackBar('Failed to update status: $e');
     }
@@ -346,62 +586,129 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> {
   
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
+    
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: Column(
-        children: [
-          PageHeader(
-            title: 'Pet Breeds Management',
-            subtitle: 'Manage cat and dog breeds in the system',
-            actions: [
-              ElevatedButton.icon(
-                onPressed: _showAddBreedModal,
-                icon: Icon(Icons.add, size: kIconSizeMedium),
-                label: Text('Add New Breed'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: kSpacingLarge,
-                    vertical: kSpacingMedium,
+      body: SingleChildScrollView(
+        padding: EdgeInsets.all(kSpacingLarge),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Page Header
+            PageHeader(
+              title: 'Pet Breeds Management',
+              subtitle: 'Manage cat and dog breeds in the system',
+              actions: [
+                ElevatedButton.icon(
+                  onPressed: _showAddBreedModal,
+                  icon: Icon(Icons.add, size: kIconSizeMedium),
+                  label: Text('Add New Breed'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: kSpacingLarge,
+                      vertical: kSpacingMedium,
+                    ),
                   ),
                 ),
+              ],
+            ),
+            
+            SizedBox(height: kSpacingLarge),
+            
+            // Statistics Cards
+            BreedStatisticsCards(
+              statistics: _statistics,
+              isLoading: _isLoadingStats,
+            ),
+            SizedBox(height: kSpacingLarge),
+            
+            // Search and Filters
+            BreedSearchAndFilter(
+              searchQuery: _searchQuery,
+              onSearchChanged: _onSearchChanged,
+              selectedSpecies: _selectedSpecies,
+              onSpeciesChanged: _onSpeciesChanged,
+              selectedStatus: _selectedStatus,
+              onStatusChanged: _onStatusChanged,
+              selectedSort: _selectedSort,
+              onSortChanged: _onSortChanged,
+              onExportCSV: _handleExportCSV,
+            ),
+            SizedBox(height: kSpacingLarge),
+            
+            // Breeds List with pagination loading overlay
+            Stack(
+              children: [
+                _isLoading ? _buildLoadingState() : _buildBreedsList(),
+                
+                // Show loading overlay during pagination
+                if (_isPaginationLoading)
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.white.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Center(
+                        child: Container(
+                          padding: EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: AppColors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.black.withOpacity(0.1),
+                                blurRadius: 10,
+                                offset: Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: 40,
+                                height: 40,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 3,
+                                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                                ),
+                              ),
+                              SizedBox(height: 16),
+                              Text(
+                                'Loading page $_currentPage...',
+                                style: TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            
+            if (!_isLoading && _filteredBreeds.isNotEmpty) ...[
+              SizedBox(height: kSpacingLarge),
+              
+              // Pagination with loading state
+              PaginationWidget(
+                currentPage: _currentPage,
+                totalPages: _totalPages,
+                totalItems: _totalBreeds,
+                onPageChanged: _onPageChanged,
+                isLoading: _isPaginationLoading,
               ),
             ],
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.all(kSpacingLarge),
-              child: Column(
-                children: [
-                  // Statistics Cards
-                  BreedStatisticsCards(
-                    statistics: _statistics,
-                    isLoading: _isLoadingStats,
-                  ),
-                  SizedBox(height: kSpacingLarge),
-                  
-                  // Search and Filters
-                  BreedSearchAndFilter(
-                    searchQuery: _searchQuery,
-                    onSearchChanged: _onSearchChanged,
-                    selectedSpecies: _selectedSpecies,
-                    onSpeciesChanged: _onSpeciesChanged,
-                    selectedStatus: _selectedStatus,
-                    onStatusChanged: _onStatusChanged,
-                    selectedSort: _selectedSort,
-                    onSortChanged: _onSortChanged,
-                    onExportCSV: _handleExportCSV,
-                  ),
-                  SizedBox(height: kSpacingLarge),
-                  
-                  // Breeds List/Grid
-                  _isLoading ? _buildLoadingState() : _buildBreedsList(),
-                ],
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -1703,7 +1703,7 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
     
     return SizedBox(
       width: double.infinity,
-      height: 50,
+      height: 55,
       child: ElevatedButton(
         onPressed: canBook ? _bookAppointment : null,
         style: ElevatedButton.styleFrom(

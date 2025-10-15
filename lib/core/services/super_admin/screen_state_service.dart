@@ -28,6 +28,13 @@ class ScreenStateService {
   DateTime _scheduleSelectedDate = DateTime.now();
   String _scheduleSelectedDay = 'Monday';
 
+  // Breed Management State
+  int _breedCurrentPage = 1;
+  String _breedSearchQuery = '';
+  String _breedSelectedSpecies = 'all';
+  String _breedSelectedStatus = 'all';
+  String _breedSelectedSort = 'name_asc';
+
   // Clinic Management Getters & Setters
   int get clinicCurrentPage => _clinicCurrentPage;
   String get clinicSearchQuery => _clinicSearchQuery;
@@ -136,11 +143,43 @@ class ScreenStateService {
     _scheduleSelectedDay = 'Monday';
   }
 
+  // Breed Management Getters & Setters
+  int get breedCurrentPage => _breedCurrentPage;
+  String get breedSearchQuery => _breedSearchQuery;
+  String get breedSelectedSpecies => _breedSelectedSpecies;
+  String get breedSelectedStatus => _breedSelectedStatus;
+  String get breedSelectedSort => _breedSelectedSort;
+
+  void saveBreedState({
+    required int currentPage,
+    required String searchQuery,
+    required String selectedSpecies,
+    required String selectedStatus,
+    required String selectedSort,
+  }) {
+    _breedCurrentPage = currentPage;
+    _breedSearchQuery = searchQuery;
+    _breedSelectedSpecies = selectedSpecies;
+    _breedSelectedStatus = selectedStatus;
+    _breedSelectedSort = selectedSort;
+    print('💾 Saved breed management state: page=$currentPage, species="$selectedSpecies", status="$selectedStatus", sort="$selectedSort", search="$searchQuery"');
+  }
+
+  /// Reset breed state to defaults
+  void resetBreedState() {
+    _breedCurrentPage = 1;
+    _breedSearchQuery = '';
+    _breedSelectedSpecies = 'all';
+    _breedSelectedStatus = 'all';
+    _breedSelectedSort = 'name_asc';
+  }
+
   /// Reset all states
   void resetAllStates() {
     resetClinicState();
     resetUserState();
     resetAppointmentState();
     resetScheduleState();
+    resetBreedState();
   }
 }
