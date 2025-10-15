@@ -7,6 +7,7 @@ import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/widgets/user/messaging/mobile_message_list.dart';
 import 'package:pawsense/core/widgets/user/messaging/message_input.dart';
 import 'package:pawsense/core/services/messaging/mobile_messaging_preferences_service.dart';
+import 'package:pawsense/core/services/notifications/global_notification_manager.dart';
 
 class ConversationPage extends StatefulWidget {
   final Conversation conversation;
@@ -43,6 +44,9 @@ class _ConversationPageState extends State<ConversationPage> {
     // Mark conversation as read when entering
     if (!widget.conversation.id.startsWith('temp_')) {
       _mobilePreferencesService.markConversationAsRead(widget.conversation.id);
+      
+      // ✅ FIX: Also mark notification as read to prevent ghost notifications
+      GlobalNotificationManager().markAsRead('message_${widget.conversation.id}');
     }
   }
 

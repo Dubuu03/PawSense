@@ -218,35 +218,58 @@ class RealTimeNotificationService {
   /// Get message-related notifications
   Future<List<AlertData>> _getMessageNotifications(String userId) async {
     try {
+      debugPrint('🔍 Fetching message notifications for user: $userId');
+      
       final recentMessages = await _firestore
           .collection('conversations')
           .where('userId', isEqualTo: userId)
           .where('lastMessageSenderId', isNotEqualTo: userId)
+          .where('unreadCount', isGreaterThan: 0)  // ✅ FIX: Only show if unread
           .where('updatedAt', isGreaterThan: Timestamp.fromDate(
             DateTime.now().subtract(const Duration(days: 7))
           ))
           .limit(5) // Only recent messages
           .get();
 
+      debugPrint('📊 Found ${recentMessages.docs.length} conversations with unread messages');
+      
       final notifications = <AlertData>[];
       
       for (final doc in recentMessages.docs) {
         final data = doc.data();
         final conversationId = doc.id;
+        final unreadCount = data['unreadCount'] ?? 0;
+        final clinicName = data['clinicName'] ?? 'Unknown';
         
-        notifications.add(AlertData(
-          id: 'message_${conversationId}',
-          title: 'New Message',
-          subtitle: 'You have a new message from ${data['clinicName']}',
-          type: AlertType.message,
-          timestamp: (data['updatedAt'] as Timestamp).toDate(),
-          isRead: _readStatesCache['message_$conversationId'] ?? false,
-          actionUrl: '/messaging',
-          actionLabel: 'View Message',
-          metadata: {'conversationId': conversationId},
-        ));
+        debugPrint('💬 Conversation: $clinicName (ID: $conversationId)');
+        debugPrint('   - Unread count: $unreadCount');
+        debugPrint('   - Last sender: ${data['lastMessageSenderId']}');
+        debugPrint('   - Updated: ${(data['updatedAt'] as Timestamp).toDate()}');
+        
+        // ✅ FIX: Double-check unread count before adding notification
+        if (unreadCount > 0) {
+          notifications.add(AlertData(
+            id: 'message_${conversationId}',
+            title: 'New Message',
+            subtitle: 'You have a new message from $clinicName',
+            type: AlertType.message,
+            timestamp: (data['updatedAt'] as Timestamp).toDate(),
+            isRead: _readStatesCache['message_$conversationId'] ?? false,
+            actionUrl: '/messaging',
+            actionLabel: 'View Message',
+            metadata: {
+              'conversationId': conversationId,
+              'unreadCount': unreadCount,
+            },
+          ));
+          
+          debugPrint('   ✅ Added to notifications');
+        } else {
+          debugPrint('   ❌ Skipped (unreadCount = 0)');
+        }
       }
       
+      debugPrint('✅ Returning ${notifications.length} message notifications');
       return notifications;
     } catch (e) {
       debugPrint('❌ Error getting message notifications: $e');
