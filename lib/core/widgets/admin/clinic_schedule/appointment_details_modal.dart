@@ -387,6 +387,9 @@ class _AppointmentDetailsModalState extends State<AppointmentDetailsModal> {
       ),
       child: Container(
         width: 500,
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.9,
+        ),
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -411,8 +414,15 @@ class _AppointmentDetailsModalState extends State<AppointmentDetailsModal> {
             ),
             const SizedBox(height: 20),
 
-            // Pet Information
-            Row(
+            // Scrollable Content
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Pet Information
+                    Row(
               children: [
                 _buildPetImage(),
                 const SizedBox(width: 16),
@@ -452,6 +462,48 @@ class _AppointmentDetailsModalState extends State<AppointmentDetailsModal> {
               ],
             ),
             const SizedBox(height: 24),
+
+            // Cancellation Reason (if cancelled)
+            if (widget.appointment.status == AppointmentStatus.cancelled && 
+                widget.appointment.cancelReason != null &&
+                widget.appointment.cancelReason!.isNotEmpty) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red, width: 1.5),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.cancel, size: 18, color: Colors.red),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Cancellation Reason:',
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      widget.appointment.cancelReason!,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
 
             // Appointment Information
             _buildInfoSection('Date & Time', '$formattedDate at $formattedTime'),
@@ -693,8 +745,10 @@ class _AppointmentDetailsModalState extends State<AppointmentDetailsModal> {
                 ),
               ),
             ],
-            
-            const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),

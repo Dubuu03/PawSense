@@ -310,15 +310,6 @@ class AppointmentTableRow extends StatelessWidget {
                       padding: const EdgeInsets.all(4),
                       tooltip: 'Edit Appointment',
                     ),
-                  ] else if (appointment.status == AppointmentStatus.cancelled) ...[
-                    IconButton(
-                      icon: const Icon(Icons.edit_outlined, size: 16),
-                      onPressed: onEdit,
-                      color: AppColors.textSecondary,
-                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                      padding: const EdgeInsets.all(4),
-                      tooltip: 'Edit Appointment',
-                    ),
                   ],
                 ],
               ),

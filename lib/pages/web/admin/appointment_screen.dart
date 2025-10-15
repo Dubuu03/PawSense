@@ -211,6 +211,7 @@ class _OptimizedAppointmentManagementScreenState
           confirmedCount: 0,
           completedCount: 0,
           cancelledCount: 0,
+          followUpCount: 0,
         );
       });
     }
@@ -240,7 +241,7 @@ class _OptimizedAppointmentManagementScreenState
   }
 
   /// Load specific page of appointments
-  Future<void> _loadPage(int page, {bool isPagination = false, bool forceRefresh = false}) async {
+  Future<void> _loadPage(int page, {bool isPagination = false, bool forceRefresh = false, bool isSilentRefresh = false}) async {
     if (_cachedClinicId == null) return;
 
     // Check if filters changed (clear cache if so)
@@ -249,6 +250,7 @@ class _OptimizedAppointmentManagementScreenState
       searchQuery,
       startDate?.toIso8601String(),
       endDate?.toIso8601String(),
+      null, // No separate follow-up filter, it's now part of selectedStatus
     );
     if (filtersChanged && !isInitialLoading) {
       _cacheService.invalidateCacheForFilterChange();
@@ -256,12 +258,13 @@ class _OptimizedAppointmentManagementScreenState
     }
 
     // Try to load from multi-page cache first
-    if (!forceRefresh && !isInitialLoading) {
+    if (!forceRefresh && !isInitialLoading && !isSilentRefresh) {
       final cachedPage = _cacheService.getCachedPage(
         statusFilter: selectedStatus,
         searchQuery: searchQuery,
         startDate: startDate?.toIso8601String(),
         endDate: endDate?.toIso8601String(),
+        followUpFilter: null, // No separate follow-up filter
         page: page,
       );
 
@@ -283,16 +286,19 @@ class _OptimizedAppointmentManagementScreenState
       }
     }
 
-    setState(() {
-      if (isInitialLoading) {
-        // Keep isInitialLoading true for first load
-        _isLoading = true;
-      } else if (isPagination) {
-        _isPaginationLoading = true;
-      } else {
-        _isLoading = true;
-      }
-    });
+    // Don't show loading state for silent background refreshes
+    if (!isSilentRefresh) {
+      setState(() {
+        if (isInitialLoading) {
+          // Keep isInitialLoading true for first load
+          _isLoading = true;
+        } else if (isPagination) {
+          _isPaginationLoading = true;
+        } else {
+          _isLoading = true;
+        }
+      });
+    }
 
     try {
       print('📥 Loading page $page of appointments with filter: $selectedStatus...');
@@ -322,10 +328,12 @@ class _OptimizedAppointmentManagementScreenState
         searchQuery: searchQuery,
         startDate: startDate?.toIso8601String(),
         endDate: endDate?.toIso8601String(),
+        followUpFilter: null, // No separate follow-up filter
         page: page,
       );
 
-      setState(() {
+      if (isSilentRefresh) {
+        // For silent refresh, just update data without changing loading states
         appointments.clear();
         appointments.addAll(result.appointments);
         currentPage = result.currentPage ?? page;
@@ -339,24 +347,48 @@ class _OptimizedAppointmentManagementScreenState
         totalPages = result.totalPages ?? 1;
         totalAppointments = result.totalCount ?? result.appointments.length;
         
-        isInitialLoading = false;
-        _isLoading = false;
-        _isPaginationLoading = false;
-        
-        print('✅ Loaded page $page: ${result.appointments.length} appointments. Total: $totalAppointments, Pages: $totalPages');
+        print('✅ Silently loaded page $page: ${result.appointments.length} appointments. Total: $totalAppointments, Pages: $totalPages');
         print('📋 Appointment IDs on this page: ${result.appointments.map((a) => a.id).take(3).join(", ")}${result.appointments.length > 3 ? "..." : ""}');
         
-        // Apply filters and sorting to the loaded appointments
+        // Apply filters and sorting to the loaded appointments (this will trigger table update)
         _applyFilters();
-      });
+      } else {
+        setState(() {
+          appointments.clear();
+          appointments.addAll(result.appointments);
+          currentPage = result.currentPage ?? page;
+          
+          // Store the last document for this page (for next page navigation)
+          if (result.lastDocument != null && result.appointments.isNotEmpty) {
+            _pageCursors[page] = result.lastDocument;
+          }
+          
+          // Use actual counts from service
+          totalPages = result.totalPages ?? 1;
+          totalAppointments = result.totalCount ?? result.appointments.length;
+          
+          isInitialLoading = false;
+          _isLoading = false;
+          _isPaginationLoading = false;
+          
+          print('✅ Loaded page $page: ${result.appointments.length} appointments. Total: $totalAppointments, Pages: $totalPages');
+          print('📋 Appointment IDs on this page: ${result.appointments.map((a) => a.id).take(3).join(", ")}${result.appointments.length > 3 ? "..." : ""}');
+          
+          // Apply filters and sorting to the loaded appointments
+          _applyFilters();
+        });
+      }
     } catch (e) {
       print('❌ Error loading appointments page $page: $e');
-      setState(() {
-        error = 'Failed to load appointments';
-        isInitialLoading = false;
-        _isLoading = false;
-        _isPaginationLoading = false;
-      });
+      // Don't show error UI for silent refresh failures
+      if (!isSilentRefresh) {
+        setState(() {
+          error = 'Failed to load appointments';
+          isInitialLoading = false;
+          _isLoading = false;
+          _isPaginationLoading = false;
+        });
+      }
     }
   }
 
@@ -400,9 +432,10 @@ class _OptimizedAppointmentManagementScreenState
   void _applyFilters() {
     // First, filter all appointments
     List<AppointmentModels.Appointment> allFiltered = appointments.where((appointment) {
-      // Status filter
+      // Status filter - handle both appointment status and follow-up status
       bool statusMatch = selectedStatus == 'All Status' ||
-          appointment.status.name.toLowerCase() == selectedStatus.toLowerCase();
+          appointment.status.name.toLowerCase() == selectedStatus.toLowerCase() ||
+          (selectedStatus == 'Follow-up' && appointment.isFollowUp == true);
 
       // Search filter
       bool searchMatch = searchQuery.isEmpty ||
@@ -430,23 +463,23 @@ class _OptimizedAppointmentManagementScreenState
       }
     });
     
-    // For search mode, show only the current page of filtered results
-    if (searchQuery.isNotEmpty) {
+    // For search mode or Follow-up filter, show only the current page of filtered results
+    if (searchQuery.isNotEmpty || selectedStatus == 'Follow-up') {
       final itemsPerPage = 10;
       final startIndex = (currentPage - 1) * itemsPerPage;
       final endIndex = (startIndex + itemsPerPage).clamp(0, allFiltered.length);
       
       filteredAppointments = allFiltered.sublist(startIndex, endIndex);
       
-      // Update pagination for search results
+      // Update pagination for filtered results
       totalAppointments = allFiltered.length;
       totalPages = (totalAppointments / itemsPerPage).ceil();
       if (totalPages == 0) totalPages = 1;
       
-      print('🔍 Search results: ${allFiltered.length} total matches, showing page $currentPage (${filteredAppointments.length} appointments)');
+      print('🔍 Filtered results: ${allFiltered.length} total matches, showing page $currentPage (${filteredAppointments.length} appointments)');
       print('📄 Pagination: Page $currentPage of $totalPages');
     } else {
-      // For no search, show all results from current page load
+      // For no search or client-side filtering, show all results from current page load
       filteredAppointments = allFiltered;
       print('🔍 Filtered: ${filteredAppointments.length} of ${appointments.length} appointments');
     }
@@ -504,9 +537,9 @@ class _OptimizedAppointmentManagementScreenState
       // Store current filtered count to detect changes
       final currentFilteredCount = filteredAppointments.length;
       
-      // Refresh status counts and current page in parallel
+      // Refresh status counts and current page in parallel (with silent refresh flag)
       await Future.wait([
-        _loadPage(currentPage),
+        _loadPage(currentPage, isSilentRefresh: true),
         _loadStatusCounts(),
       ]);
       
@@ -564,8 +597,8 @@ class _OptimizedAppointmentManagementScreenState
       currentPage = page;
       _saveState(); // Save state when page changes
       
-      // For search mode, just re-apply filters with new page
-      if (searchQuery.isNotEmpty) {
+      // For search mode or Follow-up filter, just re-apply filters with new page
+      if (searchQuery.isNotEmpty || selectedStatus == 'Follow-up') {
         _applyFilters(); // This will paginate the filtered results and trigger table update
       } else {
         _loadPage(page, isPagination: true); // Load new page data with pagination flag
@@ -594,6 +627,7 @@ class _OptimizedAppointmentManagementScreenState
       dateSortOrder: bookedAtSortOrder.value,
       startDate: startDate,
       endDate: endDate,
+      followUpFilter: null, // No longer using separate follow-up filter
     );
   }
 
@@ -895,21 +929,22 @@ class _OptimizedAppointmentManagementScreenState
     currentPage = 1;
     _pageCursors.clear(); // Clear page cursors when filters change
 
-    // If there's a search query, load ALL appointments for comprehensive search
-    if (searchQuery.isNotEmpty) {
+    // If there's a search query or Follow-up filter, load ALL appointments for comprehensive filtering
+    if (searchQuery.isNotEmpty || selectedStatus == 'Follow-up') {
       await _loadAllAppointmentsForSearch();
     } else {
-      // For no search, use normal pagination
+      // For no search or client-side filtering, use normal pagination
       await _loadPage(1);
     }
   }
 
-  /// Load all appointments when searching to ensure comprehensive results
+  /// Load all appointments when searching or using client-side filters (like Follow-up)
   Future<void> _loadAllAppointmentsForSearch() async {
     if (_cachedClinicId == null) return;
 
     try {
-      print('🔍 Loading ALL appointments for search: "$searchQuery"...');
+      final filterType = searchQuery.isNotEmpty ? 'search' : 'Follow-up filter';
+      print('🔍 Loading ALL appointments for $filterType...');
       
       // Load all appointments with status filter but no pagination
       final result = await PaginatedAppointmentService.getClinicAppointmentsPaginated(
@@ -932,8 +967,8 @@ class _OptimizedAppointmentManagementScreenState
         isInitialLoading = false;
         _isLoading = false;
         
-        print('✅ Loaded ${appointments.length} appointments for search');
-        print('🔍 Search results: ${filteredAppointments.length} appointments match "$searchQuery"');
+        print('✅ Loaded ${appointments.length} appointments for $filterType');
+        print('🔍 Filtered results: ${filteredAppointments.length} appointments match criteria');
       });
     } catch (e) {
       print('❌ Error loading all appointments for search: $e');
@@ -950,6 +985,12 @@ class _OptimizedAppointmentManagementScreenState
   /// Convert filter status string to AppointmentStatus enum for server-side filtering
   AppointmentStatus? _getStatusFilterForService() {
     if (selectedStatus == 'All Status') return null;
+    
+    // Follow-up filter doesn't map to appointment status enum
+    // It will be filtered client-side in _applyFilters()
+    if (selectedStatus == 'Follow-up') {
+      return null; // Return null to get all appointments, then filter client-side
+    }
     
     switch (selectedStatus.toLowerCase()) {
       case 'pending':
@@ -994,6 +1035,7 @@ class _OptimizedAppointmentManagementScreenState
                   confirmedCount: 0,
                   completedCount: 0,
                   cancelledCount: 0,
+                  followUpCount: 0,
                 ),
                 isLoading: false, // No loading spinner, just show 0 counts initially
               ),
@@ -1013,48 +1055,65 @@ class _OptimizedAppointmentManagementScreenState
               ),
               const SizedBox(height: 16),
 
-            // Appointment list with loading overlay (matches clinic management pattern)
-              SizedBox(
-                height: isInitialLoading || _isLoading ? 400 : null,
+              // Appointment list with loading overlay (matches breed/disease management pattern)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
                 child: Stack(
                   children: [
                     // Table content - wrapped in ValueListenableBuilder
                     ValueListenableBuilder<bool>(
                       valueListenable: _tableUpdateNotifier,
                       builder: (context, _, __) {
-                        return _buildAppointmentTable();
+                        return (isInitialLoading || _isLoading) 
+                            ? _buildLoadingState() 
+                            : _buildAppointmentTable();
                       },
                     ),
                     
-                    // Show loading overlay during initial load, filter changes or pagination
-                    if (isInitialLoading || _isLoading || _isPaginationLoading)
+                    // Show loading overlay during pagination only
+                    if (_isPaginationLoading)
                       Positioned.fill(
                         child: Container(
-                          color: AppColors.background,
+                          decoration: BoxDecoration(
+                            color: AppColors.white.withOpacity(0.7),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                           child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SizedBox(
-                                  width: 40,
-                                  height: 40,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 3,
-                                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                            child: Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: AppColors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
                                   ),
-                                ),
-                                SizedBox(height: 16),
-                                Text(
-                                  _isPaginationLoading 
-                                      ? 'Loading page $currentPage...'
-                                      : 'Loading appointments...',
-                                  style: TextStyle(
-                                    color: AppColors.textPrimary,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
+                                ],
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SizedBox(
+                                    width: 40,
+                                    height: 40,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 3,
+                                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                                    ),
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Loading page $currentPage...',
+                                    style: TextStyle(
+                                      color: AppColors.textPrimary,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -1104,100 +1163,171 @@ class _OptimizedAppointmentManagementScreenState
     );
   }
 
-  /// Build appointment table (separated for efficient updates)
-  Widget _buildAppointmentTable() {
+  /// Build loading state (matches breed/disease management style)
+  Widget _buildLoadingState() {
     return Column(
       children: [
         Container(
-          margin: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: AppColors.white,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: AppColors.border),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+                spreadRadius: 0,
+              ),
+            ],
+          ),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(80.0),
+              child: Column(
+                children: [
+                  CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Loading appointments...',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Build empty state (matches breed/disease management style)
+  Widget _buildEmptyState() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(80.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.calendar_today,
+                size: 80,
+                color: AppColors.textSecondary,
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'No appointments found',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Try adjusting your filters',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Build appointment table (separated for efficient updates)
+  Widget _buildAppointmentTable() {
+    if (filteredAppointments.isEmpty) {
+      return Column(
+        children: [
+          _buildEmptyState(),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.border),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+                spreadRadius: 0,
+              ),
+            ],
           ),
           child: Column(
             children: [
-              // Show table header (hide during filter changes but show during pagination)
-              if (!isInitialLoading && !_isLoading)
-                AppointmentTableHeader(
-                  bookedAtSortOrder: bookedAtSortOrder,
-                  onBookedAtSortChanged: _onBookedAtSortChanged,
-                ),
+              // Table header
+              AppointmentTableHeader(
+                bookedAtSortOrder: bookedAtSortOrder,
+                onBookedAtSortChanged: _onBookedAtSortChanged,
+              ),
               
-              // Content area
-              if (isInitialLoading)
-                // Show placeholder during initial load
-                Container(
-                  height: 400,
-                  child: Center(
-                    child: Text(
-                      'Loading...',
-                      style: TextStyle(color: Colors.transparent), // Hidden text for spacing
-                    ),
-                  ),
-                )
-              else if (filteredAppointments.isEmpty && !_isLoading && !_isPaginationLoading)
-                // Empty state
-                Container(
-                  height: 300,
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32.0),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.calendar_today,
-                              size: 48, color: AppColors.textSecondary),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'No appointments found',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Try adjusting your filters',
-                            style: TextStyle(color: AppColors.textSecondary),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                )
-              else
-                // Appointment rows
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: filteredAppointments.length,
-                  itemBuilder: (context, index) {
-                    final appointment = filteredAppointments[index];
-                    return AppointmentTableRow(
-                      appointment: appointment,
-                      onView: () => _onView(appointment),
-                      onAccept: appointment.status == AppointmentModels.AppointmentStatus.pending
-                          ? () => _onAccept(appointment)
-                          : null,
-                      onMarkDone: appointment.status == AppointmentModels.AppointmentStatus.confirmed
-                          ? () => _onMarkDone(appointment)
-                          : null,
-                      onReject: appointment.status == AppointmentModels.AppointmentStatus.pending
-                          ? () => _onReject(appointment)
-                          : null,
-                      onEdit: () => _onEdit(appointment),
-                      onDelete: () => _onDelete(appointment),
-                    );
-                  },
-                ),
+              // Divider
+              Divider(height: 1, thickness: 1, color: AppColors.border),
+              
+              // Appointment rows
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: filteredAppointments.length,
+                itemBuilder: (context, index) {
+                  final appointment = filteredAppointments[index];
+                  return AppointmentTableRow(
+                    appointment: appointment,
+                    onView: () => _onView(appointment),
+                    onAccept: appointment.status == AppointmentModels.AppointmentStatus.pending
+                        ? () => _onAccept(appointment)
+                        : null,
+                    onMarkDone: appointment.status == AppointmentModels.AppointmentStatus.confirmed
+                        ? () => _onMarkDone(appointment)
+                        : null,
+                    onReject: appointment.status == AppointmentModels.AppointmentStatus.pending
+                        ? () => _onReject(appointment)
+                        : null,
+                    onEdit: () => _onEdit(appointment),
+                    onDelete: () => _onDelete(appointment),
+                  );
+                },
+              ),
             ],
           ),
         ),
 
-        // Pagination Controls (hidden during initial load and filter changes)
-        if (!isInitialLoading && !_isLoading && totalPages > 1) ...[
+        // Pagination Controls
+        if (totalPages > 1) ...[
           const SizedBox(height: 24),
           PaginationWidget(
             currentPage: currentPage,

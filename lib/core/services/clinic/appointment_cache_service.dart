@@ -6,6 +6,7 @@ class _CacheKey {
   final String searchQuery;
   final String? startDate;
   final String? endDate;
+  final String? followUpFilter; // Store as string: null = 'all', 'true' = needs follow-up, 'false' = no follow-up
   final int page;
 
   _CacheKey({
@@ -13,6 +14,7 @@ class _CacheKey {
     required this.searchQuery,
     this.startDate,
     this.endDate,
+    this.followUpFilter,
     required this.page,
   });
 
@@ -25,6 +27,7 @@ class _CacheKey {
           searchQuery == other.searchQuery &&
           startDate == other.startDate &&
           endDate == other.endDate &&
+          followUpFilter == other.followUpFilter &&
           page == other.page;
 
   @override
@@ -33,10 +36,11 @@ class _CacheKey {
       searchQuery.hashCode ^
       (startDate?.hashCode ?? 0) ^
       (endDate?.hashCode ?? 0) ^
+      (followUpFilter?.hashCode ?? 0) ^
       page.hashCode;
 
   @override
-  String toString() => 'CacheKey(status: $statusFilter, search: $searchQuery, start: $startDate, end: $endDate, page: $page)';
+  String toString() => 'CacheKey(status: $statusFilter, search: $searchQuery, start: $startDate, end: $endDate, followUp: $followUpFilter, page: $page)';
 }
 
 /// Cached page data
@@ -79,6 +83,7 @@ class AppointmentCacheService {
   String? _lastSearchQuery;
   String? _lastStartDate;
   String? _lastEndDate;
+  String? _lastFollowUpFilter;
   
   /// Get cached page data if available and valid
   _CachedPageData? getCachedPage({
@@ -86,6 +91,7 @@ class AppointmentCacheService {
     required String searchQuery,
     String? startDate,
     String? endDate,
+    bool? followUpFilter,
     required int page,
   }) {
     final key = _CacheKey(
@@ -93,6 +99,7 @@ class AppointmentCacheService {
       searchQuery: searchQuery,
       startDate: startDate,
       endDate: endDate,
+      followUpFilter: followUpFilter?.toString(),
       page: page,
     );
     
@@ -113,11 +120,12 @@ class AppointmentCacheService {
   }
   
   /// Check if filters have changed (not including page)
-  bool hasFiltersChanged(String? statusFilter, String? searchQuery, String? startDate, String? endDate) {
+  bool hasFiltersChanged(String? statusFilter, String? searchQuery, String? startDate, String? endDate, bool? followUpFilter) {
     return _lastStatusFilter != statusFilter || 
            _lastSearchQuery != searchQuery ||
            _lastStartDate != startDate ||
-           _lastEndDate != endDate;
+           _lastEndDate != endDate ||
+           _lastFollowUpFilter != followUpFilter?.toString();
   }
   
   /// Update cache with page data
@@ -129,6 +137,7 @@ class AppointmentCacheService {
     required String searchQuery,
     String? startDate,
     String? endDate,
+    bool? followUpFilter,
     required int page,
   }) {
     // Create cache key
@@ -137,6 +146,7 @@ class AppointmentCacheService {
       searchQuery: searchQuery,
       startDate: startDate,
       endDate: endDate,
+      followUpFilter: followUpFilter?.toString(),
       page: page,
     );
     
@@ -153,6 +163,7 @@ class AppointmentCacheService {
     _lastSearchQuery = searchQuery;
     _lastStartDate = startDate;
     _lastEndDate = endDate;
+    _lastFollowUpFilter = followUpFilter?.toString();
     
     // Enforce cache size limit (LRU-style: remove oldest entries)
     if (_pageCache.length > _maxCachedPages) {

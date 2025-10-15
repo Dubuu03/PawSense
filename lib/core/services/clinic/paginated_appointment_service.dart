@@ -137,6 +137,25 @@ class PaginatedAppointmentService {
     }
   }
 
+  /// Get count of follow-up appointments for a clinic
+  static Future<int> getFollowUpAppointmentCount({
+    required String clinicId,
+  }) async {
+    try {
+      final snapshot = await _firestore
+          .collection('appointments')
+          .where('clinicId', isEqualTo: clinicId)
+          .where('isFollowUp', isEqualTo: true)
+          .count()
+          .get();
+      
+      return snapshot.count ?? 0;
+    } catch (e) {
+      print('❌ Error getting follow-up appointment count: $e');
+      return 0;
+    }
+  }
+
   /// Get appointment counts by status for a clinic (for status badges/summary)
   static Future<AppointmentStatusCounts> getAppointmentStatusCounts({
     required String clinicId,
@@ -148,6 +167,7 @@ class PaginatedAppointmentService {
         getAppointmentCount(clinicId: clinicId, status: AppointmentStatus.confirmed),
         getAppointmentCount(clinicId: clinicId, status: AppointmentStatus.completed),
         getAppointmentCount(clinicId: clinicId, status: AppointmentStatus.cancelled),
+        getFollowUpAppointmentCount(clinicId: clinicId),
       ]);
 
       return AppointmentStatusCounts(
@@ -155,6 +175,7 @@ class PaginatedAppointmentService {
         confirmedCount: futures[1],
         completedCount: futures[2],
         cancelledCount: futures[3],
+        followUpCount: futures[4],
       );
     } catch (e) {
       print('❌ Error getting appointment status counts: $e');
@@ -163,6 +184,7 @@ class PaginatedAppointmentService {
         confirmedCount: 0,
         completedCount: 0,
         cancelledCount: 0,
+        followUpCount: 0,
       );
     }
   }
@@ -463,12 +485,14 @@ class AppointmentStatusCounts {
   final int confirmedCount;
   final int completedCount;
   final int cancelledCount;
+  final int followUpCount;
 
   AppointmentStatusCounts({
     required this.pendingCount,
     required this.confirmedCount,
     required this.completedCount,
     required this.cancelledCount,
+    this.followUpCount = 0,
   });
 
   /// Get total count of all appointments
@@ -476,6 +500,6 @@ class AppointmentStatusCounts {
 
   @override
   String toString() {
-    return 'AppointmentStatusCounts(pending: $pendingCount, confirmed: $confirmedCount, completed: $completedCount, cancelled: $cancelledCount, total: $totalCount)';
+    return 'AppointmentStatusCounts(pending: $pendingCount, confirmed: $confirmedCount, completed: $completedCount, cancelled: $cancelledCount, followUp: $followUpCount, total: $totalCount)';
   }
 }

@@ -20,6 +20,7 @@ class AppointmentSummary extends StatelessWidget {
     final confirmedCount = statusCounts.confirmedCount;
     final completedCount = statusCounts.completedCount;
     final cancelledCount = statusCounts.cancelledCount;
+    final followUpCount = statusCounts.followUpCount;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -50,6 +51,13 @@ class AppointmentSummary extends StatelessWidget {
             count: cancelledCount,
             label: 'Cancelled',
             color: AppColors.error,
+            isLoading: isLoading,
+          ),
+          const SizedBox(width: 24),
+          SummaryCard(
+            count: followUpCount,
+            label: 'Follow-up',
+            color: AppColors.primary,
             isLoading: isLoading,
           ),
         ],

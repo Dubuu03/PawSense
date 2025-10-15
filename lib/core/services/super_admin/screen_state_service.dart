@@ -23,6 +23,7 @@ class ScreenStateService {
   String _appointmentDateSortOrder = 'desc'; // Default to newest first
   DateTime? _appointmentStartDate;
   DateTime? _appointmentEndDate;
+  bool? _appointmentFollowUpFilter; // null = all, true = needs follow-up, false = no follow-up
 
   // Clinic Schedule State
   DateTime _scheduleSelectedDate = DateTime.now();
@@ -102,6 +103,7 @@ class ScreenStateService {
   String get appointmentDateSortOrder => _appointmentDateSortOrder;
   DateTime? get appointmentStartDate => _appointmentStartDate;
   DateTime? get appointmentEndDate => _appointmentEndDate;
+  bool? get appointmentFollowUpFilter => _appointmentFollowUpFilter;
 
   void saveAppointmentState({
     int? currentPage,
@@ -110,6 +112,7 @@ class ScreenStateService {
     String? dateSortOrder,
     DateTime? startDate,
     DateTime? endDate,
+    bool? followUpFilter,
   }) {
     if (currentPage != null) {
       _appointmentCurrentPage = currentPage;
@@ -121,7 +124,8 @@ class ScreenStateService {
     }
     _appointmentStartDate = startDate;
     _appointmentEndDate = endDate;
-    print('💾 Saved appointment management state: page=$_appointmentCurrentPage, status="$selectedStatus", search="$searchQuery", sort="$_appointmentDateSortOrder", dates="${startDate?.toString().split(' ')[0]} to ${endDate?.toString().split(' ')[0]}"');
+    _appointmentFollowUpFilter = followUpFilter;
+    print('💾 Saved appointment management state: page=$_appointmentCurrentPage, status="$selectedStatus", search="$searchQuery", sort="$_appointmentDateSortOrder", dates="${startDate?.toString().split(' ')[0]} to ${endDate?.toString().split(' ')[0]}", followUp=$followUpFilter');
   }
 
   /// Reset appointment state to defaults
@@ -132,6 +136,7 @@ class ScreenStateService {
     _appointmentDateSortOrder = 'desc';
     _appointmentStartDate = null;
     _appointmentEndDate = null;
+    _appointmentFollowUpFilter = null;
   }
 
   // Clinic Schedule Getters & Setters

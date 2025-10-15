@@ -100,6 +100,12 @@ class AppointmentFilters extends StatelessWidget {
                         isSelected: selectedStatus == 'Cancelled',
                         onTap: () => onStatusChanged('Cancelled'),
                       ),
+                      const SizedBox(width: 4),
+                      ViewToggleButton(
+                        text: 'Follow-up',
+                        isSelected: selectedStatus == 'Follow-up',
+                        onTap: () => onStatusChanged('Follow-up'),
+                      ),
                     ],
                   ),
                 ),
@@ -226,8 +232,6 @@ class AppointmentFilters extends StatelessWidget {
                     ),
                   ),
                 ),
-                
-                const SizedBox(width: 12),
                 
                 // Clear Date Filters Button (fixed width to match export button)
                 if (startDate != null || endDate != null) ...[
