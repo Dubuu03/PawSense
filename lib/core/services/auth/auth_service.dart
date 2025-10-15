@@ -169,6 +169,7 @@ class AuthService {
   Future<Map<String, dynamic>> createTempAccountForVerification({
     required String email,
     required String password,
+    String? displayName,
   }) async {
     try {
       final UserCredential result = await _auth.createUserWithEmailAndPassword(
@@ -177,6 +178,12 @@ class AuthService {
       );
 
       if (result.user != null) {
+        // Set display name for email purposes if provided
+        if (displayName != null && displayName.isNotEmpty) {
+          await result.user!.updateDisplayName(displayName);
+          await result.user!.reload(); // Reload to ensure display name is set
+        }
+        
         // Send verification email
         await result.user!.sendEmailVerification();
         
@@ -245,39 +252,80 @@ class AuthService {
   }
 
   /// Check email verification for a specific account (signs in temporarily)
+  /// Now caches the sign-in to avoid quota issues
   Future<bool> checkEmailVerificationForAccount(String email, String password) async {
     try {
-      // Sign in temporarily to check verification status
-      await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      User? user = _auth.currentUser;
+      
+      // Only sign in if we're not already signed in with this email
+      if (user == null || user.email?.toLowerCase() != email.toLowerCase()) {
+        // Sign in temporarily to check verification status
+        await _auth.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+      }
       
       // Reload user to get latest verification status
       await _auth.currentUser?.reload();
       final isVerified = _auth.currentUser?.emailVerified ?? false;
       
-      // Sign out after checking
-      await _auth.signOut();
+      // Don't sign out if verified (we'll need to sign in again for registration)
+      // Only sign out if not verified to prevent quota issues
+      if (!isVerified) {
+        // Stay signed in to avoid repeated sign-ins for checking
+        // We'll sign out when moving away from verification step
+      }
       
       return isVerified;
     } catch (e) {
-      // Make sure to sign out even if there's an error
-      try {
-        await _auth.signOut();
-      } catch (_) {}
-      
+      // Don't sign out on error to avoid additional API calls
+      print('Error checking email verification: ${e.toString()}');
       throw Exception('Error checking email verification: ${e.toString()}');
     }
   }
 
-  /// Resend verification email to current user
-  Future<void> resendVerificationEmail() async {
+  /// Sign out the temporary verification account
+  /// Call this when user moves away from verification step or cancels
+  Future<void> signOutVerificationAccount() async {
     try {
-      final user = _auth.currentUser;
+      await _auth.signOut();
+    } catch (e) {
+      print('Error signing out: ${e.toString()}');
+    }
+  }
+
+  /// Resend verification email to current user
+  /// If no user is signed in, it will sign in with the provided credentials
+  Future<void> resendVerificationEmail({
+    String? email,
+    String? password,
+    String? displayName,
+  }) async {
+    try {
+      User? user = _auth.currentUser;
       
+      // If no user is signed in, sign in with provided credentials
       if (user == null) {
-        throw Exception('No user is currently signed in');
+        if (email == null || password == null) {
+          throw Exception('No user is currently signed in. Please provide email and password.');
+        }
+        
+        final signInResult = await _auth.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+        user = signInResult.user;
+        
+        if (user == null) {
+          throw Exception('Failed to sign in');
+        }
+        
+        // Set display name if provided and not already set
+        if (displayName != null && displayName.isNotEmpty) {
+          await user.updateDisplayName(displayName);
+          await user.reload();
+        }
       }
       
       if (user.emailVerified) {
@@ -285,6 +333,9 @@ class AuthService {
       }
       
       await user.sendEmailVerification();
+      
+      // Sign out after sending
+      await _auth.signOut();
     } catch (e) {
       throw Exception('Error sending verification email: ${e.toString()}');
     }

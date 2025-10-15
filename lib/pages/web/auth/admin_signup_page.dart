@@ -14,6 +14,8 @@ import '../../../core/models/clinic/clinic_license_model.dart';
 import '../../../core/services/auth/auth_service.dart';
 import '../../../core/utils/app_colors.dart';
 import '../../../core/utils/constants.dart';
+import '../../../core/utils/validators.dart';
+import '../../../core/utils/text_utils.dart';
 
 class AdminSignupPage extends StatefulWidget {
   const AdminSignupPage({super.key});
@@ -48,7 +50,6 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final _usernameController = TextEditingController();
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _contactNumberController = TextEditingController();
@@ -75,6 +76,25 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _agreedToTerms = false;
+
+  // Resend email cooldown
+  int _resendCooldown = 0;
+  Timer? _cooldownTimer;
+
+  // Field errors tracking for real-time validation
+  final Map<String, String?> _fieldErrors = {
+    'firstName': null,
+    'lastName': null,
+    'email': null,
+    'contactNumber': null,
+    'password': null,
+    'confirmPassword': null,
+    'clinicName': null,
+    'clinicAddress': null,
+    'clinicPhone': null,
+    'clinicEmail': null,
+    'terms': null,
+  };
 
   /// Show error message using SnackBar
   void _showErrorSnackBar(String message) {
@@ -110,6 +130,109 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
         ),
       );
     }
+  }
+
+  /// Get password requirements status
+  Map<String, bool> _getPasswordRequirements(String password) {
+    return {
+      'lowercase': RegExp(r'[a-z]').hasMatch(password),
+      'uppercase': RegExp(r'[A-Z]').hasMatch(password),
+      'number': RegExp(r'[0-9]').hasMatch(password),
+      'minLength': password.length >= 8,
+    };
+  }
+
+  /// Validate individual field
+  String? _validateField(String keyName, String value) {
+    switch (keyName) {
+      case 'firstName':
+        return nameValidator(value.trim(), 'First name');
+      case 'lastName':
+        return nameValidator(value.trim(), 'Last name');
+      case 'email':
+        return emailValidator(value.trim());
+      case 'contactNumber':
+        return phoneValidator(value.trim());
+      case 'password':
+        // Check password requirements
+        if (value.trim().isEmpty) return 'Enter password';
+        final requirements = _getPasswordRequirements(value.trim());
+        final allMet = requirements.values.every((met) => met);
+        if (!allMet) return 'Password does not meet requirements';
+        // Also validate confirm password when password changes
+        if (_confirmPasswordController.text.isNotEmpty) {
+          _fieldErrors['confirmPassword'] = confirmPasswordValidator(
+            _confirmPasswordController.text.trim(), 
+            value.trim()
+          );
+        }
+        return null;
+      case 'confirmPassword':
+        return confirmPasswordValidator(value.trim(), _passwordController.text.trim());
+      case 'clinicName':
+        if (value.trim().isEmpty) return 'Enter clinic name';
+        if (value.trim().length < 3) return 'Clinic name must be at least 3 characters';
+        return null;
+      case 'clinicAddress':
+        return addressValidator(value.trim());
+      case 'clinicPhone':
+        return phoneValidator(value.trim());
+      case 'clinicEmail':
+        return emailValidator(value.trim());
+      default:
+        return null;
+    }
+  }
+
+  /// Build password requirements widget
+  Widget _buildPasswordRequirements() {
+    final password = _passwordController.text;
+    final requirements = _getPasswordRequirements(password);
+    
+    if (password.isEmpty) return const SizedBox.shrink();
+    
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildRequirementItem('A lowercase letter', requirements['lowercase']!),
+          const SizedBox(height: 4),
+          _buildRequirementItem('A capital (uppercase) letter', requirements['uppercase']!),
+          const SizedBox(height: 4),
+          _buildRequirementItem('A number', requirements['number']!),
+          const SizedBox(height: 4),
+          _buildRequirementItem('Minimum 8 characters', requirements['minLength']!),
+        ],
+      ),
+    );
+  }
+
+  /// Build individual requirement item
+  Widget _buildRequirementItem(String text, bool isMet) {
+    return Row(
+      children: [
+        Icon(
+          isMet ? Icons.check : Icons.close,
+          color: isMet ? Colors.green : Colors.red,
+          size: 16,
+        ),
+        const SizedBox(width: 8),
+        Text(
+          text,
+          style: kTextStyleSmall.copyWith(
+            color: isMet ? Colors.green : Colors.red,
+            fontSize: 12,
+          ),
+        ),
+      ],
+    );
   }
 
   /// Check verification status once
@@ -161,8 +284,21 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
         );
       }
     } catch (e) {
-      // Silently fail - don't show error for automatic checks
-      print('Verification check failed: $e');
+      // Silently fail for quota errors - don't show error for automatic checks
+      if (e.toString().contains('quota-exceeded')) {
+        print('Quota exceeded - will retry on next interval');
+        // Increase the check interval if we hit quota
+        _stopVerificationTimer();
+        _verificationTimer = Timer.periodic(const Duration(seconds: 10), (timer) async {
+          if (!mounted || _isEmailVerified || _currentStep != 1) {
+            timer.cancel();
+            return;
+          }
+          await _checkVerificationStatus();
+        });
+      } else {
+        print('Verification check failed: $e');
+      }
     }
   }
 
@@ -173,7 +309,8 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
     // Do an immediate check first
     _checkVerificationStatus();
     
-    _verificationTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+    // Increase interval to 5 seconds to reduce API calls
+    _verificationTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
       if (!mounted || _isEmailVerified || _currentStep != 1) {
         timer.cancel();
         return;
@@ -184,10 +321,13 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
     });
   }
 
-  /// Stop the verification timer
+  /// Stop the verification timer and sign out verification account
   void _stopVerificationTimer() {
     _verificationTimer?.cancel();
     _verificationTimer = null;
+    
+    // Sign out the temporary verification account when timer stops
+    _authService.signOutVerificationAccount();
   }
 
   @override
@@ -223,12 +363,12 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
   }
 
   @override
+  @override
   void dispose() {
     _emailController.removeListener(_onEmailChanged);
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-    _usernameController.dispose();
     _firstNameController.dispose();
     _lastNameController.dispose();
     _contactNumberController.dispose();
@@ -240,7 +380,25 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
     _websiteController.dispose();
     _pageController.dispose();
     _verificationTimer?.cancel();
+    _cooldownTimer?.cancel();
+    
+    // Sign out verification account when leaving the page
+    _authService.signOutVerificationAccount();
+    
     super.dispose();
+  }
+
+  /// Start 30-second cooldown for resend button
+  void _startResendCooldown() {
+    setState(() => _resendCooldown = 30);
+    _cooldownTimer?.cancel();
+    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_resendCooldown > 0) {
+        setState(() => _resendCooldown--);
+      } else {
+        timer.cancel();
+      }
+    });
   }
 
   /// Prepare services with dynamic data before signup
@@ -489,13 +647,21 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
         }
       }
 
+      // Format names properly using TextUtils
+      final formattedFirstName = TextUtils.capitalizeWords(_firstNameController.text.trim());
+      final formattedLastName = TextUtils.capitalizeWords(_lastNameController.text.trim());
+      final fullName = TextUtils.formatFullName(
+        _firstNameController.text.trim(), 
+        _lastNameController.text.trim()
+      );
+      
       // Complete registration (account was already created during email verification)
       final result = await _authService.completeClinicAdminRegistration(
-        email: _emailController.text.trim(),
+        email: _emailController.text.trim().toLowerCase(),
         password: _passwordController.text.trim(),
-        username: _usernameController.text.trim(),
-        firstName: _firstNameController.text.trim(),
-        lastName: _lastNameController.text.trim(),
+        username: fullName,
+        firstName: formattedFirstName,
+        lastName: formattedLastName,
         contactNumber: _contactNumberController.text.trim(),
         clinic: Clinic(
           id: '', // Will be set to uid
@@ -982,16 +1148,25 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
   Future<bool> _sendVerificationEmail() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
+    final firstName = _firstNameController.text.trim();
+    final lastName = _lastNameController.text.trim();
     
     setState(() {
       _isSendingVerification = true;
     });
 
     try {
+      // Create display name from first and last name
+      String? displayName;
+      if (firstName.isNotEmpty && lastName.isNotEmpty) {
+        displayName = TextUtils.formatFullName(firstName, lastName);
+      }
+      
       // Create a temporary Firebase account to send verification email or handle existing account
       final result = await _authService.createTempAccountForVerification(
         email: email,
         password: password,
+        displayName: displayName,
       );
       
       if (result['success']) {
@@ -1026,7 +1201,25 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
     });
 
     try {
-      await _authService.resendVerificationEmail();
+      final email = _emailController.text.trim();
+      final password = _passwordController.text.trim();
+      final firstName = _firstNameController.text.trim();
+      final lastName = _lastNameController.text.trim();
+      
+      // Create display name from first and last name
+      String? displayName;
+      if (firstName.isNotEmpty && lastName.isNotEmpty) {
+        displayName = TextUtils.formatFullName(firstName, lastName);
+      }
+      
+      await _authService.resendVerificationEmail(
+        email: email,
+        password: password,
+        displayName: displayName,
+      );
+      
+      // Start 30-second cooldown
+      _startResendCooldown();
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1202,12 +1395,12 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                   controller: _firstNameController,
                   label: 'First Name',
                   hint: 'Enter your first name',
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your first name';
-                    }
-                    return null;
-                  },
+                  fieldKey: 'firstName',
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z\s\-']")),
+                    LengthLimitingTextInputFormatter(30),
+                  ],
+                  validator: (value) => null, // Real-time validation handles this
                 ),
               ),
               const SizedBox(width: 16),
@@ -1216,32 +1409,15 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                   controller: _lastNameController,
                   label: 'Last Name',
                   hint: 'Enter your last name',
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your last name';
-                    }
-                    return null;
-                  },
+                  fieldKey: 'lastName',
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z\s\-']")),
+                    LengthLimitingTextInputFormatter(30),
+                  ],
+                  validator: (value) => null, // Real-time validation handles this
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 20),
-
-          // Username
-          _buildTextField(
-            controller: _usernameController,
-            label: 'Username',
-            hint: 'Enter your username',
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter a username';
-              }
-              if (value.length < 3) {
-                return 'Username must be at least 3 characters';
-              }
-              return null;
-            },
           ),
           const SizedBox(height: 20),
 
@@ -1250,18 +1426,13 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
             controller: _emailController,
             label: 'Email Address',
             hint: 'Enter your email address',
+            fieldKey: 'email',
             keyboardType: TextInputType.emailAddress,
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter your email address';
-              }
-              if (!RegExp(
-                r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-              ).hasMatch(value)) {
-                return 'Please enter a valid email address';
-              }
-              return null;
-            },
+            inputFormatters: [
+              FilteringTextInputFormatter.deny(RegExp(r'^\s')), // No leading spaces
+              FilteringTextInputFormatter.deny(RegExp(r'\s$')), // No trailing spaces
+            ],
+            validator: (value) => null, // Real-time validation handles this
           ),
           const SizedBox(height: 20),
 
@@ -1270,20 +1441,13 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
             controller: _contactNumberController,
             label: 'Contact Number',
             hint: 'Enter your contact number',
+            fieldKey: 'contactNumber',
             keyboardType: TextInputType.phone,
             inputFormatters: [
               FilteringTextInputFormatter.digitsOnly,
               LengthLimitingTextInputFormatter(11),
             ],
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Contact number is required';
-              }
-              if (value.length != 11) {
-                return 'Contact number must be 11 digits';
-              }
-              return null;
-            },
+            validator: (value) => null, // Real-time validation handles this
           ),
           const SizedBox(height: 20),
 
@@ -1294,7 +1458,11 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
             controller: _passwordController,
             label: 'Password',
             hint: 'Enter your password',
+            fieldKey: 'password',
             obscureText: _obscurePassword,
+            inputFormatters: [
+              LengthLimitingTextInputFormatter(128),
+            ],
             suffixIcon: IconButton(
               icon: Icon(
                 _obscurePassword
@@ -1305,16 +1473,15 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
               onPressed: () =>
                   setState(() => _obscurePassword = !_obscurePassword),
             ),
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter a password';
-              }
-              if (value.length < 6) {
-                return 'Password must be at least 8 characters';
-              }
-              return null;
-            },
+            validator: (value) => null, // Real-time validation handles this
           ),
+          
+          // Password requirements indicator
+          if (_passwordController.text.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _buildPasswordRequirements(),
+          ],
+          
           const SizedBox(height: 20),
 
           // Confirm Password
@@ -1322,7 +1489,11 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
             controller: _confirmPasswordController,
             label: 'Confirm Password',
             hint: 'Confirm your password',
+            fieldKey: 'confirmPassword',
             obscureText: _obscureConfirmPassword,
+            inputFormatters: [
+              LengthLimitingTextInputFormatter(128),
+            ],
             suffixIcon: IconButton(
               icon: Icon(
                 _obscureConfirmPassword
@@ -1334,15 +1505,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                 () => _obscureConfirmPassword = !_obscureConfirmPassword,
               ),
             ),
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please confirm your password';
-              }
-              if (value != _passwordController.text) {
-                return 'Passwords do not match';
-              }
-              return null;
-            },
+            validator: (value) => null, // Real-time validation handles this
           ),
         ],
       ),
@@ -1472,12 +1635,27 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                   ),
                 ),
                 TextButton.icon(
-                  onPressed: _isSendingVerification ? null : _resendVerificationEmail,
-                  icon: Icon(Icons.email_outlined, size: 18),
+                  onPressed: (_isSendingVerification || _resendCooldown > 0) ? null : _resendVerificationEmail,
+                  icon: _isSendingVerification 
+                      ? SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                          ),
+                        )
+                      : Icon(Icons.email_outlined, size: 18),
                   label: Text(
-                    _isSendingVerification ? 'Sending...' : 'Resend Email',
+                    _isSendingVerification 
+                        ? 'Sending...' 
+                        : _resendCooldown > 0 
+                            ? 'Resend in ${_resendCooldown}s' 
+                            : 'Resend Email',
                     style: kTextStyleRegular.copyWith(
-                      color: AppColors.primary,
+                      color: (_isSendingVerification || _resendCooldown > 0) 
+                          ? AppColors.textTertiary 
+                          : AppColors.primary,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -1543,12 +1721,11 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
             controller: _clinicNameController,
             label: 'Clinic Name',
             hint: 'Enter your clinic name',
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter your clinic name';
-              }
-              return null;
-            },
+            fieldKey: 'clinicName',
+            inputFormatters: [
+              LengthLimitingTextInputFormatter(100),
+            ],
+            validator: (value) => null, // Real-time validation handles this
           ),
           const SizedBox(height: 20),
 
@@ -1565,6 +1742,9 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
           TextFormField(
             controller: _clinicDescriptionController,
             maxLines: 3,
+            inputFormatters: [
+              LengthLimitingTextInputFormatter(1000),
+            ],
             decoration: InputDecoration(
               hintText: 'Brief description of your clinic services, specialties, or mission',
               border: OutlineInputBorder(),
@@ -1583,13 +1763,13 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
             controller: _clinicAddressController,
             label: 'Clinic Address',
             hint: 'Enter your clinic address',
+            fieldKey: 'clinicAddress',
             maxLines: 3,
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter your clinic address';
-              }
-              return null;
-            },
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z0-9\s\-'.,#/]")),
+              LengthLimitingTextInputFormatter(200),
+            ],
+            validator: (value) => null, // Real-time validation handles this
           ),
           const SizedBox(height: 20),
 
@@ -1601,20 +1781,13 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                   controller: _clinicPhoneController,
                   label: 'Phone Number',
                   hint: 'Enter phone number',
+                  fieldKey: 'clinicPhone',
                   keyboardType: TextInputType.phone,
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
                     LengthLimitingTextInputFormatter(11),
                   ],
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Contact number is required';
-                    }
-                    if (value.length != 11) {
-                      return 'Contact number must be 11 digits';
-                    }
-                    return null;
-                  },
+                  validator: (value) => null, // Real-time validation handles this
                 ),
               ),
               const SizedBox(width: 16),
@@ -1623,18 +1796,13 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                   controller: _clinicEmailController,
                   label: 'Clinic Email',
                   hint: 'Enter clinic email',
+                  fieldKey: 'clinicEmail',
                   keyboardType: TextInputType.emailAddress,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter clinic email';
-                    }
-                    if (!RegExp(
-                      r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                    ).hasMatch(value)) {
-                      return 'Please enter a valid email';
-                    }
-                    return null;
-                  },
+                  inputFormatters: [
+                    FilteringTextInputFormatter.deny(RegExp(r'^\s')), // No leading spaces
+                    FilteringTextInputFormatter.deny(RegExp(r'\s$')), // No trailing spaces
+                  ],
+                  validator: (value) => null, // Real-time validation handles this
                 ),
               ),
             ],
@@ -2381,6 +2549,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
     required TextEditingController controller,
     required String label,
     required String hint,
+    String? fieldKey, // Add field key for real-time validation
     TextInputType? keyboardType,
     bool obscureText = false,
     Widget? suffixIcon,
@@ -2422,6 +2591,12 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
             obscureText: obscureText,
             maxLines: maxLines,
             inputFormatters: inputFormatters,
+            onChanged: fieldKey != null ? (value) {
+              // Real-time validation
+              setState(() {
+                _fieldErrors[fieldKey] = _validateField(fieldKey, value);
+              });
+            } : null,
             style: kTextStyleRegular.copyWith(
               color: AppColors.textPrimary,
               fontWeight: FontWeight.w500,
@@ -2441,15 +2616,30 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
               ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: AppColors.border.withOpacity(0.3), width: 1),
+                borderSide: BorderSide(
+                  color: fieldKey != null && _fieldErrors[fieldKey] != null
+                      ? AppColors.error
+                      : AppColors.border.withOpacity(0.3),
+                  width: 1,
+                ),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: AppColors.border.withOpacity(0.3), width: 1),
+                borderSide: BorderSide(
+                  color: fieldKey != null && _fieldErrors[fieldKey] != null
+                      ? AppColors.error
+                      : AppColors.border.withOpacity(0.3),
+                  width: fieldKey != null && _fieldErrors[fieldKey] != null ? 1.5 : 1,
+                ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: AppColors.primary, width: 2),
+                borderSide: BorderSide(
+                  color: fieldKey != null && _fieldErrors[fieldKey] != null
+                      ? AppColors.error
+                      : AppColors.primary,
+                  width: 2,
+                ),
               ),
               errorBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
@@ -2464,6 +2654,13 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                 minWidth: 40,
                 minHeight: 40,
               ),
+              errorText: fieldKey != null ? _fieldErrors[fieldKey] : null,
+              errorStyle: kTextStyleSmall.copyWith(
+                color: AppColors.error,
+                fontSize: 12,
+                height: 1.2,
+              ),
+              errorMaxLines: 2,
             ),
             validator: validator,
           ),

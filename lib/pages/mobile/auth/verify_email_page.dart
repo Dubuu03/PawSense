@@ -91,7 +91,7 @@ class _VerifyEmailPageState extends State<VerifyEmailPage>
   }
 
   void _startTimer() {
-    _seconds = 60;
+    _seconds = 30; // Changed from 60 to 30 seconds
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_seconds > 0) {
@@ -346,7 +346,7 @@ class _VerifyEmailPageState extends State<VerifyEmailPage>
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _resendEmail,
+                  onPressed: _seconds > 0 ? null : _resendEmail,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: AppColors.white,
@@ -354,9 +354,10 @@ class _VerifyEmailPageState extends State<VerifyEmailPage>
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(kMobileBorderRadiusSmall),
                     ),
+                    disabledBackgroundColor: AppColors.textTertiary,
                   ),
                   child: Text(
-                    'Resend Email',
+                    _seconds > 0 ? 'Resend in ${_seconds}s' : 'Resend Email',
                     style: kMobileTextStyleSubtitle.copyWith(
                       color: AppColors.white,
                       fontWeight: FontWeight.w600,
