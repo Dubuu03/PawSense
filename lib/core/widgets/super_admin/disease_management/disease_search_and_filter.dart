@@ -123,8 +123,8 @@ class _DiseaseSearchAndFilterState extends State<DiseaseSearchAndFilter> {
                   value: widget.detectionFilter ?? 'all',
                   items: [
                     {'value': 'all', 'label': 'All Detection'},
-                    {'value': 'ai', 'label': '✨ AI-Detectable'},
-                    {'value': 'info', 'label': 'ℹ️ Info Only'},
+                    {'value': 'ai', 'label': 'AI-Detectable'},
+                    {'value': 'info', 'label': 'Info Only'},
                   ],
                   onChanged: (value) => widget.onDetectionChanged(value == 'all' ? null : value),
                 ),

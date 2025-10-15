@@ -182,11 +182,11 @@ class _FAQsPageState extends State<FAQsPage> {
         padding: const EdgeInsets.all(kMobileMarginHorizontal),
         child: Column(
           children: [
-            const SizedBox(height: kSpacingMedium),
-            // Hero Icon
+            const SizedBox(height: kSpacingSmall),
+            // Compact Hero Icon
             Container(
-              width: 80,
-              height: 80,
+              width: 56,
+              height: 56,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
@@ -196,43 +196,43 @@ class _FAQsPageState extends State<FAQsPage> {
                     AppColors.success,
                   ],
                 ),
-                borderRadius: BorderRadius.circular(40),
+                borderRadius: BorderRadius.circular(28),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.primary.withOpacity(0.3),
-                    blurRadius: 15,
-                    offset: const Offset(0, 5),
+                    color: AppColors.primary.withOpacity(0.25),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
               child: const Icon(
                 Icons.help_center,
                 color: AppColors.white,
-                size: 40,
+                size: 28,
               ),
             ),
             const SizedBox(height: kSpacingMedium),
             // Title
             Text(
-              'Help & Support Center',
+              'Help Center',
               style: kTextStyleTitle.copyWith(
                 color: AppColors.textPrimary,
                 fontWeight: FontWeight.bold,
-                fontSize: 24,
+                fontSize: 22,
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: kSpacingSmall),
+            const SizedBox(height: 6),
             // Subtitle
             Text(
-              'Find answers to your questions from our trusted veterinary clinics',
+              'Get answers from trusted veterinary clinics',
               style: kTextStyleRegular.copyWith(
                 color: AppColors.textSecondary,
-                fontSize: 16,
+                fontSize: 14,
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: kSpacingLarge),
+            const SizedBox(height: kSpacingMedium),
           ],
         ),
       ),
@@ -241,54 +241,55 @@ class _FAQsPageState extends State<FAQsPage> {
 
   Widget _buildStatsSection() {
     return Container(
-      margin: const EdgeInsets.all(kMobileMarginHorizontal),
-      padding: const EdgeInsets.all(kSpacingMedium),
+      margin: const EdgeInsets.symmetric(
+        horizontal: kMobileMarginHorizontal,
+        vertical: kSpacingSmall,
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: kSpacingMedium,
+        vertical: kSpacingSmall + 2,
+      ),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(kSpacingMedium),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: AppColors.textSecondary.withOpacity(0.08),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: AppColors.textSecondary.withOpacity(0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          Expanded(
-            child: _buildStatItem(
-              icon: Icons.local_hospital,
-              title: '${_clinics.length}',
-              subtitle: 'Clinics Available',
-              color: AppColors.primary,
-            ),
+          _buildStatItem(
+            icon: Icons.local_hospital,
+            title: '${_clinics.length}',
+            subtitle: 'Clinics',
+            color: AppColors.primary,
           ),
           Container(
             width: 1,
-            height: 40,
-            color: AppColors.border.withOpacity(0.3),
+            height: 32,
+            color: AppColors.border.withOpacity(0.2),
           ),
-          Expanded(
-            child: _buildStatItem(
-              icon: Icons.quiz,
-              title: 'Expert',
-              subtitle: 'Answers',
-              color: AppColors.success,
-            ),
+          _buildStatItem(
+            icon: Icons.quiz,
+            title: 'Expert',
+            subtitle: 'Answers',
+            color: AppColors.success,
           ),
           Container(
             width: 1,
-            height: 40,
-            color: AppColors.border.withOpacity(0.3),
+            height: 32,
+            color: AppColors.border.withOpacity(0.2),
           ),
-          Expanded(
-            child: _buildStatItem(
-              icon: Icons.support_agent,
-              title: '24/7',
-              subtitle: 'Support',
-              color: AppColors.info,
-            ),
+          _buildStatItem(
+            icon: Icons.support_agent,
+            title: '24/7',
+            subtitle: 'Support',
+            color: AppColors.info,
           ),
         ],
       ),
@@ -302,24 +303,18 @@ class _FAQsPageState extends State<FAQsPage> {
     required Color color,
   }) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Icon(
-            icon,
-            color: color,
-            size: 20,
-          ),
+        Icon(
+          icon,
+          color: color,
+          size: 20,
         ),
-        const SizedBox(height: kSpacingSmall),
+        const SizedBox(height: 4),
         Text(
           title,
-          style: kTextStyleLarge.copyWith(
+          style: TextStyle(
+            fontSize: 16,
             color: AppColors.textPrimary,
             fontWeight: FontWeight.bold,
           ),
@@ -327,7 +322,7 @@ class _FAQsPageState extends State<FAQsPage> {
         Text(
           subtitle,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: 11,
             color: AppColors.textSecondary,
           ),
           textAlign: TextAlign.center,
@@ -349,77 +344,18 @@ class _FAQsPageState extends State<FAQsPage> {
             AppColors.success.withOpacity(0.05),
           ],
         ),
-        borderRadius: BorderRadius.circular(kSpacingMedium),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: AppColors.primary.withOpacity(0.1),
         ),
       ),
       child: Column(
         children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.primary,
-                  AppColors.success,
-                ],
-              ),
-              borderRadius: BorderRadius.circular(25),
-            ),
-            child: const Icon(
-              Icons.contact_support,
-              color: AppColors.white,
-              size: 24,
-            ),
-          ),
-          const SizedBox(height: kSpacingMedium),
-          Text(
-            'Need More Help?',
-            style: kTextStyleLarge.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: kSpacingSmall),
-          Text(
-            'If you can\'t find what you\'re looking for, don\'t hesitate to contact your preferred clinic directly through our messaging system.',
-            style: kTextStyleRegular.copyWith(
-              color: AppColors.textSecondary,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: kSpacingMedium),
-          // Contact Support Button
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                context.push('/messaging');
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                foregroundColor: AppColors.primary,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(
-                  vertical: kSpacingMedium,
-                  horizontal: kSpacingLarge,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(kSpacingMedium),
-                ),
-              ).copyWith(
-                backgroundColor: WidgetStateProperty.resolveWith<Color>(
-                  (Set<WidgetState> states) {
-                    if (states.contains(WidgetState.pressed)) {
-                      return AppColors.primary.withOpacity(0.1);
-                    }
-                    return Colors.transparent;
-                  },
-                ),
-              ),
-              child: Container(
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
@@ -427,29 +363,90 @@ class _FAQsPageState extends State<FAQsPage> {
                       AppColors.success,
                     ],
                   ),
-                  borderRadius: BorderRadius.circular(kSpacingMedium),
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                padding: const EdgeInsets.symmetric(
-                  vertical: kSpacingMedium,
-                  horizontal: kSpacingLarge,
+                child: const Icon(
+                  Icons.contact_support,
+                  color: AppColors.white,
+                  size: 20,
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+              ),
+              const SizedBox(width: kSpacingSmall),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(
-                      Icons.message,
-                      color: AppColors.white,
-                      size: 20,
-                    ),
-                    const SizedBox(width: kSpacingSmall),
                     Text(
-                      'Contact Support',
-                      style: kTextStyleRegular.copyWith(
-                        color: AppColors.white,
+                      'Need More Help?',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: AppColors.textPrimary,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Contact your preferred clinic directly',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
                   ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: kSpacingSmall),
+          // Compact Contact Support Button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                context.push('/messaging');
+              },
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                elevation: 0,
+              ).copyWith(
+                backgroundColor: WidgetStateProperty.all(Colors.transparent),
+              ),
+              child: Ink(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppColors.primary,
+                      AppColors.success,
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Container(
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.message,
+                        color: AppColors.white,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Contact Support',
+                        style: TextStyle(
+                          color: AppColors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -462,30 +459,51 @@ class _FAQsPageState extends State<FAQsPage> {
   Widget _buildClinicsList() {
     return Column(
       children: [
-        // Section Header
+        // Compact Section Header
         Padding(
-          padding: const EdgeInsets.all(kMobileMarginHorizontal),
+          padding: const EdgeInsets.fromLTRB(
+            kMobileMarginHorizontal,
+            kSpacingSmall,
+            kMobileMarginHorizontal,
+            kSpacingSmall,
+          ),
           child: Row(
             children: [
-              Icon(
-                Icons.location_city,
-                color: AppColors.primary,
-                size: 20,
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.location_city,
+                  color: AppColors.primary,
+                  size: 16,
+                ),
               ),
               const SizedBox(width: kSpacingSmall),
               Text(
-                'Choose Your Clinic',
-                style: kTextStyleLarge.copyWith(
+                'Available Clinics',
+                style: TextStyle(
+                  fontSize: 16,
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               const Spacer(),
-              Text(
-                '${_clinics.length} available',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${_clinics.length}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
                 ),
               ),
             ],
@@ -522,19 +540,19 @@ class _FAQsPageState extends State<FAQsPage> {
     final gradient = gradients[index % gradients.length];
 
     return Container(
-      margin: const EdgeInsets.only(bottom: kSpacingMedium),
+      margin: const EdgeInsets.only(bottom: kSpacingSmall),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(kSpacingMedium),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: AppColors.border.withOpacity(0.1),
+          color: AppColors.border.withOpacity(0.08),
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.textSecondary.withOpacity(0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: AppColors.textSecondary.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -544,69 +562,72 @@ class _FAQsPageState extends State<FAQsPage> {
           onTap: () {
             context.push('/clinic-faqs?clinicId=$clinicId&clinicName=${Uri.encodeComponent(clinicName)}');
           },
-          borderRadius: BorderRadius.circular(kSpacingMedium),
+          borderRadius: BorderRadius.circular(12),
           child: Padding(
-            padding: const EdgeInsets.all(kSpacingMedium),
+            padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                // Enhanced Clinic Icon with gradient
+                // Compact Clinic Icon with gradient
                 Container(
-                  width: 60,
-                  height: 60,
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        gradient[0].withOpacity(0.8),
-                        gradient[1].withOpacity(0.6),
+                        gradient[0].withOpacity(0.85),
+                        gradient[1].withOpacity(0.65),
                       ],
                     ),
-                    borderRadius: BorderRadius.circular(kSpacingMedium),
+                    borderRadius: BorderRadius.circular(10),
                     boxShadow: [
                       BoxShadow(
-                        color: gradient[0].withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
+                        color: gradient[0].withOpacity(0.2),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
                   child: const Icon(
                     Icons.local_hospital,
                     color: AppColors.white,
-                    size: 30,
+                    size: 24,
                   ),
                 ),
-                const SizedBox(width: kSpacingMedium),
-                // Enhanced Clinic Info
+                const SizedBox(width: 12),
+                // Compact Clinic Info
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         clinicName,
-                        style: kTextStyleLarge.copyWith(
+                        style: TextStyle(
+                          fontSize: 15,
                           color: AppColors.textPrimary,
                           fontWeight: FontWeight.w700,
+                          letterSpacing: -0.2,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
                       if (clinicAddress.isNotEmpty) ...[
                         Row(
                           children: [
                             Icon(
-                              Icons.location_on,
-                              size: 14,
-                              color: gradient[0],
+                              Icons.location_on_outlined,
+                              size: 12,
+                              color: AppColors.textSecondary,
                             ),
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(
                                 clinicAddress,
                                 style: TextStyle(
-                                  fontSize: 13,
+                                  fontSize: 12,
                                   color: AppColors.textSecondary,
-                                  fontWeight: FontWeight.w500,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -614,88 +635,43 @@ class _FAQsPageState extends State<FAQsPage> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 4),
                       ],
                       if (clinicPhone.isNotEmpty) ...[
+                        const SizedBox(height: 2),
                         Row(
                           children: [
                             Icon(
-                              Icons.phone,
-                              size: 14,
-                              color: gradient[1],
+                              Icons.phone_outlined,
+                              size: 12,
+                              color: AppColors.textSecondary,
                             ),
                             const SizedBox(width: 4),
                             Text(
                               clinicPhone,
                               style: TextStyle(
-                                fontSize: 13,
-                                color: AppColors.textSecondary,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: kSpacingSmall),
-                      ],
-                      // Enhanced CTA Button
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: kSpacingMedium,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              gradient[0].withOpacity(0.1),
-                              gradient[1].withOpacity(0.1),
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(kSpacingSmall),
-                          border: Border.all(
-                            color: gradient[0].withOpacity(0.3),
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.quiz,
-                              size: 14,
-                              color: gradient[0],
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'View FAQs & Support',
-                              style: TextStyle(
                                 fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: gradient[0],
+                                color: AppColors.textSecondary,
                               ),
                             ),
                           ],
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),
-                // Enhanced Arrow with gradient background
+                const SizedBox(width: 8),
+                // Compact Arrow with subtle background
                 Container(
-                  width: 36,
-                  height: 36,
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        gradient[0].withOpacity(0.1),
-                        gradient[1].withOpacity(0.1),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(18),
+                    color: gradient[0].withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
-                    Icons.arrow_forward_ios,
+                    Icons.arrow_forward_ios_rounded,
                     color: gradient[0],
-                    size: 16,
+                    size: 14,
                   ),
                 ),
               ],
