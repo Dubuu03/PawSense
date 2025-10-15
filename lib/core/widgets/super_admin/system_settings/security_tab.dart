@@ -82,47 +82,29 @@ class _SecurityTabState extends State<SecurityTab> {
         
         SizedBox(height: kSpacingXLarge),
         
-        // Security Settings Section
-        Text(
-          'Security Settings',
-          style: kTextStyleLarge.copyWith(
-            color: AppColors.textPrimary,
-          ),
-        ),
-        SizedBox(height: kSpacingLarge),
-        
-        _buildSecurityToggle(
-          'Two-Factor Authentication',
-          'Add an extra layer of security to your account',
-          widget.settings.twoFactorAuthEnabled,
-          (value) => _updateTwoFactorAuth(value),
-        ),
-        
-        SizedBox(height: kSpacingXLarge),
-        
         // Recent Security Events
-        Text(
-          'Recent Security Events',
-          style: kTextStyleLarge.copyWith(
-            color: AppColors.textPrimary,
-          ),
-        ),
-        SizedBox(height: kSpacingLarge),
+        // Text(
+        //   'Recent Security Events',
+        //   style: kTextStyleLarge.copyWith(
+        //     color: AppColors.textPrimary,
+        //   ),
+        // ),
+        // SizedBox(height: kSpacingLarge),
         
-        // Fixed height container for security events
-        SizedBox(
-          height: 300,
-          child: ListView.separated(
-            itemCount: widget.settings.recentSecurityEvents.length,
-            separatorBuilder: (context, index) => SizedBox(height: kSpacingMedium),
-            itemBuilder: (context, index) {
-              final event = widget.settings.recentSecurityEvents[index];
-              return _buildSecurityEvent(event);
-            },
-          ),
-        ),
+        // // Fixed height container for security events
+        // SizedBox(
+        //   height: 300,
+        //   child: ListView.separated(
+        //     itemCount: widget.settings.recentSecurityEvents.length,
+        //     separatorBuilder: (context, index) => SizedBox(height: kSpacingMedium),
+        //     itemBuilder: (context, index) {
+        //       final event = widget.settings.recentSecurityEvents[index];
+        //       return _buildSecurityEvent(event);
+        //     },
+        //   ),
+        // ),
         
-        SizedBox(height: kSpacingLarge),
+        // SizedBox(height: kSpacingLarge),
         
         // Save Button
         Row(
@@ -205,126 +187,74 @@ class _SecurityTabState extends State<SecurityTab> {
     );
   }
 
-  Widget _buildSecurityToggle(
-    String title,
-    String description,
-    bool value,
-    Function(bool) onChanged,
-  ) {
-    return Container(
-      padding: EdgeInsets.all(kSpacingLarge),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(kBorderRadius),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: kTextStyleRegular.copyWith(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                SizedBox(height: kSpacingSmall / 2),
-                Text(
-                  description,
-                  style: kTextStyleSmall.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeColor: AppColors.primary,
-          ),
-        ],
-      ),
-    );
-  }
+  // Widget _buildSecurityEvent(SecurityEventModel event) {
+  //   Color statusColor;
+  //   switch (event.type) {
+  //     case SecurityEventType.success:
+  //       statusColor = AppColors.success;
+  //       break;
+  //     case SecurityEventType.warning:
+  //       statusColor = AppColors.warning;
+  //       break;
+  //     case SecurityEventType.error:
+  //       statusColor = AppColors.error;
+  //       break;
+  //     case SecurityEventType.info:
+  //       statusColor = AppColors.info;
+  //       break;
+  //   }
 
-  Widget _buildSecurityEvent(SecurityEventModel event) {
-    Color statusColor;
-    switch (event.type) {
-      case SecurityEventType.success:
-        statusColor = AppColors.success;
-        break;
-      case SecurityEventType.warning:
-        statusColor = AppColors.warning;
-        break;
-      case SecurityEventType.error:
-        statusColor = AppColors.error;
-        break;
-      case SecurityEventType.info:
-        statusColor = AppColors.info;
-        break;
-    }
-
-    return Container(
-      padding: EdgeInsets.all(kSpacingMedium),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(kBorderRadius),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: statusColor,
-              shape: BoxShape.circle,
-            ),
-          ),
-          SizedBox(width: kSpacingMedium),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  event.title,
-                  style: kTextStyleRegular.copyWith(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                if (event.description.isNotEmpty) ...[
-                  SizedBox(height: kSpacingSmall / 2),
-                  Text(
-                    event.description,
-                    style: kTextStyleSmall.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          Text(
-            event.timeAgo,
-            style: kTextStyleSmall.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _updateTwoFactorAuth(bool value) {
-    widget.onSettingsChanged(
-      widget.settings.copyWith(twoFactorAuthEnabled: value),
-    );
-  }
+  //   return Container(
+  //     padding: EdgeInsets.all(kSpacingMedium),
+  //     decoration: BoxDecoration(
+  //       color: AppColors.white,
+  //       borderRadius: BorderRadius.circular(kBorderRadius),
+  //       border: Border.all(color: AppColors.border),
+  //     ),
+  //     child: Row(
+  //       children: [
+  //         Container(
+  //           width: 8,
+  //           height: 8,
+  //           decoration: BoxDecoration(
+  //             color: statusColor,
+  //             shape: BoxShape.circle,
+  //           ),
+  //         ),
+  //         SizedBox(width: kSpacingMedium),
+  //         Expanded(
+  //           child: Column(
+  //             crossAxisAlignment: CrossAxisAlignment.start,
+  //             children: [
+  //               Text(
+  //                 event.title,
+  //                 style: kTextStyleRegular.copyWith(
+  //                   color: AppColors.textPrimary,
+  //                   fontWeight: FontWeight.w500,
+  //                 ),
+  //               ),
+  //               if (event.description.isNotEmpty) ...[
+  //                 SizedBox(height: kSpacingSmall / 2),
+  //                 Text(
+  //                   event.description,
+  //                   style: kTextStyleSmall.copyWith(
+  //                     color: AppColors.textSecondary,
+  //                   ),
+  //                 ),
+  //               ],
+  //             ],
+  //           ),
+  //         ),
+  //         Text(
+  //           event.timeAgo,
+  //           style: kTextStyleSmall.copyWith(
+  //             color: AppColors.textSecondary,
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   void _saveChanges() {
     // Add save logic here
