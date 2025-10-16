@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:http/http.dart' as http;
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants.dart';
 import '../../../core/widgets/admin/vet_profile/vet_basic_info.dart';
@@ -15,6 +16,7 @@ import '../../../core/widgets/admin/vet_profile/edit_service_modal.dart';
 import '../../../core/widgets/admin/vet_profile/add_specialization_modal.dart';
 import '../../../core/services/vet_profile/vet_profile_service.dart';
 import '../../../core/utils/firestore_sample_data_util.dart';
+import '../../../core/utils/file_downloader.dart' as file_downloader;
 
 class VetProfileScreen extends StatefulWidget {
   const VetProfileScreen({super.key});
@@ -400,13 +402,39 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
 
   /// Download Certification Document
   void _downloadCertification(String documentUrl) {
-    // TODO: Implement file download
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Download feature will be implemented'),
-        backgroundColor: AppColors.info,
-      ),
-    );
+    // Only save the file locally (no external URL opening).
+    final uri = Uri.tryParse(documentUrl);
+    if (uri == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Invalid document URL'), backgroundColor: AppColors.error),
+      );
+      return;
+    }
+
+    () async {
+      try {
+        final response = await http.get(uri);
+        if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
+          final fileName = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : 'certificate_${DateTime.now().millisecondsSinceEpoch}';
+          final savedPath = await file_downloader.downloadFile(fileName, response.bodyBytes);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(savedPath != null ? 'Saved to $savedPath' : 'Download started'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to download document'), backgroundColor: AppColors.error),
+          );
+        }
+      } catch (e) {
+        print('Error downloading document: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error downloading document'), backgroundColor: AppColors.error),
+        );
+      }
+    }();
   }
 
   /// Show Delete Certification Confirmation

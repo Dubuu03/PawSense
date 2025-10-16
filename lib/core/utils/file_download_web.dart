@@ -1,7 +1,7 @@
 /// Web implementation for file downloads
 import 'dart:html' as html;
 
-void downloadFile(String fileName, List<int> bytes) {
+Future<String?> downloadFile(String fileName, List<int> bytes) async {
   final blob = html.Blob([bytes]);
   final url = html.Url.createObjectUrlFromBlob(blob);
   final anchor = html.document.createElement('a') as html.AnchorElement
@@ -14,4 +14,7 @@ void downloadFile(String fileName, List<int> bytes) {
 
   html.document.body?.children.remove(anchor);
   html.Url.revokeObjectUrl(url);
+
+  // Browser handles download; return null since no local path
+  return null;
 }

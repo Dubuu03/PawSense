@@ -240,7 +240,9 @@ class _EditServiceModalState extends State<EditServiceModal> {
                   SizedBox(height: kSpacingSmall),
                   TextFormField(
                     controller: _descriptionController,
-                    maxLines: 3,
+                    maxLines: 6,
+                    maxLength: 300,
+                    onChanged: (value) => setState(() {}),
                     decoration: InputDecoration(
                       hintText: 'Describe the service...',
                       border: OutlineInputBorder(
@@ -260,6 +262,9 @@ class _EditServiceModalState extends State<EditServiceModal> {
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return 'Please enter a description';
+                      }
+                      if (value.length > 300) {
+                        return 'Description cannot exceed 300 characters';
                       }
                       return null;
                     },

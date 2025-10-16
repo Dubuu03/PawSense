@@ -2032,7 +2032,12 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                 border: OutlineInputBorder(),
               ),
               maxLines: 2,
-              validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
+              maxLength: 300,
+              validator: (value) {
+                if (value?.isEmpty ?? true) return 'Required';
+                if (value!.length > 300) return 'Description cannot exceed 300 characters';
+                return null;
+              },
             ),
             const SizedBox(height: 12),
             Row(
