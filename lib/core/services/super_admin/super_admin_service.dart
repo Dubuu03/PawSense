@@ -357,14 +357,17 @@ class SuperAdminService {
 
       print('SuperAdminService: Retrieved ${allDocs.length} clinics from Firestore');
 
-      // Batch fetch all user data in one query to avoid N+1 problem
+      // Batch fetch all user data and clinic details in one query to avoid N+1 problem
       final clinicIds = allDocs.map((doc) => doc.id).toList();
       Map<String, Map<String, dynamic>> userDataMap = {};
+      Map<String, Map<String, dynamic>> clinicDetailsMap = {};
       
       if (clinicIds.isNotEmpty) {
         // Firestore 'in' queries are limited to 10 items, so batch them
         for (int i = 0; i < clinicIds.length; i += 10) {
           final batchIds = clinicIds.skip(i).take(10).toList();
+          
+          // Fetch user data
           final userSnapshots = await _firestore
               .collection('users')
               .where(FieldPath.documentId, whereIn: batchIds)
@@ -373,16 +376,31 @@ class SuperAdminService {
           for (var userDoc in userSnapshots.docs) {
             userDataMap[userDoc.id] = userDoc.data();
           }
+          
+          // Fetch clinic details (for logo URL)
+          final clinicDetailsSnapshots = await _firestore
+              .collection('clinicDetails')
+              .where('clinicId', whereIn: batchIds)
+              .get();
+          
+          for (var detailDoc in clinicDetailsSnapshots.docs) {
+            final data = detailDoc.data();
+            final clinicId = data['clinicId'] as String?;
+            if (clinicId != null) {
+              clinicDetailsMap[clinicId] = data;
+            }
+          }
         }
       }
 
-      // Convert all documents to clinic registration objects (now with batched user data)
+      // Convert all documents to clinic registration objects (now with batched user data and clinic details)
       List<ClinicRegistration> allClinics = [];
       for (var clinicDoc in allDocs) {
         final registration = _buildClinicRegistrationFromData(
           clinicDoc.id,
           clinicDoc.data() as Map<String, dynamic>,
           userDataMap[clinicDoc.id] ?? {},
+          clinicDetailsMap[clinicDoc.id] ?? {},
         );
         allClinics.add(registration);
       }
@@ -442,7 +460,18 @@ class SuperAdminService {
         ? Map<String, dynamic>.from(userDoc.data()!) 
         : <String, dynamic>{};
     
-    return _buildClinicRegistrationFromData(clinicId, clinicData, userData);
+    // Get clinic details for logo
+    final clinicDetailsQuery = await _firestore
+        .collection('clinicDetails')
+        .where('clinicId', isEqualTo: clinicId)
+        .limit(1)
+        .get();
+    
+    final clinicDetailsData = clinicDetailsQuery.docs.isNotEmpty
+        ? clinicDetailsQuery.docs.first.data()
+        : <String, dynamic>{};
+    
+    return _buildClinicRegistrationFromData(clinicId, clinicData, userData, clinicDetailsData);
   }
   
   /// Build ClinicRegistration from pre-fetched data (optimized)
@@ -450,6 +479,7 @@ class SuperAdminService {
     String clinicId,
     Map<String, dynamic> clinicData,
     Map<String, dynamic> userData,
+    Map<String, dynamic> clinicDetailsData,
   ) {
     return ClinicRegistration(
       id: clinicId,
@@ -465,6 +495,13 @@ class SuperAdminService {
       approvedDate: _parseDateTime(clinicData['approvedAt']),
       rejectionReason: clinicData['rejectionReason'],
       suspensionReason: clinicData['suspensionReason'],
+      logoUrl: clinicDetailsData['logoUrl'],
+      averageRating: clinicData['averageRating'] != null 
+          ? (clinicData['averageRating'] as num).toDouble() 
+          : null,
+      totalRatings: clinicData['totalRatings'] != null 
+          ? (clinicData['totalRatings'] as num).toInt() 
+          : null,
     );
   }
   

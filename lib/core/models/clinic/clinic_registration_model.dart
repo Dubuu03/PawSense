@@ -42,6 +42,9 @@ class ClinicRegistration {
   final DateTime? approvedDate;
   final String? rejectionReason;
   final String? suspensionReason;
+  final String? logoUrl; // Clinic logo URL
+  final double? averageRating; // Average rating from clinic ratings
+  final int? totalRatings; // Total number of ratings
 
   const ClinicRegistration({
     required this.id,
@@ -57,6 +60,9 @@ class ClinicRegistration {
     this.approvedDate,
     this.rejectionReason,
     this.suspensionReason,
+    this.logoUrl,
+    this.averageRating,
+    this.totalRatings,
   });
 
   /// Convert to map for Firestore storage
@@ -74,6 +80,9 @@ class ClinicRegistration {
     'approvedDate': approvedDate?.toIso8601String(),
     'rejectionReason': rejectionReason,
     'suspensionReason': suspensionReason,
+    'logoUrl': logoUrl,
+    'averageRating': averageRating,
+    'totalRatings': totalRatings,
   };
 
   /// Create from Firestore map
@@ -92,6 +101,9 @@ class ClinicRegistration {
       approvedDate: map['approvedDate'] != null ? DateTime.tryParse(map['approvedDate']) : null,
       rejectionReason: map['rejectionReason'],
       suspensionReason: map['suspensionReason'],
+      logoUrl: map['logoUrl'],
+      averageRating: map['averageRating'] != null ? (map['averageRating'] as num).toDouble() : null,
+      totalRatings: map['totalRatings'] != null ? (map['totalRatings'] as num).toInt() : null,
     );
   }
 
@@ -110,6 +122,9 @@ class ClinicRegistration {
     DateTime? approvedDate,
     String? rejectionReason,
     String? suspensionReason,
+    String? logoUrl,
+    double? averageRating,
+    int? totalRatings,
   }) {
     return ClinicRegistration(
       id: id ?? this.id,
@@ -125,6 +140,9 @@ class ClinicRegistration {
       approvedDate: approvedDate ?? this.approvedDate,
       rejectionReason: rejectionReason ?? this.rejectionReason,
       suspensionReason: suspensionReason ?? this.suspensionReason,
+      logoUrl: logoUrl ?? this.logoUrl,
+      averageRating: averageRating ?? this.averageRating,
+      totalRatings: totalRatings ?? this.totalRatings,
     );
   }
 }

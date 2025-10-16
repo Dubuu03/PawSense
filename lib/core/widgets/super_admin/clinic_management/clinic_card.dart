@@ -42,20 +42,8 @@ class ClinicCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Clinic Icon
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: _getStatusColor().withOpacity(0.1),
-              borderRadius: BorderRadius.circular(kBorderRadius),
-            ),
-            child: Icon(
-              Icons.local_hospital_outlined,
-              color: _getStatusColor(),
-              size: kIconSizeLarge,
-            ),
-          ),
+          // Clinic Logo
+          _buildClinicLogo(),
           SizedBox(width: kSpacingMedium),
           
           // Clinic Info
@@ -64,13 +52,85 @@ class ClinicCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  clinic.clinicName,
-                  style: kTextStyleRegular.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        clinic.clinicName,
+                        style: kTextStyleRegular.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    if (clinic.status == ClinicStatus.approved)
+                      Container(
+                        margin: EdgeInsets.only(left: kSpacingSmall),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.verified,
+                              size: 12,
+                              color: AppColors.success,
+                            ),
+                            SizedBox(width: 2),
+                            Text(
+                              'Verified',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.success,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
                 ),
+                SizedBox(height: kSpacingSmall),
+                // Rating Display
+                if (clinic.totalRatings != null && clinic.totalRatings! > 0)
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.star,
+                        size: 16,
+                        color: AppColors.warning,
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        '${clinic.averageRating?.toStringAsFixed(1) ?? '0.0'}',
+                        style: kTextStyleSmall.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        '(${clinic.totalRatings} ${clinic.totalRatings == 1 ? 'review' : 'reviews'})',
+                        style: kTextStyleSmall.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  Text(
+                    'No reviews yet',
+                    style: kTextStyleSmall.copyWith(
+                      color: AppColors.textTertiary,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
                 SizedBox(height: kSpacingSmall),
                 Text(
                   clinic.email,
@@ -240,6 +300,67 @@ class ClinicCard extends StatelessWidget {
 
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
+  }
+
+  Widget _buildClinicLogo() {
+    // Check if clinic has a logo URL
+    if (clinic.logoUrl != null && clinic.logoUrl!.isNotEmpty) {
+      return Container(
+        width: 60,
+        height: 60,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: AppColors.white,
+          border: Border.all(
+            color: AppColors.border,
+            width: 2,
+          ),
+        ),
+        child: ClipOval(
+          child: Image.network(
+            clinic.logoUrl!,
+            width: 60,
+            height: 60,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) {
+              return _buildDefaultLogo();
+            },
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return Center(
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    }
+
+    // Default logo if no URL
+    return _buildDefaultLogo();
+  }
+
+  Widget _buildDefaultLogo() {
+    return Container(
+      width: 60,
+      height: 60,
+      decoration: BoxDecoration(
+        color: _getStatusColor().withOpacity(0.1),
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: _getStatusColor().withOpacity(0.3),
+          width: 2,
+        ),
+      ),
+      child: Icon(
+        Icons.local_hospital,
+        size: 30,
+        color: _getStatusColor(),
+      ),
+    );
   }
 
   void _showClinicDetailsModal(BuildContext context) {
