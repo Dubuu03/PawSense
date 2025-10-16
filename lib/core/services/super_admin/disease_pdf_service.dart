@@ -25,7 +25,8 @@ class DiseasePdfService {
     
     // Separate by detection method
     final aiDiseases = diseases.where((d) => d.detectionMethod.toLowerCase() == 'ai').toList();
-    final manualDiseases = diseases.where((d) => d.detectionMethod.toLowerCase() == 'manual').toList();
+    final infoDiseases = diseases.where((d) => d.detectionMethod.toLowerCase() == 'info').toList();
+    final bothDiseases = diseases.where((d) => d.detectionMethod.toLowerCase() == 'both').toList();
     
     List<pw.Widget> allWidgets = [];
     
@@ -43,10 +44,17 @@ class DiseasePdfService {
       allWidgets.add(pw.SizedBox(height: 20));
     }
     
-    if (manualDiseases.isNotEmpty) {
-      allWidgets.add(_buildSectionHeader('Manual Detection (${manualDiseases.length})', PdfColors.green700));
+    if (infoDiseases.isNotEmpty) {
+      allWidgets.add(_buildSectionHeader('Info Only (${infoDiseases.length})', PdfColors.green700));
       allWidgets.add(pw.SizedBox(height: 10));
-      allWidgets.addAll(_buildDiseasesTableChunked(manualDiseases));
+      allWidgets.addAll(_buildDiseasesTableChunked(infoDiseases));
+      allWidgets.add(pw.SizedBox(height: 20));
+    }
+    
+    if (bothDiseases.isNotEmpty) {
+      allWidgets.add(_buildSectionHeader('Both Detection Methods (${bothDiseases.length})', PdfColors.purple700));
+      allWidgets.add(pw.SizedBox(height: 10));
+      allWidgets.addAll(_buildDiseasesTableChunked(bothDiseases));
     }
     
     pdf.addPage(
@@ -130,7 +138,7 @@ class DiseasePdfService {
             children: [
               _buildStatBox('Total', stats['total'].toString(), PdfColors.blue700),
               _buildStatBox('AI Detection', stats['aiDetection'].toString(), PdfColors.blue700),
-              _buildStatBox('Manual', stats['manual'].toString(), PdfColors.green700),
+              _buildStatBox('Info Only', stats['infoOnly'].toString(), PdfColors.green700),
               _buildStatBox('Mild', stats['mild'].toString(), PdfColors.green700),
               _buildStatBox('Moderate', stats['moderate'].toString(), PdfColors.orange),
               _buildStatBox('Severe', stats['severe'].toString(), PdfColors.red700),
@@ -281,7 +289,7 @@ class DiseasePdfService {
     return {
       'total': diseases.length,
       'aiDetection': diseases.where((d) => d.detectionMethod.toLowerCase() == 'ai').length,
-      'manual': diseases.where((d) => d.detectionMethod.toLowerCase() == 'vet_guided').length,
+      'infoOnly': diseases.where((d) => d.detectionMethod.toLowerCase() == 'info').length,
       'mild': diseases.where((d) => d.severity.toLowerCase() == 'low').length,
       'moderate': diseases.where((d) => d.severity.toLowerCase() == 'moderate').length,
       'severe': diseases.where((d) => d.severity.toLowerCase() == 'high').length,
