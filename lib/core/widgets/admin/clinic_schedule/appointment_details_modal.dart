@@ -74,7 +74,7 @@ class _AppointmentDetailsModalState extends State<AppointmentDetailsModal> {
         });
       }
     } catch (e) {
-      print('Error loading assessment data: $e');
+      debugPrint('Error loading assessment data: $e');
       if (mounted) {
         setState(() => _isLoadingAssessment = false);
       }
@@ -82,10 +82,13 @@ class _AppointmentDetailsModalState extends State<AppointmentDetailsModal> {
   }
 
   Future<void> _loadPreviousAppointmentData() async {
+  // Check follow-up status and previous appointment id
+    
     // Only load if this is a follow-up appointment
     if (widget.appointment.isFollowUp != true || 
         widget.appointment.previousAppointmentId == null ||
         widget.appointment.previousAppointmentId!.isEmpty) {
+      // not a follow-up or missing previousAppointmentId
       return;
     }
 
@@ -96,16 +99,70 @@ class _AppointmentDetailsModalState extends State<AppointmentDetailsModal> {
           .collection('appointments')
           .doc(widget.appointment.previousAppointmentId)
           .get();
-      
       if (previousAppointmentDoc.exists && mounted) {
-        final data = previousAppointmentDoc.data()!;
+        final rawData = previousAppointmentDoc.data()!;
+        // Normalize legacy field names -> expected model keys
+        final normalized = Map<String, dynamic>.from(rawData);
+
+        // appointmentDate (Timestamp) -> date (YYYY-MM-DD)
+        if ((normalized['date'] == null || normalized['date'].toString().isEmpty) && normalized['appointmentDate'] != null) {
+          try {
+            final ts = normalized['appointmentDate'];
+            if (ts is Timestamp) {
+              final d = ts.toDate();
+              normalized['date'] = '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+            } else if (ts is String) {
+              normalized['date'] = ts;
+            }
+          } catch (e) {
+            debugPrint('Failed to normalize appointmentDate: $e');
+          }
+        }
+
+        // appointmentTime -> time
+        if ((normalized['time'] == null || normalized['time'].toString().isEmpty) && normalized['appointmentTime'] != null) {
+          normalized['time'] = normalized['appointmentTime'].toString();
+        }
+
+        // serviceName -> diseaseReason (legacy mapping)
+        if ((normalized['diseaseReason'] == null || normalized['diseaseReason'].toString().isEmpty) && normalized['serviceName'] != null) {
+          normalized['diseaseReason'] = normalized['serviceName'].toString();
+        }
+
+        // petId / userId legacy fields: ensure minimal pet/owner objects exist for model
+        if (normalized['pet'] == null && normalized['petId'] != null) {
+          normalized['pet'] = {
+            'id': normalized['petId'],
+            'name': normalized['petName'] ?? '',
+            'type': normalized['petType'] ?? '',
+            'emoji': normalized['petEmoji'] ?? '🐕',
+            'breed': normalized['petBreed'],
+            'age': normalized['petAge'],
+            'imageUrl': normalized['petImageUrl'],
+          };
+        }
+
+        if (normalized['owner'] == null && normalized['userId'] != null) {
+          normalized['owner'] = {
+            'id': normalized['userId'],
+            'name': normalized['userName'] ?? '',
+            'phone': normalized['userPhone'] ?? '',
+            'email': normalized['userEmail'],
+          };
+        }
+
         setState(() {
-          _previousAppointment = Appointment.fromFirestore(data, previousAppointmentDoc.id);
+          _previousAppointment = Appointment.fromFirestore(normalized, previousAppointmentDoc.id);
           _isLoadingPreviousAppointment = false;
         });
+      } else if (!previousAppointmentDoc.exists) {
+        // previous appointment doc not found
+        if (mounted) {
+          setState(() => _isLoadingPreviousAppointment = false);
+        }
       }
     } catch (e) {
-      print('Error loading previous appointment data: $e');
+      // error loading previous appointment data
       if (mounted) {
         setState(() => _isLoadingPreviousAppointment = false);
       }
@@ -518,7 +575,7 @@ class _AppointmentDetailsModalState extends State<AppointmentDetailsModal> {
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: const Color(0xFF3B82F6), width: 1.5),
                 ),
-                child: Column(
+               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
@@ -555,91 +612,87 @@ class _AppointmentDetailsModalState extends State<AppointmentDetailsModal> {
                         ),
                       )
                     else if (_previousAppointment != null) ...[
-                      // Clinic evaluation (diagnosis, treatment, prescription)
-                      if (_previousAppointment!.diagnosis != null || 
-                          _previousAppointment!.treatment != null || 
-                          _previousAppointment!.prescription != null) ...[
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.3)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  const Icon(Icons.assignment, size: 14, color: Color(0xFF3B82F6)),
-                                  const SizedBox(width: 6),
-                                  const Text(
-                                    'Previous Evaluation',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF3B82F6),
-                                    ),
+                      // Previous Visit Details
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.history, size: 16, color: Color(0xFF3B82F6)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Previous Visit Details:',
+                                  style: TextStyle(
+                                    color: Color(0xFF3B82F6),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
                                   ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              
-                              // Diagnosis
-                              if (_previousAppointment!.diagnosis != null && 
-                                  _previousAppointment!.diagnosis!.isNotEmpty) ...[
-                                _buildEvaluationRow('Diagnosis', _previousAppointment!.diagnosis!),
-                                const SizedBox(height: 6),
+                                ),
+                                const SizedBox(height: 8),
+                                _buildPreviousAppointmentDetail('Date', _formatDate(_previousAppointment!.date)),
+                                const SizedBox(height: 4),
+                                _buildPreviousAppointmentDetail('Time', _previousAppointment!.time),
+                                const SizedBox(height: 4),
+                                _buildPreviousAppointmentDetail('Reason', _previousAppointment!.diseaseReason),
                               ],
-                              
-                              // Treatment
-                              if (_previousAppointment!.treatment != null && 
-                                  _previousAppointment!.treatment!.isNotEmpty) ...[
-                                _buildEvaluationRow('Treatment', _previousAppointment!.treatment!),
-                                const SizedBox(height: 6),
-                              ],
-                              
-                              // Prescription
-                              if (_previousAppointment!.prescription != null && 
-                                  _previousAppointment!.prescription!.isNotEmpty) ...[
-                                _buildEvaluationRow('Prescription', _previousAppointment!.prescription!),
-                              ],
-                            ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                       
-                      // Clinic notes from previous appointment
-                      if (_previousAppointment!.clinicNotes != null && 
-                          _previousAppointment!.clinicNotes!.isNotEmpty) ...[
+                      // Clinic Evaluation Section
+                      if (_previousAppointment!.diagnosis != null && _previousAppointment!.diagnosis!.isNotEmpty ||
+                          _previousAppointment!.treatment != null && _previousAppointment!.treatment!.isNotEmpty ||
+                          _previousAppointment!.prescription != null && _previousAppointment!.prescription!.isNotEmpty ||
+                          _previousAppointment!.clinicNotes != null && _previousAppointment!.clinicNotes!.isNotEmpty) ...[
                         const SizedBox(height: 12),
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(Icons.notes, size: 14, color: Color(0xFF3B82F6)),
+                            const Icon(Icons.medical_services, size: 16, color: Color(0xFF3B82F6)),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   const Text(
-                                    'Previous Notes',
+                                    'Clinic Evaluation:',
                                     style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
                                       color: Color(0xFF3B82F6),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    _previousAppointment!.clinicNotes!,
-                                    style: TextStyle(
                                       fontSize: 13,
-                                      color: Colors.grey[800],
-                                      fontStyle: FontStyle.italic,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
+                                  const SizedBox(height: 8),
+                                  
+                                  // Diagnosis
+                                  if (_previousAppointment!.diagnosis != null && 
+                                      _previousAppointment!.diagnosis!.isNotEmpty) ...[
+                                    _buildPreviousAppointmentDetail('Diagnosis', _previousAppointment!.diagnosis!),
+                                    const SizedBox(height: 4),
+                                  ],
+                                  
+                                  // Treatment
+                                  if (_previousAppointment!.treatment != null && 
+                                      _previousAppointment!.treatment!.isNotEmpty) ...[
+                                    _buildPreviousAppointmentDetail('Treatment', _previousAppointment!.treatment!),
+                                    const SizedBox(height: 4),
+                                  ],
+                                  
+                                  // Prescription
+                                  if (_previousAppointment!.prescription != null && 
+                                      _previousAppointment!.prescription!.isNotEmpty) ...[
+                                    _buildPreviousAppointmentDetail('Prescription', _previousAppointment!.prescription!),
+                                    const SizedBox(height: 4),
+                                  ],
+                                  
+                                  // Clinic Notes
+                                  if (_previousAppointment!.clinicNotes != null && 
+                                      _previousAppointment!.clinicNotes!.isNotEmpty) ...[
+                                    _buildPreviousAppointmentDetail('Clinic Notes', _previousAppointment!.clinicNotes!),
+                                  ],
                                 ],
                               ),
                             ),
@@ -807,5 +860,41 @@ class _AppointmentDetailsModalState extends State<AppointmentDetailsModal> {
         ),
       ],
     );
+  }
+
+  Widget _buildPreviousAppointmentDetail(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$label: ',
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF3B82F6),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Colors.black87,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _formatDate(String dateString) {
+    try {
+      final date = DateTime.parse(dateString);
+      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return '${months[date.month - 1]} ${date.day}, ${date.year}';
+    } catch (e) {
+      return dateString;
+    }
   }
 }

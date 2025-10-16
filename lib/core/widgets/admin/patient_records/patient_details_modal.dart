@@ -30,6 +30,10 @@ class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModa
   AppointmentModels.Appointment? _selectedAppointment;
   Map<String, dynamic>? _assessmentData;
   bool _isLoadingAssessment = false;
+  
+  // Previous appointment data for follow-ups
+  AppointmentModels.Appointment? _previousAppointment;
+  bool _isLoadingPreviousAppointment = false;
 
   @override
   void initState() {
@@ -67,12 +71,108 @@ class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModa
       setState(() {
         _showingAppointmentDetails = true;
         _selectedAppointment = appointment;
+        _previousAppointment = null; // Reset previous appointment
       });
       
       // Load assessment data if available
       if (appointment.assessmentResultId != null && 
           appointment.assessmentResultId!.isNotEmpty) {
         _loadAssessmentData(appointment.assessmentResultId!);
+      }
+      
+      // Load previous appointment if this is a follow-up
+      if (appointment.isFollowUp == true && appointment.previousAppointmentId != null) {
+        _loadPreviousAppointment(appointment.previousAppointmentId!);
+      }
+    }
+  }
+
+  Future<void> _loadPreviousAppointment(String previousAppointmentId) async {
+    setState(() => _isLoadingPreviousAppointment = true);
+
+    try {
+      final appointmentDoc = await FirebaseFirestore.instance
+          .collection('appointments')
+          .doc(previousAppointmentId)
+          .get();
+      
+      if (appointmentDoc.exists && mounted) {
+        final data = appointmentDoc.data()!;
+        
+        // Convert to Appointment model (handle both formats)
+        AppointmentModels.Appointment? previousAppt;
+        
+        if (data['pet'] != null && data['pet'] is Map) {
+          // New format with embedded data
+          final petMap = data['pet'] as Map<String, dynamic>;
+          final ownerMap = data['owner'] as Map<String, dynamic>;
+          
+          DateTime appointmentDate = DateTime.now();
+          if (data['date'] != null) {
+            try {
+              final dateParts = (data['date'] as String).split('-');
+              appointmentDate = DateTime(
+                int.parse(dateParts[0]),
+                int.parse(dateParts[1]),
+                int.parse(dateParts[2]),
+              );
+            } catch (e) {
+              print('⚠️ Error parsing previous appointment date: ${data['date']}');
+            }
+          }
+          
+          final statusString = data['status'] as String?;
+          AppointmentModels.AppointmentStatus status = AppointmentModels.AppointmentStatus.pending;
+          if (statusString != null) {
+            switch (statusString) {
+              case 'confirmed':
+                status = AppointmentModels.AppointmentStatus.confirmed;
+                break;
+              case 'completed':
+                status = AppointmentModels.AppointmentStatus.completed;
+                break;
+              case 'cancelled':
+                status = AppointmentModels.AppointmentStatus.cancelled;
+                break;
+            }
+          }
+          
+          previousAppt = AppointmentModels.Appointment(
+            id: previousAppointmentId,
+            clinicId: data['clinicId'] ?? '',
+            date: data['date'] ?? '',
+            time: data['time'] ?? '',
+            timeSlot: data['timeSlot'] ?? '',
+            pet: AppointmentModels.Pet.fromMap(petMap),
+            diseaseReason: data['diseaseReason'] ?? '',
+            owner: AppointmentModels.Owner.fromMap(ownerMap),
+            status: status,
+            createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+            updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+            notes: data['notes'],
+            diagnosis: data['diagnosis'],
+            treatment: data['treatment'],
+            prescription: data['prescription'],
+            clinicNotes: data['clinicNotes'],
+            completedAt: (data['completedAt'] as Timestamp?)?.toDate(),
+          );
+        } else {
+          // Old format - convert from booking
+          final booking = AppointmentBooking.fromMap(data, previousAppointmentId);
+          previousAppt = await _convertToAppointmentModel(booking);
+        }
+        
+        if (mounted && previousAppt != null) {
+          setState(() {
+            _previousAppointment = previousAppt;
+            _isLoadingPreviousAppointment = false;
+          });
+        }
+      }
+    } catch (e) {
+      print('❌ Error loading previous appointment: $e');
+      if (mounted) {
+        setState(() => _isLoadingPreviousAppointment = false);
       }
     }
   }
@@ -126,6 +226,7 @@ class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModa
       _showingAppointmentDetails = false;
       _selectedAppointment = null;
       _assessmentData = null;
+      _previousAppointment = null;
     });
   }
 
@@ -611,6 +712,9 @@ class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModa
     // Debug: Check if isFollowUp is being loaded
     print('📋 Appointment ${appointment.id}: isFollowUp = ${appointment.isFollowUp}, status = ${appointment.status}');
     
+    final bool isFollowUp = appointment.isFollowUp == true;
+    final Color followUpColor = const Color(0xFF3B82F6);
+    
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       child: Material(
@@ -630,6 +734,46 @@ class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModa
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Follow-up header banner (if applicable)
+            if (isFollowUp) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: followUpColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: followUpColor.withOpacity(0.3), width: 1),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.sync, size: 16, color: followUpColor),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Follow-up Appointment',
+                      style: TextStyle(
+                        color: followUpColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (appointment.previousAppointmentId != null) ...[
+                      const SizedBox(width: 6),
+                      Icon(Icons.arrow_back, size: 12, color: followUpColor.withOpacity(0.6)),
+                      const SizedBox(width: 2),
+                      Text(
+                        'Previous Visit',
+                        style: TextStyle(
+                          color: followUpColor.withOpacity(0.7),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
             Row(
               children: [
                 Icon(
@@ -646,33 +790,6 @@ class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModa
                     color: AppColors.textPrimary,
                   ),
                 ),
-                // Follow-up indicator
-                if (appointment.isFollowUp != null && appointment.isFollowUp == true) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF3B82F6).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFF3B82F6), width: 1),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Icon(Icons.sync, size: 12, color: Color(0xFF3B82F6)),
-                        SizedBox(width: 4),
-                        Text(
-                          'Follow-up',
-                          style: TextStyle(
-                            color: Color(0xFF3B82F6),
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
                 const Spacer(),
                 _buildAppointmentStatusBadge(appointment.status),
               ],
@@ -984,7 +1101,7 @@ class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModa
             const SizedBox(height: 24),
           ],
 
-          // Follow-up Indicator (if follow-up appointment)
+          // Follow-up Indicator with Previous Appointment Details
           if (appointment.isFollowUp == true) ...[
             Container(
               padding: const EdgeInsets.all(16),
@@ -993,18 +1110,121 @@ class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModa
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: const Color(0xFF3B82F6), width: 1.5),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.sync, size: 18, color: Color(0xFF3B82F6)),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'This is a Follow-up Appointment',
-                    style: TextStyle(
-                      color: Color(0xFF3B82F6),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  Row(
+                    children: [
+                      const Icon(Icons.sync, size: 18, color: Color(0xFF3B82F6)),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'This is a Follow-up Appointment',
+                        style: TextStyle(
+                          color: Color(0xFF3B82F6),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
+                  
+                  // Previous Appointment Details
+                  if (_isLoadingPreviousAppointment) ...[
+                    const SizedBox(height: 12),
+                    const Center(
+                      child: SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
+                        ),
+                      ),
+                    ),
+                  ] else if (_previousAppointment != null) ...[
+                    const SizedBox(height: 12),
+                    const Divider(color: Color(0xFF3B82F6)),
+                    const SizedBox(height: 12),
+                    
+                    // Previous Visit Details Section
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.history, size: 16, color: Color(0xFF3B82F6)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Previous Visit Details:',
+                                style: TextStyle(
+                                  color: Color(0xFF3B82F6),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              _buildPreviousAppointmentDetail('Date', _formatDate(DateTime.parse(_previousAppointment!.date))),
+                              const SizedBox(height: 4),
+                              _buildPreviousAppointmentDetail('Time', _previousAppointment!.time),
+                              const SizedBox(height: 4),
+                              _buildPreviousAppointmentDetail('Reason', _previousAppointment!.diseaseReason),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    // Clinic Evaluation Section
+                    if (_previousAppointment!.diagnosis != null && _previousAppointment!.diagnosis!.isNotEmpty ||
+                        _previousAppointment!.treatment != null && _previousAppointment!.treatment!.isNotEmpty ||
+                        _previousAppointment!.prescription != null && _previousAppointment!.prescription!.isNotEmpty ||
+                        _previousAppointment!.clinicNotes != null && _previousAppointment!.clinicNotes!.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.medical_services, size: 16, color: Color(0xFF3B82F6)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Clinic Evaluation:',
+                                  style: TextStyle(
+                                    color: Color(0xFF3B82F6),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                if (_previousAppointment!.diagnosis != null && _previousAppointment!.diagnosis!.isNotEmpty) ...[
+                                  _buildPreviousAppointmentDetail('Diagnosis', _previousAppointment!.diagnosis!),
+                                  const SizedBox(height: 4),
+                                ],
+                                
+                                if (_previousAppointment!.treatment != null && _previousAppointment!.treatment!.isNotEmpty) ...[
+                                  _buildPreviousAppointmentDetail('Treatment', _previousAppointment!.treatment!),
+                                  const SizedBox(height: 4),
+                                ],
+                                
+                                if (_previousAppointment!.prescription != null && _previousAppointment!.prescription!.isNotEmpty) ...[
+                                  _buildPreviousAppointmentDetail('Prescription', _previousAppointment!.prescription!),
+                                  const SizedBox(height: 4),
+                                ],
+                                
+                                if (_previousAppointment!.clinicNotes != null && _previousAppointment!.clinicNotes!.isNotEmpty) ...[
+                                  _buildPreviousAppointmentDetail('Clinic Notes', _previousAppointment!.clinicNotes!),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
                 ],
               ),
             ),
@@ -1066,32 +1286,39 @@ class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModa
                   ),
                 ),
               ),
-              
-              // Complete Appointment Button (below PDF download)
-              if (appointment.status == AppointmentModels.AppointmentStatus.confirmed) ...[
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () async {
-                      // Convert back to AppointmentBooking to use existing method
-                      final booking = _appointmentHistory.firstWhere(
-                        (booking) => booking.id == appointment.id,
-                        orElse: () => throw Exception('Booking not found'),
-                      );
-                      await _completeAppointment(booking);
-                    },
-                    icon: const Icon(Icons.check_circle, size: 18),
-                    label: const Text('Complete Appointment'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.success,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                  ),
-                ),
-              ],
             ],
+          
+          // Complete Appointment Button (show for confirmed appointments, regardless of assessment data)
+          if (appointment.status == AppointmentModels.AppointmentStatus.confirmed) ...[
+            // Add spacing if assessment data was shown
+            if (_assessmentData != null) const SizedBox(height: 12),
+            // Add divider and spacing if no assessment data
+            if (_assessmentData == null && !_isLoadingAssessment) ...[
+              const SizedBox(height: 16),
+              const Divider(),
+              const SizedBox(height: 16),
+            ],
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  // Convert back to AppointmentBooking to use existing method
+                  final booking = _appointmentHistory.firstWhere(
+                    (booking) => booking.id == appointment.id,
+                    orElse: () => throw Exception('Booking not found'),
+                  );
+                  await _completeAppointment(booking);
+                },
+                icon: const Icon(Icons.check_circle, size: 18),
+                label: const Text('Complete Appointment'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.success,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+          ],
 
           const SizedBox(height: 24),
                 ],
@@ -1393,5 +1620,30 @@ class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModa
     final hour12 = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
     
     return '$hour12:${minute.toString().padLeft(2, '0')} $period';
+  }
+
+  Widget _buildPreviousAppointmentDetail(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$label: ',
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF3B82F6),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Colors.black87,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }

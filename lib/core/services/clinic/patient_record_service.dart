@@ -528,29 +528,57 @@ class PatientRecordService {
   }
 
   /// Get appointment history for a patient
+  /// Fetches both legacy appointments (with petId field) and follow-up appointments (with embedded pet.id)
   static Future<List<AppointmentBooking>> getPatientHistory({
     required String clinicId,
     required String petId,
   }) async {
     try {
-      // Query without orderBy to avoid needing complex index
-      final query = await _firestore
+      print('🔍 PatientHistory: Fetching appointments for petId: $petId, clinicId: $clinicId');
+      
+      // Query 1: Get legacy appointments with petId field
+      final legacyQuery = await _firestore
           .collection('appointments')
           .where('clinicId', isEqualTo: clinicId)
           .where('petId', isEqualTo: petId)
           .get();
 
-      print('📋 PatientHistory: Found ${query.docs.length} appointments for petId: $petId, clinicId: $clinicId');
+      print('📋 Found ${legacyQuery.docs.length} legacy appointments (with petId field)');
       
-      // Convert to list and sort in memory
-      final appointments = query.docs.map((doc) {
+      // Query 2: Get all appointments for this clinic to find follow-ups
+      // We can't query by pet.id directly, so we fetch all clinic appointments and filter
+      final allClinicQuery = await _firestore
+          .collection('appointments')
+          .where('clinicId', isEqualTo: clinicId)
+          .where('isFollowUp', isEqualTo: true)
+          .get();
+
+      print('📋 Found ${allClinicQuery.docs.length} follow-up appointments for clinic');
+      
+      // Filter follow-ups by pet.id
+      final followUpDocs = allClinicQuery.docs.where((doc) {
+        final data = doc.data();
+        if (data['pet'] != null && data['pet'] is Map) {
+          final petMap = data['pet'] as Map<String, dynamic>;
+          return petMap['id'] == petId;
+        }
+        return false;
+      }).toList();
+      
+      print('📋 Filtered to ${followUpDocs.length} follow-up appointments for this pet');
+      
+      // Combine both queries
+      final allDocs = [...legacyQuery.docs, ...followUpDocs];
+      
+      // Convert to list
+      final appointments = allDocs.map((doc) {
         final data = doc.data();
         print('  └─ Appointment ${doc.id}: isFollowUp = ${data['isFollowUp']}, status = ${data['status']}, diseaseReason = ${data['diseaseReason']}');
         
         // Check if this is the new Appointment format (has 'pet' as map) or old AppointmentBooking format (has 'petId' as string)
         if (data['pet'] != null && data['pet'] is Map) {
           // New Appointment model format - convert to AppointmentBooking format
-          print('    📄 Converting from Appointment model format');
+          print('    📄 Converting from Appointment model format (FOLLOW-UP)');
           final petMap = data['pet'] as Map<String, dynamic>;
           final ownerMap = data['owner'] as Map<String, dynamic>?;
           
@@ -583,7 +611,7 @@ class PatientRecordService {
               (e) => e.name == data['status'],
               orElse: () => AppointmentStatus.pending,
             ),
-            type: AppointmentType.general,
+            type: data['isFollowUp'] == true ? AppointmentType.followUp : AppointmentType.general,
             createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
             updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
             cancelReason: data['cancelReason'],
@@ -606,7 +634,7 @@ class PatientRecordService {
       // Sort by appointment date descending
       appointments.sort((a, b) => b.appointmentDate.compareTo(a.appointmentDate));
 
-      print('📊 Converted ${appointments.length} appointments, follow-ups: ${appointments.where((a) => a.isFollowUp == true).length}');
+      print('✅ Total appointments: ${appointments.length}, follow-ups: ${appointments.where((a) => a.isFollowUp == true).length}');
 
       return appointments;
     } catch (e) {
