@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pawsense/core/utils/file_downloader.dart' as file_downloader;
@@ -15,6 +15,7 @@ import '../../../core/services/super_admin/super_admin_service.dart';
 import '../../../core/services/super_admin/user_cache_service.dart';
 import '../../../core/services/super_admin/screen_state_service.dart';
 import '../../../core/widgets/super_admin/user_management/add_user_modal.dart';
+import '../../../core/services/super_admin/user_pdf_service.dart';
 
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({Key? key}) : super(key: key ?? const PageStorageKey('user_management'));
@@ -563,7 +564,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> with Automa
                 ),
               ),
               SizedBox(width: 16),
-              Text('Preparing export...'),
+              Text('Generating PDF report...'),
             ],
           ),
           duration: Duration(seconds: 30),
@@ -610,89 +611,46 @@ class _UserManagementScreenState extends State<UserManagementScreen> with Automa
         return;
       }
 
-      // Generate CSV content
-      final csvContent = _generateCSV(allFilteredUsers);
+      // Get current admin name
+      String? adminName = 'Super Admin';
 
-      // Create blob and download using platform-agnostic downloader
-      final bytes = utf8.encode(csvContent);
-      final fileName = 'pawsense_users_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.csv';
-      
-      file_downloader.downloadFile(fileName, bytes);
+      // Generate PDF
+      final Uint8List pdfBytes = await UserPdfService.generateUserReport(
+        usersWithStatus: allFilteredUsers,
+        roleFilter: _selectedRole != 'All Roles' ? _selectedRole : null,
+        statusFilter: _selectedStatus != 'All Status' ? _selectedStatus : null,
+        searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
+        generatedBy: adminName,
+      );
+
+      // Download PDF
+      final fileName = 'user_report_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf';
+      file_downloader.downloadFile(fileName, pdfBytes);
 
       if (mounted) {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Exported ${allFilteredUsers.length} users to CSV'),
+            content: Text('✅ PDF report generated with ${allFilteredUsers.length} users'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 3),
           ),
         );
       }
 
-      print('📊 Exported ${allFilteredUsers.length} users to CSV');
+      print('📊 Exported ${allFilteredUsers.length} users to PDF');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error exporting CSV: $e'),
+            content: Text('Error generating PDF: $e'),
             backgroundColor: Colors.red,
           ),
         );
       }
-      print('❌ Error exporting CSV: $e');
+      print('❌ Error generating PDF: $e');
     }
-  }
-
-  String _generateCSV(List<Map<String, dynamic>> usersWithStatus) {
-    final buffer = StringBuffer();
-    
-    // CSV Headers
-    buffer.writeln(
-      'UID,Username,First Name,Last Name,Email,Contact Number,Address,Role,'
-      'Status,Suspension Reason,Suspended At,Created At,Updated At'
-    );
-
-    // CSV Rows
-    for (final userMap in usersWithStatus) {
-      final user = userMap['user'] as UserModel;
-      final isActive = userMap['isActive'] as bool;
-      final suspensionReason = userMap['suspensionReason'] as String?;
-      
-      buffer.writeln(
-        '${_escapeCsv(user.uid)},'
-        '${_escapeCsv(user.username)},'
-        '${_escapeCsv(user.firstName ?? '')},'
-        '${_escapeCsv(user.lastName ?? '')},'
-        '${_escapeCsv(user.email)},'
-        '${_escapeCsv(user.contactNumber ?? '')},'
-        '${_escapeCsv(user.address ?? '')},'
-        '${_escapeCsv(_formatRole(user.role))},'
-        '${isActive ? 'Active' : 'Suspended'},'
-        '${_escapeCsv(suspensionReason ?? '')},'
-        '${user.suspendedAt != null ? DateFormat('yyyy-MM-dd HH:mm:ss').format(user.suspendedAt!) : ''},'
-        '${DateFormat('yyyy-MM-dd HH:mm:ss').format(user.createdAt)},'
-        '${user.updatedAt != null ? DateFormat('yyyy-MM-dd HH:mm:ss').format(user.updatedAt!) : ''}'
-      );
-    }
-
-    return buffer.toString();
-  }
-
-  String _formatRole(String role) {
-    // Convert role format: 'pet_owner' -> 'Pet Owner'
-    return role.split('_').map((word) => 
-      word[0].toUpperCase() + word.substring(1)
-    ).join(' ');
-  }
-
-  String _escapeCsv(String value) {
-    // Escape double quotes and wrap in quotes if contains comma, newline, or quotes
-    if (value.contains(',') || value.contains('\n') || value.contains('"')) {
-      return '"${value.replaceAll('"', '""')}"';
-    }
-    return value;
   }
 
   @override

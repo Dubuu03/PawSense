@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
@@ -15,6 +15,7 @@ import 'package:pawsense/core/widgets/super_admin/breed_management/breed_statist
 import 'package:pawsense/core/widgets/super_admin/breed_management/breed_search_and_filter.dart';
 import 'package:pawsense/core/widgets/super_admin/breed_management/breed_card.dart';
 import 'package:pawsense/core/widgets/super_admin/breed_management/add_edit_breed_modal.dart';
+import '../../../core/services/super_admin/breed_pdf_service.dart';
 
 class BreedManagementScreen extends StatefulWidget {
   const BreedManagementScreen({Key? key}) : super(key: key ?? const PageStorageKey('breed_management'));
@@ -406,7 +407,7 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> with Auto
                 ),
               ),
               SizedBox(width: 16),
-              Text('Preparing export...'),
+              Text('Generating PDF report...'),
             ],
           ),
           duration: Duration(seconds: 30),
@@ -441,71 +442,46 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> with Auto
         return;
       }
 
-      // Generate CSV content
-      final csvContent = _generateCSV(allFilteredBreeds);
+      // Get current admin name
+      String? adminName = 'Super Admin';
 
-      // Create blob and download using platform-agnostic downloader
-      final bytes = utf8.encode(csvContent);
-      final fileName = 'pawsense_breeds_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.csv';
-      
-      file_downloader.downloadFile(fileName, bytes);
+      // Generate PDF
+      final Uint8List pdfBytes = await BreedPdfService.generateBreedReport(
+        breeds: allFilteredBreeds,
+        speciesFilter: _selectedSpecies != BreedSpecies.all ? _selectedSpecies.displayName : null,
+        statusFilter: _selectedStatus != BreedStatus.all ? _selectedStatus.displayName : null,
+        searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
+        generatedBy: adminName,
+      );
+
+      // Download PDF
+      final fileName = 'breed_report_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf';
+      file_downloader.downloadFile(fileName, pdfBytes);
 
       if (mounted) {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Exported ${allFilteredBreeds.length} breeds to CSV'),
+            content: Text('✅ PDF report generated with ${allFilteredBreeds.length} breeds'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 3),
           ),
         );
       }
 
-      print('📊 Exported ${allFilteredBreeds.length} breeds to CSV');
+      print('📊 Exported ${allFilteredBreeds.length} breeds to PDF');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error exporting CSV: $e'),
+            content: Text('Error generating PDF: $e'),
             backgroundColor: Colors.red,
           ),
         );
       }
-      print('❌ Error exporting CSV: $e');
+      print('❌ Error generating PDF: $e');
     }
-  }
-
-  String _generateCSV(List<PetBreed> breeds) {
-    final buffer = StringBuffer();
-    
-    // CSV Headers
-    buffer.writeln(
-      'ID,Name,Species,Status,Created By,Created At,Updated At'
-    );
-
-    // CSV Rows
-    for (final breed in breeds) {
-      buffer.writeln(
-        '${_escapeCsv(breed.id)},'
-        '${_escapeCsv(breed.name)},'
-        '${_escapeCsv(breed.species)},'
-        '${_escapeCsv(breed.status)},'
-        '${_escapeCsv(breed.createdBy)},'
-        '${DateFormat('yyyy-MM-dd HH:mm:ss').format(breed.createdAt)},'
-        '${DateFormat('yyyy-MM-dd HH:mm:ss').format(breed.updatedAt)}'
-      );
-    }
-
-    return buffer.toString();
-  }
-
-  String _escapeCsv(String value) {
-    // Escape double quotes and wrap in quotes if contains comma, newline, or quotes
-    if (value.contains(',') || value.contains('\n') || value.contains('"')) {
-      return '"${value.replaceAll('"', '""')}"';
-    }
-    return value;
   }
   
   void _showSuccessSnackBar(String message) {

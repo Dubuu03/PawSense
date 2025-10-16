@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pawsense/core/utils/file_downloader.dart' as file_downloader;
@@ -15,6 +15,7 @@ import '../../../core/widgets/shared/pagination_widget.dart';
 import '../../../core/services/super_admin/super_admin_service.dart';
 import '../../../core/services/super_admin/clinic_cache_service.dart';
 import '../../../core/services/super_admin/screen_state_service.dart';
+import '../../../core/services/super_admin/clinic_pdf_service.dart';
 
 class ClinicManagementScreen extends StatefulWidget {
   const ClinicManagementScreen({Key? key}) : super(key: key ?? const PageStorageKey('clinic_management'));
@@ -669,7 +670,7 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> with Au
                 ),
               ),
               SizedBox(width: 16),
-              Text('Preparing export...'),
+              Text('Generating PDF report...'),
             ],
           ),
           duration: Duration(seconds: 30),
@@ -708,82 +709,45 @@ class _ClinicManagementScreenState extends State<ClinicManagementScreen> with Au
         return;
       }
 
-      // Generate CSV content
-      final csvContent = _generateCSV(allFilteredClinics);
+      // Get current admin name
+      String? adminName = 'Super Admin';
 
-      // Create blob and download using platform-agnostic downloader
-      final bytes = utf8.encode(csvContent);
-      final fileName = 'pawsense_clinics_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.csv';
-      
-      file_downloader.downloadFile(fileName, bytes);
+      // Generate PDF
+      final Uint8List pdfBytes = await ClinicPdfService.generateClinicReport(
+        clinics: allFilteredClinics,
+        statusFilter: _selectedStatus != 'All Status' ? _selectedStatus : null,
+        searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
+        generatedBy: adminName,
+      );
+
+      // Download PDF
+      final fileName = 'clinic_report_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf';
+      file_downloader.downloadFile(fileName, pdfBytes);
 
       if (mounted) {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Exported ${allFilteredClinics.length} clinics to CSV'),
+            content: Text('✅ PDF report generated with ${allFilteredClinics.length} clinics'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 3),
           ),
         );
       }
 
-      print('📊 Exported ${allFilteredClinics.length} clinics to CSV');
+      print('📊 Exported ${allFilteredClinics.length} clinics to PDF');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error exporting CSV: $e'),
+            content: Text('Error generating PDF: $e'),
             backgroundColor: Colors.red,
           ),
         );
       }
-      print('❌ Error exporting CSV: $e');
+      print('❌ Error generating PDF: $e');
     }
-  }
-
-  String _generateCSV(List<ClinicRegistration> clinics) {
-    final buffer = StringBuffer();
-    
-    // CSV Headers
-    buffer.writeln(
-      'ID,Clinic Name,Admin Name,Admin ID,Email,Phone,Address,License Number,'
-      'Status,Application Date,Approved Date,Rejection Reason,Suspension Reason'
-    );
-
-    // CSV Rows
-    for (final clinic in clinics) {
-      buffer.writeln(
-        '${_escapeCsv(clinic.id)},'
-        '${_escapeCsv(clinic.clinicName)},'
-        '${_escapeCsv(clinic.adminName)},'
-        '${_escapeCsv(clinic.adminId)},'
-        '${_escapeCsv(clinic.email)},'
-        '${_escapeCsv(clinic.phone)},'
-        '${_escapeCsv(clinic.address)},'
-        '${_escapeCsv(clinic.licenseNumber)},'
-        '${_formatStatus(clinic.status)},'
-        '${DateFormat('yyyy-MM-dd HH:mm:ss').format(clinic.applicationDate)},'
-        '${clinic.approvedDate != null ? DateFormat('yyyy-MM-dd HH:mm:ss').format(clinic.approvedDate!) : ''},'
-        '${_escapeCsv(clinic.rejectionReason ?? '')},'
-        '${_escapeCsv(clinic.suspensionReason ?? '')}'
-      );
-    }
-
-    return buffer.toString();
-  }
-
-  String _formatStatus(ClinicStatus status) {
-    return status.toString().split('.').last.toUpperCase();
-  }
-
-  String _escapeCsv(String value) {
-    // Escape double quotes and wrap in quotes if contains comma, newline, or quotes
-    if (value.contains(',') || value.contains('\n') || value.contains('"')) {
-      return '"${value.replaceAll('"', '""')}"';
-    }
-    return value;
   }
 
   @override

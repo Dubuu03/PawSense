@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pawsense/core/utils/file_downloader.dart' as file_downloader;
@@ -14,6 +14,7 @@ import 'package:pawsense/core/widgets/super_admin/disease_management/disease_sea
 import 'package:pawsense/core/widgets/super_admin/disease_management/disease_card.dart';
 import 'package:pawsense/core/widgets/super_admin/disease_management/add_edit_disease_modal.dart';
 import 'package:pawsense/core/widgets/super_admin/disease_management/disease_detail_modal.dart';
+import '../../../core/services/super_admin/disease_pdf_service.dart';
 
 class DiseasesManagementScreen extends StatefulWidget {
   const DiseasesManagementScreen({Key? key}) : super(key: key ?? const PageStorageKey('disease_management'));
@@ -286,7 +287,7 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> wit
                 ),
               ),
               SizedBox(width: 16),
-              Text('Preparing export...'),
+              Text('Generating PDF report...'),
             ],
           ),
           duration: Duration(seconds: 30),
@@ -324,81 +325,47 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> wit
         return;
       }
 
-      // Generate CSV content
-      final csvContent = _generateCSV(allFilteredDiseases);
+      // Get current admin name
+      String? adminName = 'Super Admin';
 
-      // Create blob and download using platform-agnostic downloader
-      final bytes = utf8.encode(csvContent);
-      final fileName = 'pawsense_diseases_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.csv';
-      
-      file_downloader.downloadFile(fileName, bytes);
+      // Generate PDF
+      final Uint8List pdfBytes = await DiseasePdfService.generateDiseaseReport(
+        diseases: allFilteredDiseases,
+        detectionMethodFilter: _detectionFilter != null && _detectionFilter!.isNotEmpty ? _detectionFilter : null,
+        speciesFilter: _speciesFilter.isNotEmpty ? _speciesFilter.join(', ') : null,
+        severityFilter: _severityFilter != null && _severityFilter!.isNotEmpty ? _severityFilter : null,
+        searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
+        generatedBy: adminName,
+      );
+
+      // Download PDF
+      final fileName = 'disease_report_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf';
+      file_downloader.downloadFile(fileName, pdfBytes);
 
       if (mounted) {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Exported ${allFilteredDiseases.length} diseases to CSV'),
+            content: Text('✅ PDF report generated with ${allFilteredDiseases.length} diseases'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 3),
           ),
         );
       }
 
-      print('📊 Exported ${allFilteredDiseases.length} diseases to CSV');
+      print('📊 Exported ${allFilteredDiseases.length} diseases to PDF');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error exporting CSV: $e'),
+            content: Text('Error generating PDF: $e'),
             backgroundColor: Colors.red,
           ),
         );
       }
-      print('❌ Error exporting CSV: $e');
+      print('❌ Error generating PDF: $e');
     }
-  }
-
-  String _generateCSV(List<SkinDiseaseModel> diseases) {
-    final buffer = StringBuffer();
-    
-    // CSV Headers
-    buffer.writeln(
-      'ID,Name,Description,Detection Method,Species,Severity,Categories,Contagious,'
-      'Duration,Symptoms,Causes,Treatments,Image URL,View Count,Created At,Updated At'
-    );
-
-    // CSV Rows
-    for (final disease in diseases) {
-      buffer.writeln(
-        '${_escapeCsv(disease.id)},'
-        '${_escapeCsv(disease.name)},'
-        '${_escapeCsv(disease.description)},'
-        '${_escapeCsv(disease.detectionMethod)},'
-        '${_escapeCsv(disease.species.join('; '))},'
-        '${_escapeCsv(disease.severity)},'
-        '${_escapeCsv(disease.categories.join('; '))},'
-        '${disease.isContagious ? 'Yes' : 'No'},'
-        '${_escapeCsv(disease.duration)},'
-        '${_escapeCsv(disease.symptoms.join('; '))},'
-        '${_escapeCsv(disease.causes.join('; '))},'
-        '${_escapeCsv(disease.treatments.join('; '))},'
-        '${_escapeCsv(disease.imageUrl)},'
-        '${disease.viewCount},'
-        '${DateFormat('yyyy-MM-dd HH:mm:ss').format(disease.createdAt)},'
-        '${DateFormat('yyyy-MM-dd HH:mm:ss').format(disease.updatedAt)}'
-      );
-    }
-
-    return buffer.toString();
-  }
-
-  String _escapeCsv(String value) {
-    // Escape double quotes and wrap in quotes if contains comma, newline, or quotes
-    if (value.contains(',') || value.contains('\n') || value.contains('"')) {
-      return '"${value.replaceAll('"', '""')}"';
-    }
-    return value;
   }
 
   void _handleViewDetails(SkinDiseaseModel disease) {
