@@ -29,43 +29,7 @@ class SettingsHeader extends StatelessWidget {
             ),
           ],
         ),
-        Container(
-          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: AppColors.success.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Clinic Status:',
-                style: TextStyle(
-                  fontSize: kFontSizeSmall,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              SizedBox(width: 6),
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color: AppColors.success,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              SizedBox(width: 4),
-              Text(
-                'Online',
-                style: TextStyle(
-                  fontSize: kFontSizeSmall,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.success,
-                ),
-              ),
-            ],
-          ),
-        ),
+      
       ],
     );
   }

@@ -5,7 +5,6 @@ import '../../../core/widgets/admin/settings/settings_header.dart';
 import '../../../core/widgets/admin/settings/settings_navigation.dart';
 import '../../../core/widgets/admin/settings/account_settings.dart';
 import '../../../core/widgets/admin/settings/clinic_settings.dart';
-import '../../../core/widgets/admin/settings/notification_settings.dart';
 import '../../../core/widgets/admin/settings/security_settings.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -24,8 +23,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return AccountSettings();
       case 'clinic':
         return ClinicSettings();
-      case 'notifications':
-        return NotificationSettings();
       case 'security':
         return SecuritySettings();
       default:

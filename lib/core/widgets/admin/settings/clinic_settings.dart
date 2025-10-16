@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../utils/app_colors.dart';
 import '../../../utils/constants.dart';
+import '../../../utils/validators.dart';
 import '../../../services/shared/settings_service.dart';
 import 'settings_form_field.dart';
 
@@ -17,13 +18,18 @@ class _ClinicSettingsState extends State<ClinicSettings> {
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _websiteController = TextEditingController();
-  final _defaultDurationController = TextEditingController();
-  final _bufferTimeController = TextEditingController();
-  final _advanceBookingController = TextEditingController();
 
-  bool _autoApproveAppointments = true;
   bool _isLoading = true;
   bool _isSaving = false;
+
+  // Field errors tracking for real-time validation
+  final Map<String, String?> _fieldErrors = {
+    'clinicName': null,
+    'address': null,
+    'phone': null,
+    'email': null,
+    'website': null,
+  };
 
   @override
   void initState() {
@@ -46,10 +52,6 @@ class _ClinicSettingsState extends State<ClinicSettings> {
           _phoneController.text = clinicData['phone'] ?? '';
           _emailController.text = clinicData['email'] ?? '';
           _websiteController.text = clinicData['website'] ?? '';
-          _defaultDurationController.text = (clinicData['defaultAppointmentDuration'] ?? 30).toString();
-          _bufferTimeController.text = (clinicData['bufferTime'] ?? 10).toString();
-          _advanceBookingController.text = (clinicData['advanceBookingDays'] ?? 60).toString();
-          _autoApproveAppointments = clinicData['autoApproveAppointments'] ?? true;
         });
       }
     } catch (e) {
@@ -70,6 +72,29 @@ class _ClinicSettingsState extends State<ClinicSettings> {
     }
   }
 
+  /// Validate individual field
+  String? _validateField(String fieldKey, String value) {
+    switch (fieldKey) {
+      case 'clinicName':
+        if (value.trim().isEmpty) return 'Enter clinic name';
+        if (value.trim().length < 3) return 'Clinic name must be at least 3 characters';
+        return null;
+      case 'address':
+        return addressValidator(value.trim());
+      case 'phone':
+        return phoneValidator(value.trim());
+      case 'email':
+        return emailValidator(value.trim());
+      case 'website':
+        if (value.trim().isNotEmpty && !value.trim().startsWith('http')) {
+          return 'Website must start with http:// or https://';
+        }
+        return null;
+      default:
+        return null;
+    }
+  }
+
   Future<void> _saveClinicSettings() async {
     setState(() {
       _isSaving = true;
@@ -82,10 +107,6 @@ class _ClinicSettingsState extends State<ClinicSettings> {
         'phone': _phoneController.text.trim(),
         'email': _emailController.text.trim(),
         'website': _websiteController.text.trim(),
-        'defaultAppointmentDuration': int.tryParse(_defaultDurationController.text) ?? 30,
-        'bufferTime': int.tryParse(_bufferTimeController.text) ?? 10,
-        'advanceBookingDays': int.tryParse(_advanceBookingController.text) ?? 60,
-        'autoApproveAppointments': _autoApproveAppointments,
       });
 
       if (success && mounted) {
@@ -128,9 +149,6 @@ class _ClinicSettingsState extends State<ClinicSettings> {
     _phoneController.dispose();
     _emailController.dispose();
     _websiteController.dispose();
-    _defaultDurationController.dispose();
-    _bufferTimeController.dispose();
-    _advanceBookingController.dispose();
     super.dispose();
   }
 
@@ -161,6 +179,12 @@ class _ClinicSettingsState extends State<ClinicSettings> {
           SettingsFormField(
             label: 'Clinic Name',
             controller: _clinicNameController,
+            errorText: _fieldErrors['clinicName'],
+            onChanged: (value) {
+              setState(() {
+                _fieldErrors['clinicName'] = _validateField('clinicName', value);
+              });
+            },
           ),
           SizedBox(height: kSpacingLarge),
           
@@ -168,6 +192,12 @@ class _ClinicSettingsState extends State<ClinicSettings> {
             label: 'Address',
             controller: _addressController,
             maxLines: 3,
+            errorText: _fieldErrors['address'],
+            onChanged: (value) {
+              setState(() {
+                _fieldErrors['address'] = _validateField('address', value);
+              });
+            },
           ),
           SizedBox(height: kSpacingLarge),
           
@@ -177,6 +207,13 @@ class _ClinicSettingsState extends State<ClinicSettings> {
                 child: SettingsFormField(
                   label: 'Phone',
                   controller: _phoneController,
+                  keyboardType: TextInputType.phone,
+                  errorText: _fieldErrors['phone'],
+                  onChanged: (value) {
+                    setState(() {
+                      _fieldErrors['phone'] = _validateField('phone', value);
+                    });
+                  },
                 ),
               ),
               SizedBox(width: kSpacingLarge),
@@ -184,6 +221,13 @@ class _ClinicSettingsState extends State<ClinicSettings> {
                 child: SettingsFormField(
                   label: 'Email',
                   controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  errorText: _fieldErrors['email'],
+                  onChanged: (value) {
+                    setState(() {
+                      _fieldErrors['email'] = _validateField('email', value);
+                    });
+                  },
                 ),
               ),
             ],
@@ -193,93 +237,14 @@ class _ClinicSettingsState extends State<ClinicSettings> {
           SettingsFormField(
             label: 'Website',
             controller: _websiteController,
-          ),
-          SizedBox(height: kSpacingLarge * 2),
-          
-          // Appointment Settings
-          Text(
-            'Appointment Settings',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          SizedBox(height: kSpacingLarge),
-          
-          // Auto-approve toggle
-          Container(
-            padding: EdgeInsets.all(kSpacingMedium),
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(kBorderRadiusSmall),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Auto-approve appointments',
-                        style: TextStyle(
-                          fontSize: kFontSizeRegular,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Automatically confirm new appointment requests',
-                        style: TextStyle(
-                          fontSize: kFontSizeSmall,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Switch(
-                  value: _autoApproveAppointments,
-                  onChanged: (value) {
-                    setState(() {
-                      _autoApproveAppointments = value;
-                    });
-                  },
-                  activeColor: AppColors.primary,
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: kSpacingLarge),
-          
-          Row(
-            children: [
-              Expanded(
-                child: SettingsFormField(
-                  label: 'Default Duration (min)',
-                  controller: _defaultDurationController,
-                  keyboardType: TextInputType.number,
-                ),
-              ),
-              SizedBox(width: kSpacingLarge),
-              Expanded(
-                child: SettingsFormField(
-                  label: 'Buffer Time (min)',
-                  controller: _bufferTimeController,
-                  keyboardType: TextInputType.number,
-                ),
-              ),
-              SizedBox(width: kSpacingLarge),
-              Expanded(
-                child: SettingsFormField(
-                  label: 'Advance Booking (days)',
-                  controller: _advanceBookingController,
-                  keyboardType: TextInputType.number,
-                ),
-              ),
-            ],
+            keyboardType: TextInputType.url,
+            hintText: 'https://www.example.com',
+            errorText: _fieldErrors['website'],
+            onChanged: (value) {
+              setState(() {
+                _fieldErrors['website'] = _validateField('website', value);
+              });
+            },
           ),
           SizedBox(height: kSpacingLarge),
 

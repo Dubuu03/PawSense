@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../utils/app_colors.dart';
 import '../../../utils/constants.dart';
+import '../../../utils/validators.dart';
 import '../../../services/shared/settings_service.dart';
 import 'settings_form_field.dart';
 
@@ -16,12 +17,17 @@ class _AccountSettingsState extends State<AccountSettings> {
   final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _currentPasswordController = TextEditingController();
-  final _newPasswordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
 
   bool _isLoading = true;
   bool _isSaving = false;
+
+  // Field errors tracking for real-time validation
+  final Map<String, String?> _fieldErrors = {
+    'firstName': null,
+    'lastName': null,
+    'email': null,
+    'phone': null,
+  };
 
   @override
   void initState() {
@@ -60,6 +66,22 @@ class _AccountSettingsState extends State<AccountSettings> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  /// Validate individual field
+  String? _validateField(String fieldKey, String value) {
+    switch (fieldKey) {
+      case 'firstName':
+        return nameValidator(value.trim(), 'First name');
+      case 'lastName':
+        return nameValidator(value.trim(), 'Last name');
+      case 'email':
+        return emailValidator(value.trim());
+      case 'phone':
+        return phoneValidator(value.trim());
+      default:
+        return null;
     }
   }
 
@@ -109,73 +131,12 @@ class _AccountSettingsState extends State<AccountSettings> {
     }
   }
 
-  Future<void> _changePassword() async {
-    if (_newPasswordController.text != _confirmPasswordController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('New passwords do not match'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
-
-    if (_newPasswordController.text.length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Password must be at least 6 characters'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
-
-    try {
-      final success = await SettingsService.updatePassword(
-        _currentPasswordController.text,
-        _newPasswordController.text,
-      );
-
-      if (success && mounted) {
-        _currentPasswordController.clear();
-        _newPasswordController.clear();
-        _confirmPasswordController.clear();
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Password updated successfully!'),
-            backgroundColor: AppColors.success,
-          ),
-        );
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update password'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error updating password: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-    }
-  }
-
   @override
   void dispose() {
     _firstNameController.dispose();
     _lastNameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
-    _currentPasswordController.dispose();
-    _newPasswordController.dispose();
-    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -210,6 +171,12 @@ class _AccountSettingsState extends State<AccountSettings> {
                 child: SettingsFormField(
                   label: 'First Name',
                   controller: _firstNameController,
+                  errorText: _fieldErrors['firstName'],
+                  onChanged: (value) {
+                    setState(() {
+                      _fieldErrors['firstName'] = _validateField('firstName', value);
+                    });
+                  },
                 ),
               ),
               SizedBox(width: kSpacingLarge),
@@ -217,6 +184,12 @@ class _AccountSettingsState extends State<AccountSettings> {
                 child: SettingsFormField(
                   label: 'Last Name',
                   controller: _lastNameController,
+                  errorText: _fieldErrors['lastName'],
+                  onChanged: (value) {
+                    setState(() {
+                      _fieldErrors['lastName'] = _validateField('lastName', value);
+                    });
+                  },
                 ),
               ),
             ],
@@ -226,12 +199,26 @@ class _AccountSettingsState extends State<AccountSettings> {
           SettingsFormField(
             label: 'Email Address',
             controller: _emailController,
+            keyboardType: TextInputType.emailAddress,
+            errorText: _fieldErrors['email'],
+            onChanged: (value) {
+              setState(() {
+                _fieldErrors['email'] = _validateField('email', value);
+              });
+            },
           ),
           SizedBox(height: kSpacingLarge),
           
           SettingsFormField(
             label: 'Phone Number',
             controller: _phoneController,
+            keyboardType: TextInputType.phone,
+            errorText: _fieldErrors['phone'],
+            onChanged: (value) {
+              setState(() {
+                _fieldErrors['phone'] = _validateField('phone', value);
+              });
+            },
           ),
           SizedBox(height: kSpacingLarge),
 
@@ -257,62 +244,6 @@ class _AccountSettingsState extends State<AccountSettings> {
                 padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-          ),
-          SizedBox(height: kSpacingLarge * 2),
-          
-          // Password Change Section
-          Text(
-            'Change Password',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          SizedBox(height: kSpacingLarge),
-          
-          SettingsFormField(
-            label: 'Current Password',
-            controller: _currentPasswordController,
-            isPassword: true,
-          ),
-          SizedBox(height: kSpacingLarge),
-          
-          SettingsFormField(
-            label: 'New Password',
-            controller: _newPasswordController,
-            isPassword: true,
-          ),
-          SizedBox(height: kSpacingLarge),
-          
-          SettingsFormField(
-            label: 'Confirm New Password',
-            controller: _confirmPasswordController,
-            isPassword: true,
-          ),
-          SizedBox(height: kSpacingLarge),
-
-          // Change Password Button
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => _changePassword(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.info,
-                padding: EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: Text(
-                'Change Password',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
                 ),
               ),
             ),

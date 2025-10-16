@@ -9,6 +9,8 @@ class SettingsFormField extends StatefulWidget {
   final int maxLines;
   final TextInputType? keyboardType;
   final String? hintText;
+  final String? errorText;
+  final Function(String)? onChanged;
 
   const SettingsFormField({
     super.key,
@@ -18,6 +20,8 @@ class SettingsFormField extends StatefulWidget {
     this.maxLines = 1,
     this.keyboardType,
     this.hintText,
+    this.errorText,
+    this.onChanged,
   });
 
   @override
@@ -46,6 +50,7 @@ class _SettingsFormFieldState extends State<SettingsFormField> {
           obscureText: widget.isPassword && _obscurePassword,
           maxLines: widget.maxLines,
           keyboardType: widget.keyboardType,
+          onChanged: widget.onChanged,
           style: TextStyle(
             fontSize: kFontSizeRegular,
             fontWeight: FontWeight.w400,
@@ -58,6 +63,7 @@ class _SettingsFormFieldState extends State<SettingsFormField> {
               fontSize: kFontSizeRegular,
               fontWeight: FontWeight.w400,
             ),
+            errorText: widget.errorText,
             filled: true,
             fillColor: AppColors.white,
             border: OutlineInputBorder(
@@ -78,6 +84,20 @@ class _SettingsFormFieldState extends State<SettingsFormField> {
               borderRadius: BorderRadius.circular(kBorderRadiusSmall),
               borderSide: BorderSide(
                 color: AppColors.primary,
+                width: 2,
+              ),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(kBorderRadiusSmall),
+              borderSide: BorderSide(
+                color: AppColors.error,
+                width: 1,
+              ),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(kBorderRadiusSmall),
+              borderSide: BorderSide(
+                color: AppColors.error,
                 width: 2,
               ),
             ),

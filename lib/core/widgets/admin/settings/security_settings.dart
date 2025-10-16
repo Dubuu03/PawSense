@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../utils/app_colors.dart';
 import '../../../utils/constants.dart';
+import '../../../services/shared/settings_service.dart';
+import 'settings_form_field.dart';
 
 class SecuritySettings extends StatefulWidget {
   const SecuritySettings({super.key});
@@ -10,13 +12,105 @@ class SecuritySettings extends StatefulWidget {
 }
 
 class _SecuritySettingsState extends State<SecuritySettings> {
-  bool _twoFactorAuth = false;
-  bool _allowMultipleSessions = true;
-  bool _requirePasswordChange = false;
-  bool _loginNotifications = true;
+  final _currentPasswordController = TextEditingController();
+  final _newPasswordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   
-  String _sessionTimeout = '30 minutes';
-  String _passwordExpiry = '90 days';
+  bool _isChangingPassword = false;
+
+  @override
+  void dispose() {
+    _currentPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  /// Get password requirements status
+  Map<String, bool> _getPasswordRequirements(String password, String currentPassword) {
+    return {
+      'lowercase': RegExp(r'[a-z]').hasMatch(password),
+      'uppercase': RegExp(r'[A-Z]').hasMatch(password),
+      'number': RegExp(r'[0-9]').hasMatch(password),
+      'minLength': password.length >= 8,
+      'differentFromCurrent': password.isNotEmpty && password != currentPassword,
+    };
+  }
+
+  Future<void> _changePassword() async {
+    if (_newPasswordController.text != _confirmPasswordController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('New passwords do not match'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    // Check password requirements
+    final requirements = _getPasswordRequirements(
+      _newPasswordController.text,
+      _currentPasswordController.text,
+    );
+    final allMet = requirements.values.every((met) => met);
+    
+    if (!allMet) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Password does not meet all requirements'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isChangingPassword = true;
+    });
+
+    try {
+      final success = await SettingsService.updatePassword(
+        _currentPasswordController.text,
+        _newPasswordController.text,
+      );
+
+      if (success && mounted) {
+        _currentPasswordController.clear();
+        _newPasswordController.clear();
+        _confirmPasswordController.clear();
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Password updated successfully!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update password'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating password: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isChangingPassword = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,233 +128,174 @@ class _SecuritySettingsState extends State<SecuritySettings> {
           ),
           SizedBox(height: kSpacingLarge),
           
-          // Two-Factor Authentication Warning
-          Container(
-            padding: EdgeInsets.all(kSpacingMedium),
-            decoration: BoxDecoration(
-              color: AppColors.warning.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(kBorderRadiusSmall),
-              border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+          // Password Change Section
+          Text(
+            'Change Password',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
             ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.warning_amber_rounded,
-                  color: AppColors.warning,
-                  size: 24,
-                ),
-                SizedBox(width: kSpacingMedium),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+          SizedBox(height: kSpacingMedium),
+          
+          Text(
+            'Update your password to keep your account secure',
+            style: TextStyle(
+              fontSize: kFontSizeSmall,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          SizedBox(height: kSpacingLarge),
+          
+          SettingsFormField(
+            label: 'Current Password',
+            controller: _currentPasswordController,
+            isPassword: true,
+            onChanged: (value) {
+              setState(() {}); // Trigger rebuild to check "different from current"
+            },
+          ),
+          SizedBox(height: kSpacingLarge),
+          
+          SettingsFormField(
+            label: 'New Password',
+            controller: _newPasswordController,
+            isPassword: true,
+            onChanged: (value) {
+              setState(() {}); // Trigger rebuild to update checklist
+            },
+          ),
+          SizedBox(height: kSpacingLarge),
+          
+          SettingsFormField(
+            label: 'Confirm New Password',
+            controller: _confirmPasswordController,
+            isPassword: true,
+          ),
+          SizedBox(height: kSpacingLarge),
+
+          // Password Requirements (Dynamic)
+          if (_newPasswordController.text.isNotEmpty)
+            Container(
+              padding: EdgeInsets.all(kSpacingMedium),
+              margin: EdgeInsets.only(bottom: kSpacingLarge),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(kBorderRadiusSmall),
+                border: Border.all(color: AppColors.border.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
+                      Icon(
+                        Icons.info_outline,
+                        size: 16,
+                        color: AppColors.primary,
+                      ),
+                      SizedBox(width: 8),
                       Text(
-                        'Two-Factor Authentication',
+                        'Password Requirements',
                         style: TextStyle(
-                          fontSize: kFontSizeRegular,
+                          fontSize: kFontSizeSmall,
                           fontWeight: FontWeight.w600,
                           color: AppColors.textPrimary,
                         ),
                       ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Add an extra layer of security to your account',
-                        style: TextStyle(
-                          fontSize: kFontSizeSmall,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
                     ],
                   ),
-                ),
-                Switch(
-                  value: _twoFactorAuth,
-                  onChanged: (value) {
-                    setState(() {
-                      _twoFactorAuth = value;
-                    });
-                  },
-                  activeColor: AppColors.primary,
-                ),
-              ],
+                  SizedBox(height: 8),
+                  _buildDynamicRequirement(
+                    'A lowercase letter',
+                    _getPasswordRequirements(
+                      _newPasswordController.text,
+                      _currentPasswordController.text,
+                    )['lowercase']!,
+                  ),
+                  _buildDynamicRequirement(
+                    'A capital (uppercase) letter',
+                    _getPasswordRequirements(
+                      _newPasswordController.text,
+                      _currentPasswordController.text,
+                    )['uppercase']!,
+                  ),
+                  _buildDynamicRequirement(
+                    'A number',
+                    _getPasswordRequirements(
+                      _newPasswordController.text,
+                      _currentPasswordController.text,
+                    )['number']!,
+                  ),
+                  _buildDynamicRequirement(
+                    'Minimum 8 characters',
+                    _getPasswordRequirements(
+                      _newPasswordController.text,
+                      _currentPasswordController.text,
+                    )['minLength']!,
+                  ),
+                  _buildDynamicRequirement(
+                    'Different from your current password',
+                    _getPasswordRequirements(
+                      _newPasswordController.text,
+                      _currentPasswordController.text,
+                    )['differentFromCurrent']!,
+                  ),
+                ],
+              ),
             ),
-          ),
-          SizedBox(height: kSpacingLarge),
-          
-          // Session Settings
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Session Timeout (minutes)',
-                      style: TextStyle(
-                        fontSize: kFontSizeRegular,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textPrimary,
+
+          // Change Password Button
+          Align(
+            alignment: Alignment.centerRight,
+            child: ElevatedButton.icon(
+              onPressed: _isChangingPassword ? null : _changePassword,
+              icon: _isChangingPassword
+                  ? SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
                       ),
-                    ),
-                    SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      value: _sessionTimeout,
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: AppColors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(kBorderRadiusSmall),
-                          borderSide: BorderSide(color: AppColors.border),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(kBorderRadiusSmall),
-                          borderSide: BorderSide(color: AppColors.border),
-                        ),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: kSpacingMedium,
-                          vertical: 12,
-                        ),
-                      ),
-                      items: [
-                        '15 minutes',
-                        '30 minutes',
-                        '60 minutes',
-                        '2 hours',
-                        '4 hours',
-                      ].map((timeout) {
-                        return DropdownMenuItem(
-                          value: timeout,
-                          child: Text(timeout),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() {
-                            _sessionTimeout = value;
-                          });
-                        }
-                      },
-                    ),
-                  ],
+                    )
+                  : Icon(Icons.lock_reset, size: 18),
+              label: Text(_isChangingPassword ? 'Changing Password...' : 'Change Password'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              SizedBox(width: kSpacingLarge),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Password Expiry (days)',
-                      style: TextStyle(
-                        fontSize: kFontSizeRegular,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      value: _passwordExpiry,
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: AppColors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(kBorderRadiusSmall),
-                          borderSide: BorderSide(color: AppColors.border),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(kBorderRadiusSmall),
-                          borderSide: BorderSide(color: AppColors.border),
-                        ),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: kSpacingMedium,
-                          vertical: 12,
-                        ),
-                      ),
-                      items: [
-                        '30 days',
-                        '60 days',
-                        '90 days',
-                        '180 days',
-                        'Never',
-                      ].map((expiry) {
-                        return DropdownMenuItem(
-                          value: expiry,
-                          child: Text(expiry),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() {
-                            _passwordExpiry = value;
-                          });
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: kSpacingLarge),
-          
-          _buildSecurityToggle(
-            title: 'Two Factor Auth',
-            value: _twoFactorAuth,
-            onChanged: (value) => setState(() => _twoFactorAuth = value),
-          ),
-          SizedBox(height: kSpacingMedium),
-          
-          _buildSecurityToggle(
-            title: 'Allow Multiple Sessions',
-            value: _allowMultipleSessions,
-            onChanged: (value) => setState(() => _allowMultipleSessions = value),
-          ),
-          SizedBox(height: kSpacingMedium),
-          
-          _buildSecurityToggle(
-            title: 'Require Password Change',
-            value: _requirePasswordChange,
-            onChanged: (value) => setState(() => _requirePasswordChange = value),
-          ),
-          SizedBox(height: kSpacingMedium),
-          
-          _buildSecurityToggle(
-            title: 'Login Notifications',
-            value: _loginNotifications,
-            onChanged: (value) => setState(() => _loginNotifications = value),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSecurityToggle({
-    required String title,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: kSpacingMedium, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(kBorderRadiusSmall),
-        border: Border.all(color: AppColors.border),
-      ),
+  Widget _buildDynamicRequirement(String text, bool isMet) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: kFontSizeRegular,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textPrimary,
-            ),
+          Icon(
+            isMet ? Icons.check : Icons.close,
+            color: isMet ? Colors.green : Colors.red,
+            size: 16,
           ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeColor: AppColors.primary,
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: kFontSizeSmall,
+                color: isMet ? Colors.green : Colors.red,
+              ),
+            ),
           ),
         ],
       ),

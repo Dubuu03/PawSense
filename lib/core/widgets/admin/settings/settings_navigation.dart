@@ -34,14 +34,7 @@ class SettingsNavigation extends StatelessWidget {
           ),
           SizedBox(height: kSpacingSmall),
           _buildNavigationItem(
-            icon: Icons.notifications_outlined,
-            title: 'Notifications',
-            value: 'notifications',
-            isSelected: selectedSection == 'notifications',
-          ),
-          SizedBox(height: kSpacingSmall),
-          _buildNavigationItem(
-            icon: Icons.security_outlined,
+            icon: Icons.lock_outline,
             title: 'Security',
             value: 'security',
             isSelected: selectedSection == 'security',
