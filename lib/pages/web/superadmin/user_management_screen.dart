@@ -14,6 +14,7 @@ import '../../../core/widgets/shared/pagination_widget.dart';
 import '../../../core/services/super_admin/super_admin_service.dart';
 import '../../../core/services/super_admin/user_cache_service.dart';
 import '../../../core/services/super_admin/screen_state_service.dart';
+// import '../../../core/widgets/super_admin/user_management/add_user_modal.dart'; // Reserved for future use
 import '../../../core/services/super_admin/user_pdf_service.dart';
 
 class UserManagementScreen extends StatefulWidget {
@@ -503,6 +504,52 @@ class _UserManagementScreenState extends State<UserManagementScreen> with Automa
       );
     }
   }
+
+  // Reserved for future use - direct user creation from super admin
+  /*
+  Future<void> _showAddUserModal() async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AddUserModal(
+        onCreateUser: (newUser) {
+          // Handle the new user creation
+          _handleNewUserCreation(newUser);
+        },
+      ),
+    );
+  }
+
+  Future<void> _handleNewUserCreation(UserModel newUser) async {
+    try {
+      // In a real implementation, this would call the SuperAdminService
+      // to create the user in the database
+      // final success = await SuperAdminService.createUser(newUser);
+      
+      // For now, show success message and reload users
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('User ${newUser.firstName} ${newUser.lastName} created successfully'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+      
+      // Reload users to refresh the list
+      _loadUsers();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to create user: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+  */
 
   Future<void> _handleExportCSV() async {
     // Show loading indicator

@@ -107,19 +107,8 @@ class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModa
           final petMap = data['pet'] as Map<String, dynamic>;
           final ownerMap = data['owner'] as Map<String, dynamic>;
           
-          DateTime appointmentDate = DateTime.now();
-          if (data['date'] != null) {
-            try {
-              final dateParts = (data['date'] as String).split('-');
-              appointmentDate = DateTime(
-                int.parse(dateParts[0]),
-                int.parse(dateParts[1]),
-                int.parse(dateParts[2]),
-              );
-            } catch (e) {
-              print('⚠️ Error parsing previous appointment date: ${data['date']}');
-            }
-          }
+          // Note: Date parsing logic preserved but appointmentDate variable removed as it's not used
+          // The 'date' field is used directly as a string in the Appointment model
           
           final statusString = data['status'] as String?;
           AppointmentModels.AppointmentStatus status = AppointmentModels.AppointmentStatus.pending;

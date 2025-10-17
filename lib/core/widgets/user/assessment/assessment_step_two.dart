@@ -31,7 +31,7 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
   List<Map<String, dynamic>> _detectionResults = [];
   bool _isLoading = false;
   bool _isAnalyzing = false;
-  bool _showPreparationTips = false;
+  // bool _showPreparationTips = false; // Reserved for future use
   bool _serverConnected = false;
 
   // Expose analyzing state to parent
@@ -1071,6 +1071,8 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
     );
   }
 
+  // Reserved for future use - preparation tips functionality
+  /*
   Widget _buildPreparationTips() {
     return GestureDetector(
       onTap: () => setState(() => _showPreparationTips = !_showPreparationTips),
@@ -1142,4 +1144,5 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
       ),
     );
   }
+  */
 }

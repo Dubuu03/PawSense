@@ -24,8 +24,8 @@ class OptimizedNotificationOverlay {
   // Track known notifications to detect truly new ones
   Set<String> _knownNotificationIds = <String>{};
   
-  // Track retry attempts to prevent infinite loops
-  Map<String, int> _retryAttempts = <String, int>{};
+  // Track retry attempts to prevent infinite loops (reserved for future use)
+  // Map<String, int> _retryAttempts = <String, int>{};
 
   /// Initialize overlay with real-time notification listening
   void initialize(BuildContext context) {

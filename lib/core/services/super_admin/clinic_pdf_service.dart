@@ -395,15 +395,15 @@ class ClinicPdfService {
         _buildTableCell(clinic.clinicName),
         
         // Admin Name
-        _buildTableCell(clinic.adminName ?? 'N/A'),
+        _buildTableCell(clinic.adminName),
         
         // Contact
         _buildTableCell(
-          '${clinic.email ?? 'N/A'}\n${clinic.phone ?? 'N/A'}',
+          '${clinic.email}\n${clinic.phone}',
         ),
         
         // License Number
-        _buildTableCell(clinic.licenseNumber ?? 'N/A'),
+        _buildTableCell(clinic.licenseNumber),
         
         // Application Date
         _buildTableCell(
