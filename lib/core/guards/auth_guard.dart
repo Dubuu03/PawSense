@@ -358,7 +358,9 @@ class AuthGuard {
   static bool _isPublicRoute(String routePath) {
     final publicRoutes = [
       '/web_login',
+      '/login', // Alias for web_login
       '/admin_signup',
+      '/forgot-password', // Web admin forgot password
       '/signin',
       '/signup',
       '/verify-email',

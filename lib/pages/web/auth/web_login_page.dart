@@ -276,13 +276,29 @@ class _WebLoginPageState extends State<WebLoginPage> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Password',
-                          style: kTextStyleSmall.copyWith(
-                            fontSize: 15, // Increased from 14
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w600, // Increased weight
-                          ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Password',
+                              style: kTextStyleSmall.copyWith(
+                                fontSize: 15, // Increased from 14
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.w600, // Increased weight
+                              ),
+                            ),
+                            InkWell(
+                              onTap: () => context.go('/forgot-password'),
+                              child: Text(
+                                'Forgot Password?',
+                                style: kTextStyleSmall.copyWith(
+                                  fontSize: 13,
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 8),
                         Container(

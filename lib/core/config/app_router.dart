@@ -31,6 +31,7 @@ import 'package:pawsense/core/models/user/user_model.dart';
 import 'package:pawsense/core/models/user/pet_model.dart';
 import 'package:pawsense/pages/web/auth/web_login_page.dart';
 import 'package:pawsense/pages/web/auth/admin_signup_page.dart';
+import 'package:pawsense/pages/web/auth/forgot_password_page.dart';
 import 'package:pawsense/pages/web/admin/dashboard_screen.dart';
 import 'package:pawsense/pages/web/admin/appointment_screen.dart';
 import 'package:pawsense/pages/web/admin/patient_record_screen.dart';
@@ -250,8 +251,16 @@ class AppRouter {
         builder: (context, state) => const WebLoginPage(),
       ),
       GoRoute(
+        path: '/login', // Alias for web_login
+        builder: (context, state) => const WebLoginPage(),
+      ),
+      GoRoute(
         path: '/admin_signup',
         builder: (context, state) => const AdminSignupPage(),
+      ),
+      GoRoute(
+        path: '/forgot-password',
+        builder: (context, state) => const WebForgotPasswordPage(),
       ),
 
       // Admin shell with nested routes
