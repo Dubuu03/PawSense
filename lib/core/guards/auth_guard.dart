@@ -391,6 +391,8 @@ class AuthGuard {
       '/alerts', 
       '/assessment',
       '/edit-profile',
+      '/change-password',
+      '/about-pawsense',
       '/messaging',
       '/ai-history',
       '/appointment-history',

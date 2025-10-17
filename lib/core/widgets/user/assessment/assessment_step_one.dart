@@ -80,7 +80,7 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
     _breedFocusNode.addListener(_onBreedFocusChanged);
     
     // Add listeners to update assessment data in real-time
-    _nameController.addListener(_updatePetData);
+  _nameController.addListener(_updatePetData);
     _ageController.addListener(_updatePetData);
     _weightController.addListener(_updatePetData);
     _notesController.addListener(_updateNotesData);
@@ -317,7 +317,8 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
     if (!isNewPet) return; // Only validate for new pet form
     
     setState(() {
-      _fieldErrors['name'] = _showValidationErrors && _nameController.text.trim().isEmpty;
+      final nameTrimmed = _nameController.text.trim();
+      _fieldErrors['name'] = _showValidationErrors && (nameTrimmed.isEmpty || nameTrimmed.length > 20);
       _fieldErrors['age'] = _showValidationErrors && _ageController.text.trim().isEmpty;
       _fieldErrors['weight'] = _showValidationErrors && _weightController.text.trim().isEmpty;
       _fieldErrors['breed'] = _showValidationErrors && (_breedController.text.trim().isEmpty || !_isValidBreed());
@@ -963,7 +964,9 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
         TextField(
           controller: _notesController,
           keyboardType: TextInputType.multiline,
-          maxLines: 4,
+          maxLines: 6,
+          maxLength: 300,
+          inputFormatters: [LengthLimitingTextInputFormatter(300)],
           decoration: InputDecoration(
             hintText: "Symptoms, duration...",
             fillColor: Colors.grey.shade100,
@@ -992,6 +995,11 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
         TextField(
           controller: controller,
           keyboardType: TextInputType.text,
+          maxLength: 20,
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z0-9\s\-']")),
+            LengthLimitingTextInputFormatter(20),
+          ],
           decoration: InputDecoration(
             hintText: "Enter pet's name",
             fillColor: Colors.grey.shade100,
@@ -1018,6 +1026,7 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
               ),
             ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            counterText: "",
           ),
         ),
       ],
@@ -1038,11 +1047,16 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
         TextField(
           controller: controller,
           keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          maxLength: 3,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(3),
+          ],
           decoration: InputDecoration(
             hintText: "Enter age",
             fillColor: Colors.grey.shade100,
             filled: true,
+            counterText: "",
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide(
@@ -1082,8 +1096,10 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
         const SizedBox(height: 6),
         TextField(
           controller: controller,
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'^\d{0,3}(\.\d{0,2})?$')),
+          ],
           decoration: InputDecoration(
             hintText: "Enter weight",
             fillColor: Colors.grey.shade100,

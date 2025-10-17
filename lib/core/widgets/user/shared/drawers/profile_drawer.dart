@@ -170,56 +170,6 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                   ),
                   const SizedBox(height: 16),
                   
-                  // Profile Completion
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: AppColors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: AppColors.border.withValues(alpha: 0.2),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Profile Completion',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(4),
-                                child: LinearProgressIndicator(
-                                  value: _getProfileCompletionPercentage(currentUser),
-                                  backgroundColor: AppColors.border.withValues(alpha: 0.2),
-                                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-                                  minHeight: 6,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          '${(_getProfileCompletionPercentage(currentUser) * 100).round()}%',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -263,7 +213,8 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                     subtitle: 'Account security settings',
                     onTap: () {
                       Navigator.pop(context);
-                      // Navigate to security settings
+                      // Navigate to change password page
+                      context.push('/change-password');
                     },
                   ),
                   _buildProfileOption(

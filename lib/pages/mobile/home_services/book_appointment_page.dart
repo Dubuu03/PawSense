@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
@@ -1667,6 +1668,10 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
         TextField(
           controller: _notesController,
           maxLines: 3,
+          maxLength: 300,
+          inputFormatters: [
+            LengthLimitingTextInputFormatter(300),
+          ],
           decoration: InputDecoration(
             hintText: 'Any specific concerns or requests...',
             border: OutlineInputBorder(

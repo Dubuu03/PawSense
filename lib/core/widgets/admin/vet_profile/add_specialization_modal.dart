@@ -324,12 +324,14 @@ class _AddSpecializationModalState extends State<AddSpecializationModal> {
                 TextFormField(
                   controller: _customSpecializationController,
                   enabled: !_isLoading,
+                  maxLength: 50,
                   decoration: InputDecoration(
                     hintText: 'Enter your specialization',
                     hintStyle: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: kFontSizeRegular,
                     ),
+                    counterText: "",
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(kBorderRadius),
                       borderSide: BorderSide(color: AppColors.border),

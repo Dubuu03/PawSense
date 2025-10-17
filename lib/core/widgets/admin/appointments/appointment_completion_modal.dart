@@ -822,21 +822,11 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
-                                    color: AppColors.textPrimary,
+                                    color: Colors.grey,
                                   ),
                                 ),
                                 const SizedBox(height: 6),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.05),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: TextFormField(
+                                TextFormField(
                                     controller: _diagnosisController,
                                     decoration: const InputDecoration(
                                       hintText: 'Enter the final diagnosis',
@@ -855,8 +845,8 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
                                       return null;
                                     },
                                     maxLines: 2,
+                                    maxLength: 300,
                                   ),
-                                ),
                               ],
                             ),
                             const SizedBox(height: 16),
@@ -870,21 +860,11 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
-                                    color: AppColors.textPrimary,
+                                    color: Colors.grey,
                                   ),
                                 ),
                                 const SizedBox(height: 6),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.05),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: TextFormField(
+                                TextFormField(
                                     controller: _treatmentController,
                                     decoration: const InputDecoration(
                                       hintText: 'Describe the treatment',
@@ -903,8 +883,8 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
                                       return null;
                                     },
                                     maxLines: 2,
+                                    maxLength: 300,
                                   ),
-                                ),
                               ],
                             ),
                             const SizedBox(height: 16),
@@ -918,21 +898,11 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
-                                    color: AppColors.textPrimary,
+                                    color: Colors.grey,
                                   ),
                                 ),
                                 const SizedBox(height: 6),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.05),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: TextFormField(
+                                TextFormField(
                                     controller: _prescriptionController,
                                     decoration: const InputDecoration(
                                       hintText: 'Medications and dosage',
@@ -945,8 +915,8 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
                                     ),
                                     style: const TextStyle(fontSize: 13),
                                     maxLines: 2,
+                                    maxLength: 300,
                                   ),
-                                ),
                               ],
                             ),
                             const SizedBox(height: 16),
@@ -960,21 +930,11 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
-                                    color: AppColors.textPrimary,
+                                    color: Colors.grey,
                                   ),
                                 ),
                                 const SizedBox(height: 6),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.05),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: TextFormField(
+                                TextFormField(
                                     controller: _clinicNotesController,
                                     decoration: const InputDecoration(
                                       hintText: 'Other observations',
@@ -987,8 +947,8 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
                                     ),
                                     style: const TextStyle(fontSize: 13),
                                     maxLines: 3,
+                                    maxLength: 300,
                                   ),
-                                ),
                               ],
                             ),
                             const SizedBox(height: 20),
@@ -1352,21 +1312,11 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
                                           style: TextStyle(
                                             fontSize: 13,
                                             fontWeight: FontWeight.w600,
-                                            color: AppColors.textPrimary,
+                                            color: Colors.grey,
                                           ),
                                         ),
                                         const SizedBox(height: 6),
-                                        Container(
-                                          decoration: BoxDecoration(
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Colors.black.withOpacity(0.05),
-                                                blurRadius: 4,
-                                                offset: const Offset(0, 2),
-                                              ),
-                                            ],
-                                          ),
-                                          child: TextFormField(
+                                        TextFormField(
                                             decoration: const InputDecoration(
                                               hintText: 'Additional comments...',
                                               hintStyle: TextStyle(fontSize: 13),
@@ -1378,9 +1328,9 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
                                             ),
                                             style: const TextStyle(fontSize: 13),
                                             maxLines: 2,
+                                            maxLength: 300,
                                             onChanged: (value) => _aiAssessmentFeedback = value,
                                           ),
-                                        ),
                                       ],
                                     ),
                                     

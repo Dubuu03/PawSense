@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:pawsense/core/models/user/user_model.dart';
@@ -182,13 +183,142 @@ class _EditProfilePageState extends State<EditProfilePage>
 
 
 
+  String? _validateField(String keyName, String value) {
+    switch (keyName) {
+      case 'firstName':
+        return nameValidator(value.trim(), 'First name');
+      case 'lastName':
+        return nameValidator(value.trim(), 'Last name');
+      case 'username':
+        if (value.trim().isEmpty) {
+          return 'Username is required';
+        }
+        return null;
+      case 'contactNumber':
+        return phoneValidator(value.trim());
+      case 'address':
+        return addressValidator(value.trim());
+      default:
+        return null;
+    }
+  }
+
   Future<void> _saveProfile() async {
-    // Clear previous errors
+    // Close any existing snackbar to prevent stacking
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    
     setState(() {
       _fieldErrors.updateAll((key, value) => null);
     });
 
-    if (!_formKey.currentState!.validate()) {
+    bool hasError = false;
+    List<String> errorMessages = [];
+
+    // Validate fields using improved validators
+    String? firstNameError = nameValidator(_firstNameController.text.trim(), 'First name');
+    if (firstNameError != null) {
+      _fieldErrors['firstName'] = firstNameError;
+      errorMessages.add(firstNameError);
+      hasError = true;
+    }
+
+    String? lastNameError = nameValidator(_lastNameController.text.trim(), 'Last name');
+    if (lastNameError != null) {
+      _fieldErrors['lastName'] = lastNameError;
+      errorMessages.add(lastNameError);
+      hasError = true;
+    }
+
+    String? usernameError = _usernameController.text.trim().isEmpty ? 'Username is required' : null;
+    if (usernameError != null) {
+      _fieldErrors['username'] = usernameError;
+      errorMessages.add(usernameError);
+      hasError = true;
+    }
+
+    String? phoneError = phoneValidator(_contactNumberController.text.trim());
+    if (phoneError != null) {
+      _fieldErrors['contactNumber'] = phoneError;
+      errorMessages.add(phoneError);
+      hasError = true;
+    }
+
+    String? addressError = addressValidator(_addressController.text.trim());
+    if (addressError != null) {
+      _fieldErrors['address'] = addressError;
+      errorMessages.add(addressError);
+      hasError = true;
+    }
+
+    if (hasError) {
+      String snackMessage;
+
+      if (errorMessages.length == 1) {
+        snackMessage = errorMessages.first; // Show specific error
+      } else {
+        // Check for empty/null fields first (priority)
+        bool hasEmptyFields = false;
+        bool hasInvalidInputs = false;
+        
+        if (_firstNameController.text.trim().isEmpty && _fieldErrors['firstName'] != null) hasEmptyFields = true;
+        if (_lastNameController.text.trim().isEmpty && _fieldErrors['lastName'] != null) hasEmptyFields = true;
+        if (_usernameController.text.trim().isEmpty && _fieldErrors['username'] != null) hasEmptyFields = true;
+        if (_contactNumberController.text.trim().isEmpty && _fieldErrors['contactNumber'] != null) hasEmptyFields = true;
+        if (_addressController.text.trim().isEmpty && _fieldErrors['address'] != null) hasEmptyFields = true;
+        
+        if (!hasEmptyFields) {
+          // Only check for invalid inputs if no empty fields
+          if (_firstNameController.text.trim().isNotEmpty && _fieldErrors['firstName'] != null) hasInvalidInputs = true;
+          if (_lastNameController.text.trim().isNotEmpty && _fieldErrors['lastName'] != null) hasInvalidInputs = true;
+          if (_usernameController.text.trim().isNotEmpty && _fieldErrors['username'] != null) hasInvalidInputs = true;
+          if (_contactNumberController.text.trim().isNotEmpty && _fieldErrors['contactNumber'] != null) hasInvalidInputs = true;
+          if (_addressController.text.trim().isNotEmpty && _fieldErrors['address'] != null) hasInvalidInputs = true;
+        }
+        
+        if (hasEmptyFields) {
+          snackMessage = 'Fill up required fields'; // Priority: Empty/null fields
+        } else if (hasInvalidInputs) {
+          snackMessage = 'Invalid inputs'; // Secondary: Invalid inputs
+        } else {
+          snackMessage = 'Please check your inputs'; // Fallback
+        }
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.error,
+          duration: const Duration(seconds: 5),
+          behavior: SnackBarBehavior.floating,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          content: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  snackMessage,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    height: 1.2,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 18),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onPressed: () {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+
+      setState(() {}); // Trigger UI update to show field errors
       return;
     }
 
@@ -353,6 +483,11 @@ class _EditProfilePageState extends State<EditProfilePage>
                         return null;
                       },
                       errorKey: 'firstName',
+                      maxLength: 20,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z\s\-']")),
+                        LengthLimitingTextInputFormatter(20),
+                      ],
                     ),
                     
                     const SizedBox(height: 16),
@@ -368,6 +503,11 @@ class _EditProfilePageState extends State<EditProfilePage>
                         return null;
                       },
                       errorKey: 'lastName',
+                      maxLength: 20,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z\s\-']")),
+                        LengthLimitingTextInputFormatter(20),
+                      ],
                     ),
                     
                     const SizedBox(height: 16),
@@ -383,6 +523,11 @@ class _EditProfilePageState extends State<EditProfilePage>
                         return null;
                       },
                       errorKey: 'username',
+                      maxLength: 20,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z0-9_]")),
+                        LengthLimitingTextInputFormatter(20),
+                      ],
                     ),
                     
                     const SizedBox(height: 16),
@@ -394,6 +539,11 @@ class _EditProfilePageState extends State<EditProfilePage>
                       keyboardType: TextInputType.phone,
                       validator: phoneValidator,
                       errorKey: 'contactNumber',
+                      maxLength: 11,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(11),
+                      ],
                     ),
                     
                     const SizedBox(height: 16),
@@ -410,6 +560,11 @@ class _EditProfilePageState extends State<EditProfilePage>
                         return null;
                       },
                       errorKey: 'address',
+                      maxLength: 200,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z0-9\s\-'.,#/]")),
+                        LengthLimitingTextInputFormatter(200),
+                      ],
                     ),
                     
                     const SizedBox(height: 40),
@@ -577,9 +732,11 @@ class _EditProfilePageState extends State<EditProfilePage>
     required String errorKey,
     TextInputType? keyboardType,
     int maxLines = 1,
+    int? maxLength,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return Container(
-      height: maxLines > 1 ? null : 56,
+      // Remove fixed height to allow for error text
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
@@ -601,11 +758,13 @@ class _EditProfilePageState extends State<EditProfilePage>
         controller: controller,
         keyboardType: keyboardType,
         maxLines: maxLines,
-        validator: validator,
-        onChanged: (_) {
-          if (_fieldErrors[errorKey] != null) {
-            setState(() => _fieldErrors[errorKey] = null);
-          }
+        maxLength: maxLength,
+        inputFormatters: inputFormatters,
+        onChanged: (value) {
+          // Real-time validation
+          setState(() {
+            _fieldErrors[errorKey] = _validateField(errorKey, value);
+          });
         },
         style: kTextStyleSmall.copyWith(
           color: AppColors.textPrimary,
@@ -648,6 +807,14 @@ class _EditProfilePageState extends State<EditProfilePage>
           ),
           contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: maxLines > 1 ? 16 : 12),
           isDense: maxLines == 1,
+          counterText: "", // Always hide character counter
+          errorText: _fieldErrors[errorKey],
+          errorStyle: kTextStyleSmall.copyWith(
+            color: AppColors.error,
+            fontSize: 12,
+            height: 1.2,
+          ),
+          errorMaxLines: 2,
         ),
       ),
     );

@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:pawsense/pages/mobile/auth/sign_in_page.dart';
 import 'package:pawsense/pages/mobile/auth/sign_up_page.dart';
 import 'package:pawsense/pages/mobile/auth/verify_email_page.dart';
+import 'package:pawsense/pages/mobile/auth/change_password_page.dart';
 import 'package:pawsense/pages/mobile/home_page.dart';
 import 'package:pawsense/pages/mobile/assessment_page.dart';
 import 'package:pawsense/pages/mobile/optimized_alerts_page.dart';
@@ -135,6 +136,10 @@ class AppRouter {
       GoRoute(
         path: '/about-pawsense',
         builder: (context, state) => const AboutPawSensePage(),
+      ),
+      GoRoute(
+        path: '/change-password',
+        builder: (context, state) => const ChangePasswordPage(),
       ),
       GoRoute(
         path: '/messaging',
