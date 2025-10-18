@@ -8,6 +8,9 @@ import 'package:pawsense/core/services/user/pdf_generation_service.dart';
 import 'package:pawsense/core/services/user/assessment_result_service.dart';
 import 'package:pawsense/core/models/user/user_model.dart';
 import 'package:pawsense/core/widgets/admin/appointments/appointment_completion_modal.dart';
+import 'package:pawsense/core/services/clinic/patient_pdf_service.dart';
+import 'package:pawsense/core/utils/file_downloader.dart' as file_downloader;
+import 'package:intl/intl.dart';
 
 class ImprovedPatientDetailsModal extends StatefulWidget {
   final PatientRecord patient;
@@ -328,6 +331,102 @@ class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModa
     }
   }
 
+  Future<void> _exportPatientRecord() async {
+    // Show loading snackbar
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+            SizedBox(width: 16),
+            Text('Generating patient PDF report...'),
+          ],
+        ),
+        duration: Duration(seconds: 30),
+        backgroundColor: Colors.blue,
+      ),
+    );
+
+    try {
+      print('📄 Generating patient PDF report...');
+      
+      // Get clinic information
+      final clinicDoc = await FirebaseFirestore.instance
+          .collection('clinics')
+          .doc(widget.clinicId)
+          .get();
+      
+      final clinicData = clinicDoc.data();
+      final clinicName = clinicData?['clinicName'] ?? 'Unknown Clinic';
+      final clinicAddress = clinicData?['address'] ?? '';
+      
+      // Generate PDF
+      final pdfBytes = await PatientPdfService.generatePatientReport(
+        patient: widget.patient,
+        appointmentHistory: _appointmentHistory,
+        clinicName: clinicName,
+        clinicAddress: clinicAddress,
+        generatedBy: 'Clinic Administrator',
+      );
+      
+      // Generate filename with timestamp
+      final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+      final fileName = 'Patient_${widget.patient.petName.replaceAll(' ', '_')}_$timestamp.pdf';
+      
+      // Download the file
+      file_downloader.downloadFile(fileName, pdfBytes);
+      
+      print('✅ Patient PDF generated and downloaded successfully');
+      
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 12),
+                Text('✅ Patient record exported successfully'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Error generating patient PDF: $e');
+      
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text('❌ Failed to export patient record: ${e.toString()}'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -419,6 +518,20 @@ class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModa
             ),
           ),
           _buildHealthStatusBadge(),
+          const SizedBox(width: 12),
+          ElevatedButton.icon(
+            onPressed: _exportPatientRecord,
+            icon: const Icon(Icons.download, size: 16),
+            label: const Text('Export', style: TextStyle(fontSize: 13)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
           const SizedBox(width: 16),
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
