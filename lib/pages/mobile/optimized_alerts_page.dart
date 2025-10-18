@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/widgets/user/alerts/alert_item.dart';
 import '../../../core/services/notifications/realtime_notification_service.dart';
+import '../../../core/widgets/shared/ui/scroll_to_top_fab.dart';
 
 /// Optimized alerts page with real-time updates
 /// Uses the new RealTimeNotificationService for efficient data management
@@ -281,6 +282,12 @@ class _OptimizedAlertsPageState extends State<OptimizedAlertsPage> {
         ],
       ),
       body: _buildBody(),
+      floatingActionButton: _notifications.isNotEmpty
+          ? ScrollToTopFab(
+              scrollController: _scrollController,
+              showThreshold: 200.0,
+            )
+          : null,
     );
   }
 

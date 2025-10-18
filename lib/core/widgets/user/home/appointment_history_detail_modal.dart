@@ -175,8 +175,15 @@ class _AppointmentHistoryDetailModalState extends State<AppointmentHistoryDetail
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Status Badge
-          _buildStatusSection(appointment),
+          // Status Badge (only show for non-cancelled appointments)
+          if (appointment.status != AppointmentStatus.cancelled)
+            _buildStatusSection(appointment),
+          
+          // Cancellation Reason (if cancelled)
+          if (appointment.status == AppointmentStatus.cancelled && 
+              appointment.cancelReason != null &&
+              appointment.cancelReason!.isNotEmpty)
+            _buildCancellationReasonSection(appointment),
           
           const SizedBox(height: kMobileSizedBoxXLarge),
           
@@ -271,6 +278,101 @@ class _AppointmentHistoryDetailModalState extends State<AppointmentHistoryDetail
                   style: kMobileTextStyleSubtitle.copyWith(
                     fontSize: 12,
                     color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCancellationReasonSection(AppointmentBooking appointment) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(kMobileBorderRadiusCard),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        children: [
+          // Cancelled Status Header
+          Container(
+            padding: const EdgeInsets.all(kMobilePaddingMedium),
+            decoration: BoxDecoration(
+              color: AppColors.error.withValues(alpha: 0.1),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(kMobileBorderRadiusCard),
+                topRight: Radius.circular(kMobileBorderRadiusCard),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Icon(
+                    Icons.cancel_outlined,
+                    color: AppColors.error,
+                    size: 16,
+                  ),
+                ),
+                const SizedBox(width: kMobileSizedBoxMedium),
+                Text(
+                  'Cancelled',
+                  style: kMobileTextStyleTitle.copyWith(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.error,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  'This appointment was cancelled',
+                  style: kMobileTextStyleSubtitle.copyWith(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Cancellation Reason Content
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(kMobilePaddingMedium),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: AppColors.error,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Cancellation Reason',
+                      style: kMobileTextStyleTitle.copyWith(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: kMobileSizedBoxMedium),
+                Text(
+                  appointment.cancelReason!,
+                  style: kMobileTextStyleSubtitle.copyWith(
+                    fontSize: 13,
+                    color: AppColors.textPrimary,
+                    height: 1.4,
                   ),
                 ),
               ],

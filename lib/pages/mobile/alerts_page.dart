@@ -12,6 +12,7 @@ import 'package:pawsense/core/widgets/user/alerts/optimized_alert_list.dart';
 import 'package:pawsense/core/services/notifications/notification_service.dart';
 import 'package:pawsense/core/services/notifications/paginated_notification_service.dart';
 import 'package:pawsense/core/services/notifications/demo_notification_service.dart';
+import 'package:pawsense/core/widgets/shared/ui/scroll_to_top_fab.dart';
 
 
 // GlobalKey for accessing AlertsPage methods
@@ -31,6 +32,7 @@ class _AlertsPageState extends State<AlertsPage> with WidgetsBindingObserver {
   bool _hasMore = false;
   int _currentNavIndex = 2; // Set to 2 for alerts tab
   List<AlertData> _notifications = [];
+  late ScrollController _scrollController;
   
   // Local state for instant updates
   final Set<String> _locallyReadNotifications = <String>{};
@@ -38,6 +40,16 @@ class _AlertsPageState extends State<AlertsPage> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    _scrollController = ScrollController();
+    _scrollController.addListener(() {
+      // Debug scroll position
+      if (_scrollController.hasClients) {
+        final offset = _scrollController.offset;
+        if (offset > 200 && offset < 220) {
+          print('📊 Scroll position: $offset px - FAB should appear');
+        }
+      }
+    });
     WidgetsBinding.instance.addObserver(this);
     _fetchUser();
   }
@@ -55,6 +67,7 @@ class _AlertsPageState extends State<AlertsPage> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _scrollController.dispose();
     // Clear local state to prevent memory leaks
     _locallyReadNotifications.clear();
     // Stream will be automatically disposed when widget is disposed
@@ -321,6 +334,19 @@ class _AlertsPageState extends State<AlertsPage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    // Debug: Check FAB visibility conditions
+    final shouldShowFab = _userModel != null && _notifications.isNotEmpty;
+    if (!shouldShowFab) {
+      if (_userModel == null) {
+        print('🔍 FAB Hidden: User not logged in');
+      }
+      if (_notifications.isEmpty) {
+        print('🔍 FAB Hidden: No notifications (${_notifications.length})');
+      }
+    } else {
+      print('✅ FAB Rendered: User logged in, ${_notifications.length} notifications');
+    }
+    
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: UserAppBar(
@@ -334,6 +360,12 @@ class _AlertsPageState extends State<AlertsPage> with WidgetsBindingObserver {
       body: _userModel == null 
           ? _buildLoadingState()
           : _buildNotificationsContent(),
+      floatingActionButton: _userModel != null && _notifications.isNotEmpty
+          ? ScrollToTopFab(
+              scrollController: _scrollController,
+              showThreshold: 200.0,
+            )
+          : null,
       bottomNavigationBar: UserBottomNavBar(
         currentIndex: _currentNavIndex,
         onIndexChanged: (index) {
@@ -371,6 +403,7 @@ class _AlertsPageState extends State<AlertsPage> with WidgetsBindingObserver {
               ? _buildEmptyStateWithDemo()
               : OptimizedAlertList(
                   alerts: _notifications,
+                  scrollController: _scrollController,
                   onAlertTap: _handleAlertTap,
                   onMarkAsRead: _handleMarkAsRead,
                   onDelete: _handleDelete,

@@ -273,37 +273,147 @@ class _AlertDetailsPageState extends State<AlertDetailsPage> {
           // Metadata Card (if available)
           if (notification.metadata != null && notification.metadata!.isNotEmpty) ...[
             const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Additional Information',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+            
+            // Combined Cancellation Status + Reason Card (for cancelled appointments)
+            if (notification.metadata!['cancelReason'] != null && 
+                notification.metadata!['cancelReason'].toString().isNotEmpty) ...[
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.06),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  ..._buildMetadataRows(notification.metadata!),
-                ],
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    // Cancelled Status Header
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.error.withValues(alpha: 0.1),
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(16),
+                          topRight: Radius.circular(16),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: AppColors.error.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Icon(
+                              Icons.cancel_outlined,
+                              color: AppColors.error,
+                              size: 16,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Text(
+                            'Cancelled',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.error,
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            'This appointment was cancelled',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Cancellation Reason Content
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline,
+                                color: AppColors.error,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'Cancellation Reason',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            notification.metadata!['cancelReason'].toString(),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade800,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+              const SizedBox(height: 16),
+            ],
+            
+            // Regular Metadata Card (excluding cancelReason as it's shown separately)
+            if (_buildMetadataRows(notification.metadata!).isNotEmpty) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24),
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.06),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Additional Information',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ..._buildMetadataRows(notification.metadata!),
+                  ],
+                ),
+              ),
+            ],
           ],
 
           // Action Buttons
@@ -369,7 +479,15 @@ class _AlertDetailsPageState extends State<AlertDetailsPage> {
   }
 
   List<Widget> _buildMetadataRows(Map<String, dynamic> metadata) {
-    return metadata.entries.map((entry) {
+    // Exclude cancelReason from metadata rows as it's shown separately
+    final filteredMetadata = Map<String, dynamic>.from(metadata)
+      ..remove('cancelReason');
+    
+    if (filteredMetadata.isEmpty) {
+      return [];
+    }
+    
+    return filteredMetadata.entries.map((entry) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Row(
