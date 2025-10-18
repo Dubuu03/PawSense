@@ -6,6 +6,7 @@ import 'package:pawsense/core/config/firebase_options.dart';
 import 'package:pawsense/core/config/app_router.dart';
 import 'package:pawsense/core/services/shared/data_service.dart';
 import 'package:pawsense/core/services/notifications/appointment_reminder_service.dart';
+import 'package:pawsense/core/services/clinic/appointment_auto_cancellation_service.dart';
 import 'package:pawsense/core/widgets/shared/global_notification_wrapper.dart';
 
 void main() async {
@@ -22,6 +23,14 @@ void main() async {
 
   // Start appointment reminder service
   AppointmentReminderService.startReminderService();
+
+  // Process expired appointments on app startup
+  // This ensures any pending appointments that have passed are auto-cancelled
+  AppointmentAutoCancellationService.processExpiredAppointments().then((stats) {
+    print('📊 Auto-cancellation on startup: ${stats['cancelled']} cancelled, ${stats['failed']} failed');
+  }).catchError((e) {
+    print('⚠️ Error processing expired appointments on startup: $e');
+  });
 
   runApp(const PawSenseApp());
 }

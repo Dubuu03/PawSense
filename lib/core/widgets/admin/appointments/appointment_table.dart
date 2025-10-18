@@ -14,6 +14,7 @@ class AppointmentTable extends StatelessWidget {
   final Function(Appointment)? onAccept;
   final Function(Appointment)? onReject;
   final Function(Appointment)? onMarkDone;
+  final Function(Appointment)? onMarkNoShow;
   final SortOrder bookedAtSortOrder;
   final VoidCallback? onBookedAtSortChanged;
 
@@ -26,6 +27,7 @@ class AppointmentTable extends StatelessWidget {
     this.onAccept,
     this.onReject,
     this.onMarkDone,
+    this.onMarkNoShow,
     required this.bookedAtSortOrder,
     this.onBookedAtSortChanged,
   });
@@ -53,6 +55,7 @@ class AppointmentTable extends StatelessWidget {
             onAccept: onAccept != null ? () => onAccept!(appointment) : null,
             onReject: onReject != null ? () => onReject!(appointment) : null,
             onMarkDone: onMarkDone != null ? () => onMarkDone!(appointment) : null,
+            onMarkNoShow: onMarkNoShow != null ? () => onMarkNoShow!(appointment) : null,
           )),
         ],
       ),

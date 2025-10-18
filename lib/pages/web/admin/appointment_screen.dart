@@ -1346,6 +1346,9 @@ class _OptimizedAppointmentManagementScreenState
                     onMarkDone: appointment.status == AppointmentModels.AppointmentStatus.confirmed
                         ? () => _onMarkDone(appointment)
                         : null,
+                    onMarkNoShow: appointment.status == AppointmentModels.AppointmentStatus.confirmed
+                        ? () => _onMarkNoShow(appointment)
+                        : null,
                     onReject: appointment.status == AppointmentModels.AppointmentStatus.pending
                         ? () => _onReject(appointment)
                         : null,
@@ -1428,6 +1431,125 @@ class _OptimizedAppointmentManagementScreenState
         onCompleted: _refreshAfterStatusChange,
       ),
     );
+  }
+
+  Future<void> _onMarkNoShow(AppointmentModels.Appointment appointment) async {
+    // Confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.person_off_outlined, color: AppColors.warning),
+            SizedBox(width: 8),
+            Text('Mark as No Show'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to mark this appointment as a no-show?',
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Text('Pet:', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(width: 8),
+                      Text(appointment.pet.name),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Text('Owner:', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(width: 8),
+                      Text(appointment.owner.name),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Text('Date:', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(width: 8),
+                      Text('${appointment.date} at ${appointment.time}'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: AppColors.warning),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Both you and the pet owner will be notified.',
+                      style: TextStyle(fontSize: 12, color: AppColors.warning),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.warning),
+            child: const Text('Mark as No Show', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final success = await AppointmentService.markAsNoShow(appointment.id);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              success
+                  ? 'Marked appointment for ${appointment.pet.name} as no-show'
+                  : 'Failed to mark appointment as no-show',
+            ),
+            backgroundColor: success ? AppColors.warning : AppColors.error,
+          ),
+        );
+        
+        if (success) {
+          try {
+            await _refreshAfterStatusChange();
+          } catch (e) {
+            print('⚠️ Error refreshing data after marking as no-show: $e');
+          }
+        }
+      }
+    }
   }
 
   Future<void> _onReject(AppointmentModels.Appointment appointment) async {

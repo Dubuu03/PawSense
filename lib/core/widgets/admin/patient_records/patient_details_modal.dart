@@ -1422,10 +1422,6 @@ class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModa
         badgeColor = Colors.red;
         badgeText = 'Cancelled';
         break;
-      case AppointmentModels.AppointmentStatus.noShow:
-        badgeColor = Colors.grey;
-        badgeText = 'No Show';
-        break;
     }
 
     return Container(

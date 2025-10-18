@@ -260,8 +260,6 @@ class _AppointmentEditModalState extends State<AppointmentEditModal> {
         return AppColors.success;
       case AppointmentStatus.cancelled:
         return AppColors.error;
-      case AppointmentStatus.noShow:
-        return AppColors.textSecondary;
     }
   }
 

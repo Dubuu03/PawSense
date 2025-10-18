@@ -372,8 +372,6 @@ class _AppointmentDetailsModalState extends State<AppointmentDetailsModal> {
         return 'Completed';
       case AppointmentStatus.cancelled:
         return 'Cancelled';
-      case AppointmentStatus.noShow:
-        return 'No Show';
     }
   }
 
@@ -387,8 +385,6 @@ class _AppointmentDetailsModalState extends State<AppointmentDetailsModal> {
         return Colors.blue;
       case AppointmentStatus.cancelled:
         return Colors.red;
-      case AppointmentStatus.noShow:
-        return Colors.grey;
     }
   }
 
