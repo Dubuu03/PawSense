@@ -276,29 +276,13 @@ class _WebLoginPageState extends State<WebLoginPage> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Password',
-                              style: kTextStyleSmall.copyWith(
-                                fontSize: 15, // Increased from 14
-                                color: AppColors.textPrimary,
-                                fontWeight: FontWeight.w600, // Increased weight
-                              ),
-                            ),
-                            InkWell(
-                              onTap: () => context.go('/forgot-password'),
-                              child: Text(
-                                'Forgot Password?',
-                                style: kTextStyleSmall.copyWith(
-                                  fontSize: 13,
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
+                        Text(
+                          'Password',
+                          style: kTextStyleSmall.copyWith(
+                            fontSize: 15, // Increased from 14
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w600, // Increased weight
+                          ),
                         ),
                         const SizedBox(height: 8),
                         Container(
@@ -386,6 +370,21 @@ class _WebLoginPageState extends State<WebLoginPage> {
                               return null;
                             },
                             onFieldSubmitted: (_) => _handleLogin(),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: InkWell(
+                            onTap: () => context.go('/forgot-password'),
+                            child: Text(
+                              'Forgot Password?',
+                              style: kTextStyleSmall.copyWith(
+                                fontSize: 13,
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
                           ),
                         ),
                       ],
