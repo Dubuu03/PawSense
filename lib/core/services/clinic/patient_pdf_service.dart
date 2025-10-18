@@ -335,129 +335,209 @@ class PatientPdfService {
     
     List<pw.Widget> widgets = [];
     
-    // Build table header
-    widgets.add(
-      pw.Table(
-        border: pw.TableBorder.all(color: PdfColors.grey400),
-        columnWidths: {
-          0: const pw.FlexColumnWidth(2),
-          1: const pw.FlexColumnWidth(1.5),
-          2: const pw.FlexColumnWidth(3),
-          3: const pw.FlexColumnWidth(1.5),
-        },
+    // Build single consolidated table
+    final List<pw.TableRow> tableRows = [];
+    
+    // Add header row
+    tableRows.add(
+      pw.TableRow(
+        decoration: const pw.BoxDecoration(color: PdfColors.purple700),
         children: [
-          pw.TableRow(
-            decoration: const pw.BoxDecoration(color: PdfColors.purple100),
-            children: [
-              _buildTableHeaderCell('Date'),
-              _buildTableHeaderCell('Time'),
-              _buildTableHeaderCell('Service / Reason'),
-              _buildTableHeaderCell('Status'),
-            ],
-          ),
+          _buildTableHeaderCell('Date', isHeader: true),
+          _buildTableHeaderCell('Time', isHeader: true),
+          _buildTableHeaderCell('Service / Reason', isHeader: true),
+          _buildTableHeaderCell('Status', isHeader: true),
         ],
       ),
     );
     
-    // Build table rows
-    for (var appointment in sortedAppointments) {
-      widgets.add(
-        pw.Table(
-          border: pw.TableBorder.all(color: PdfColors.grey400),
-          columnWidths: {
-            0: const pw.FlexColumnWidth(2),
-            1: const pw.FlexColumnWidth(1.5),
-            2: const pw.FlexColumnWidth(3),
-            3: const pw.FlexColumnWidth(1.5),
-          },
+    // Build data rows
+    for (var i = 0; i < sortedAppointments.length; i++) {
+      final appointment = sortedAppointments[i];
+      final isEven = i % 2 == 0;
+      
+      tableRows.add(
+        pw.TableRow(
+          decoration: pw.BoxDecoration(
+            color: isEven ? PdfColors.white : PdfColors.grey50,
+          ),
           children: [
-            pw.TableRow(
-              children: [
-                _buildTableCell(DateFormat('MMM dd, yyyy').format(appointment.appointmentDate)),
-                _buildTableCell(appointment.appointmentTime),
-                _buildTableCell(appointment.serviceName),
-                _buildTableCell(_getStatusText(appointment.status)),
-              ],
-            ),
+            _buildTableCell(DateFormat('MMM dd, yyyy').format(appointment.appointmentDate)),
+            _buildTableCell(appointment.appointmentTime),
+            _buildTableCell(appointment.serviceName),
+            _buildTableCell(_getStatusText(appointment.status)),
           ],
         ),
       );
       
-      // Add notes if available
+      // Add notes row if available
       if (appointment.notes.isNotEmpty) {
-        widgets.add(
-          pw.Container(
-            padding: const pw.EdgeInsets.all(8),
+        tableRows.add(
+          pw.TableRow(
             decoration: pw.BoxDecoration(
-              color: PdfColors.grey50,
-              border: pw.Border.all(color: PdfColors.grey400),
+              color: isEven ? PdfColors.grey50 : PdfColors.grey100,
             ),
-            child: pw.Text(
-              'Notes: ${appointment.notes}',
-              style: const pw.TextStyle(
-                fontSize: 9,
-                color: PdfColors.grey700,
+            children: [
+              pw.Container(
+                padding: const pw.EdgeInsets.all(8),
+                child: pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      'Notes: ',
+                      style: pw.TextStyle(
+                        fontSize: 9,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.grey800,
+                      ),
+                    ),
+                    pw.Expanded(
+                      child: pw.Text(
+                        appointment.notes,
+                        style: const pw.TextStyle(
+                          fontSize: 9,
+                          color: PdfColors.grey700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+              pw.Container(), // Empty cell
+              pw.Container(), // Empty cell
+              pw.Container(), // Empty cell
+            ],
           ),
         );
       }
       
-      // Add diagnosis/treatment if available (completed appointments)
+      // Add clinic evaluation row if available
       if (appointment.status == AppointmentStatus.completed) {
         final hasDiagnosis = appointment.diagnosis != null && appointment.diagnosis!.trim().isNotEmpty;
         final hasTreatment = appointment.treatment != null && appointment.treatment!.trim().isNotEmpty;
         final hasPrescription = appointment.prescription != null && appointment.prescription!.trim().isNotEmpty;
         
         if (hasDiagnosis || hasTreatment || hasPrescription) {
-          widgets.add(
-            pw.Container(
-              padding: const pw.EdgeInsets.all(8),
-              decoration: pw.BoxDecoration(
+          tableRows.add(
+            pw.TableRow(
+              decoration: const pw.BoxDecoration(
                 color: PdfColors.blue50,
-                border: pw.Border.all(color: PdfColors.blue300),
               ),
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Text(
-                    'Clinic Evaluation:',
-                    style: pw.TextStyle(
-                      fontSize: 9,
-                      fontWeight: pw.FontWeight.bold,
-                      color: PdfColors.blue900,
-                    ),
+              children: [
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        'Clinic Evaluation:',
+                        style: pw.TextStyle(
+                          fontSize: 9,
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfColors.blue900,
+                        ),
+                      ),
+                      pw.SizedBox(height: 4),
+                      if (hasDiagnosis) ...[
+                        pw.Row(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text(
+                              'Diagnosis: ',
+                              style: pw.TextStyle(
+                                fontSize: 9,
+                                fontWeight: pw.FontWeight.bold,
+                                color: PdfColors.grey800,
+                              ),
+                            ),
+                            pw.Expanded(
+                              child: pw.Text(
+                                appointment.diagnosis!,
+                                style: const pw.TextStyle(
+                                  fontSize: 9,
+                                  color: PdfColors.grey800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        pw.SizedBox(height: 2),
+                      ],
+                      if (hasTreatment) ...[
+                        pw.Row(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text(
+                              'Treatment: ',
+                              style: pw.TextStyle(
+                                fontSize: 9,
+                                fontWeight: pw.FontWeight.bold,
+                                color: PdfColors.grey800,
+                              ),
+                            ),
+                            pw.Expanded(
+                              child: pw.Text(
+                                appointment.treatment!,
+                                style: const pw.TextStyle(
+                                  fontSize: 9,
+                                  color: PdfColors.grey800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        pw.SizedBox(height: 2),
+                      ],
+                      if (hasPrescription) ...[
+                        pw.Row(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text(
+                              'Prescription: ',
+                              style: pw.TextStyle(
+                                fontSize: 9,
+                                fontWeight: pw.FontWeight.bold,
+                                color: PdfColors.grey800,
+                              ),
+                            ),
+                            pw.Expanded(
+                              child: pw.Text(
+                                appointment.prescription!,
+                                style: const pw.TextStyle(
+                                  fontSize: 9,
+                                  color: PdfColors.grey800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
                   ),
-                  pw.SizedBox(height: 4),
-                  if (hasDiagnosis) ...[
-                    pw.Text(
-                      'Diagnosis: ${appointment.diagnosis}',
-                      style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey800),
-                    ),
-                    pw.SizedBox(height: 2),
-                  ],
-                  if (hasTreatment) ...[
-                    pw.Text(
-                      'Treatment: ${appointment.treatment}',
-                      style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey800),
-                    ),
-                    pw.SizedBox(height: 2),
-                  ],
-                  if (hasPrescription) ...[
-                    pw.Text(
-                      'Prescription: ${appointment.prescription}',
-                      style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey800),
-                    ),
-                  ],
-                ],
-              ),
+                ),
+                pw.Container(), // Empty cell
+                pw.Container(), // Empty cell
+                pw.Container(), // Empty cell
+              ],
             ),
           );
         }
       }
-      
-      widgets.add(pw.SizedBox(height: 4));
     }
+    
+    // Add single table with all rows
+    widgets.add(
+      pw.Table(
+        border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
+        columnWidths: {
+          0: const pw.FlexColumnWidth(2),
+          1: const pw.FlexColumnWidth(1.5),
+          2: const pw.FlexColumnWidth(3),
+          3: const pw.FlexColumnWidth(1.5),
+        },
+        children: tableRows,
+      ),
+    );
     
     return widgets;
   }
@@ -521,7 +601,7 @@ class PatientPdfService {
   }
   
   /// Build table header cell
-  static pw.Widget _buildTableHeaderCell(String text) {
+  static pw.Widget _buildTableHeaderCell(String text, {bool isHeader = false}) {
     return pw.Container(
       padding: const pw.EdgeInsets.all(8),
       child: pw.Text(
@@ -529,7 +609,7 @@ class PatientPdfService {
         style: pw.TextStyle(
           fontSize: 10,
           fontWeight: pw.FontWeight.bold,
-          color: PdfColors.purple900,
+          color: isHeader ? PdfColors.white : PdfColors.purple900,
         ),
       ),
     );
@@ -552,7 +632,7 @@ class PatientPdfService {
   /// Build footer
   static pw.Widget _buildFooter(pw.Context context, {String? generatedBy}) {
     final now = DateTime.now();
-    final dateStr = DateFormat('MMM dd, yyyy • hh:mm a').format(now);
+    final dateStr = DateFormat('MMM dd, yyyy - hh:mm a').format(now);
     
     return pw.Container(
       padding: const pw.EdgeInsets.only(top: 8),
@@ -566,7 +646,7 @@ class PatientPdfService {
         children: [
           pw.Text(
             generatedBy != null 
-                ? 'Generated by $generatedBy • $dateStr'
+                ? 'Generated by $generatedBy - $dateStr'
                 : 'Generated on $dateStr',
             style: const pw.TextStyle(
               fontSize: 8,
