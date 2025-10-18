@@ -1,6 +1,10 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:pawsense/core/utils/file_downloader.dart' as file_downloader;
 import '../../../core/models/analytics/system_analytics_models.dart';
 import '../../../core/services/super_admin/system_analytics_service.dart';
+import '../../../core/services/super_admin/analytics_pdf_service.dart';
 import '../../../core/utils/app_colors.dart';
 import '../../../core/utils/constants.dart';
 import '../../../core/widgets/shared/page_header.dart';
@@ -123,14 +127,79 @@ class _SystemAnalyticsScreenState extends State<SystemAnalyticsScreen> {
     _loadAnalyticsData();
   }
 
-  void _onExport() {
-    // TODO: Implement export functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Export functionality coming soon!'),
-        backgroundColor: AppColors.info,
-      ),
-    );
+  Future<void> _onExport() async {
+    // Show loading indicator
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              SizedBox(width: 16),
+              Text('Generating analytics PDF report...'),
+            ],
+          ),
+          duration: Duration(seconds: 30),
+          backgroundColor: Colors.blue,
+        ),
+      );
+    }
+
+    try {
+      // Get current admin name (you can modify this to get actual admin name)
+      String? adminName = 'Super Admin';
+
+      // Generate PDF
+      final Uint8List pdfBytes = await AnalyticsPdfService.generateAnalyticsReport(
+        period: selectedPeriod,
+        userStats: userStats ?? UserStats.empty(),
+        clinicStats: clinicStats ?? ClinicStats.empty(),
+        appointmentStats: appointmentStats ?? AppointmentStats.empty(),
+        aiStats: aiStats ?? AIUsageStats.empty(),
+        petStats: petStats ?? PetStats.empty(),
+        systemHealth: systemHealth ?? SystemHealthScore.empty(),
+        topClinics: topClinics,
+        clinicAlerts: clinicAlerts,
+        topDiseases: topDiseases,
+        generatedAt: DateTime.now(),
+        generatedBy: adminName,
+      );
+
+      // Download PDF
+      final fileName = 'system_analytics_${selectedPeriod.name}_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf';
+      file_downloader.downloadFile(fileName, pdfBytes);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Analytics report exported successfully'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+
+      print('📊 Exported system analytics report for ${selectedPeriod.label}');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error generating PDF: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      print('❌ Error generating analytics PDF: $e');
+    }
   }
 
   @override
