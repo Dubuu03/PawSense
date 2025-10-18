@@ -53,6 +53,7 @@ class ClinicListService {
           'phone': clinic.phone,
           'email': clinic.email,
           'website': clinic.website,
+          'logoUrl': clinic.logoUrl,
           'operatingHours': clinicDetails?.operatingHours ?? 'Mon-Fri: 8AM-6PM',
           'specialties': clinicDetails?.specialties ?? [],
           'isVerified': clinicDetails?.isVerified ?? false,
