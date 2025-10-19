@@ -1352,7 +1352,9 @@ class _OptimizedAppointmentManagementScreenState
                     onReject: appointment.status == AppointmentModels.AppointmentStatus.pending
                         ? () => _onReject(appointment)
                         : null,
-                    onEdit: () => _onEdit(appointment),
+                    onEdit: (appointment.status == AppointmentModels.AppointmentStatus.confirmed || appointment.isFollowUp == true)
+                        ? null
+                        : () => _onEdit(appointment),
                     onDelete: () => _onDelete(appointment),
                   );
                 },

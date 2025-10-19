@@ -7,7 +7,7 @@ import 'status_badge.dart';
 
 class AppointmentTableRow extends StatelessWidget {
   final Appointment appointment;
-  final VoidCallback onEdit;
+  final VoidCallback? onEdit;
   final VoidCallback onDelete;
   final VoidCallback onView;
   final VoidCallback? onAccept;
@@ -18,7 +18,7 @@ class AppointmentTableRow extends StatelessWidget {
   const AppointmentTableRow({
     super.key,
     required this.appointment,
-    required this.onEdit,
+    this.onEdit,
     required this.onDelete,
     required this.onView,
     this.onAccept,
@@ -315,14 +315,15 @@ class AppointmentTableRow extends StatelessWidget {
                       padding: const EdgeInsets.all(4),
                       tooltip: 'Mark as No Show',
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.edit_outlined, size: 16),
-                      onPressed: onEdit,
-                      color: AppColors.textSecondary,
-                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                      padding: const EdgeInsets.all(4),
-                      tooltip: 'Edit Appointment',
-                    ),
+                    if (onEdit != null)
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined, size: 16),
+                        onPressed: onEdit,
+                        color: AppColors.textSecondary,
+                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                        padding: const EdgeInsets.all(4),
+                        tooltip: 'Edit Appointment',
+                      ),
                   ],
                 ],
               ),
