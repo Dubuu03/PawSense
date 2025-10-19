@@ -3,7 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
 import '../../../core/services/auth/auth_service_mobile.dart';
-import 'terms_and_conditions_modal.dart';
+import '../../../core/models/system/legal_document_model.dart';
+import 'legal_document_modal.dart';
 import '../../../core/utils/constants.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/utils/errors.dart';
@@ -488,10 +489,10 @@ class _SignUpPageState extends State<SignUpPage>
                         keyName: 'firstName',
                         controller: _firstNameController,
                         label: 'First Name',
-                        maxLength: 30,
+                        maxLength: 20,
                         inputFormatters: [
                           FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z\s\-']")),
-                          LengthLimitingTextInputFormatter(30),
+                          LengthLimitingTextInputFormatter(20),
                         ],
                       ),
                       SizedBox(height: 16),
@@ -500,10 +501,10 @@ class _SignUpPageState extends State<SignUpPage>
                         keyName: 'lastName',
                         controller: _lastNameController,
                         label: 'Last Name',
-                        maxLength: 30,
+                        maxLength: 20,
                         inputFormatters: [
                           FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z\s\-']")),
-                          LengthLimitingTextInputFormatter(30),
+                          LengthLimitingTextInputFormatter(20),
                         ],
                       ),
                       SizedBox(height: 16),
@@ -622,7 +623,10 @@ class _SignUpPageState extends State<SignUpPage>
                                   final agreed = await showDialog<bool>(
                                     context: context,
                                     barrierDismissible: false,
-                                    builder: (context) => const TermsAndConditionsModal(),
+                                    builder: (context) => const LegalDocumentModal(
+                                      documentType: DocumentType.termsAndConditions,
+                                      requireAcceptance: true,
+                                    ),
                                   );
                                   setState(() {
                                     _acceptTerms = agreed == true;
@@ -645,7 +649,10 @@ class _SignUpPageState extends State<SignUpPage>
                                   final agreed = await showDialog<bool>(
                                     context: context,
                                     barrierDismissible: false,
-                                    builder: (context) => const TermsAndConditionsModal(),
+                                    builder: (context) => const LegalDocumentModal(
+                                      documentType: DocumentType.termsAndConditions,
+                                      requireAcceptance: true,
+                                    ),
                                   );
                                   setState(() {
                                     _acceptTerms = agreed == true;

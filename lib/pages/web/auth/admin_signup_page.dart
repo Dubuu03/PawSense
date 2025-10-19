@@ -11,11 +11,13 @@ import '../../../core/models/clinic/clinic_details_model.dart';
 import '../../../core/models/clinic/clinic_service_model.dart';
 import '../../../core/models/clinic/clinic_certification_model.dart';
 import '../../../core/models/clinic/clinic_license_model.dart';
+import '../../../core/models/system/legal_document_model.dart';
 import '../../../core/services/auth/auth_service.dart';
 import '../../../core/utils/app_colors.dart';
 import '../../../core/utils/constants.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/utils/text_utils.dart';
+import '../../../core/widgets/web/legal_document_acceptance_dialog.dart';
 
 class AdminSignupPage extends StatefulWidget {
   const AdminSignupPage({super.key});
@@ -132,7 +134,42 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
     }
   }
 
-  /// Get password requirements status
+  /// Show validation error for date selection
+  void _showValidationError(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(
+                Icons.date_range,
+                color: Colors.white,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: AppColors.warning,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          margin: const EdgeInsets.all(16),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
   Map<String, bool> _getPasswordRequirements(String password) {
     return {
       'lowercase': RegExp(r'[a-z]').hasMatch(password),
@@ -446,11 +483,29 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
   bool _isCertificationValid(ClinicCertification cert) {
     // Get the index of the certification to check its image
     final index = _certifications.indexOf(cert);
-    // Certification name, issuer, expiry date, and image should be provided
-    return cert.name.trim().isNotEmpty && 
-           cert.issuer.trim().isNotEmpty &&
-           cert.dateExpiry != null &&
-           _certificationImages[index] != null; // Image is required
+    
+    // Basic field validation
+    if (cert.name.trim().isEmpty || 
+        cert.issuer.trim().isEmpty ||
+        cert.dateExpiry == null ||
+        _certificationImages[index] == null) {
+      return false;
+    }
+    
+    // Date validation
+    final issueDate = cert.dateIssued.toDate();
+    final expiryDate = cert.dateExpiry!.toDate();
+    
+    // Issue date should not be in the future
+    if (issueDate.isAfter(DateTime.now())) return false;
+    
+    // Expiry date should not be before issue date
+    if (expiryDate.isBefore(issueDate)) return false;
+    
+    // Expiry date should not be in the past (warning, but don't block)
+    // if (expiryDate.isBefore(DateTime.now())) return false;
+    
+    return true;
   }
 
   /// Preview image in a dialog
@@ -844,16 +899,44 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
   }
 
   Future<void> _selectCertificationDate(int index, bool isIssued) async {
+    final currentCert = _certifications[index];
+    
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: isIssued
-          ? _certifications[index].dateIssued.toDate()
-          : (_certifications[index].dateExpiry?.toDate() ?? DateTime.now()),
-      firstDate: DateTime(2000),
+          ? currentCert.dateIssued.toDate()
+          : (currentCert.dateExpiry?.toDate() ?? DateTime.now().add(Duration(days: 365))),
+      firstDate: DateTime(1950),
       lastDate: DateTime(2100),
     );
 
     if (picked != null) {
+      // Validation logic
+      if (isIssued) {
+        // Issue date validation
+        if (picked.isAfter(DateTime.now())) {
+          _showValidationError('Issue date cannot be in the future');
+          return;
+        }
+        
+        // Check if expiry date needs to be updated
+        if (currentCert.dateExpiry != null && picked.isAfter(currentCert.dateExpiry!.toDate())) {
+          _showValidationError('Issue date cannot be after the expiry date');
+          return;
+        }
+      } else {
+        // Expiry date validation
+        if (picked.isBefore(currentCert.dateIssued.toDate())) {
+          _showValidationError('Expiry date cannot be earlier than the issue date');
+          return;
+        }
+        
+        if (picked.isBefore(DateTime.now())) {
+          _showValidationError('Expiry date cannot be in the past');
+          return;
+        }
+      }
+
       setState(() {
         if (isIssued) {
           _certifications[index] = _certifications[index].copyWith(
@@ -913,16 +996,44 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
   }
 
   Future<void> _selectLicenseDate(int index, bool isIssued) async {
+    final currentLicense = _licenses[index];
+    
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: isIssued
-          ? _licenses[index].issueDate.toDate()
-          : _licenses[index].expiryDate.toDate(),
-      firstDate: DateTime(2000),
+          ? currentLicense.issueDate.toDate()
+          : currentLicense.expiryDate.toDate(),
+      firstDate: DateTime(1950),
       lastDate: DateTime(2100),
     );
 
     if (picked != null) {
+      // Validation logic
+      if (isIssued) {
+        // Issue date validation
+        if (picked.isAfter(DateTime.now())) {
+          _showValidationError('Issue date cannot be in the future');
+          return;
+        }
+        
+        // Check if expiry date needs to be updated
+        if (picked.isAfter(currentLicense.expiryDate.toDate())) {
+          _showValidationError('Issue date cannot be after the expiry date');
+          return;
+        }
+      } else {
+        // Expiry date validation
+        if (picked.isBefore(currentLicense.issueDate.toDate())) {
+          _showValidationError('Expiry date cannot be earlier than the issue date');
+          return;
+        }
+        
+        if (picked.isBefore(DateTime.now())) {
+          _showValidationError('Expiry date cannot be in the past');
+          return;
+        }
+      }
+
       setState(() {
         if (isIssued) {
           _licenses[index] = _licenses[index].copyWith(
@@ -1015,9 +1126,26 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
   bool _isLicenseValid(ClinicLicense license) {
     // Get the index of the license to check its image
     final index = _licenses.indexOf(license);
-    // License ID and image should be provided
-    return license.licenseId.trim().isNotEmpty &&
-           _licenseImages[index] != null; // Image is now required
+    
+    // Basic field validation
+    if (license.licenseId.trim().isEmpty || _licenseImages[index] == null) {
+      return false;
+    }
+    
+    // Date validation
+    final issueDate = license.issueDate.toDate();
+    final expiryDate = license.expiryDate.toDate();
+    
+    // Issue date should not be in the future
+    if (issueDate.isAfter(DateTime.now())) return false;
+    
+    // Expiry date should not be before issue date
+    if (expiryDate.isBefore(issueDate)) return false;
+    
+    // Expiry date should not be in the past (warning, but don't block)
+    // if (expiryDate.isBefore(DateTime.now())) return false;
+    
+    return true;
   }
 
   void _nextStep() async {
@@ -1863,56 +1991,140 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
           _buildLicensesSection(),
           const SizedBox(height: 32),
 
-          // Terms and Conditions
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Checkbox(
-                value: _agreedToTerms,
-                onChanged: (value) =>
-                    setState(() => _agreedToTerms = value ?? false),
-                activeColor: AppColors.primary,
+          // Terms and Conditions - Requires modal acceptance
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _fieldErrors['terms'] != null 
+                  ? AppColors.error.withOpacity(0.05)
+                  : AppColors.primary.withOpacity(0.03),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: _fieldErrors['terms'] != null 
+                    ? AppColors.error.withOpacity(0.3)
+                    : AppColors.primary.withOpacity(0.2),
+                width: 1.5,
               ),
-              Expanded(
-                child: RichText(
-                  text: TextSpan(
-                    style: kTextStyleSmall.copyWith(
-                      fontSize: 14,
-                      color: AppColors.textSecondary,
-                    ),
-                    children: [
-                      const TextSpan(text: 'I agree to the '),
-                      TextSpan(
-                        text: 'Terms and Conditions',
-                        style: kTextStyleSmall.copyWith(
-                          fontSize: 14,
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w500,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Checkbox(
+                  value: _agreedToTerms,
+                  onChanged: (value) async {
+                    if (value == true && !_agreedToTerms) {
+                      // Show modal dialog requiring scroll and acceptance
+                      final agreed = await showDialog<bool>(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (context) => const LegalDocumentAcceptanceDialog(
+                          documentType: DocumentType.termsAndConditions,
                         ),
-                        recognizer: TapGestureRecognizer()
-                          ..onTap = () {
-                            // Handle terms and conditions tap
-                          },
-                      ),
-                      const TextSpan(text: ' and '),
-                      TextSpan(
-                        text: 'Privacy Policy',
-                        style: kTextStyleSmall.copyWith(
-                          fontSize: 14,
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        recognizer: TapGestureRecognizer()
-                          ..onTap = () {
-                            // Handle privacy policy tap
-                          },
-                      ),
-                    ],
+                      );
+                      setState(() {
+                        _agreedToTerms = agreed == true;
+                        if (_agreedToTerms) {
+                          _fieldErrors['terms'] = null;
+                        }
+                      });
+                    } else if (value == false) {
+                      setState(() => _agreedToTerms = false);
+                    }
+                  },
+                  activeColor: AppColors.primary,
+                  side: BorderSide(
+                    color: _fieldErrors['terms'] != null 
+                        ? AppColors.error 
+                        : AppColors.textTertiary,
+                    width: 2,
                   ),
                 ),
-              ),
-            ],
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () async {
+                      if (!_agreedToTerms) {
+                        // Show modal dialog requiring scroll and acceptance
+                        final agreed = await showDialog<bool>(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (context) => const LegalDocumentAcceptanceDialog(
+                            documentType: DocumentType.termsAndConditions,
+                          ),
+                        );
+                        setState(() {
+                          _agreedToTerms = agreed == true;
+                          if (_agreedToTerms) {
+                            _fieldErrors['terms'] = null;
+                          }
+                        });
+                      } else {
+                        setState(() => _agreedToTerms = false);
+                      }
+                    },
+                    child: RichText(
+                      text: TextSpan(
+                        style: kTextStyleSmall.copyWith(
+                          fontSize: 14,
+                          color: _fieldErrors['terms'] != null 
+                              ? AppColors.error 
+                              : AppColors.textSecondary,
+                        ),
+                        children: [
+                          const TextSpan(text: 'I have read and agree to the '),
+                          TextSpan(
+                            text: 'Terms and Conditions',
+                            style: kTextStyleSmall.copyWith(
+                              fontSize: 14,
+                              color: _fieldErrors['terms'] != null 
+                                  ? AppColors.error 
+                                  : AppColors.primary,
+                              fontWeight: FontWeight.w600,
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                          const TextSpan(text: ' (click to view)'),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
+          if (_fieldErrors['terms'] != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.error.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: AppColors.error.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    size: 16,
+                    color: AppColors.error,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _fieldErrors['terms']!,
+                      style: kTextStyleSmall.copyWith(
+                        fontSize: 13,
+                        color: AppColors.error,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1991,8 +2203,19 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                       labelText: 'Service Name *',
                       border: OutlineInputBorder(),
                       hintText: 'Enter service name',
+                      counterText: '',
                     ),
-                    validator: (value) => value?.trim().isEmpty ?? true ? 'Service name is required' : null,
+                    maxLength: 100,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z0-9\s\-.,&()]")),
+                      LengthLimitingTextInputFormatter(100),
+                    ],
+                    validator: (value) {
+                      if (value?.trim().isEmpty ?? true) return 'Service name is required';
+                      if (value!.trim().length < 3) return 'Service name must be at least 3 characters';
+                      if (value.trim().length > 100) return 'Service name cannot exceed 100 characters';
+                      return null;
+                    },
                   ),
                 ),
                 const SizedBox(width: 8), // spacing between
@@ -2028,14 +2251,20 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
               onChanged: (value) =>
                   _updateService(index, serviceDescription: value),
               decoration: InputDecoration(
-                labelText: 'Description',
+                labelText: 'Description *',
                 border: OutlineInputBorder(),
+                hintText: 'Describe the service in detail',
+                counterText: '${_services[index].serviceDescription.length}/300',
               ),
-              maxLines: 2,
+              maxLines: 3,
               maxLength: 300,
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(300),
+              ],
               validator: (value) {
-                if (value?.isEmpty ?? true) return 'Required';
-                if (value!.length > 300) return 'Description cannot exceed 300 characters';
+                if (value?.trim().isEmpty ?? true) return 'Service description is required';
+                if (value!.trim().length < 10) return 'Description must be at least 10 characters';
+                if (value.length > 300) return 'Description cannot exceed 300 characters';
                 return null;
               },
             ),
@@ -2048,18 +2277,23 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                     onChanged: (value) =>
                         _updateService(index, estimatedPrice: value),
                     decoration: InputDecoration(
-                      labelText: 'Estimated Price',
+                      labelText: 'Estimated Price *',
                       border: OutlineInputBorder(),
                       prefixText: '₱ ',
+                      hintText: '0.00',
+                      helperText: 'Maximum: ₱99,999.99',
                     ),
                     keyboardType: TextInputType.numberWithOptions(decimal: true),
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}$')),
+                      LengthLimitingTextInputFormatter(8), // 99999.99
                     ],
                     validator: (value) {
-                      if (value?.isEmpty ?? true) return 'Required';
-                      if (double.tryParse(value!) == null) return 'Enter a valid price';
-                      if (double.parse(value) <= 0) return 'Price must be greater than 0';
+                      if (value?.trim().isEmpty ?? true) return 'Price is required';
+                      final price = double.tryParse(value!);
+                      if (price == null) return 'Enter a valid price';
+                      if (price <= 0) return 'Price must be greater than 0';
+                      if (price > 99999.99) return 'Price cannot exceed ₱99,999.99';
                       return null;
                     },
                   ),
@@ -2071,15 +2305,23 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                     onChanged: (value) =>
                         _updateService(index, duration: value),
                     decoration: InputDecoration(
-                      labelText: 'Duration',
+                      labelText: 'Duration *',
                       border: OutlineInputBorder(),
-                      hintText: 'e.g. 30 mins',
+                      hintText: 'e.g. 30 mins, 1 hour, 2 hours',
+                      helperText: 'Include unit (mins/minutes/hour/hours)',
                     ),
+                    maxLength: 20,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z0-9\s\-.]")),
+                      LengthLimitingTextInputFormatter(20),
+                    ],
                     validator: (value) {
-                      if (value?.isEmpty ?? true) return 'Required';
-                      if (!value!.toLowerCase().contains('min') && !value.toLowerCase().contains('hour')) {
-                        return 'Specify min/hour';
+                      if (value?.trim().isEmpty ?? true) return 'Duration is required';
+                      final lowerValue = value!.toLowerCase();
+                      if (!lowerValue.contains('min') && !lowerValue.contains('hour')) {
+                        return 'Must include time unit (mins/hour)';
                       }
+                      if (value.trim().length < 5) return 'Duration too short (e.g. 30 mins)';
                       return null;
                     },
                   ),
@@ -2162,11 +2404,22 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                     onChanged: (value) =>
                         _updateCertification(index, name: value),
                     decoration: InputDecoration(
-                      labelText: 'Certification Name',
+                      labelText: 'Certification Name *',
                       border: OutlineInputBorder(),
+                      hintText: 'e.g. Veterinary Surgery Certificate',
+                      counterText: '',
                     ),
-                    validator: (value) =>
-                        value?.isEmpty ?? true ? 'Required' : null,
+                    maxLength: 150,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z0-9\s\-.,&():]")),
+                      LengthLimitingTextInputFormatter(150),
+                    ],
+                    validator: (value) {
+                      if (value?.trim().isEmpty ?? true) return 'Certification name is required';
+                      if (value!.trim().length < 5) return 'Name must be at least 5 characters';
+                      if (value.trim().length > 150) return 'Name cannot exceed 150 characters';
+                      return null;
+                    },
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -2176,11 +2429,22 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                     onChanged: (value) =>
                         _updateCertification(index, issuer: value),
                     decoration: InputDecoration(
-                      labelText: 'Issuing Organization',
+                      labelText: 'Issuing Organization *',
                       border: OutlineInputBorder(),
+                      hintText: 'e.g. Philippine Veterinary Medical Association',
+                      counterText: '',
                     ),
-                    validator: (value) =>
-                        value?.isEmpty ?? true ? 'Required' : null,
+                    maxLength: 200,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z0-9\s\-.,&():]")),
+                      LengthLimitingTextInputFormatter(200),
+                    ],
+                    validator: (value) {
+                      if (value?.trim().isEmpty ?? true) return 'Issuing organization is required';
+                      if (value!.trim().length < 3) return 'Organization name must be at least 3 characters';
+                      if (value.trim().length > 200) return 'Organization name cannot exceed 200 characters';
+                      return null;
+                    },
                   ),
                 ),
               ],
@@ -2400,10 +2664,24 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
               decoration: InputDecoration(
                 labelText: 'License ID *',
                 border: OutlineInputBorder(),
-                hintText: 'e.g. VET-2024-001',
+                hintText: 'e.g. VET-2024-001, PRC-123456',
+                helperText: 'Enter the official license number/ID',
+                counterText: '',
               ),
-              validator: (value) =>
-                  value?.isEmpty ?? true ? 'License ID is required' : null,
+              maxLength: 50,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z0-9\-_]")),
+                LengthLimitingTextInputFormatter(50),
+              ],
+              validator: (value) {
+                if (value?.trim().isEmpty ?? true) return 'License ID is required';
+                if (value!.trim().length < 3) return 'License ID must be at least 3 characters';
+                if (value.trim().length > 50) return 'License ID cannot exceed 50 characters';
+                if (!RegExp(r'^[a-zA-Z0-9\-_]+$').hasMatch(value.trim())) {
+                  return 'License ID can only contain letters, numbers, hyphens, and underscores';
+                }
+                return null;
+              },
             ),
             const SizedBox(height: 12),
             Row(
@@ -2443,7 +2721,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
                     ),
                     SizedBox(width: 4),
                     Text(
-                      '(Reqiuired)',
+                      '(Required)',
                       style: kTextStyleSmall.copyWith(
                         fontSize: 14,
                         color: AppColors.error,
@@ -2778,255 +3056,185 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
               padding: const EdgeInsets.all(16),
               constraints: const BoxConstraints(
                 maxWidth: 650,
-                minHeight: 900, // Set minimum height to match SizedBox
+                minHeight: 800,
               ),
-              child: SizedBox(
-                height: 900,
-                  child: Card(
-                    elevation: 20,
-                    shadowColor: AppColors.primary.withOpacity(0.15),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+              child: Card(
+                elevation: 20,
+                shadowColor: AppColors.primary.withOpacity(0.15),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        AppColors.white,
+                        AppColors.white.withOpacity(0.98),
+                      ],
                     ),
-                    child: Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            AppColors.white,
-                            AppColors.white.withOpacity(0.98),
+                    border: Border.all(
+                      color: AppColors.primary.withOpacity(0.1),
+                      width: 1,
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.max,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Create Admin Account',
+                                style: kTextStyleTitle.copyWith(
+                                  fontSize: 20,
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
                           ],
                         ),
-                        border: Border.all(
-                          color: AppColors.primary.withOpacity(0.1),
-                          width: 1,
-                        ),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // Header - Minimized
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                
-                                Expanded(
-                                  child: Text(
-                                    'Create Admin Account',
-                                    style: kTextStyleTitle.copyWith(
-                                      fontSize: 20,
-                                      color: AppColors.textPrimary,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                                
-                              ],
+                        const SizedBox(height: 8),
+
+                        // Form area with flexible height
+                        Expanded(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: AppColors.white.withOpacity(0.3),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: AppColors.border.withOpacity(0.2),
+                              ),
                             ),
-                            const SizedBox(height: 8),
-                  
-                            // Form Content Container - Bigger for better field visibility
-                            Container(
-                              height: 640, // Fixed height for all devices
-                              decoration: BoxDecoration(
-                                color: AppColors.white.withOpacity(0.3),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: AppColors.border.withOpacity(0.2),
-                                ),
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Column(
-                                  children: [
-                                    // Step Indicator inside the form container
-                                    Container(
-                                      width: double.infinity,
-                                      padding: const EdgeInsets.all(16),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.white.withOpacity(0.7),
-                                        borderRadius: const BorderRadius.only(
-                                          topLeft: Radius.circular(12),
-                                          topRight: Radius.circular(12),
-                                        ),
-                                        border: Border(
-                                          bottom: BorderSide(
-                                            color: AppColors.border.withOpacity(0.2),
-                                            width: 1,
-                                          ),
-                                        ),
-                                      ),
-                                      child: Center(child: _buildStepIndicator()),
-                                    ),
-                                    // Form content area
-                                    Expanded(
-                                      child: PageView(
-                                        controller: _pageController,
-                                        physics: const NeverScrollableScrollPhysics(),
-                                  children: [
-                                    Padding(
-                                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 0), // Increased padding for more space
-                                      child: SingleChildScrollView(
-                                        child: _buildAccountInfoStep(),
-                                      ),
-                                    ),
-                                    Padding(
-                                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-                                      child: SingleChildScrollView(
-                                        child: _buildEmailVerificationStep(),
-                                      ),
-                                    ),
-                                    Padding(
-                                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-                                      child: SingleChildScrollView(
-                                        child: _buildClinicInfoStep(),
-                                      ),
-                                    ),
-                                    Padding(
-                                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-                                      child: SingleChildScrollView(
-                                        child: _buildClinicDetailsStep(),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                  
-                            const SizedBox(height: 8),
-                  
-                            // Navigation Buttons - More Compact
-                            Row(
-                              children: [
-                                if (_currentStep > 0)
-                                  Expanded(
-                                    child: SizedBox(
-                                      height: 44,
-                                      child: OutlinedButton(
-                                        onPressed: (_isLoading || _isCheckingEmail) ? null : _previousStep,
-                                        style: OutlinedButton.styleFrom(
-                                          side: BorderSide(color: AppColors.primary, width: 1.5),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(10),
-                                          ),
-                                          backgroundColor: AppColors.white,
-                                        ),
-                                        child: Text(
-                                          'Previous',
-                                          style: kTextStyleRegular.copyWith(
-                                            color: AppColors.primary,
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                if (_currentStep > 0) const SizedBox(width: 12),
-                                Expanded(
-                                  flex: _currentStep == 0 ? 1 : 1,
-                                  child: Container(
-                                    height: 44,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Column(
+                                children: [
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(16),
                                     decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(10),
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          AppColors.primary,
-                                          AppColors.primary.withOpacity(0.8),
-                                        ],
+                                      color: AppColors.white.withOpacity(0.7),
+                                      borderRadius: const BorderRadius.only(
+                                        topLeft: Radius.circular(12),
+                                        topRight: Radius.circular(12),
                                       ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: AppColors.primary.withOpacity(0.25),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 3),
+                                      border: Border(
+                                        bottom: BorderSide(
+                                          color: AppColors.border.withOpacity(0.2),
+                                          width: 1,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Center(child: _buildStepIndicator()),
+                                  ),
+                                  Expanded(
+                                    child: PageView(
+                                      controller: _pageController,
+                                      physics: const NeverScrollableScrollPhysics(),
+                                      children: [
+                                        Padding(
+                                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                                          child: SingleChildScrollView(
+                                            child: _buildAccountInfoStep(),
+                                          ),
+                                        ),
+                                        Padding(
+                                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                                          child: SingleChildScrollView(
+                                            child: _buildEmailVerificationStep(),
+                                          ),
+                                        ),
+                                        Padding(
+                                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                                          child: SingleChildScrollView(
+                                            child: _buildClinicInfoStep(),
+                                          ),
+                                        ),
+                                        Padding(
+                                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                                          child: SingleChildScrollView(
+                                            child: _buildClinicDetailsStep(),
+                                          ),
                                         ),
                                       ],
                                     ),
-                                    child: ElevatedButton(
-                                      onPressed: (_isLoading || _isCheckingEmail || _isCheckingVerification || (_currentStep == 1 && !_isEmailVerified) || (_currentStep == 3 && !_agreedToTerms)) ? null : _nextStep,
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.transparent,
-                                        foregroundColor: AppColors.white,
-                                        shadowColor: Colors.transparent,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(10),
-                                        ),
-                                        elevation: 0,
-                                      ),
-                                      child: (_isLoading || _isCheckingEmail || _isCheckingVerification)
-                                          ? const SizedBox(
-                                              height: 20,
-                                              width: 20,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                valueColor: AlwaysStoppedAnimation<Color>(
-                                                  Colors.white,
-                                                ),
-                                              ),
-                                            )
-                                          : Text(
-                                              _currentStep == 3 ? 'Create Account' : 'Next',
-                                              style: kTextStyleRegular.copyWith(
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 14,
-                                              ),
-                                            ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 24),
-
-                            // Footer - More Compact
-                            RichText(
-                              textAlign: TextAlign.center,
-                              text: TextSpan(
-                                style: kTextStyleSmall.copyWith(
-                                  fontSize: 14,
-                                  color: AppColors.textSecondary,
-                                ),
-                                children: [
-                                  const TextSpan(text: "Already have an account? "),
-                                  TextSpan(
-                                    text: 'Sign in here',
-                                    style: kTextStyleSmall.copyWith(
-                                      fontSize: 14,
-                                      color: AppColors.primary,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                    recognizer: TapGestureRecognizer()
-                                      ..onTap = () {
-                                        context.go('/web_login');
-                                      },
                                   ),
                                 ],
                               ),
                             ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Navigation buttons
+                        Row(
+                          children: [
+                            if (_currentStep > 0)
+                              Expanded(
+                                child: SizedBox(
+                                  height: 44,
+                                  child: OutlinedButton(
+                                    onPressed: (_isLoading || _isCheckingEmail) ? null : _previousStep,
+                                    style: OutlinedButton.styleFrom(
+                                      side: BorderSide(color: AppColors.primary, width: 1.5),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                      backgroundColor: AppColors.white,
+                                    ),
+                                    child: Text('Previous', style: kTextStyleRegular.copyWith(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 14)),
+                                  ),
+                                ),
+                              ),
+                            if (_currentStep > 0) const SizedBox(width: 12),
+                            Expanded(
+                              child: Container(
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(10),
+                                  gradient: LinearGradient(colors: [AppColors.primary, AppColors.primary.withOpacity(0.8)]),
+                                  boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.25), blurRadius: 8, offset: const Offset(0,3))],
+                                ),
+                                child: ElevatedButton(
+                                  onPressed: (_isLoading || _isCheckingEmail || _isCheckingVerification || (_currentStep == 1 && !_isEmailVerified) || (_currentStep == 3 && !_agreedToTerms)) ? null : _nextStep,
+                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, foregroundColor: AppColors.white, shadowColor: Colors.transparent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), elevation: 0),
+                                  child: (_isLoading || _isCheckingEmail || _isCheckingVerification) ? const SizedBox(height:20,width:20,child:CircularProgressIndicator(strokeWidth:2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white))) : Text(_currentStep == 3 ? 'Create Account' : 'Next', style: kTextStyleRegular.copyWith(fontWeight: FontWeight.w600, fontSize: 14)),
+                                ),
+                              ),
+                            ),
                           ],
                         ),
-                      ),
+
+                        const SizedBox(height: 16),
+
+                        RichText(
+                          textAlign: TextAlign.center,
+                          text: TextSpan(
+                            style: kTextStyleSmall.copyWith(fontSize: 14, color: AppColors.textSecondary),
+                            children: [
+                              const TextSpan(text: "Already have an account? "),
+                              TextSpan(text: 'Sign in here', style: kTextStyleSmall.copyWith(fontSize: 14, color: AppColors.primary, fontWeight: FontWeight.w500), recognizer: TapGestureRecognizer()..onTap = () { context.go('/web_login'); }),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
-            ),
             ),
           ),
         ),
       ),
-        ),
-      ),
-
     );
   }
 }

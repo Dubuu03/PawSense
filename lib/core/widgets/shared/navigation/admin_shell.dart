@@ -25,6 +25,9 @@ class _AdminShellState extends State<AdminShell> {
   String _userName = 'User';
   String _userInitials = 'U';
   String _clinicName = 'Veterinary Clinic';
+  String? _userEmail;
+  String? _userPhone;
+  String? _userFullName;
 
   @override
   void initState() {
@@ -64,6 +67,16 @@ class _AdminShellState extends State<AdminShell> {
           _userRole = userRole == 'super_admin' ? 'super_admin' : 'admin';
           _userName = currentUser.username;
           _userInitials = _generateInitials(currentUser.username);
+          _userEmail = currentUser.email;
+          _userPhone = currentUser.contactNumber;
+          
+          // Build full name from first and last name if available
+          if (currentUser.firstName != null && currentUser.lastName != null) {
+            _userFullName = '${currentUser.firstName} ${currentUser.lastName}';
+          } else {
+            _userFullName = currentUser.username;
+          }
+          
           _isLoading = false;
         });
 
@@ -201,6 +214,9 @@ class _AdminShellState extends State<AdminShell> {
             selectedIndex: _getCurrentIndex(),
             onItemSelected: _onNavItemSelected,
             userRole: _userRole,
+            adminName: _userFullName,
+            adminEmail: _userEmail,
+            adminPhone: _userPhone,
           ),
           Expanded(
             child: Column(

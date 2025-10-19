@@ -712,7 +712,19 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
   Color _getAppointmentStatusColor(AdminNotificationModel notification) {
     // Check metadata for appointment status
     final status = notification.metadata?['status'] as String?;
-    print('🎨 Getting color for notification: ${notification.title}, status: $status, metadata: ${notification.metadata}');
+    final isAutoCancelled = notification.metadata?['isAutoCancelled'] == true;
+    final isNoShow = notification.metadata?['isNoShow'] == true;
+    print('🎨 Getting color for notification: ${notification.title}, status: $status, autoCancelled: $isAutoCancelled, noShow: $isNoShow, metadata: ${notification.metadata}');
+    
+    // Auto-cancelled appointments always show RED
+    if (isAutoCancelled) {
+      return AppColors.error; // RED for auto-cancelled
+    }
+    
+    // No-show appointments always show ORANGE
+    if (isNoShow) {
+      return const Color(0xFFFF9800); // ORANGE for no-show
+    }
     
     if (status != null) {
       switch (status.toLowerCase()) {
@@ -727,6 +739,8 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
           return AppColors.error; // Red for cancelled/rejected appointments
         case 'rescheduled':
           return AppColors.warning; // Orange for rescheduled appointments
+        case 'noshow':
+          return const Color(0xFFFF9800); // Orange for no-show appointments
         default:
           return AppColors.success; // Default green for appointment notifications
       }

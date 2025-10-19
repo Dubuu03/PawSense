@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:pawsense/pages/mobile/auth/sign_in_page.dart';
 import 'package:pawsense/pages/mobile/auth/sign_up_page.dart';
 import 'package:pawsense/pages/mobile/auth/verify_email_page.dart';
+import 'package:pawsense/pages/mobile/auth/change_password_page.dart';
 import 'package:pawsense/pages/mobile/home_page.dart';
 import 'package:pawsense/pages/mobile/assessment_page.dart';
 import 'package:pawsense/pages/mobile/optimized_alerts_page.dart';
@@ -30,6 +31,7 @@ import 'package:pawsense/core/models/user/user_model.dart';
 import 'package:pawsense/core/models/user/pet_model.dart';
 import 'package:pawsense/pages/web/auth/web_login_page.dart';
 import 'package:pawsense/pages/web/auth/admin_signup_page.dart';
+import 'package:pawsense/pages/web/auth/forgot_password_page.dart';
 import 'package:pawsense/pages/web/admin/dashboard_screen.dart';
 import 'package:pawsense/pages/web/admin/appointment_screen.dart';
 import 'package:pawsense/pages/web/admin/patient_record_screen.dart';
@@ -135,6 +137,10 @@ class AppRouter {
       GoRoute(
         path: '/about-pawsense',
         builder: (context, state) => const AboutPawSensePage(),
+      ),
+      GoRoute(
+        path: '/change-password',
+        builder: (context, state) => const ChangePasswordPage(),
       ),
       GoRoute(
         path: '/messaging',
@@ -245,8 +251,16 @@ class AppRouter {
         builder: (context, state) => const WebLoginPage(),
       ),
       GoRoute(
+        path: '/login', // Alias for web_login
+        builder: (context, state) => const WebLoginPage(),
+      ),
+      GoRoute(
         path: '/admin_signup',
         builder: (context, state) => const AdminSignupPage(),
+      ),
+      GoRoute(
+        path: '/forgot-password',
+        builder: (context, state) => const WebForgotPasswordPage(),
       ),
 
       // Admin shell with nested routes
@@ -263,10 +277,24 @@ class AppRouter {
           ),
           GoRoute(
             path: '/admin/appointments',
-            builder: (context, state) => OptimizedAppointmentManagementScreen(),
-            pageBuilder: (context, state) => NoTransitionPage(
-              child: OptimizedAppointmentManagementScreen(),
-            ),
+            builder: (context, state) {
+              final appointmentId = state.uri.queryParameters['appointmentId'];
+              print('📍 ROUTER DEBUG: /admin/appointments route');
+              print('   Query parameters: ${state.uri.queryParameters}');
+              print('   Extracted appointmentId: $appointmentId');
+              return OptimizedAppointmentManagementScreen(
+                highlightAppointmentId: appointmentId,
+              );
+            },
+            pageBuilder: (context, state) {
+              final appointmentId = state.uri.queryParameters['appointmentId'];
+              print('📍 ROUTER PAGE BUILDER: appointmentId = $appointmentId');
+              return NoTransitionPage(
+                child: OptimizedAppointmentManagementScreen(
+                  highlightAppointmentId: appointmentId,
+                ),
+              );
+            },
           ),
           GoRoute(
             path: '/admin/patient-records',

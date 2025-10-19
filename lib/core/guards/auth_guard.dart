@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import '../models/user/user_model.dart';
 import '../models/clinic/clinic_model.dart';
 import '../services/auth/token_manager.dart';
+import '../services/admin/schedule_setup_guard.dart';
 
 /// Authentication and authorization guard for route protection
 class AuthGuard {
@@ -313,6 +314,21 @@ class AuthGuard {
 
       print('AuthGuard: User authenticated - UID: ${user.uid}, Role: ${user.role}');
       
+      // For admin users on web, check schedule setup status before allowing route access
+      if (kIsWeb && user.role == 'admin' && !_isScheduleSetupRoute(routePath) && !_isPublicRoute(routePath)) {
+        print('AuthGuard: Checking schedule setup status for admin user');
+        final setupStatus = await ScheduleSetupGuard.checkScheduleSetupStatus();
+        
+        if (setupStatus.needsSetup) {
+          print('AuthGuard: Admin needs to complete schedule setup, allowing access to dashboard only');
+          // Allow access only to dashboard - the dashboard will show the setup prompt
+          if (routePath != '/admin/dashboard') {
+            print('AuthGuard: Redirecting to dashboard for schedule setup');
+            return '/admin/dashboard';
+          }
+        }
+      }
+      
       // Check role-based access
       final redirectPath = _validateRoleBasedAccess(routePath, user.role);
       
@@ -342,7 +358,9 @@ class AuthGuard {
   static bool _isPublicRoute(String routePath) {
     final publicRoutes = [
       '/web_login',
+      '/login', // Alias for web_login
       '/admin_signup',
+      '/forgot-password', // Web admin forgot password
       '/signin',
       '/signup',
       '/verify-email',
@@ -351,6 +369,13 @@ class AuthGuard {
       '/clinic-faqs', // Add clinic FAQs as a public route
     ];
     return publicRoutes.contains(routePath);
+  }
+
+  /// Check if route is related to schedule setup (should not block these routes)
+  static bool _isScheduleSetupRoute(String routePath) {
+    // Routes that are part of the schedule setup process should not be blocked
+    return routePath == '/admin/clinic-schedule' || 
+           routePath == '/admin/vet-profile';
   }
 
   /// Validate role-based access to routes
@@ -391,6 +416,8 @@ class AuthGuard {
       '/alerts', 
       '/assessment',
       '/edit-profile',
+      '/change-password',
+      '/about-pawsense',
       '/messaging',
       '/ai-history',
       '/appointment-history',

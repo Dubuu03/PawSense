@@ -111,6 +111,9 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                                   Positioned.fill(
                                     child: LayoutBuilder(
                                       builder: (context, constraints) {
+                                        // Build disease color map for consistent coloring
+                                        final diseaseColorMap = _buildDiseaseColorMap();
+                                        
                                         return CustomPaint(
                                           painter: BoundingBoxPainter(
                                             detectionsToShow,
@@ -119,7 +122,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                                             showConfidence: true,
                                             originalImageWidth: 640.0,
                                             originalImageHeight: 640.0,
-                                            useRankColors: true, // Enable color-coding for top 3
+                                            useRankColors: false, // Disable rank colors
+                                            diseaseColorMap: diseaseColorMap, // Use disease-based colors
                                           ),
                                         );
                                       },
@@ -253,9 +257,9 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     final detectionResults = widget.assessmentData['detectionResults'] as List<Map<String, dynamic>>? ?? [];
     
     // Configuration
-    const double CONFIDENCE_THRESHOLD = 0.50; // 50% minimum confidence
+    const double CONFIDENCE_THRESHOLD = 0.25; // 25% minimum confidence (lowered to include more detections)
     const double IOU_THRESHOLD = 0.5; // Intersection over Union threshold for duplicate detection
-    const int MAX_DETECTIONS_TO_SHOW = 3; // Show top 3 detections
+    // Show ALL unique detections in graph (no limit)
     
     // Collect all detections with their image indices for deduplication
     final List<Map<String, dynamic>> allDetectionsWithContext = [];
@@ -297,20 +301,23 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       (b['confidence'] as double).compareTo(a['confidence'] as double)
     );
     
-    // Remove duplicates (same condition at similar location)
+    // Remove duplicates ONLY within the same image (same condition at similar location)
+    // Keep all detections from different images or different locations
     final List<Map<String, dynamic>> uniqueDetections = [];
     
     for (final detection in allDetectionsWithContext) {
       bool isDuplicate = false;
       final label = detection['label'] as String;
+      final imageIndex = detection['imageIndex'] as int;
       final box = detection['box'] as List?;
       
       for (final existing in uniqueDetections) {
         final existingLabel = existing['label'] as String;
+        final existingImageIndex = existing['imageIndex'] as int;
         final existingBox = existing['box'] as List?;
         
-        // Check if same condition
-        if (label == existingLabel) {
+        // Only check for duplicates within the SAME image
+        if (label == existingLabel && imageIndex == existingImageIndex) {
           // Check if bounding boxes overlap significantly
           if (box != null && existingBox != null && box.length >= 4 && existingBox.length >= 4) {
             final iou = _calculateIOU(
@@ -330,13 +337,11 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
         uniqueDetections.add(detection);
       }
       
-      // Stop if we have enough unique detections
-      if (uniqueDetections.length >= MAX_DETECTIONS_TO_SHOW) {
-        break;
-      }
+      // NO LIMIT - collect all unique detections for the graph
     }
     
     // Aggregate detections by condition for statistics
+    // Now includes all instances of each disease across all images
     final Map<String, List<double>> conditionConfidences = {};
     for (final detection in uniqueDetections) {
       final label = detection['label'] as String;
@@ -358,21 +363,25 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     final sortedConditions = avgConfidences.entries.toList();
     sortedConditions.sort((a, b) => b.value.compareTo(a.value));
     
-    // Assign colors
-    final colors = [
-      const Color(0xFFFF9500), // Orange - Highest
-      const Color(0xFF007AFF), // Blue - Second
-      const Color(0xFF34C759), // Green - Third
+    // Define expanded color palette for diseases (support more than 3)
+    final diseaseColorPalette = [
+      const Color(0xFFFF9500), // Orange
+      const Color(0xFF007AFF), // Blue
+      const Color(0xFF34C759), // Green
       const Color(0xFFFF3B30), // Red
       const Color(0xFFAF52DE), // Purple
       const Color(0xFFFF2D92), // Pink
       const Color(0xFF5856D6), // Indigo
       const Color(0xFFFF9F0A), // Amber
       const Color(0xFF30B0C7), // Cyan
+      const Color(0xFF8E8E93), // Gray
+      const Color(0xFFFFCC00), // Yellow
+      const Color(0xFF00C7BE), // Teal
     ];
     
-    // Convert to AnalysisResult objects (top 3 only)
-    _analysisResults = sortedConditions.take(MAX_DETECTIONS_TO_SHOW).toList().asMap().entries.map((entry) {
+    // Convert to AnalysisResult objects - INCLUDE ALL DETECTIONS
+    // Assign colors based on the order they appear in sortedConditions
+    _analysisResults = sortedConditions.asMap().entries.map((entry) {
       final index = entry.key;
       final condition = entry.value.key;
       final confidence = entry.value.value;
@@ -380,7 +389,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       return AnalysisResult(
         condition: _formatConditionName(condition),
         percentage: _validateConfidence(confidence) * 100,
-        color: colors[index % colors.length],
+        color: diseaseColorPalette[index % diseaseColorPalette.length],
       );
     }).toList();
     
@@ -434,6 +443,34 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
 
   String _formatConditionName(String condition) {
     return DetectionUtils.formatConditionName(condition);
+  }
+
+  /// Get consistent color for a disease across all images
+  /// Same disease always gets the same color
+  Color _getColorForDisease(String diseaseLabel) {
+    final formattedLabel = _formatConditionName(diseaseLabel);
+    
+    // Find the disease in analysis results to get its assigned color
+    for (final result in _analysisResults) {
+      if (result.condition == formattedLabel) {
+        return result.color;
+      }
+    }
+    
+    // Fallback to a default color if not found in analysis results
+    return const Color(0xFF9E9E9E); // Gray
+  }
+
+  /// Build disease color map for consistent coloring across all images
+  Map<String, Color> _buildDiseaseColorMap() {
+    final Map<String, Color> colorMap = {};
+    
+    for (final result in _analysisResults) {
+      // Map both formatted and original labels to handle variations
+      colorMap[result.condition] = result.color;
+    }
+    
+    return colorMap;
   }
 
   /// Fetch skin disease information based on highest confidence detection
@@ -1514,12 +1551,13 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                 ? detectionResults[index]['detections'] as List<Map<String, dynamic>>? ?? []
                 : <Map<String, dynamic>>[];
 
-            // Get top 3 detections for this image (filtered for duplicates and threshold)
+            // Get top 3 UNIQUE detections for this image (filtered for duplicates and threshold)
             const double CONFIDENCE_THRESHOLD = 0.0; // 50% minimum confidence
             const double IOU_THRESHOLD = 0.5; // For duplicate detection
             const int MAX_DETECTIONS_PER_IMAGE = 3;
             
             List<Map<String, dynamic>> detectionsToShow = [];
+            Set<String> seenDiseases = {}; // Track unique disease names
             
             if (allDetections.isNotEmpty) {
               // Sort by confidence descending
@@ -1535,8 +1573,15 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                 // Skip if below threshold
                 if (confidence < CONFIDENCE_THRESHOLD) continue;
                 
-                bool isDuplicate = false;
                 final label = detection['label'] as String;
+                final formattedLabel = _formatConditionName(label);
+                
+                // Skip if we've already seen this disease
+                if (seenDiseases.contains(formattedLabel)) {
+                  continue;
+                }
+                
+                bool isDuplicate = false;
                 final box = detection['box'] as List?;
                 
                 // Check for duplicates (same disease at overlapping location)
@@ -1561,6 +1606,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                 
                 if (!isDuplicate) {
                   detectionsToShow.add(detection);
+                  seenDiseases.add(formattedLabel); // Mark this disease as seen
                   
                   if (detectionsToShow.length >= MAX_DETECTIONS_PER_IMAGE) {
                     break;
@@ -1754,13 +1800,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                               final String condition = detection['label'];
                               final double confidence = detection['confidence'];
                               
-                              // Assign colors based on rank (matching pie chart colors)
-                              final rankColors = [
-                                const Color(0xFFFF9500), // Orange - Highest
-                                const Color(0xFF007AFF), // Blue - Second
-                                const Color(0xFF34C759), // Green - Third
-                              ];
-                              final detectionColor = rankColors[detectionIndex % rankColors.length];
+                              // Get color based on disease type (same disease = same color across all images)
+                              final detectionColor = _getColorForDisease(condition);
                               
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 4),

@@ -80,7 +80,8 @@ class BoundingBoxPainter extends CustomPainter {
   final bool showConfidence;
   final double originalImageWidth;
   final double originalImageHeight;
-  final bool useRankColors; // New: Use different colors for top 3
+  final bool useRankColors; // Use different colors for top 3 (legacy)
+  final Map<String, Color>? diseaseColorMap; // NEW: Map disease names to specific colors
 
   BoundingBoxPainter(
     this.detections, {
@@ -90,12 +91,13 @@ class BoundingBoxPainter extends CustomPainter {
     this.showConfidence = true,
     this.originalImageWidth = 640.0,
     this.originalImageHeight = 640.0,
-    this.useRankColors = true, // Default to true for top 3 visualization
+    this.useRankColors = true, // Default to true for backward compatibility
+    this.diseaseColorMap, // Optional: Map of disease -> color
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Define rank-based colors matching the UI
+    // Define rank-based colors matching the UI (fallback)
     final rankColors = [
       const Color(0xFFFF9500), // Orange - Highest (1st)
       const Color(0xFF007AFF), // Blue - Second (2nd)
@@ -106,13 +108,28 @@ class BoundingBoxPainter extends CustomPainter {
       textDirection: TextDirection.ltr,
     );
 
-    for (int i = 0; i < detections.length; i++) {
+    // Draw bounding boxes in reverse order so the first (highest confidence) is drawn last
+    // This ensures the highest confidence detection appears on top when boxes overlap
+    for (int i = detections.length - 1; i >= 0; i--) {
       final detection = detections[i];
+      final String label = detection['label'] ?? 'unknown';
+      final String formattedLabel = DetectionUtils.formatConditionName(label);
       
-      // Use rank-based color if enabled, otherwise use the single boxColor
-      final Color currentBoxColor = useRankColors 
-          ? rankColors[i % rankColors.length]
-          : boxColor;
+      // Priority: diseaseColorMap > rank colors > single boxColor
+      Color currentBoxColor;
+      if (diseaseColorMap != null && diseaseColorMap!.containsKey(formattedLabel)) {
+        // Use disease-specific color from map (formatted label match)
+        currentBoxColor = diseaseColorMap![formattedLabel]!;
+      } else if (diseaseColorMap != null && diseaseColorMap!.containsKey(label)) {
+        // Try raw label match as fallback
+        currentBoxColor = diseaseColorMap![label]!;
+      } else if (useRankColors) {
+        // Use rank-based color
+        currentBoxColor = rankColors[i % rankColors.length];
+      } else {
+        // Use single color for all
+        currentBoxColor = boxColor;
+      }
       
       final paint = Paint()
         ..color = currentBoxColor
@@ -121,7 +138,6 @@ class BoundingBoxPainter extends CustomPainter {
       final coordinates = DetectionUtils.extractBoundingBoxCoordinates(detection);
       if (coordinates == null) continue;
 
-      final String label = detection['label'] ?? 'unknown';
       final double confidence = detection['confidence'] ?? 0.0;
 
       double x1 = coordinates['x1']!;
@@ -223,7 +239,8 @@ class BoundingBoxPainter extends CustomPainter {
            showConfidence != oldDelegate.showConfidence ||
            originalImageWidth != oldDelegate.originalImageWidth ||
            originalImageHeight != oldDelegate.originalImageHeight ||
-           useRankColors != oldDelegate.useRankColors;
+           useRankColors != oldDelegate.useRankColors ||
+           diseaseColorMap != oldDelegate.diseaseColorMap;
   }
 }
 

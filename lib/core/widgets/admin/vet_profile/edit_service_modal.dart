@@ -233,8 +233,10 @@ class _EditServiceModalState extends State<EditServiceModal> {
                   SizedBox(height: kSpacingSmall),
                   TextFormField(
                     controller: _serviceNameController,
+                    maxLength: 50,
                     decoration: InputDecoration(
                       hintText: 'e.g., General Consultation',
+                      counterText: "",
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(kBorderRadiusSmall),
                         borderSide: BorderSide(color: AppColors.border),

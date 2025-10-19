@@ -8,6 +8,9 @@ import 'package:pawsense/core/services/user/pdf_generation_service.dart';
 import 'package:pawsense/core/services/user/assessment_result_service.dart';
 import 'package:pawsense/core/models/user/user_model.dart';
 import 'package:pawsense/core/widgets/admin/appointments/appointment_completion_modal.dart';
+import 'package:pawsense/core/services/clinic/patient_pdf_service.dart';
+import 'package:pawsense/core/utils/file_downloader.dart' as file_downloader;
+import 'package:intl/intl.dart';
 
 class ImprovedPatientDetailsModal extends StatefulWidget {
   final PatientRecord patient;
@@ -107,19 +110,8 @@ class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModa
           final petMap = data['pet'] as Map<String, dynamic>;
           final ownerMap = data['owner'] as Map<String, dynamic>;
           
-          DateTime appointmentDate = DateTime.now();
-          if (data['date'] != null) {
-            try {
-              final dateParts = (data['date'] as String).split('-');
-              appointmentDate = DateTime(
-                int.parse(dateParts[0]),
-                int.parse(dateParts[1]),
-                int.parse(dateParts[2]),
-              );
-            } catch (e) {
-              print('⚠️ Error parsing previous appointment date: ${data['date']}');
-            }
-          }
+          // Note: Date parsing logic preserved but appointmentDate variable removed as it's not used
+          // The 'date' field is used directly as a string in the Appointment model
           
           final statusString = data['status'] as String?;
           AppointmentModels.AppointmentStatus status = AppointmentModels.AppointmentStatus.pending;
@@ -309,6 +301,12 @@ class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModa
         cancelReason: booking.cancelReason,
         isFollowUp: booking.isFollowUp,
         previousAppointmentId: booking.previousAppointmentId,
+        // Clinic evaluation fields
+        diagnosis: booking.diagnosis,
+        treatment: booking.treatment,
+        prescription: booking.prescription,
+        clinicNotes: booking.clinicNotes,
+        completedAt: booking.completedAt,
       );
     } catch (e) {
       print('Error converting appointment: $e');
@@ -330,6 +328,102 @@ class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModa
         return '🐹';
       default:
         return '🐾';
+    }
+  }
+
+  Future<void> _exportPatientRecord() async {
+    // Show loading snackbar
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+            SizedBox(width: 16),
+            Text('Generating patient PDF report...'),
+          ],
+        ),
+        duration: Duration(seconds: 30),
+        backgroundColor: Colors.blue,
+      ),
+    );
+
+    try {
+      print('📄 Generating patient PDF report...');
+      
+      // Get clinic information
+      final clinicDoc = await FirebaseFirestore.instance
+          .collection('clinics')
+          .doc(widget.clinicId)
+          .get();
+      
+      final clinicData = clinicDoc.data();
+      final clinicName = clinicData?['clinicName'] ?? 'Unknown Clinic';
+      final clinicAddress = clinicData?['address'] ?? '';
+      
+      // Generate PDF
+      final pdfBytes = await PatientPdfService.generatePatientReport(
+        patient: widget.patient,
+        appointmentHistory: _appointmentHistory,
+        clinicName: clinicName,
+        clinicAddress: clinicAddress,
+        generatedBy: 'Clinic Administrator',
+      );
+      
+      // Generate filename with timestamp
+      final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+      final fileName = 'Patient_${widget.patient.petName.replaceAll(' ', '_')}_$timestamp.pdf';
+      
+      // Download the file
+      file_downloader.downloadFile(fileName, pdfBytes);
+      
+      print('✅ Patient PDF generated and downloaded successfully');
+      
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 12),
+                Text('✅ Patient record exported successfully'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Error generating patient PDF: $e');
+      
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text('❌ Failed to export patient record: ${e.toString()}'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
     }
   }
 
@@ -424,6 +518,20 @@ class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModa
             ),
           ),
           _buildHealthStatusBadge(),
+          const SizedBox(width: 12),
+          ElevatedButton.icon(
+            onPressed: _exportPatientRecord,
+            icon: const Icon(Icons.download, size: 16),
+            label: const Text('Export', style: TextStyle(fontSize: 13)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
           const SizedBox(width: 16),
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -1249,6 +1357,12 @@ class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModa
             _buildDetailInfoSection('Notes', appointment.notes!),
           ],
 
+          // Clinic Evaluation Section (for completed appointments that are NOT follow-ups)
+          if (_shouldShowClinicEvaluation(appointment)) ...[
+            const SizedBox(height: 16),
+            _buildClinicEvaluationSection(appointment),
+          ],
+
           // AI Assessment Results
           if (_isLoadingAssessment)
             ...[
@@ -1421,10 +1535,6 @@ class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModa
         badgeColor = Colors.red;
         badgeText = 'Cancelled';
         break;
-      case AppointmentModels.AppointmentStatus.noShow:
-        badgeColor = Colors.grey;
-        badgeText = 'No Show';
-        break;
     }
 
     return Container(
@@ -1546,9 +1656,34 @@ class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModa
         role: 'user',
       );
 
+      // Prepare clinic evaluation data if appointment is completed or follow-up
+      Map<String, dynamic>? clinicEvaluation;
+      if (_selectedAppointment!.status == AppointmentModels.AppointmentStatus.completed || 
+          (_selectedAppointment!.isFollowUp == true && _previousAppointment != null)) {
+        
+        // For follow-ups, use previous appointment's evaluation
+        final evalSource = _selectedAppointment!.isFollowUp == true && _previousAppointment != null 
+            ? _previousAppointment! 
+            : _selectedAppointment!;
+        
+        // Check if there's any evaluation data
+        if (evalSource.diagnosis != null || evalSource.treatment != null || 
+            evalSource.prescription != null || evalSource.clinicNotes != null) {
+          clinicEvaluation = {
+            'diagnosis': evalSource.diagnosis,
+            'treatment': evalSource.treatment,
+            'prescription': evalSource.prescription,
+            'clinicNotes': evalSource.clinicNotes,
+            'completedAt': evalSource.completedAt,
+            'isFollowUp': _selectedAppointment!.isFollowUp == true,
+          };
+        }
+      }
+
       final pdfBytes = await PDFGenerationService.generateAssessmentPDF(
         user: userModel,
         assessmentResult: assessmentResult,
+        clinicEvaluation: clinicEvaluation,
       );
 
       final fileName = 'PawSense_Assessment_${_selectedAppointment!.pet.name}_${DateTime.now().millisecondsSinceEpoch}';
@@ -1644,6 +1779,89 @@ class _ImprovedPatientDetailsModalState extends State<ImprovedPatientDetailsModa
           ),
         ),
       ],
+    );
+  }
+
+  bool _shouldShowClinicEvaluation(AppointmentModels.Appointment appointment) {
+    // Must be completed status
+    if (appointment.status != AppointmentModels.AppointmentStatus.completed) {
+      return false;
+    }
+
+    // Must NOT be a follow-up appointment
+    if (appointment.isFollowUp == true) {
+      return false;
+    }
+
+    // Must have at least one evaluation field filled
+    final hasDiagnosis = appointment.diagnosis != null && 
+                        appointment.diagnosis!.trim().isNotEmpty;
+    final hasTreatment = appointment.treatment != null && 
+                        appointment.treatment!.trim().isNotEmpty;
+    final hasPrescription = appointment.prescription != null && 
+                           appointment.prescription!.trim().isNotEmpty;
+    final hasClinicNotes = appointment.clinicNotes != null && 
+                          appointment.clinicNotes!.trim().isNotEmpty;
+
+    return hasDiagnosis || hasTreatment || hasPrescription || hasClinicNotes;
+  }
+
+  Widget _buildClinicEvaluationSection(AppointmentModels.Appointment appointment) {
+    return Container(
+      key: const ValueKey('clinic_evaluation_patient_section'),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF3B82F6).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFF3B82F6), width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.medical_services, size: 16, color: Color(0xFF3B82F6)),
+              SizedBox(width: 8),
+              Text(
+                'Clinic Evaluation:',
+                style: TextStyle(
+                  color: Color(0xFF3B82F6),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          
+          // Diagnosis
+          if (appointment.diagnosis != null && 
+              appointment.diagnosis!.trim().isNotEmpty) ...[
+            _buildPreviousAppointmentDetail('Diagnosis', appointment.diagnosis!),
+            const SizedBox(height: 4),
+          ],
+          
+          // Treatment
+          if (appointment.treatment != null && 
+              appointment.treatment!.trim().isNotEmpty) ...[
+            _buildPreviousAppointmentDetail('Treatment', appointment.treatment!),
+            const SizedBox(height: 4),
+          ],
+          
+          // Prescription
+          if (appointment.prescription != null && 
+              appointment.prescription!.trim().isNotEmpty) ...[
+            _buildPreviousAppointmentDetail('Prescription', appointment.prescription!),
+            const SizedBox(height: 4),
+          ],
+          
+          // Clinic Notes
+          if (appointment.clinicNotes != null && 
+              appointment.clinicNotes!.trim().isNotEmpty) ...[
+            _buildPreviousAppointmentDetail('Clinic Notes', appointment.clinicNotes!),
+          ],
+        ],
+      ),
     );
   }
 }

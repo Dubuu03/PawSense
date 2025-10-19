@@ -28,9 +28,22 @@ import '../../../core/widgets/admin/appointments/appointment_table_header.dart';
 import '../../../core/widgets/shared/pagination_widget.dart';
 import 'package:http/http.dart' as http;
 
+// Global key for accessing appointment screen methods from anywhere
+final GlobalKey<_OptimizedAppointmentManagementScreenState> appointmentScreenKey = 
+    GlobalKey<_OptimizedAppointmentManagementScreenState>();
+
 class OptimizedAppointmentManagementScreen extends StatefulWidget {
-  const OptimizedAppointmentManagementScreen({Key? key}) 
-      : super(key: key ?? const PageStorageKey('appointment_management'));
+  final String? highlightAppointmentId; // Appointment ID to auto-open
+  
+  OptimizedAppointmentManagementScreen({
+    Key? key,
+    this.highlightAppointmentId,
+  }) : super(key: key ?? appointmentScreenKey) {
+    // Debug log in constructor
+    if (highlightAppointmentId != null) {
+      print('🎯 CONSTRUCTOR DEBUG: OptimizedAppointmentManagementScreen created with highlightAppointmentId: $highlightAppointmentId');
+    }
+  }
 
   @override
   State<OptimizedAppointmentManagementScreen> createState() => 
@@ -127,6 +140,13 @@ class _OptimizedAppointmentManagementScreenState
           _setupRealtimeListener();
         }
       });
+      
+      // Auto-open appointment details modal if appointmentId is provided
+      if (widget.highlightAppointmentId != null) {
+        print('🎯 DEBUG: highlightAppointmentId detected: ${widget.highlightAppointmentId}');
+        // Schedule the modal opening (no await to avoid blocking)
+        _openAppointmentDetailsById(widget.highlightAppointmentId!);
+      }
     }
   }
 
@@ -1326,6 +1346,9 @@ class _OptimizedAppointmentManagementScreenState
                     onMarkDone: appointment.status == AppointmentModels.AppointmentStatus.confirmed
                         ? () => _onMarkDone(appointment)
                         : null,
+                    onMarkNoShow: appointment.status == AppointmentModels.AppointmentStatus.confirmed
+                        ? () => _onMarkNoShow(appointment)
+                        : null,
                     onReject: appointment.status == AppointmentModels.AppointmentStatus.pending
                         ? () => _onReject(appointment)
                         : null,
@@ -1410,6 +1433,125 @@ class _OptimizedAppointmentManagementScreenState
     );
   }
 
+  Future<void> _onMarkNoShow(AppointmentModels.Appointment appointment) async {
+    // Confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.person_off_outlined, color: AppColors.warning),
+            SizedBox(width: 8),
+            Text('Mark as No Show'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to mark this appointment as a no-show?',
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Text('Pet:', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(width: 8),
+                      Text(appointment.pet.name),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Text('Owner:', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(width: 8),
+                      Text(appointment.owner.name),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Text('Date:', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(width: 8),
+                      Text('${appointment.date} at ${appointment.time}'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: AppColors.warning),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Both you and the pet owner will be notified.',
+                      style: TextStyle(fontSize: 12, color: AppColors.warning),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.warning),
+            child: const Text('Mark as No Show', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final success = await AppointmentService.markAsNoShow(appointment.id);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              success
+                  ? 'Marked appointment for ${appointment.pet.name} as no-show'
+                  : 'Failed to mark appointment as no-show',
+            ),
+            backgroundColor: success ? AppColors.warning : AppColors.error,
+          ),
+        );
+        
+        if (success) {
+          try {
+            await _refreshAfterStatusChange();
+          } catch (e) {
+            print('⚠️ Error refreshing data after marking as no-show: $e');
+          }
+        }
+      }
+    }
+  }
+
   Future<void> _onReject(AppointmentModels.Appointment appointment) async {
     final TextEditingController reasonController = TextEditingController();
 
@@ -1430,7 +1572,8 @@ class _OptimizedAppointmentManagementScreenState
                 hintText: 'Please provide a reason',
                 border: OutlineInputBorder(),
               ),
-              maxLines: 3,
+              maxLines: 5,
+              maxLength: 300,
             ),
           ],
         ),
@@ -1542,6 +1685,107 @@ class _OptimizedAppointmentManagementScreenState
             // Don't show error to user as the appointment was successfully cancelled
           }
         }
+      }
+    }
+  }
+
+  /// Public method to open appointment modal by ID (can be called from anywhere using the global key)
+  void openAppointmentById(String appointmentId) {
+    print('📞 PUBLIC METHOD: openAppointmentById called with ID: $appointmentId');
+    _openAppointmentDetailsById(appointmentId);
+  }
+
+  /// Open appointment details modal by ID (for navigation from notifications)
+  Future<void> _openAppointmentDetailsById(String appointmentId) async {
+    print('🔍 DEBUG: _openAppointmentDetailsById called with ID: $appointmentId');
+    
+    try {
+      // Wait a bit to ensure the UI is ready and data is loaded
+      await Future.delayed(const Duration(milliseconds: 1200));
+      
+      if (!mounted) {
+        print('⚠️ DEBUG: Widget not mounted, aborting');
+        return;
+      }
+      
+      print('🔍 DEBUG: Searching for appointment in ${appointments.length} loaded appointments');
+      print('🔍 DEBUG: Loaded appointment IDs: ${appointments.map((a) => a.id).take(5).toList()}...');
+      
+      // First, try to find the appointment in the current loaded list
+      AppointmentModels.Appointment? foundAppointment;
+      try {
+        foundAppointment = appointments.firstWhere(
+          (apt) => apt.id == appointmentId,
+        );
+        print('✅ DEBUG: Found appointment in loaded list!');
+      } catch (e) {
+        print('⚠️ DEBUG: Appointment not found in loaded list, will fetch from Firestore');
+        foundAppointment = null;
+      }
+      
+      if (foundAppointment != null) {
+        // Found in current page, open the modal
+        print('📱 DEBUG: Opening modal for appointment: ${foundAppointment.pet.name}');
+        AppointmentDetailsModal.show(
+          context,
+          foundAppointment,
+          showAcceptButton: false,
+        );
+        return;
+      }
+      
+      // Appointment not in current page, fetch it directly from Firestore
+      print('🔍 DEBUG: Fetching appointment from Firestore...');
+      
+      final doc = await FirebaseFirestore.instance
+          .collection('appointments')
+          .doc(appointmentId)
+          .get();
+      
+      if (doc.exists && mounted) {
+        print('✅ DEBUG: Fetched appointment from Firestore');
+        final appointmentData = doc.data()!;
+        final appointment = AppointmentModels.Appointment.fromFirestore(
+          appointmentData,
+          doc.id,
+        );
+        
+        print('📱 DEBUG: Opening modal for fetched appointment: ${appointment.pet.name}');
+        print('   Widget mounted: $mounted');
+        print('   Context mounted: ${context.mounted}');
+        
+        // Ensure we're using a valid context
+        if (!context.mounted) {
+          print('❌ Context is not mounted!');
+          return;
+        }
+        
+        // Open the modal with the fetched appointment
+        AppointmentDetailsModal.show(
+          context,
+          appointment,
+          showAcceptButton: false,
+        );
+      } else if (mounted) {
+        print('❌ DEBUG: Appointment not found in Firestore');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Appointment not found'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ ERROR in _openAppointmentDetailsById: $e');
+      print('Stack trace: ${StackTrace.current}');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load appointment details: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
       }
     }
   }

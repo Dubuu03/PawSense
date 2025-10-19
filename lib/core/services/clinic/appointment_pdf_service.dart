@@ -623,8 +623,6 @@ class AppointmentPdfService {
         return PdfColors.green700;
       case AppointmentModels.AppointmentStatus.cancelled:
         return PdfColors.red700;
-      case AppointmentModels.AppointmentStatus.noShow:
-        return PdfColors.grey700;
     }
   }
 }

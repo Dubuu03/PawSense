@@ -304,6 +304,63 @@ class NotificationService {
     DateTime? expiresAt,
   }) async {
     try {
+      // DEBUG: Log stack trace for cancellation notifications
+      if (title.contains('Cancelled') || title.contains('Cancel')) {
+        print('🔍 createNotification called with cancellation title: "$title"');
+        print('📍 Stack trace:');
+        print(StackTrace.current);
+      }
+      
+      // CRITICAL: Check for duplicate appointment notifications
+      if (category == NotificationCategory.appointment && metadata?['appointmentId'] != null) {
+        final appointmentId = metadata!['appointmentId'] as String;
+        
+        // Check if a notification for this appointment already exists
+        final existingNotifications = await _firestore
+            .collection(_collection)
+            .where('userId', isEqualTo: userId)
+            .where('metadata.appointmentId', isEqualTo: appointmentId)
+            .where('category', isEqualTo: 'appointment')
+            .get();
+        
+        if (existingNotifications.docs.isNotEmpty) {
+          // Check if any of the existing notifications are for the same status/type
+          for (final doc in existingNotifications.docs) {
+            final existingData = doc.data();
+            final existingTitle = existingData['title'] as String?;
+            
+            // Skip creating if an identical or more specific notification already exists
+            if (existingTitle == title) {
+              print('⏭️ Skipping duplicate notification creation for appointment $appointmentId');
+              print('   Existing: "$existingTitle"');
+              print('   Attempted: "$title"');
+              return;
+            }
+            
+            // Skip creating generic "Appointment Cancelled" if specific notification exists
+            if (title == 'Appointment Cancelled' && 
+                (existingTitle == 'Appointment Automatically Cancelled' || 
+                 existingTitle == 'Appointment Marked as No Show')) {
+              print('⏭️ Skipping generic cancellation notification - specific notification exists');
+              print('   Existing: "$existingTitle"');
+              return;
+            }
+            
+            // If creating specific notification, delete any generic or other cancellation notifications
+            if ((title == 'Appointment Automatically Cancelled' || title == 'Appointment Marked as No Show')) {
+              if (existingTitle == 'Appointment Cancelled' || 
+                  existingTitle == 'Appointment Automatically Cancelled' ||
+                  existingTitle == 'Appointment Marked as No Show') {
+                print('🗑️ Deleting existing notification before creating specific one');
+                print('   Deleting: "$existingTitle"');
+                print('   Creating: "$title"');
+                await doc.reference.delete();
+              }
+            }
+          }
+        }
+      }
+      
       await _firestore.collection(_collection).add({
         'userId': userId,
         'title': title,
@@ -326,6 +383,7 @@ class NotificationService {
       }
       
       print('✅ Notification created for user: $userId');
+      print('   📋 Title: "$title"');
     } catch (e) {
       print('❌ Error creating notification: $e');
     }
@@ -410,7 +468,23 @@ class NotificationService {
                 message = 'Great news! Your appointment for $petName at $clinicName has been confirmed.';
                 priority = NotificationPriority.high;
                 break;
-              // Removed 'cancelled' case - these are handled by real notifications to prevent duplicates
+              case 'cancelled':
+                // Check if this is auto-cancelled or no-show - these have their own specific real notifications
+                final isAutoCancelled = appointmentData['autoCancelled'] == true;
+                final isNoShow = appointmentData['isNoShow'] == true;
+                
+                if (isAutoCancelled || isNoShow) {
+                  // Skip virtual notification - specific real notification already exists
+                  print('⏭️ Skipping virtual notification for ${isNoShow ? "no-show" : "auto-cancelled"} appointment: $appointmentId');
+                  title = null;
+                  message = null;
+                } else {
+                  // Regular cancellation - create virtual notification
+                  title = 'Appointment Cancelled';
+                  message = 'Your appointment for $petName at $clinicName has been cancelled.';
+                  priority = NotificationPriority.high;
+                }
+                break;
               case 'completed':
                 title = 'Appointment Completed';
                 message = 'Your appointment for $petName at $clinicName has been completed.';
@@ -904,6 +978,40 @@ class NotificationService {
     String? reason,
   }) async {
     try {
+      print('🔄 updateAppointmentStatusNotification called:');
+      print('   📍 AppointmentId: $appointmentId');
+      print('   📊 Status: $oldStatus → $newStatus');
+      
+      // IMPORTANT: Check if this is a no-show or auto-cancelled appointment
+      // These have their own specific notifications and should not be updated here
+      if (newStatus == 'cancelled') {
+        try {
+          final appointmentDoc = await _firestore.collection('appointments').doc(appointmentId).get();
+          if (appointmentDoc.exists) {
+            final appointmentData = appointmentDoc.data();
+            final isNoShow = appointmentData?['isNoShow'] == true;
+            final isAutoCancelled = appointmentData?['autoCancelled'] == true;
+            
+            if (isNoShow) {
+              print('🚫 Skipping generic notification update for no-show appointment: $appointmentId');
+              print('   ✅ Specific no-show notification should handle this');
+              return; // Don't update - specific no-show notification already created
+            }
+            
+            if (isAutoCancelled) {
+              print('⏰ Skipping generic notification update for auto-cancelled appointment: $appointmentId');
+              print('   ✅ Specific auto-cancel notification should handle this');
+              return; // Don't update - specific auto-cancel notification already created
+            }
+            
+            print('   ℹ️ Regular cancellation - proceeding with generic notification');
+          }
+        } catch (e) {
+          print('⚠️ Could not check appointment flags: $e');
+          // Continue with generic notification if check fails
+        }
+      }
+      
       String title;
       String message;
       NotificationPriority priority = NotificationPriority.medium;
@@ -982,9 +1090,12 @@ class NotificationService {
         triggerUpdate();
 
         print('✅ Updated existing notification ${notificationDoc.id}: $oldStatus → $newStatus');
+        print('   📋 New Title: "$title"');
+        print('   📝 New Message: "${message.substring(0, message.length > 50 ? 50 : message.length)}..."');
       } else {
         // No existing notification found, create a new one
         print('ℹ️ No existing notification found for appointment $appointmentId, creating new one');
+        print('   📋 Title: "$title"');
         await createNotification(
           userId: userId,
           title: title,
@@ -1002,6 +1113,7 @@ class NotificationService {
             'appointmentDate': appointmentDate?.toIso8601String(),
             'appointmentTime': appointmentTime,
             'reason': reason,
+            'notificationSource': 'updateAppointmentStatusNotification',  // DEBUG: Track source
           },
         );
       }

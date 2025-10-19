@@ -6,6 +6,7 @@ import '../../../services/admin/admin_notification_service.dart';
 import '../../../models/admin/admin_notification_model.dart';
 import '../../admin/notifications/admin_notification_dropdown.dart';
 import 'profile_popup_modal.dart';
+import '../../../../pages/web/admin/appointment_screen.dart'; // Import for global key
 
 class TopNavBar extends StatefulWidget {
   final String clinicTitle;
@@ -184,12 +185,47 @@ class _TopNavBarState extends State<TopNavBar> {
                           _notificationService.markAllAsRead();
                         },
                         onNotificationTap: (notification) {
+                          print('🔔 NOTIFICATION TAP DEBUG:');
+                          print('   Title: ${notification.title}');
+                          print('   Type: ${notification.type}');
+                          print('   ActionURL: ${notification.actionUrl}');
+                          print('   RelatedID: ${notification.relatedId}');
+                          
                           _closeNotificationDropdown();
                           if (!notification.isRead) {
                             _notificationService.markAsRead(notification.id);
                           }
+                          
+                          // Handle appointment notifications specially
+                          if (notification.type == AdminNotificationType.appointment && notification.relatedId != null) {
+                            final appointmentId = notification.relatedId!;
+                            
+                            // Get current location from GoRouter instead of GoRouterState
+                            final router = GoRouter.of(context);
+                            final currentLocation = router.routeInformationProvider.value.uri.toString();
+                            
+                            print('   Current location: $currentLocation');
+                            print('   Appointment ID: $appointmentId');
+                            
+                            // Check if we're already on the appointments page
+                            if (currentLocation.contains('/admin/appointments')) {
+                              print('✅ Already on appointments page - opening modal directly');
+                              // We're already on appointments page, call the method directly using global key
+                              appointmentScreenKey.currentState?.openAppointmentById(appointmentId);
+                            } else {
+                              print('🚀 Navigating to appointments page with appointmentId');
+                              // Navigate to appointments page with the appointment ID
+                              context.go('/admin/appointments?appointmentId=$appointmentId');
+                            }
+                            return;
+                          }
+                          
+                          // For non-appointment notifications, use standard navigation
                           if (notification.actionUrl != null) {
+                            print('🚀 Navigating to: ${notification.actionUrl}');
                             context.go(notification.actionUrl!);
+                          } else {
+                            print('⚠️ No actionUrl found in notification');
                           }
                         },
                         onNotificationDismiss: (notification) {

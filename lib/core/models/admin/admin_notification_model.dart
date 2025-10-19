@@ -164,7 +164,8 @@ class AdminNotificationModel {
       timestamp: DateTime.now(),
       clinicId: clinicId,
       relatedId: appointmentId,
-      actionUrl: actionUrl ?? '/admin/appointments',
+      // Updated to navigate directly to appointment with ID
+      actionUrl: actionUrl ?? '/admin/appointments?appointmentId=$appointmentId',
       metadata: metadata,
     );
   }

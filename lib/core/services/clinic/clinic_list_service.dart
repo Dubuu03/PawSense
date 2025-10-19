@@ -9,10 +9,11 @@ class ClinicListService {
   /// Get all approved and active clinics for public display
   static Future<List<Map<String, dynamic>>> getAllActiveClinics() async {
     try {
-      // Get all approved clinics
+      // Get all approved clinics that are visible (completed schedule setup)
       final clinicsSnapshot = await _firestore
           .collection('clinics')
           .where('status', isEqualTo: 'approved')
+          .where('isVisible', isEqualTo: true) // Only show clinics that completed setup
           .get();
       
       List<Map<String, dynamic>> clinicList = [];
@@ -20,6 +21,12 @@ class ClinicListService {
       for (var clinicDoc in clinicsSnapshot.docs) {
         final clinicData = clinicDoc.data();
         final clinic = Clinic.fromMap(clinicData);
+        
+        // Double-check that schedule is completed (belt and suspenders approach)
+        if (clinic.scheduleStatus != 'completed') {
+          print('⚠️ Clinic ${clinic.clinicName} has isVisible=true but scheduleStatus=${clinic.scheduleStatus}');
+          continue; // Skip this clinic as it shouldn't be visible yet
+        }
         
         // Try to get clinic details for additional information
         final clinicDetailsQuery = await _firestore
@@ -46,6 +53,7 @@ class ClinicListService {
           'phone': clinic.phone,
           'email': clinic.email,
           'website': clinic.website,
+          'logoUrl': clinic.logoUrl,
           'operatingHours': clinicDetails?.operatingHours ?? 'Mon-Fri: 8AM-6PM',
           'specialties': clinicDetails?.specialties ?? [],
           'isVerified': clinicDetails?.isVerified ?? false,

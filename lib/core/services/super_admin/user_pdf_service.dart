@@ -370,7 +370,7 @@ class UserPdfService {
   static pw.TableRow _buildUserRow(Map<String, dynamic> userMap) {
     final user = userMap['user'] as UserModel;
     final isActive = userMap['isActive'] as bool;
-    final suspensionReason = userMap['suspensionReason'] as String?;
+    // final suspensionReason = userMap['suspensionReason'] as String?; // Reserved for future use
     
     final fullName = '${user.firstName ?? ''} ${user.lastName ?? ''}'.trim();
     
@@ -378,12 +378,12 @@ class UserPdfService {
       children: [
         // Name
         _buildTableCell(
-          fullName.isNotEmpty ? fullName : user.username ?? 'N/A',
+          fullName.isNotEmpty ? fullName : user.username,
         ),
         
         // Email & Contact
         _buildTableCell(
-          '${user.email ?? 'N/A'}\n${user.contactNumber ?? 'N/A'}',
+          '${user.email}\n${user.contactNumber}',
         ),
         
         // Role
@@ -399,7 +399,7 @@ class UserPdfService {
         
         // Created
         _buildTableCell(
-          DateFormat('MMM dd, yyyy').format(user.createdAt ?? DateTime.now()),
+          DateFormat('MMM dd, yyyy').format(user.createdAt),
         ),
       ],
     );

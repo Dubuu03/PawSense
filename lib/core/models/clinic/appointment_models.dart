@@ -77,7 +77,7 @@ class Owner {
   }
 }
 
-enum AppointmentStatus { pending, confirmed, completed, cancelled, noShow }
+enum AppointmentStatus { pending, confirmed, completed, cancelled }
 
 class Appointment {
   final String id;
@@ -108,6 +108,8 @@ class Appointment {
   final String? followUpTime; // Follow-up appointment time
   final bool? isFollowUp; // Whether this is a follow-up appointment
   final String? previousAppointmentId; // Reference to previous appointment if follow-up
+  final bool? isNoShow; // Visual flag: appointment marked as no-show (status=cancelled)
+  final bool? autoCancelled; // Visual flag: appointment auto-cancelled due to time expiration
 
   Appointment({
     required this.id,
@@ -138,6 +140,8 @@ class Appointment {
     this.followUpTime,
     this.isFollowUp,
     this.previousAppointmentId,
+    this.isNoShow,
+    this.autoCancelled,
   });
 
   factory Appointment.fromFirestore(Map<String, dynamic> data, String id) {
@@ -173,6 +177,8 @@ class Appointment {
       followUpTime: data['followUpTime'],
       isFollowUp: data['isFollowUp'],
       previousAppointmentId: data['previousAppointmentId'],
+      isNoShow: data['isNoShow'],
+      autoCancelled: data['autoCancelled'],
     );
   }
 
@@ -205,6 +211,8 @@ class Appointment {
       'followUpTime': followUpTime,
       'isFollowUp': isFollowUp,
       'previousAppointmentId': previousAppointmentId,
+      'isNoShow': isNoShow,
+      'autoCancelled': autoCancelled,
     };
   }
 
@@ -351,7 +359,8 @@ class AppointmentAnalytics {
     final pendingCount = appointments.where((a) => a.status == AppointmentStatus.pending).length;
     final completedCount = appointments.where((a) => a.status == AppointmentStatus.completed).length;
     final cancelledCount = appointments.where((a) => a.status == AppointmentStatus.cancelled).length;
-    final noShowCount = appointments.where((a) => a.status == AppointmentStatus.noShow).length;
+    // No-show appointments are now cancelled with isNoShow flag
+    final noShowCount = appointments.where((a) => a.isNoShow == true).length;
 
     final totalAppointments = appointments.length;
     final utilizationRate = maxCapacity > 0 ? (totalAppointments / maxCapacity * 100) : 0.0;

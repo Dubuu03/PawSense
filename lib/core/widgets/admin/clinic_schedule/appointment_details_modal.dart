@@ -23,14 +23,33 @@ class AppointmentDetailsModal extends StatefulWidget {
     VoidCallback? onAcceptAppointment,
     bool showAcceptButton = false,
   }) {
-    showDialog(
-      context: context,
-      builder: (context) => AppointmentDetailsModal(
-        appointment: appointment,
-        onAcceptAppointment: onAcceptAppointment,
-        showAcceptButton: showAcceptButton,
-      ),
-    );
+    print('🎬 AppointmentDetailsModal.show() called');
+    print('   Pet name: "${appointment.pet.name}"');
+    print('   Status: ${appointment.status}');
+    print('   Date: "${appointment.date}"');
+    print('   Time: "${appointment.time}"');
+    
+    try {
+      showDialog(
+        context: context,
+        barrierDismissible: true,
+        builder: (dialogContext) {
+          print('🏗️ Dialog builder called');
+          return AppointmentDetailsModal(
+            appointment: appointment,
+            onAcceptAppointment: onAcceptAppointment,
+            showAcceptButton: showAcceptButton,
+          );
+        },
+      ).then((value) {
+        print('✅ Dialog closed');
+      }).catchError((error) {
+        print('❌ Dialog error: $error');
+      });
+    } catch (e, stackTrace) {
+      print('❌ CRITICAL ERROR in showDialog: $e');
+      print('Stack trace: $stackTrace');
+    }
   }
 
   @override
@@ -198,9 +217,34 @@ class _AppointmentDetailsModalState extends State<AppointmentDetailsModal> {
         role: 'user',
       );
 
+      // Prepare clinic evaluation data if appointment is completed or follow-up
+      Map<String, dynamic>? clinicEvaluation;
+      if (widget.appointment.status == AppointmentStatus.completed || 
+          (widget.appointment.isFollowUp == true && _previousAppointment != null)) {
+        
+        // For follow-ups, use previous appointment's evaluation
+        final evalSource = widget.appointment.isFollowUp == true && _previousAppointment != null 
+            ? _previousAppointment! 
+            : widget.appointment;
+        
+        // Check if there's any evaluation data
+        if (evalSource.diagnosis != null || evalSource.treatment != null || 
+            evalSource.prescription != null || evalSource.clinicNotes != null) {
+          clinicEvaluation = {
+            'diagnosis': evalSource.diagnosis,
+            'treatment': evalSource.treatment,
+            'prescription': evalSource.prescription,
+            'clinicNotes': evalSource.clinicNotes,
+            'completedAt': evalSource.completedAt,
+            'isFollowUp': widget.appointment.isFollowUp == true,
+          };
+        }
+      }
+
       final pdfBytes = await PDFGenerationService.generateAssessmentPDF(
         user: userModel,
         assessmentResult: assessmentResult,
+        clinicEvaluation: clinicEvaluation,
       );
 
       final fileName = 'PawSense_Assessment_${widget.appointment.pet.name}_${DateTime.now().millisecondsSinceEpoch}';
@@ -236,6 +280,88 @@ class _AppointmentDetailsModalState extends State<AppointmentDetailsModal> {
     }
   }
 
+  Future<void> _generateFollowUpPDF() async {
+    if (_isGeneratingPDF || _previousAppointment == null) return;
+    
+    setState(() => _isGeneratingPDF = true);
+    
+    try {
+      if (_previousAppointment!.assessmentResultId == null || 
+          _previousAppointment!.assessmentResultId!.isEmpty) {
+        throw Exception('No assessment data available for previous appointment');
+      }
+
+      final assessmentService = AssessmentResultService();
+      final assessmentResult = await assessmentService.getAssessmentResultById(
+        _previousAppointment!.assessmentResultId!
+      );
+      
+      if (assessmentResult == null) {
+        throw Exception('Assessment data not found for previous appointment');
+      }
+
+      final userModel = UserModel(
+        uid: widget.appointment.owner.id,
+        username: widget.appointment.owner.name,
+        email: widget.appointment.owner.email ?? '',
+        contactNumber: widget.appointment.owner.phone,
+        createdAt: DateTime.now(),
+        role: 'user',
+      );
+
+      // Prepare clinic evaluation data from previous appointment
+      Map<String, dynamic>? clinicEvaluation;
+      if (_previousAppointment!.diagnosis != null || _previousAppointment!.treatment != null || 
+          _previousAppointment!.prescription != null || _previousAppointment!.clinicNotes != null) {
+        clinicEvaluation = {
+          'diagnosis': _previousAppointment!.diagnosis,
+          'treatment': _previousAppointment!.treatment,
+          'prescription': _previousAppointment!.prescription,
+          'clinicNotes': _previousAppointment!.clinicNotes,
+          'completedAt': _previousAppointment!.completedAt,
+          'isFollowUp': false, // This is the original appointment, not a follow-up
+        };
+      }
+
+      final pdfBytes = await PDFGenerationService.generateAssessmentPDF(
+        user: userModel,
+        assessmentResult: assessmentResult,
+        clinicEvaluation: clinicEvaluation,
+      );
+
+      final fileName = 'PawSense_PreviousVisit_${widget.appointment.pet.name}_${DateTime.now().millisecondsSinceEpoch}';
+      await PDFGenerationService.saveWithSystemDialog(pdfBytes, fileName);
+
+      if (mounted) {
+        setState(() => _isGeneratingPDF = false);
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: const [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 12),
+                Text('Previous visit PDF downloaded successfully'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isGeneratingPDF = false);
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to generate PDF: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   String _getStatusText(AppointmentStatus status) {
     switch (status) {
       case AppointmentStatus.pending:
@@ -246,8 +372,6 @@ class _AppointmentDetailsModalState extends State<AppointmentDetailsModal> {
         return 'Completed';
       case AppointmentStatus.cancelled:
         return 'Cancelled';
-      case AppointmentStatus.noShow:
-        return 'No Show';
     }
   }
 
@@ -261,8 +385,6 @@ class _AppointmentDetailsModalState extends State<AppointmentDetailsModal> {
         return Colors.blue;
       case AppointmentStatus.cancelled:
         return Colors.red;
-      case AppointmentStatus.noShow:
-        return Colors.grey;
     }
   }
 
@@ -434,9 +556,63 @@ class _AppointmentDetailsModalState extends State<AppointmentDetailsModal> {
 
   @override
   Widget build(BuildContext context) {
-    final dateTime = DateTime.parse('${widget.appointment.date} ${widget.appointment.time}:00');
-    final formattedDate = '${_getMonthName(dateTime.month)} ${dateTime.day}, ${dateTime.year}';
-    final formattedTime = _formatTime(widget.appointment.time);
+    print('🎨 Building AppointmentDetailsModal widget');
+    
+    try {
+      return _buildDialogContent(context);
+    } catch (e, stackTrace) {
+      print('❌ ERROR building modal: $e');
+      print('Stack trace: $stackTrace');
+      
+      // Return error dialog
+      return Dialog(
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error, color: Colors.red, size: 48),
+              const SizedBox(height: 16),
+              const Text('Error displaying appointment details'),
+              const SizedBox(height: 8),
+              Text(e.toString(), style: const TextStyle(fontSize: 12)),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+  }
+
+  Widget _buildDialogContent(BuildContext context) {
+    // Safe date-time parsing with fallback
+    DateTime dateTime;
+    String formattedDate;
+    String formattedTime;
+    
+    try {
+      // Check if date and time are not empty
+      if (widget.appointment.date.isEmpty || widget.appointment.time.isEmpty) {
+        throw FormatException('Empty date or time');
+      }
+      
+      final dateString = '${widget.appointment.date} ${widget.appointment.time}:00';
+      dateTime = DateTime.parse(dateString);
+      formattedDate = '${_getMonthName(dateTime.month)} ${dateTime.day}, ${dateTime.year}';
+      formattedTime = _formatTime(widget.appointment.time);
+    } catch (e) {
+      // For cancelled/invalid appointments, use createdAt as fallback
+      // This shows when the appointment was originally created
+      dateTime = widget.appointment.createdAt;
+      formattedDate = '${_getMonthName(dateTime.month)} ${dateTime.day}, ${dateTime.year}';
+      formattedTime = 'N/A';
+      
+      print('ℹ️ Using fallback date for appointment (Status: ${widget.appointment.status})');
+    }
 
     return Dialog(
       shape: RoundedRectangleBorder(
@@ -699,6 +875,36 @@ class _AppointmentDetailsModalState extends State<AppointmentDetailsModal> {
                           ],
                         ),
                       ],
+                      
+                      // Download PDF button for follow-up appointments with previous clinic evaluation
+                      if (_previousAppointment!.diagnosis != null && _previousAppointment!.diagnosis!.isNotEmpty ||
+                          _previousAppointment!.treatment != null && _previousAppointment!.treatment!.isNotEmpty ||
+                          _previousAppointment!.prescription != null && _previousAppointment!.prescription!.isNotEmpty ||
+                          _previousAppointment!.clinicNotes != null && _previousAppointment!.clinicNotes!.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _isGeneratingPDF ? null : () => _generateFollowUpPDF(),
+                            icon: _isGeneratingPDF
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    ),
+                                  )
+                                : const Icon(Icons.download, size: 18),
+                            label: Text(_isGeneratingPDF ? 'Generating PDF...' : 'Download Previous Visit PDF'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF3B82F6),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                            ),
+                          ),
+                        ),
+                      ],
                     ] else ...[
                       Text(
                         'Previous appointment details not available',
@@ -728,6 +934,12 @@ class _AppointmentDetailsModalState extends State<AppointmentDetailsModal> {
             if (widget.appointment.notes != null && widget.appointment.notes!.isNotEmpty) ...[
               const SizedBox(height: 16),
               _buildInfoSection('Notes', widget.appointment.notes!),
+            ],
+
+            // Clinic Evaluation Section (for completed appointments that are NOT follow-ups)
+            if (_shouldShowClinicEvaluation()) ...[
+              const SizedBox(height: 16),
+              _buildClinicEvaluationSection(),
             ],
 
             // AI Assessment Results
@@ -833,35 +1045,6 @@ class _AppointmentDetailsModalState extends State<AppointmentDetailsModal> {
     );
   }
 
-  Widget _buildEvaluationRow(String label, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 90,
-          child: Text(
-            '$label:',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey[700],
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[800],
-              height: 1.3,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildPreviousAppointmentDetail(String label, String value) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -884,6 +1067,93 @@ class _AppointmentDetailsModalState extends State<AppointmentDetailsModal> {
           ),
         ),
       ],
+    );
+  }
+
+  bool _shouldShowClinicEvaluation() {
+    // Must be completed status
+    if (widget.appointment.status != AppointmentStatus.completed) {
+      return false;
+    }
+
+    // Must NOT be a follow-up appointment (follow-ups show previous appointment's evaluation)
+    if (widget.appointment.isFollowUp == true) {
+      return false;
+    }
+
+    // Must have at least one evaluation field filled
+    final hasDiagnosis = widget.appointment.diagnosis != null && 
+                        widget.appointment.diagnosis!.trim().isNotEmpty;
+    final hasTreatment = widget.appointment.treatment != null && 
+                        widget.appointment.treatment!.trim().isNotEmpty;
+    final hasPrescription = widget.appointment.prescription != null && 
+                           widget.appointment.prescription!.trim().isNotEmpty;
+    final hasClinicNotes = widget.appointment.clinicNotes != null && 
+                          widget.appointment.clinicNotes!.trim().isNotEmpty;
+
+    final shouldShow = hasDiagnosis || hasTreatment || hasPrescription || hasClinicNotes;
+    
+    print('🔍 Should show clinic evaluation: $shouldShow (diagnosis: $hasDiagnosis, treatment: $hasTreatment, prescription: $hasPrescription, notes: $hasClinicNotes)');
+    
+    return shouldShow;
+  }
+
+  Widget _buildClinicEvaluationSection() {
+    return Container(
+      key: const ValueKey('clinic_evaluation_section'),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF3B82F6).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFF3B82F6), width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.medical_services, size: 18, color: Color(0xFF3B82F6)),
+              SizedBox(width: 8),
+              Text(
+                'Clinic Evaluation:',
+                style: TextStyle(
+                  color: Color(0xFF3B82F6),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          
+          // Diagnosis
+          if (widget.appointment.diagnosis != null && 
+              widget.appointment.diagnosis!.trim().isNotEmpty) ...[
+            _buildPreviousAppointmentDetail('Diagnosis', widget.appointment.diagnosis!),
+            const SizedBox(height: 4),
+          ],
+          
+          // Treatment
+          if (widget.appointment.treatment != null && 
+              widget.appointment.treatment!.trim().isNotEmpty) ...[
+            _buildPreviousAppointmentDetail('Treatment', widget.appointment.treatment!),
+            const SizedBox(height: 4),
+          ],
+          
+          // Prescription
+          if (widget.appointment.prescription != null && 
+              widget.appointment.prescription!.trim().isNotEmpty) ...[
+            _buildPreviousAppointmentDetail('Prescription', widget.appointment.prescription!),
+            const SizedBox(height: 4),
+          ],
+          
+          // Clinic Notes
+          if (widget.appointment.clinicNotes != null && 
+              widget.appointment.clinicNotes!.trim().isNotEmpty) ...[
+            _buildPreviousAppointmentDetail('Clinic Notes', widget.appointment.clinicNotes!),
+          ],
+        ],
+      ),
     );
   }
 

@@ -14,6 +14,7 @@ class OptimizedAlertList extends StatefulWidget {
   final bool hasMore;
   final bool isLoading;
   final bool isLoadingMore;
+  final ScrollController? scrollController;
 
   const OptimizedAlertList({
     super.key,
@@ -25,6 +26,7 @@ class OptimizedAlertList extends StatefulWidget {
     this.hasMore = false,
     this.isLoading = false,
     this.isLoadingMore = false,
+    this.scrollController,
   });
 
   @override
@@ -32,12 +34,13 @@ class OptimizedAlertList extends StatefulWidget {
 }
 
 class _OptimizedAlertListState extends State<OptimizedAlertList> {
-  final ScrollController _scrollController = ScrollController();
+  late ScrollController _scrollController;
   List<AlertListItem> _listItems = [];
   
   @override
   void initState() {
     super.initState();
+    _scrollController = widget.scrollController ?? ScrollController();
     _scrollController.addListener(_onScroll);
     _buildListItems();
   }
@@ -53,7 +56,10 @@ class _OptimizedAlertListState extends State<OptimizedAlertList> {
   @override
   void dispose() {
     _scrollController.removeListener(_onScroll);
-    _scrollController.dispose();
+    // Only dispose if we created the controller
+    if (widget.scrollController == null) {
+      _scrollController.dispose();
+    }
     super.dispose();
   }
   

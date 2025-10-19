@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
 
@@ -9,6 +10,8 @@ class PetFormTextField extends StatelessWidget {
   final TextInputType? keyboardType;
   final String? Function(String?)? validator;
   final bool enabled;
+  final int? maxLength;
+  final List<TextInputFormatter>? inputFormatters;
 
   const PetFormTextField({
     super.key,
@@ -18,6 +21,8 @@ class PetFormTextField extends StatelessWidget {
     this.keyboardType,
     this.validator,
     this.enabled = true,
+    this.maxLength,
+    this.inputFormatters,
   });
 
   @override
@@ -37,6 +42,8 @@ class PetFormTextField extends StatelessWidget {
           keyboardType: keyboardType,
           validator: validator,
           enabled: enabled,
+          maxLength: maxLength,
+          inputFormatters: inputFormatters,
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: const TextStyle(color: AppColors.textSecondary),
@@ -63,6 +70,7 @@ class PetFormTextField extends StatelessWidget {
             filled: true,
             fillColor: enabled ? AppColors.white : AppColors.background,
             contentPadding: kMobilePaddingCard,
+            counterText: "",
           ),
         ),
       ],

@@ -17,6 +17,7 @@ class ClinicInfo {
   final String phone;
   final String email;
   final String? website;
+  final String? logoUrl;
   final String? operatingHours;
   final List<String> specialties;
   final bool isVerified;
@@ -29,6 +30,7 @@ class ClinicInfo {
     required this.phone,
     required this.email,
     this.website,
+    this.logoUrl,
     this.operatingHours,
     this.specialties = const [],
     this.isVerified = false,
@@ -44,6 +46,7 @@ class ClinicInfo {
       phone: map['phone'] ?? '',
       email: map['email'] ?? '',
       website: map['website'],
+      logoUrl: map['logoUrl'],
       operatingHours: map['operatingHours'],
       specialties: List<String>.from(map['specialties'] ?? []),
       isVerified: map['isVerified'] ?? false,
@@ -456,18 +459,50 @@ class _NearbyClinicsWidgetState extends State<NearbyClinicsWidget> {
         ),
         child: Row(
           children: [
-            // Clinic icon
+            // Clinic logo/icon (circular)
             Container(
-              width: 32,
-              height: 32,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 color: AppColors.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppColors.border,
+                  width: 1,
+                ),
               ),
-              child: Icon(
-                clinic.isVerified ? Icons.verified : Icons.local_hospital,
-                size: 16,
-                color: clinic.isVerified ? AppColors.success : AppColors.primary,
+              padding: const EdgeInsets.all(4), // Add padding to make image smaller inside circle
+              child: ClipOval(
+                child: clinic.logoUrl != null && clinic.logoUrl!.isNotEmpty
+                    ? Image.network(
+                        clinic.logoUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Icon(
+                            clinic.isVerified ? Icons.verified : Icons.local_hospital,
+                            size: 20,
+                            color: clinic.isVerified ? AppColors.success : AppColors.primary,
+                          );
+                        },
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Center(
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.primary,
+                              value: loadingProgress.expectedTotalBytes != null
+                                  ? loadingProgress.cumulativeBytesLoaded /
+                                      loadingProgress.expectedTotalBytes!
+                                  : null,
+                            ),
+                          );
+                        },
+                      )
+                    : Icon(
+                        clinic.isVerified ? Icons.verified : Icons.local_hospital,
+                        size: 20,
+                        color: clinic.isVerified ? AppColors.success : AppColors.primary,
+                      ),
               ),
             ),
 

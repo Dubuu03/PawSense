@@ -6,6 +6,7 @@ import '../../../core/widgets/admin/settings/settings_navigation.dart';
 import '../../../core/widgets/admin/settings/account_settings.dart';
 import '../../../core/widgets/admin/settings/clinic_settings.dart';
 import '../../../core/widgets/admin/settings/security_settings.dart';
+import '../../../core/widgets/admin/settings/legal_documents_settings.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -25,6 +26,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return ClinicSettings();
       case 'security':
         return SecuritySettings();
+      case 'legal':
+        return const LegalDocumentsSettings();
       default:
         return AccountSettings();
     }

@@ -138,6 +138,12 @@ class NotificationHelper {
       case NotificationCategory.appointment:
         // Check appointment status and type to determine the correct alert type
         if (metadata != null) {
+          // Check if this is a no-show appointment (PRIORITY CHECK)
+          final isNoShow = metadata['isNoShow'] == true;
+          if (isNoShow) {
+            return AlertType.declined; // Use declined type for red color to indicate no-show
+          }
+          
           // Check if this is a follow-up appointment
           final isFollowUp = metadata['isFollowUp'] == true;
           final notificationType = metadata['notificationType'] as String?;

@@ -1,7 +1,16 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:pawsense/core/utils/file_downloader.dart' as file_downloader;
+import '../../../core/models/analytics/system_analytics_models.dart';
+import '../../../core/services/super_admin/system_analytics_service.dart';
+import '../../../core/services/super_admin/analytics_pdf_service.dart';
 import '../../../core/utils/app_colors.dart';
 import '../../../core/utils/constants.dart';
 import '../../../core/widgets/shared/page_header.dart';
+import '../../../core/widgets/super_admin/analytics/kpi_card.dart';
+import '../../../core/widgets/super_admin/analytics/analytics_filters.dart';
+import '../../../core/widgets/super_admin/analytics/growth_trend_chart.dart';
 
 class SystemAnalyticsScreen extends StatefulWidget {
   const SystemAnalyticsScreen({super.key});
@@ -11,8 +20,187 @@ class SystemAnalyticsScreen extends StatefulWidget {
 }
 
 class _SystemAnalyticsScreenState extends State<SystemAnalyticsScreen> {
-  String selectedPeriod = 'Last 30 Days';
-  bool isLoading = false;
+  AnalyticsPeriod selectedPeriod = AnalyticsPeriod.last30Days;
+  bool isLoading = true;
+  DateTime? lastUpdated;
+
+  // KPI Data
+  UserStats? userStats;
+  ClinicStats? clinicStats;
+  AppointmentStats? appointmentStats;
+  AIUsageStats? aiStats;
+  PetStats? petStats;
+  SystemHealthScore? systemHealth;
+
+  // Chart Data
+  List<TimeSeriesData> userTrend = [];
+  List<TimeSeriesData> clinicTrend = [];
+  List<TimeSeriesData> petTrend = [];
+
+  // Table Data
+  List<ClinicPerformance> topClinics = [];
+  List<ClinicAlert> clinicAlerts = [];
+  List<DiseaseData> topDiseases = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAnalyticsData();
+  }
+
+  Future<void> _loadAnalyticsData() async {
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      // Load KPIs in parallel
+      final results = await Future.wait([
+        SystemAnalyticsService.getUserStats(selectedPeriod),
+        SystemAnalyticsService.getClinicStats(selectedPeriod),
+        SystemAnalyticsService.getAppointmentStats(selectedPeriod),
+        SystemAnalyticsService.getAIUsageStats(selectedPeriod),
+        SystemAnalyticsService.getPetStats(selectedPeriod),
+        SystemAnalyticsService.getSystemHealth(),
+      ]);
+
+      // Load chart data
+      final trendResults = await Future.wait([
+        SystemAnalyticsService.getUserGrowthTrend(selectedPeriod),
+        SystemAnalyticsService.getClinicGrowthTrend(selectedPeriod),
+        SystemAnalyticsService.getPetGrowthTrend(selectedPeriod),
+      ]);
+
+      // Load table data
+      final tableResults = await Future.wait([
+        SystemAnalyticsService.getTopClinicsByAppointments(limit: 10),
+        SystemAnalyticsService.getClinicsNeedingAttention(),
+        SystemAnalyticsService.getTopDetectedDiseases(limit: 10),
+      ]);
+
+      if (mounted) {
+        setState(() {
+          userStats = results[0] as UserStats;
+          clinicStats = results[1] as ClinicStats;
+          appointmentStats = results[2] as AppointmentStats;
+          aiStats = results[3] as AIUsageStats;
+          petStats = results[4] as PetStats;
+          systemHealth = results[5] as SystemHealthScore;
+
+          userTrend = trendResults[0];
+          clinicTrend = trendResults[1];
+          petTrend = trendResults[2];
+
+          topClinics = tableResults[0] as List<ClinicPerformance>;
+          clinicAlerts = tableResults[1] as List<ClinicAlert>;
+          topDiseases = tableResults[2] as List<DiseaseData>;
+
+          isLoading = false;
+          lastUpdated = DateTime.now();
+        });
+      }
+    } catch (e) {
+      print('Error loading analytics: $e');
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading analytics: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _onPeriodChanged(AnalyticsPeriod newPeriod) {
+    setState(() {
+      selectedPeriod = newPeriod;
+    });
+    _loadAnalyticsData();
+  }
+
+  void _onRefresh() {
+    SystemAnalyticsService.clearCache();
+    _loadAnalyticsData();
+  }
+
+  Future<void> _onExport() async {
+    // Show loading indicator
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              SizedBox(width: 16),
+              Text('Generating analytics PDF report...'),
+            ],
+          ),
+          duration: Duration(seconds: 30),
+          backgroundColor: Colors.blue,
+        ),
+      );
+    }
+
+    try {
+      // Get current admin name (you can modify this to get actual admin name)
+      String? adminName = 'Super Admin';
+
+      // Generate PDF
+      final Uint8List pdfBytes = await AnalyticsPdfService.generateAnalyticsReport(
+        period: selectedPeriod,
+        userStats: userStats ?? UserStats.empty(),
+        clinicStats: clinicStats ?? ClinicStats.empty(),
+        appointmentStats: appointmentStats ?? AppointmentStats.empty(),
+        aiStats: aiStats ?? AIUsageStats.empty(),
+        petStats: petStats ?? PetStats.empty(),
+        systemHealth: systemHealth ?? SystemHealthScore.empty(),
+        topClinics: topClinics,
+        clinicAlerts: clinicAlerts,
+        topDiseases: topDiseases,
+        generatedAt: DateTime.now(),
+        generatedBy: adminName,
+      );
+
+      // Download PDF
+      final fileName = 'system_analytics_${selectedPeriod.name}_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf';
+      file_downloader.downloadFile(fileName, pdfBytes);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Analytics report exported successfully'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+
+      print('📊 Exported system analytics report for ${selectedPeriod.label}');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error generating PDF: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      print('❌ Error generating analytics PDF: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,81 +208,68 @@ class _SystemAnalyticsScreenState extends State<SystemAnalyticsScreen> {
       backgroundColor: AppColors.background,
       body: Column(
         children: [
-          
           Padding(
-            padding: const EdgeInsets.fromLTRB(kSpacingLarge, kSpacingLarge, kSpacingLarge, 0),
-            child: PageHeader(
+            padding: const EdgeInsets.fromLTRB(
+                kSpacingLarge, kSpacingLarge, kSpacingLarge, 0),
+            child: const PageHeader(
               title: 'System Analytics',
               subtitle: 'Comprehensive system performance and usage analytics',
             ),
           ),
           Expanded(
             child: SingleChildScrollView(
-              padding: EdgeInsets.all(kSpacingLarge),
+              padding: const EdgeInsets.all(kSpacingLarge),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Top Action Bar
-                  _buildActionBar(),
-                  
-                  SizedBox(height: kSpacingLarge),
-                  
-                  if (isLoading) ...[
-                    Center(
-                      child: Column(
-                        children: [
-                          CircularProgressIndicator(color: AppColors.primary),
-                          SizedBox(height: kSpacingMedium),
-                          Text(
-                            'Loading analytics data...',
-                            style: kTextStyleRegular.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
+                  // Filters
+                  AnalyticsFilters(
+                    selectedPeriod: selectedPeriod,
+                    onPeriodChanged: _onPeriodChanged,
+                    onRefresh: _onRefresh,
+                    onExport: _onExport,
+                    isLoading: isLoading,
+                    lastUpdated: lastUpdated,
+                  ),
+
+                  const SizedBox(height: kSpacingLarge),
+
+                  // KPI Cards Grid
+                  _buildKPIGrid(),
+
+                  const SizedBox(height: kSpacingLarge),
+
+                  // Growth Trends Chart - with responsive height
+                  Container(
+                    constraints: BoxConstraints(
+                      minHeight: 300,
+                      maxHeight: MediaQuery.of(context).size.height * 0.5,
                     ),
-                  ] else ...[
-                    // Main Dashboard Grid
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Left Column
-                        Expanded(
-                          flex: 2,
-                          child: Column(
-                            children: [
-                              _buildUserGrowthTrendCard(),
-                              SizedBox(height: kSpacingLarge),
-                              _buildClinicPerformanceCard(),
-                            ],
-                          ),
-                        ),
-                        
-                        SizedBox(width: kSpacingLarge),
-                        
-                        // Right Column
-                        Expanded(
-                          flex: 2,
-                          child: Column(
-                            children: [
-                              _buildScanUsageDistributionCard(),
-                              SizedBox(height: kSpacingLarge),
-                              _buildSystemHealthMetricsCard(),
-                            ],
-                          ),
-                        ),
-                      ],
+                    child: GrowthTrendChart(
+                      userTrend: userTrend,
+                      clinicTrend: clinicTrend,
+                      petTrend: petTrend,
+                      isLoading: isLoading,
                     ),
-                    
-                    SizedBox(height: kSpacingLarge),
-                    
-                    // Bottom Full-Width Cards
-                    _buildRevenueAnalyticsCard(),
-                    
-                    SizedBox(height: kSpacingLarge),
-                    
-                    _buildAppointmentMetricsCard(),
+                  ),
+
+                  const SizedBox(height: kSpacingLarge),
+
+                  // Additional Analytics - with empty state messages
+                  if (!isLoading && topClinics.isEmpty && clinicAlerts.isEmpty && topDiseases.isEmpty)
+                    _buildEmptyState(),
+
+                  if (!isLoading && topClinics.isNotEmpty)
+                    _buildTopClinicsTable(),
+
+                  if (!isLoading && clinicAlerts.isNotEmpty) ...[
+                    const SizedBox(height: kSpacingLarge),
+                    _buildClinicsNeedingAttention(),
+                  ],
+
+                  if (!isLoading && topDiseases.isNotEmpty) ...[
+                    const SizedBox(height: kSpacingLarge),
+                    _buildTopDiseasesChart(),
                   ],
                 ],
               ),
@@ -105,700 +280,508 @@ class _SystemAnalyticsScreenState extends State<SystemAnalyticsScreen> {
     );
   }
 
-  Widget _buildActionBar() {
+  Widget _buildEmptyState() {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: kSpacingLarge, vertical: kSpacingMedium),
+      padding: const EdgeInsets.all(48),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(kBorderRadius),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: kShadowOpacity),
-            blurRadius: kShadowBlurRadius,
-            offset: kShadowOffset,
-            spreadRadius: kShadowSpreadRadius,
-          ),
-        ],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
       ),
-      child: Row(
-        children: [
-          Text(
-            'Time Period:',
-            style: kTextStyleRegular.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          SizedBox(width: kSpacingMedium),
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: kSpacingMedium, vertical: kSpacingSmall),
-            decoration: BoxDecoration(
-              border: Border.all(color: AppColors.border),
-              borderRadius: BorderRadius.circular(kBorderRadiusSmall),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: selectedPeriod,
-                onChanged: (String? newValue) {
-                  if (newValue != null) {
-                    setState(() {
-                      selectedPeriod = newValue;
-                    });
-                    _loadAnalyticsData();
-                  }
-                },
-                items: ['Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'Last Year']
-                    .map((String value) {
-                  return DropdownMenuItem<String>(
-                    value: value,
-                    child: Text(value, style: kTextStyleRegular),
-                  );
-                }).toList(),
-              ),
-            ),
-          ),
-          
-          Spacer(),
-          
-          Text(
-            'Last updated: ${_formatDateTime(DateTime.now())}',
-            style: kTextStyleSmall.copyWith(color: AppColors.textSecondary),
-          ),
-          
-          SizedBox(width: kSpacingLarge),
-          
-          ElevatedButton.icon(
-            onPressed: _loadAnalyticsData,
-            icon: Icon(Icons.refresh, size: kIconSizeMedium),
-            label: Text('Refresh'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.info,
-              foregroundColor: AppColors.white,
-            ),
-          ),
-          
-          SizedBox(width: kSpacingMedium),
-          
-          ElevatedButton.icon(
-            onPressed: _exportAnalytics,
-            icon: Icon(Icons.download, size: kIconSizeMedium),
-            label: Text('Export'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.white,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildUserGrowthTrendCard() {
-    final growthData = [
-      {'month': 'Jan', 'users': 12450},
-      {'month': 'Feb', 'users': 13230},
-      {'month': 'Mar', 'users': 13980},
-      {'month': 'Apr', 'users': 14560},
-      {'month': 'May', 'users': 15120},
-      {'month': 'Jun', 'users': 15847},
-    ];
-
-    return Container(
-      padding: EdgeInsets.all(kSpacingLarge),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(kBorderRadius),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: kShadowOpacity),
-            blurRadius: kShadowBlurRadius,
-            offset: kShadowOffset,
-            spreadRadius: kShadowSpreadRadius,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'User Growth Trend',
-                style: kTextStyleLarge.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: kSpacingSmall, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.success.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.trending_up, color: AppColors.success, size: 16),
-                    SizedBox(width: 4),
-                    Text(
-                      '+23.5% growth',
-                      style: kTextStyleSmall.copyWith(
-                        color: AppColors.success,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          
-          SizedBox(height: kSpacingLarge),
-          
-          // Growth bars visualization
-          ...growthData.map((data) => Padding(
-            padding: EdgeInsets.only(bottom: kSpacingMedium),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 40,
-                  child: Text(
-                    data['month'] as String,
-                    style: kTextStyleSmall.copyWith(color: AppColors.textSecondary),
-                  ),
-                ),
-                SizedBox(width: kSpacingMedium),
-                Expanded(
-                  child: Container(
-                    height: 8,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(4),
-                      gradient: LinearGradient(
-                        colors: [AppColors.primary, AppColors.primary.withValues(alpha: 0.6)],
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
-                      ),
-                    ),
-                    width: ((data['users'] as int) / 16000) * 300,
-                  ),
-                ),
-                SizedBox(width: kSpacingMedium),
-                Text(
-                  (data['users'] as int).toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},'),
-                  style: kTextStyleSmall.copyWith(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          )),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildScanUsageDistributionCard() {
-    final scanData = [
-      {'type': 'Diagnostic Scans', 'count': 3456, 'color': AppColors.primary},
-      {'type': 'Routine Checkups', 'count': 2890, 'color': AppColors.info},
-      {'type': 'Emergency Scans', 'count': 1245, 'color': AppColors.error},
-      {'type': 'Follow-up Scans', 'count': 978, 'color': AppColors.warning},
-      {'type': 'Preventive Care', 'count': 623, 'color': AppColors.success},
-    ];
-
-    return Container(
-      padding: EdgeInsets.all(kSpacingLarge),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(kBorderRadius),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: kShadowOpacity),
-            blurRadius: kShadowBlurRadius,
-            offset: kShadowOffset,
-            spreadRadius: kShadowSpreadRadius,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Scan Usage Distribution',
-            style: kTextStyleLarge.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          
-          SizedBox(height: kSpacingLarge),
-          
-          ...scanData.map((data) => Padding(
-            padding: EdgeInsets.only(bottom: kSpacingMedium),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    data['type'] as String,
-                    style: kTextStyleSmall.copyWith(color: AppColors.textSecondary),
-                  ),
-                ),
-                Container(
-                  height: 6,
-                  width: 120,
-                  decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                  child: FractionallySizedBox(
-                    alignment: Alignment.centerLeft,
-                    widthFactor: (data['count'] as int) / 3500,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: data['color'] as Color,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(width: kSpacingMedium),
-                Text(
-                  (data['count'] as int).toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},'),
-                  style: kTextStyleSmall.copyWith(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          )),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildClinicPerformanceCard() {
-    final clinicData = [
-      {'name': 'VetCare Central', 'score': 94, 'color': AppColors.success},
-      {'name': 'Pet Health Plus', 'score': 87, 'color': AppColors.info},
-      {'name': 'Animal Wellness', 'score': 91, 'color': AppColors.success},
-      {'name': 'Furry Friends', 'score': 76, 'color': AppColors.warning},
-      {'name': 'Downtown Pet', 'score': 82, 'color': AppColors.info},
-    ];
-
-    return Container(
-      padding: EdgeInsets.all(kSpacingLarge),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(kBorderRadius),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: kShadowOpacity),
-            blurRadius: kShadowBlurRadius,
-            offset: kShadowOffset,
-            spreadRadius: kShadowSpreadRadius,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Top Clinic Performance Scores',
-            style: kTextStyleLarge.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          
-          SizedBox(height: kSpacingLarge),
-          
-          ...clinicData.map((data) => Padding(
-            padding: EdgeInsets.only(bottom: kSpacingMedium),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    data['name'] as String,
-                    style: kTextStyleSmall.copyWith(color: AppColors.textSecondary),
-                  ),
-                ),
-                Container(
-                  height: 6,
-                  width: 120,
-                  decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                  child: FractionallySizedBox(
-                    alignment: Alignment.centerLeft,
-                    widthFactor: (data['score'] as int) / 100,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: data['color'] as Color,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(width: kSpacingMedium),
-                Text(
-                  '${data['score']}%',
-                  style: kTextStyleSmall.copyWith(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          )),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSystemHealthMetricsCard() {
-    final healthMetrics = [
-      {
-        'title': 'API Response Time',
-        'value': '245ms',
-        'change': '-8.3%',
-        'isPositive': true,
-        'color': AppColors.info,
-      },
-      {
-        'title': 'Database Performance',
-        'value': '99.2%',
-        'change': '+0.5%',
-        'isPositive': true,
-        'color': AppColors.success,
-      },
-      {
-        'title': 'Error Rate',
-        'value': '0.08%',
-        'change': '-12.4%',
-        'isPositive': true,
-        'color': AppColors.info,
-      },
-    ];
-
-    return Container(
-      padding: EdgeInsets.all(kSpacingLarge),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(kBorderRadius),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: kShadowOpacity),
-            blurRadius: kShadowBlurRadius,
-            offset: kShadowOffset,
-            spreadRadius: kShadowSpreadRadius,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'System Health Metrics',
-            style: kTextStyleLarge.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          
-          SizedBox(height: kSpacingLarge),
-          
-          ...healthMetrics.map((metric) => Container(
-            margin: EdgeInsets.only(bottom: kSpacingMedium),
-            padding: EdgeInsets.all(kSpacingMedium),
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(kBorderRadiusSmall),
-              border: Border.all(color: AppColors.border.withValues(alpha: 0.3)),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        metric['title'] as String,
-                        style: kTextStyleSmall.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        metric['value'] as String,
-                        style: kTextStyleLarge.copyWith(
-                          color: metric['color'] as Color,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Row(
-                  children: [
-                    Icon(
-                      (metric['isPositive'] as bool) ? Icons.trending_up : Icons.trending_down,
-                      color: (metric['isPositive'] as bool) ? AppColors.success : AppColors.error,
-                      size: 16,
-                    ),
-                    SizedBox(width: 4),
-                    Text(
-                      metric['change'] as String,
-                      style: kTextStyleSmall.copyWith(
-                        color: (metric['isPositive'] as bool) ? AppColors.success : AppColors.error,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(width: kSpacingSmall),
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: metric['color'] as Color,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ],
-            ),
-          )),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRevenueAnalyticsCard() {
-    return Container(
-      padding: EdgeInsets.all(kSpacingLarge),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(kBorderRadius),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: kShadowOpacity),
-            blurRadius: kShadowBlurRadius,
-            offset: kShadowOffset,
-            spreadRadius: kShadowSpreadRadius,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Revenue Analytics',
-            style: kTextStyleLarge.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          
-          SizedBox(height: kSpacingLarge),
-          
-          Row(
-            children: [
-              _buildQuickStatCard(
-                'Total Revenue',
-                '₱2.45M',
-                '+18.2% vs last month',
-                AppColors.success,
-                Icons.account_balance_wallet,
-              ),
-              SizedBox(width: kSpacingLarge),
-              _buildQuickStatCard(
-                'Monthly Average',
-                '₱408K',
-                '+12.5% growth',
-                AppColors.info,
-                Icons.trending_up,
-              ),
-              SizedBox(width: kSpacingLarge),
-              _buildQuickStatCard(
-                'Avg Transaction',
-                '₱756',
-                '+5.3% vs last month',
-                AppColors.primary,
-                Icons.receipt,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAppointmentMetricsCard() {
-    return Container(
-      padding: EdgeInsets.all(kSpacingLarge),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(kBorderRadius),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: kShadowOpacity),
-            blurRadius: kShadowBlurRadius,
-            offset: kShadowOffset,
-            spreadRadius: kShadowSpreadRadius,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Appointment Metrics',
-            style: kTextStyleLarge.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          
-          SizedBox(height: kSpacingLarge),
-          
-          Row(
-            children: [
-              _buildQuickStatCard(
-                'Total Appointments',
-                '8,934',
-                '+15.7% vs last month',
-                AppColors.primary,
-                Icons.calendar_today,
-              ),
-              SizedBox(width: kSpacingLarge),
-              _buildQuickStatCard(
-                'Completion Rate',
-                '87.5%',
-                '+2.1% improvement',
-                AppColors.success,
-                Icons.check_circle,
-              ),
-              SizedBox(width: kSpacingLarge),
-              _buildQuickStatCard(
-                'No-Show Rate',
-                '8.3%',
-                '-1.2% improvement',
-                AppColors.warning,
-                Icons.cancel,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickStatCard(String title, String value, String change, Color color, IconData icon) {
-    return Expanded(
-      child: Container(
-        padding: EdgeInsets.all(kSpacingLarge),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(kBorderRadiusSmall),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
-        ),
+      child: Center(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              children: [
-                Icon(icon, color: color, size: kIconSizeLarge),
-                Spacer(),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    change,
-                    style: kTextStyleSmall.copyWith(
-                      color: color,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
+            Icon(
+              Icons.analytics_outlined,
+              size: 64,
+              color: AppColors.textSecondary.withValues(alpha: 0.5),
             ),
-            SizedBox(height: kSpacingMedium),
-            Text(
-              value,
-              style: kTextStyleTitle.copyWith(
-                color: color,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(height: kSpacingSmall),
-            Text(
-              title,
-              style: kTextStyleRegular.copyWith(
+            const SizedBox(height: 16),
+            const Text(
+              'No Detailed Analytics Available Yet',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
                 color: AppColors.textSecondary,
               ),
             ),
+            const SizedBox(height: 8),
+            const Text(
+              'Start by adding clinics, registering pets, and booking appointments.',
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),
     );
   }
 
-  String _formatDateTime(DateTime dateTime) {
-    return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
-  }
+  Widget _buildKPIGrid() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Determine grid columns based on width
+        int crossAxisCount = 3;
+        if (constraints.maxWidth < 1200) crossAxisCount = 2;
+        if (constraints.maxWidth < 800) crossAxisCount = 1;
 
-  Future<void> _loadAnalyticsData() async {
-    setState(() {
-      isLoading = true;
-    });
-
-    await Future.delayed(Duration(milliseconds: 800));
-
-    setState(() {
-      isLoading = false;
-    });
-  }
-
-  Future<void> _exportAnalytics() async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        content: Row(
+        return GridView.count(
+          crossAxisCount: crossAxisCount,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: kSpacingLarge,
+          mainAxisSpacing: kSpacingLarge,
+          childAspectRatio: 2.5, // Increased from 2.2 to prevent overflow
           children: [
-            CircularProgressIndicator(color: AppColors.primary),
-            SizedBox(width: kSpacingMedium),
-            Text('Exporting analytics...'),
+            // Users KPI
+            KPICard(
+              icon: Icons.people,
+              title: 'TOTAL USERS',
+              value: userStats?.totalUsers.toString() ?? '0',
+              changeText: userStats != null && userStats!.totalUsers > 0
+                  ? '${userStats!.growthRate.toStringAsFixed(1)}% vs last period'
+                  : 'No users yet',
+              isPositive: (userStats?.growthRate ?? 0) >= 0,
+              secondaryValue: userStats != null && userStats!.totalUsers > 0
+                  ? '${userStats!.activeUsers} Active'
+                  : null,
+              tertiaryValue: userStats != null && userStats!.suspendedUsers > 0
+                  ? '${userStats!.suspendedUsers} Suspended'
+                  : null,
+              color: AppColors.primary,
+              isLoading: isLoading,
+            ),
+
+            // Clinics KPI
+            KPICard(
+              icon: Icons.local_hospital,
+              title: 'ACTIVE CLINICS',
+              value: clinicStats?.activeClinics.toString() ?? '0',
+              changeText: clinicStats != null && clinicStats!.totalClinics > 0
+                  ? '${clinicStats!.approvalRate.toStringAsFixed(0)}% approval rate'
+                  : 'No clinics registered',
+              isPositive: (clinicStats?.approvalRate ?? 0) >= 50,
+              secondaryValue: clinicStats != null && clinicStats!.pendingClinics > 0
+                  ? '${clinicStats!.pendingClinics} Pending approval'
+                  : clinicStats != null && clinicStats!.totalClinics > 0
+                      ? 'All clinics processed'
+                      : null,
+              color: AppColors.success,
+              isLoading: isLoading,
+            ),
+
+            // Appointments KPI
+            KPICard(
+              icon: Icons.calendar_today,
+              title: 'TOTAL APPOINTMENTS',
+              value: appointmentStats?.totalAppointments.toString() ?? '0',
+              changeText: appointmentStats != null && appointmentStats!.totalAppointments > 0
+                  ? '${appointmentStats!.completionRate.toStringAsFixed(0)}% completion rate'
+                  : 'No appointments yet',
+              isPositive: (appointmentStats?.completionRate ?? 0) >= 70,
+              secondaryValue: appointmentStats != null && appointmentStats!.totalAppointments > 0
+                  ? '${appointmentStats!.completedAppointments} Completed'
+                  : null,
+              tertiaryValue: appointmentStats != null && appointmentStats!.totalAppointments > 0
+                  ? '${appointmentStats!.cancelledAppointments} Cancelled'
+                  : null,
+              color: AppColors.info,
+              isLoading: isLoading,
+            ),
+
+            // AI Scans KPI
+            KPICard(
+              icon: Icons.psychology,
+              title: 'AI SCANS',
+              value: aiStats?.totalScans.toString() ?? '0',
+              changeText: aiStats != null && aiStats!.totalScans > 0
+                  ? '${aiStats!.avgConfidence.toStringAsFixed(1)}% avg confidence'
+                  : 'No AI scans performed',
+              isPositive: (aiStats?.avgConfidence ?? 0) >= 75,
+              secondaryValue: aiStats != null && aiStats!.totalScans > 0
+                  ? '${aiStats!.highConfidenceScans} High Confidence (80%+)'
+                  : null,
+              tertiaryValue: aiStats != null && aiStats!.scanToAppointmentConversions > 0
+                  ? '${aiStats!.scanToAppointmentConversions} Led to appointments'
+                  : null,
+              color: AppColors.warning,
+              isLoading: isLoading,
+            ),
+
+            // Pets KPI
+            KPICard(
+              icon: Icons.pets,
+              title: 'REGISTERED PETS',
+              value: petStats?.totalPets.toString() ?? '0',
+              changeText: petStats != null && petStats!.totalPets > 0
+                  ? '${petStats!.newPets} new in period'
+                  : 'No pets registered',
+              isPositive: (petStats?.growthRate ?? 0) >= 0,
+              secondaryValue: petStats != null && petStats!.totalPets > 0
+                  ? '${petStats!.dogsCount} Dogs (${((petStats!.dogsCount / petStats!.totalPets) * 100).toStringAsFixed(0)}%)'
+                  : null,
+              tertiaryValue: petStats != null && petStats!.totalPets > 0
+                  ? '${petStats!.catsCount} Cats (${((petStats!.catsCount / petStats!.totalPets) * 100).toStringAsFixed(0)}%)'
+                  : null,
+              color: AppColors.warning.withValues(alpha: 0.8),
+              isLoading: isLoading,
+            ),
+
+            // System Health KPI
+            KPICard(
+              icon: Icons.health_and_safety,
+              title: 'SYSTEM HEALTH',
+              value: systemHealth != null
+                  ? '${systemHealth!.score.toStringAsFixed(1)}%'
+                  : '100%',
+              changeText: systemHealth != null
+                  ? _getHealthStatus(systemHealth!.score)
+                  : 'Calculating...',
+              isPositive: (systemHealth?.score ?? 100) >= 75,
+              secondaryValue: systemHealth != null
+                  ? 'User Activity: ${systemHealth!.userActivityScore.toStringAsFixed(0)}%'
+                  : null,
+              tertiaryValue: systemHealth != null
+                  ? 'AI Confidence: ${systemHealth!.aiConfidenceScore.toStringAsFixed(0)}%'
+                  : null,
+              color: _getHealthColor(systemHealth?.score ?? 100),
+              isLoading: isLoading,
+            ),
           ],
-        ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTopClinicsTable() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Top Performing Clinics',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Table(
+            columnWidths: const {
+              0: FixedColumnWidth(50),
+              1: FlexColumnWidth(2),
+              2: FlexColumnWidth(1),
+              3: FlexColumnWidth(1),
+              4: FlexColumnWidth(1),
+            },
+            children: [
+              const TableRow(
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(color: AppColors.border),
+                  ),
+                ),
+                children: [
+                  Padding(
+                    padding: EdgeInsets.only(bottom: 12),
+                    child: Text('Rank',
+                        style: TextStyle(fontWeight: FontWeight.w600)),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.only(bottom: 12),
+                    child: Text('Clinic',
+                        style: TextStyle(fontWeight: FontWeight.w600)),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.only(bottom: 12),
+                    child: Text('Appointments',
+                        style: TextStyle(fontWeight: FontWeight.w600)),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.only(bottom: 12),
+                    child: Text('Completion',
+                        style: TextStyle(fontWeight: FontWeight.w600)),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.only(bottom: 12),
+                    child: Text('Rating',
+                        style: TextStyle(fontWeight: FontWeight.w600)),
+                  ),
+                ],
+              ),
+              ...topClinics.take(10).map((clinic) => TableRow(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          clinic.rank <= 3
+                              ? ['🥇', '🥈', '🥉'][clinic.rank - 1]
+                              : '#${clinic.rank}',
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(clinic.clinicName),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(clinic.appointmentCount.toString()),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                            '${clinic.completionRate.toStringAsFixed(0)}%'),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.star,
+                              size: 16,
+                              color: AppColors.warning,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              clinic.totalRatings > 0
+                                  ? '${clinic.averageRating.toStringAsFixed(1)} (${clinic.totalRatings})'
+                                  : 'No ratings',
+                              style: TextStyle(
+                                color: clinic.totalRatings > 0
+                                    ? AppColors.textPrimary
+                                    : AppColors.textSecondary,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  )),
+            ],
+          ),
+        ],
       ),
     );
+  }
 
-    await Future.delayed(Duration(seconds: 2));
+  Widget _buildClinicsNeedingAttention() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Clinics Needing Attention',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: clinicAlerts.take(5).length,
+            itemBuilder: (context, index) {
+              final alert = clinicAlerts[index];
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: AppColors.error.withValues(alpha: 0.2)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      alert.alertType == 'no_appointments'
+                          ? Icons.warning
+                          : Icons.trending_down,
+                      color: AppColors.error,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            alert.clinicName,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                              color: AppColors.textPrimary,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            alert.message,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
 
-    if (mounted) {
-      Navigator.of(context).pop();
+  Widget _buildTopDiseasesChart() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Top Detected Diseases',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: topDiseases.take(10).length,
+            itemBuilder: (context, index) {
+              final disease = topDiseases[index];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            disease.diseaseName,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textPrimary,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          '${disease.count} (${disease.percentage.toStringAsFixed(1)}%)',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: disease.percentage / 100,
+                        minHeight: 8,
+                        backgroundColor: AppColors.border.withValues(alpha: 0.3),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          _getDiseaseColor(disease.percentage),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Analytics exported successfully!'),
-          backgroundColor: AppColors.success,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
+  Color _getDiseaseColor(double percentage) {
+    if (percentage >= 30) return AppColors.error;
+    if (percentage >= 15) return AppColors.warning;
+    return AppColors.primary;
+  }
+
+  // Helper method to get health status text
+  String _getHealthStatus(double score) {
+    if (score >= 90) return 'Excellent - All systems optimal';
+    if (score >= 75) return 'Good - Minor issues';
+    if (score >= 60) return 'Fair - Monitor closely';
+    return 'Poor - Needs attention';
+  }
+
+  // Helper method to get health status color
+  Color _getHealthColor(double score) {
+    if (score >= 90) return AppColors.success;
+    if (score >= 75) return AppColors.info;
+    if (score >= 60) return AppColors.warning;
+    return AppColors.error;
   }
 }

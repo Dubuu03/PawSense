@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pawsense/core/models/clinic/appointment_booking_model.dart';
 import 'package:pawsense/core/guards/auth_guard.dart';
 import 'package:pawsense/core/services/notifications/appointment_booking_integration.dart';
+import 'package:pawsense/core/services/clinic/appointment_auto_cancellation_service.dart';
 
 class AppointmentBookingService {
   static const String _collection = 'appointments';
@@ -258,6 +259,9 @@ class AppointmentBookingService {
   /// Get user's appointments
   static Future<List<AppointmentBooking>> getUserAppointments(String userId) async {
     try {
+      // Auto-cancel expired appointments before fetching
+      await AppointmentAutoCancellationService.checkUserExpiredAppointments(userId);
+      
       final querySnapshot = await _firestore
           .collection(_collection)
           .where('userId', isEqualTo: userId)
@@ -310,6 +314,9 @@ class AppointmentBookingService {
   /// Get upcoming appointments for user
   static Future<List<AppointmentBooking>> getUpcomingAppointments(String userId) async {
     try {
+      // Auto-cancel expired appointments before fetching
+      await AppointmentAutoCancellationService.checkUserExpiredAppointments(userId);
+      
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
 
@@ -385,40 +392,52 @@ class AppointmentBookingService {
           .update(updateData);
 
       // Create notification for status change (if we have appointment details)
+      // BUT skip if this is an auto-cancelled or no-show appointment (those have their own specific notifications)
       if (appointment != null) {
         try {
-          // Get additional details for notification
-          String petName = 'Your pet';
-          String clinicName = 'the clinic';
+          // Check if this is an auto-cancelled or no-show appointment by reading the updated document
+          final updatedDoc = await _firestore.collection(_collection).doc(appointmentId).get();
+          final isAutoCancelled = updatedDoc.data()?['autoCancelled'] == true;
+          final isNoShow = updatedDoc.data()?['isNoShow'] == true;
           
-          // Try to fetch pet and clinic names
-          try {
-            final petDoc = await _firestore.collection('pets').doc(appointment.petId).get();
-            if (petDoc.exists) {
-              final petData = petDoc.data();
-              petName = petData?['name'] ?? petData?['petName'] ?? 'Your pet';
-            }
+          if (isAutoCancelled) {
+            print('⏰ Skipping onAppointmentStatusChanged for auto-cancelled appointment: $appointmentId');
+          } else if (isNoShow) {
+            print('🚫 Skipping onAppointmentStatusChanged for no-show appointment: $appointmentId');
+          } else {
+            // Get additional details for notification
+            String petName = 'Your pet';
+            String clinicName = 'the clinic';
             
-            final clinicDoc = await _firestore.collection('clinics').doc(appointment.clinicId).get();
-            if (clinicDoc.exists) {
-              final clinicData = clinicDoc.data();
-              clinicName = clinicData?['clinicName'] ?? clinicData?['name'] ?? 'the clinic';
+            // Try to fetch pet and clinic names
+            try {
+              final petDoc = await _firestore.collection('pets').doc(appointment.petId).get();
+              if (petDoc.exists) {
+                final petData = petDoc.data();
+                petName = petData?['name'] ?? petData?['petName'] ?? 'Your pet';
+              }
+              
+              final clinicDoc = await _firestore.collection('clinics').doc(appointment.clinicId).get();
+              if (clinicDoc.exists) {
+                final clinicData = clinicDoc.data();
+                clinicName = clinicData?['clinicName'] ?? clinicData?['name'] ?? 'the clinic';
+              }
+            } catch (e) {
+              print('Warning: Could not fetch pet/clinic names for notification: $e');
             }
-          } catch (e) {
-            print('Warning: Could not fetch pet/clinic names for notification: $e');
-          }
 
-          await AppointmentBookingIntegration.onAppointmentStatusChanged(
-            userId: appointment.userId,
-            appointmentId: appointmentId,
-            petName: petName,
-            clinicName: clinicName,
-            oldStatus: appointment.status.name,
-            newStatus: newStatus.name,
-            appointmentDate: appointment.appointmentDate,
-            appointmentTime: appointment.appointmentTime,
-            reason: reason,
-          );
+            await AppointmentBookingIntegration.onAppointmentStatusChanged(
+              userId: appointment.userId,
+              appointmentId: appointmentId,
+              petName: petName,
+              clinicName: clinicName,
+              oldStatus: appointment.status.name,
+              newStatus: newStatus.name,
+              appointmentDate: appointment.appointmentDate,
+              appointmentTime: appointment.appointmentTime,
+              reason: reason,
+            );
+          }
         } catch (notificationError) {
           print('⚠️ Failed to create status change notification: $notificationError');
           // Don't fail the status update if notification fails

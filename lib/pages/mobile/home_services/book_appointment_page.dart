@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
@@ -865,8 +866,45 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
               ? // Static display for preselected clinic
                 Row(
                   children: [
-                    Icon(Icons.local_hospital, size: 18, color: AppColors.primary),
-                    const SizedBox(width: 8),
+                    // Circular clinic logo for preselected
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.border,
+                          width: 1,
+                        ),
+                      ),
+                      padding: const EdgeInsets.all(3), // Add padding to make image smaller inside circle
+                      child: ClipOval(
+                        child: selectedClinic['logoUrl'] != null && selectedClinic['logoUrl'].toString().isNotEmpty
+                            ? Image.network(
+                                selectedClinic['logoUrl'],
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Icon(Icons.local_hospital, size: 16, color: AppColors.primary);
+                                },
+                                loadingBuilder: (context, child, loadingProgress) {
+                                  if (loadingProgress == null) return child;
+                                  return Center(
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.primary,
+                                      value: loadingProgress.expectedTotalBytes != null
+                                          ? loadingProgress.cumulativeBytesLoaded /
+                                              loadingProgress.expectedTotalBytes!
+                                          : null,
+                                    ),
+                                  );
+                                },
+                              )
+                            : Icon(Icons.local_hospital, size: 16, color: AppColors.primary),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -900,8 +938,45 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
                       value: clinic['id'],
                       child: Row(
                         children: [
-                          Icon(Icons.local_hospital, size: 18, color: AppColors.primary),
-                          const SizedBox(width: 8),
+                          // Circular clinic logo in dropdown
+                          Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: AppColors.border,
+                                width: 1,
+                              ),
+                            ),
+                            padding: const EdgeInsets.all(3), // Add padding to make image smaller inside circle
+                            child: ClipOval(
+                              child: clinic['logoUrl'] != null && clinic['logoUrl'].toString().isNotEmpty
+                                  ? Image.network(
+                                      clinic['logoUrl'],
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return Icon(Icons.local_hospital, size: 16, color: AppColors.primary);
+                                      },
+                                      loadingBuilder: (context, child, loadingProgress) {
+                                        if (loadingProgress == null) return child;
+                                        return Center(
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: AppColors.primary,
+                                            value: loadingProgress.expectedTotalBytes != null
+                                                ? loadingProgress.cumulativeBytesLoaded /
+                                                    loadingProgress.expectedTotalBytes!
+                                                : null,
+                                          ),
+                                        );
+                                      },
+                                    )
+                                  : Icon(Icons.local_hospital, size: 16, color: AppColors.primary),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1667,6 +1742,10 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
         TextField(
           controller: _notesController,
           maxLines: 3,
+          maxLength: 300,
+          inputFormatters: [
+            LengthLimitingTextInputFormatter(300),
+          ],
           decoration: InputDecoration(
             hintText: 'Any specific concerns or requests...',
             border: OutlineInputBorder(

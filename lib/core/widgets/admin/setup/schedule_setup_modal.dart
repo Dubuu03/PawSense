@@ -98,7 +98,12 @@ class _ScheduleSetupModalState extends State<ScheduleSetupModal> {
           _completeSetup();
         },
       ),
-    );
+    ).then((_) {
+      // Reset setupStarted if the modal was closed without saving
+      if (mounted) {
+        setState(() => _setupStarted = false);
+      }
+    });
   }
 
   @override
@@ -240,6 +245,74 @@ class _ScheduleSetupModalState extends State<ScheduleSetupModal> {
 
                     const SizedBox(height: 32),
 
+                    // Important Notice - Visibility Warning
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withOpacity(0.1),
+                        border: Border.all(color: AppColors.warning.withOpacity(0.3), width: 2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 28),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Important Notice',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Your clinic will NOT be visible to users until you complete the schedule setup. Pet owners cannot find or book appointments with your clinic until this step is finished.',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: AppColors.textPrimary,
+                                    height: 1.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.error.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: AppColors.error.withOpacity(0.3)),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.block, color: AppColors.error, size: 18),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'You cannot access other parts of the admin panel until setup is complete.',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: AppColors.error,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
                     // Benefits section
                     Container(
                       padding: const EdgeInsets.all(20),
@@ -289,33 +362,6 @@ class _ScheduleSetupModalState extends State<ScheduleSetupModal> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TextButton(
-                    onPressed: _isLoading || _setupStarted ? null : () {
-                      // Ask for confirmation before closing
-                      showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Skip Setup?'),
-                          content: const Text('You can complete the schedule setup later, but your clinic won\'t be visible to users until then.'),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text('Cancel'),
-                            ),
-                            TextButton(
-                              onPressed: () {
-                                Navigator.pop(context); // Close dialog
-                                Navigator.pop(context); // Close modal
-                              },
-                              child: const Text('Skip for Now'),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                    child: const Text('Skip for Now'),
-                  ),
-                  const SizedBox(width: 16),
                   ElevatedButton.icon(
                     onPressed: _isLoading || _setupStarted ? null : _openScheduleSettings,
                     icon: _isLoading

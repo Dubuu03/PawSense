@@ -233,6 +233,16 @@ class AlertItem extends StatelessWidget {
   }
 
   Color _getAlertColor() {
+    // Check for auto-cancelled appointments (RED color, no emoji)
+    if (alert.metadata?['isAutoCancelled'] == true) {
+      return AppColors.error; // RED for auto-cancelled
+    }
+    
+    // Check for no-show appointments (ORANGE color)
+    if (alert.metadata?['isNoShow'] == true) {
+      return const Color(0xFFFF9800); // ORANGE for no-show
+    }
+    
     switch (alert.type) {
       case AlertType.appointment:
         return AppColors.success;

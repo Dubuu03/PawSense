@@ -176,6 +176,20 @@ class AdminAppointmentNotificationIntegrator {
       // Handle different status updates with appropriate notifications
       
       if (appointment.status == AppointmentStatus.cancelled && appointment.cancelReason != null) {
+        // Skip notification if this is an auto-cancelled or no-show appointment (already handled)
+        final isAutoCancelled = data['autoCancelled'] == true;
+        final isNoShow = data['isNoShow'] == true;
+        
+        if (isAutoCancelled) {
+          print('⏭️ Skipping duplicate notification for auto-cancelled appointment: $docId');
+          return;
+        }
+        
+        if (isNoShow) {
+          print('⏭️ Skipping duplicate notification for no-show appointment: $docId');
+          return;
+        }
+        
         // Create unique event key to prevent duplicate notifications
         final eventKey = '${docId}_cancelled';
         
@@ -762,5 +776,76 @@ class AdminAppointmentNotificationIntegrator {
         'completedAt': DateTime.now().toIso8601String(),
       },
     );
+  }
+
+  /// Create notification when an appointment is automatically cancelled due to expiration
+  static Future<void> notifyAppointmentAutoCancelled({
+    required String appointmentId,
+    required String petName,
+    required String ownerName,
+    required DateTime appointmentDate,
+    required String appointmentTime,
+    required String serviceName,
+  }) async {
+    final appointmentTimeStr = '${_formatDate(appointmentDate)} at $appointmentTime';
+    
+    await _notificationService.createAppointmentNotification(
+      appointmentId: appointmentId,
+      title: 'Appointment Auto-Cancelled (Expired)',
+      message: 'Pending appointment for $petName (owner: $ownerName) scheduled for $appointmentTimeStr was automatically cancelled because the scheduled time passed without confirmation - $serviceName',
+      priority: AdminNotificationPriority.medium,
+      notificationSubtype: 'auto_cancelled',
+      metadata: {
+        'petName': petName,
+        'ownerName': ownerName,
+        'appointmentDate': appointmentDate.toIso8601String(),
+        'appointmentTime': appointmentTime,
+        'serviceName': serviceName,
+        'status': 'auto_cancelled',
+        'actionType': 'auto_cancelled',
+        'actionBy': 'system',
+        'cancellationReason': 'Appointment expired - scheduled time passed without clinic confirmation',
+        'actionAt': DateTime.now().toIso8601String(),
+        'isAutoCancelled': true,
+      },
+    );
+  }
+
+  /// Create notification when a confirmed appointment is marked as No Show
+  static Future<void> notifyAppointmentNoShow({
+    required String appointmentId,
+    required String petName,
+    required String ownerName,
+    required DateTime appointmentDate,
+    required String appointmentTime,
+    required String serviceName,
+  }) async {
+    final appointmentTimeStr = '${_formatDate(appointmentDate)} at $appointmentTime';
+    
+    print('🔔 Creating NO SHOW notification for appointment: $appointmentId');
+    print('   Pet: $petName, Owner: $ownerName');
+    print('   Time: $appointmentTimeStr');
+    
+    await _notificationService.createAppointmentNotification(
+      appointmentId: appointmentId,
+      title: 'Appointment Marked as No Show',
+      message: 'Confirmed appointment for $petName (owner: $ownerName) scheduled for $appointmentTimeStr has been marked as a no-show - $serviceName',
+      priority: AdminNotificationPriority.medium,
+      notificationSubtype: 'no_show',
+      metadata: {
+        'petName': petName,
+        'ownerName': ownerName,
+        'appointmentDate': appointmentDate.toIso8601String(),
+        'appointmentTime': appointmentTime,
+        'serviceName': serviceName,
+        'status': 'noShow',
+        'actionType': 'no_show',
+        'actionBy': 'admin',
+        'actionAt': DateTime.now().toIso8601String(),
+        'isNoShow': true,
+      },
+    );
+    
+    print('✅ NO SHOW admin notification created');
   }
 }

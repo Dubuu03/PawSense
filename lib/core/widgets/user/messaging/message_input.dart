@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants.dart';
 
@@ -45,6 +46,10 @@ class MessageInput extends StatelessWidget {
                 ),
                 child: TextField(
                   controller: controller,
+                  maxLength: 500,
+                  inputFormatters: [
+                    LengthLimitingTextInputFormatter(500),
+                  ],
                   decoration: const InputDecoration(
                     hintText: 'Type a message...',
                     border: InputBorder.none,
@@ -52,6 +57,7 @@ class MessageInput extends StatelessWidget {
                       horizontal: 16,
                       vertical: 12,
                     ),
+                    counterText: "",
                   ),
                   maxLines: null,
                   textCapitalization: TextCapitalization.sentences,

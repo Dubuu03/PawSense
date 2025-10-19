@@ -297,8 +297,10 @@ class _AddCertificationModalState extends State<AddCertificationModal> {
                   SizedBox(height: kSpacingSmall),
                   TextFormField(
                     controller: _nameController,
+                    maxLength: 100,
                     decoration: InputDecoration(
                       hintText: 'e.g., Doctor of Veterinary Medicine',
+                      counterText: "",
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(kBorderRadiusSmall),
                         borderSide: BorderSide(color: AppColors.border),
@@ -334,8 +336,10 @@ class _AddCertificationModalState extends State<AddCertificationModal> {
                   SizedBox(height: kSpacingSmall),
                   TextFormField(
                     controller: _issuerController,
+                    maxLength: 100,
                     decoration: InputDecoration(
                       hintText: 'e.g., Philippine Veterinary Medical Association',
+                      counterText: "",
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(kBorderRadiusSmall),
                         borderSide: BorderSide(color: AppColors.border),

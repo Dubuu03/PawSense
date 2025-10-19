@@ -267,9 +267,18 @@ class PaginatedAppointmentService {
         cancelReason: data['cancelReason'],
         cancelledAt: _safeTimestampToDateNullable(data['cancelledAt']),
         assessmentResultId: data['assessmentResultId'],
+        completedAt: _safeTimestampToDateNullable(data['completedAt']),
         isFollowUp: data['isFollowUp'] == true,
         previousAppointmentId: data['previousAppointmentId'],
         notes: data['notes'],
+        // Clinic evaluation fields
+        diagnosis: data['diagnosis'],
+        treatment: data['treatment'],
+        prescription: data['prescription'],
+        clinicNotes: data['clinicNotes'],
+        needsFollowUp: data['needsFollowUp'],
+        followUpDate: data['followUpDate'],
+        followUpTime: data['followUpTime'],
       );
 
       return appointment;
@@ -319,6 +328,14 @@ class PaginatedAppointmentService {
         cancelReason: booking.cancelReason,
         cancelledAt: booking.cancelledAt,
         assessmentResultId: booking.assessmentResultId,
+        completedAt: booking.completedAt,
+        // Clinic evaluation fields
+        diagnosis: booking.diagnosis,
+        treatment: booking.treatment,
+        prescription: booking.prescription,
+        clinicNotes: booking.clinicNotes,
+        isFollowUp: booking.isFollowUp,
+        previousAppointmentId: booking.previousAppointmentId,
       );
 
       return appointment;

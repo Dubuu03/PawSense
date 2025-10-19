@@ -6,6 +6,7 @@ import 'package:pawsense/core/models/user/pet_model.dart' as UserModels;
 import 'package:pawsense/core/services/clinic/clinic_schedule_service.dart';
 import 'package:pawsense/core/services/notifications/appointment_booking_integration.dart';
 import 'package:pawsense/core/services/admin/admin_appointment_notification_integrator.dart';
+import 'package:pawsense/core/services/clinic/appointment_auto_cancellation_service.dart';
 
 class AppointmentService {
   static const String _collection = 'appointments';
@@ -18,6 +19,9 @@ class AppointmentService {
     AppointmentStatus? status,
   }) async {
     try {
+      // Auto-cancel expired appointments before fetching
+      await AppointmentAutoCancellationService.checkClinicExpiredAppointments(clinicId);
+      
       Query query = _firestore
           .collection(_collection)
           .where('clinicId', isEqualTo: clinicId);
@@ -481,32 +485,44 @@ class AppointmentService {
       await _firestore.collection(_collection).doc(appointmentId).update(updateData);
 
       // Create notification for status change (if we have appointment details)
+      // BUT skip if this is an auto-cancelled or no-show appointment (those have their own specific notifications)
       if (appointment != null) {
         try {
-          await AppointmentBookingIntegration.onAppointmentStatusChanged(
-            userId: appointment.owner.id,
-            appointmentId: appointmentId,
-            petName: appointment.pet.name,
-            clinicName: 'Clinic', // Will be updated in the integration method
-            oldStatus: appointment.status.toString().split('.').last,
-            newStatus: status.toString().split('.').last,
-            appointmentDate: DateTime.tryParse(appointment.date.replaceAll('-', '')),
-            appointmentTime: appointment.time,
-            reason: status == AppointmentModels.AppointmentStatus.cancelled ? 
-              'Cancelled by clinic administration' : null,
-          );
-
-          // Additional admin notification for cancellation by admin
-          if (status == AppointmentModels.AppointmentStatus.cancelled) {
-            await AdminAppointmentNotificationIntegrator.notifyAppointmentCancelledByAdmin(
+          // Check if this is an auto-cancelled or no-show appointment by reading the updated document
+          final updatedDoc = await _firestore.collection(_collection).doc(appointmentId).get();
+          final isAutoCancelled = updatedDoc.data()?['autoCancelled'] == true;
+          final isNoShow = updatedDoc.data()?['isNoShow'] == true;
+          
+          if (isAutoCancelled) {
+            print('⏰ Skipping onAppointmentStatusChanged for auto-cancelled appointment: $appointmentId');
+          } else if (isNoShow) {
+            print('🚫 Skipping onAppointmentStatusChanged for no-show appointment: $appointmentId');
+          } else {
+            await AppointmentBookingIntegration.onAppointmentStatusChanged(
+              userId: appointment.owner.id,
               appointmentId: appointmentId,
               petName: appointment.pet.name,
-              ownerName: appointment.owner.name,
-              appointmentDate: DateTime.tryParse(appointment.date.replaceAll('-', '')) ?? DateTime.now(),
+              clinicName: 'Clinic', // Will be updated in the integration method
+              oldStatus: appointment.status.toString().split('.').last,
+              newStatus: status.toString().split('.').last,
+              appointmentDate: DateTime.tryParse(appointment.date.replaceAll('-', '')),
               appointmentTime: appointment.time,
-              serviceName: appointment.serviceType ?? 'General Consultation',
-              cancellationReason: 'Cancelled by clinic administration',
+              reason: status == AppointmentModels.AppointmentStatus.cancelled ? 
+                'Cancelled by clinic administration' : null,
             );
+
+            // Additional admin notification for cancellation by admin
+            if (status == AppointmentModels.AppointmentStatus.cancelled) {
+              await AdminAppointmentNotificationIntegrator.notifyAppointmentCancelledByAdmin(
+                appointmentId: appointmentId,
+                petName: appointment.pet.name,
+                ownerName: appointment.owner.name,
+                appointmentDate: DateTime.tryParse(appointment.date.replaceAll('-', '')) ?? DateTime.now(),
+                appointmentTime: appointment.time,
+                serviceName: appointment.serviceType ?? 'General Consultation',
+                cancellationReason: 'Cancelled by clinic administration',
+              );
+            }
           }
         } catch (notificationError) {
           print('⚠️ Failed to create status change notification: $notificationError');
@@ -834,6 +850,121 @@ class AppointmentService {
       return true;
     } catch (e) {
       print('Error rejecting appointment: $e');
+      return false;
+    }
+  }
+
+  /// Mark a confirmed appointment as No Show
+  /// Now sets status to 'cancelled' with cancelReason indicating no-show
+  static Future<bool> markAsNoShow(String appointmentId) async {
+    try {
+      print('🔄 Marking appointment $appointmentId as no-show...');
+      
+      // Get appointment details first for notification
+      final appointmentDoc = await _firestore.collection(_collection).doc(appointmentId).get();
+      if (!appointmentDoc.exists) {
+        print('Appointment not found for no-show marking');
+        return false;
+      }
+
+      final appointmentData = appointmentDoc.data()!;
+      
+      // Verify appointment is confirmed before marking as no-show
+      final currentStatus = appointmentData['status'] as String?;
+      if (currentStatus != AppointmentModels.AppointmentStatus.confirmed.toString().split('.').last) {
+        print('⚠️ Cannot mark as no-show: appointment status is $currentStatus (must be confirmed)');
+        return false;
+      }
+
+      // Update appointment status to cancelled with no-show reason
+      await _firestore.collection(_collection).doc(appointmentId).update({
+        'status': AppointmentModels.AppointmentStatus.cancelled.toString().split('.').last,
+        'cancelReason': 'No Show - Patient did not arrive for scheduled appointment',
+        'isNoShow': true, // Visual flag for UI
+        'noShowMarkedAt': Timestamp.fromDate(DateTime.now()),
+        'cancelledAt': Timestamp.fromDate(DateTime.now()),
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      });
+
+      // Get appointment details for notifications
+      try {
+        final petId = appointmentData['petId'] as String?;
+        final userId = appointmentData['userId'] as String?;
+        
+        // Validate required fields
+        if (petId == null || petId.isEmpty) {
+          print('⚠️ Cannot create notifications: petId is missing');
+          return true; // Still return success as appointment was marked no-show
+        }
+        
+        if (userId == null || userId.isEmpty) {
+          print('⚠️ Cannot create notifications: userId is missing');
+          return true; // Still return success as appointment was marked no-show
+        }
+        
+        final serviceName = appointmentData['serviceName'] as String? ?? 'General Consultation';
+        final appointmentDate = (appointmentData['appointmentDate'] as Timestamp).toDate();
+        final appointmentTime = appointmentData['appointmentTime'] as String;
+        
+        print('📝 Fetching pet and user details for notifications...');
+        print('   petId: $petId, userId: $userId');
+        
+        // Get pet and user details for notification
+        final petDoc = await _firestore.collection('pets').doc(petId).get();
+        final userDoc = await _firestore.collection('users').doc(userId).get();
+        
+        String petName = 'Pet';
+        String ownerName = 'Pet Owner';
+        
+        if (petDoc.exists) {
+          final petData = petDoc.data()!;
+          petName = petData['name'] ?? petData['petName'] ?? 'Pet';
+        } else {
+          print('⚠️ Pet document not found: $petId');
+        }
+        
+        if (userDoc.exists) {
+          final userData = userDoc.data()!;
+          ownerName = '${userData['firstName'] ?? ''} ${userData['lastName'] ?? ''}'.trim();
+          if (ownerName.isEmpty) {
+            ownerName = userData['username'] ?? 'Pet Owner';
+          }
+        } else {
+          print('⚠️ User document not found: $userId');
+        }
+        
+        print('📧 Creating notifications for: $petName (owner: $ownerName)');
+        
+        // Trigger admin notification for no-show
+        await AdminAppointmentNotificationIntegrator.notifyAppointmentNoShow(
+          appointmentId: appointmentId,
+          petName: petName,
+          ownerName: ownerName,
+          appointmentDate: appointmentDate,
+          appointmentTime: appointmentTime,
+          serviceName: serviceName,
+        );
+        
+        // Trigger user notification for no-show
+        await AppointmentBookingIntegration.onAppointmentNoShow(
+          userId: userId,
+          petName: petName,
+          appointmentDate: appointmentDate,
+          appointmentTime: appointmentTime,
+          appointmentId: appointmentId,
+        );
+        
+        print('✅ Notifications created successfully');
+      } catch (notificationError) {
+        print('⚠️ Failed to create notifications for no-show: $notificationError');
+        print('   Error details: ${notificationError.toString()}');
+        // Don't fail the no-show marking if notification fails
+      }
+
+      print('✅ Appointment $appointmentId marked as no-show');
+      return true;
+    } catch (e) {
+      print('❌ Error marking appointment as no-show: $e');
       return false;
     }
   }

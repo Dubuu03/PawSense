@@ -519,11 +519,15 @@ class SuperAdminService {
       
       switch (status) {
         case ClinicStatus.approved:
-          // Clinic approved - set status to 'approved'
+          // Clinic approved - set status to 'approved' and initialize schedule setup
           clinicUpdateData['status'] = 'approved'; // Use 'approved' to match auth validation
           clinicUpdateData['approvedAt'] = FieldValue.serverTimestamp();
           clinicUpdateData['rejectionReason'] = null;
           clinicUpdateData['suspensionReason'] = null;
+          // Initialize schedule setup workflow
+          clinicUpdateData['scheduleStatus'] = 'pending';
+          clinicUpdateData['isVisible'] = false;
+          clinicUpdateData['scheduleCompletedAt'] = null;
           break;
           
         case ClinicStatus.rejected:

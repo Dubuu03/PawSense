@@ -372,6 +372,21 @@ class _WebLoginPageState extends State<WebLoginPage> {
                             onFieldSubmitted: (_) => _handleLogin(),
                           ),
                         ),
+                        const SizedBox(height: 12),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: InkWell(
+                            onTap: () => context.go('/forgot-password'),
+                            child: Text(
+                              'Forgot Password?',
+                              style: kTextStyleSmall.copyWith(
+                                fontSize: 13,
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
 

@@ -13,6 +13,7 @@ class AppointmentTableRow extends StatelessWidget {
   final VoidCallback? onAccept;
   final VoidCallback? onReject;
   final VoidCallback? onMarkDone;
+  final VoidCallback? onMarkNoShow;
 
   const AppointmentTableRow({
     super.key,
@@ -23,6 +24,7 @@ class AppointmentTableRow extends StatelessWidget {
     this.onAccept,
     this.onReject,
     this.onMarkDone,
+    this.onMarkNoShow,
   });
 
   String _formatBookedAtDate(DateTime dateTime) {
@@ -213,7 +215,7 @@ class AppointmentTableRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Follow-up badge (if applicable)
+                // Follow-up badge (keep this for visual indicator)
                 if (appointment.isFollowUp == true) ...[
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -257,7 +259,10 @@ class AppointmentTableRow extends StatelessWidget {
           // Status
           Expanded(
             flex: 2,
-            child: StatusBadge(status: appointment.status),
+            child: StatusBadge(
+              status: appointment.status,
+              appointment: appointment, // Pass full appointment for detailed cancelled status
+            ),
           ),
           
           // Actions
@@ -300,7 +305,15 @@ class AppointmentTableRow extends StatelessWidget {
                       color: AppColors.success,
                       constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                       padding: const EdgeInsets.all(4),
-                      tooltip: 'Mark as Done',
+                      tooltip: 'Mark as Completed',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.person_off_outlined, size: 16),
+                      onPressed: onMarkNoShow,
+                      color: AppColors.warning,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      padding: const EdgeInsets.all(4),
+                      tooltip: 'Mark as No Show',
                     ),
                     IconButton(
                       icon: const Icon(Icons.edit_outlined, size: 16),

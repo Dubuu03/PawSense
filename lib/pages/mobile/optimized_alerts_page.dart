@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/widgets/user/alerts/alert_item.dart';
 import '../../../core/services/notifications/realtime_notification_service.dart';
+import '../../../core/widgets/shared/ui/scroll_to_top_fab.dart';
 
 /// Optimized alerts page with real-time updates
 /// Uses the new RealTimeNotificationService for efficient data management
@@ -22,6 +23,7 @@ class _OptimizedAlertsPageState extends State<OptimizedAlertsPage> {
   StreamSubscription<int>? _unreadCountSubscription;
   
   List<AlertData> _notifications = [];
+  List<_AlertListItem> _groupedNotifications = [];
   int _unreadCount = 0;
   bool _isLoading = true;
   String? _error;
@@ -53,6 +55,7 @@ class _OptimizedAlertsPageState extends State<OptimizedAlertsPage> {
           if (mounted) {
             setState(() {
               _notifications = notifications;
+              _groupNotifications(); // Group notifications by time periods
               _isLoading = false;
               _error = null;
             });
@@ -86,6 +89,7 @@ class _OptimizedAlertsPageState extends State<OptimizedAlertsPage> {
       if (cachedNotifications.isNotEmpty) {
         setState(() {
           _notifications = cachedNotifications;
+          _groupNotifications(); // Group cached notifications
           _unreadCount = cachedUnreadCount;
           _isLoading = false;
         });
@@ -281,6 +285,12 @@ class _OptimizedAlertsPageState extends State<OptimizedAlertsPage> {
         ],
       ),
       body: _buildBody(),
+      floatingActionButton: _notifications.isNotEmpty
+          ? ScrollToTopFab(
+              scrollController: _scrollController,
+              showThreshold: 200.0,
+            )
+          : null,
     );
   }
 
@@ -370,19 +380,133 @@ class _OptimizedAlertsPageState extends State<OptimizedAlertsPage> {
       child: ListView.builder(
         controller: _scrollController,
         padding: const EdgeInsets.all(16),
-        itemCount: _notifications.length,
+        itemCount: _groupedNotifications.length,
         itemBuilder: (context, index) {
-          final notification = _notifications[index];
+          final item = _groupedNotifications[index];
           
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: AlertItem(
-              alert: notification,
-              onTap: () => _handleNotificationTap(notification),
-            ),
-          );
+          if (item.isHeader) {
+            // Render section header
+            return Padding(
+              padding: EdgeInsets.only(
+                top: index == 0 ? 0 : 24,
+                bottom: 12,
+              ),
+              child: Text(
+                item.headerText!,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            );
+          } else {
+            // Render notification item
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: AlertItem(
+                alert: item.notification!,
+                onTap: () => _handleNotificationTap(item.notification!),
+              ),
+            );
+          }
         },
       ),
+    );
+  }
+
+  /// Group notifications by time periods
+  void _groupNotifications() {
+    if (_notifications.isEmpty) {
+      _groupedNotifications = [];
+      return;
+    }
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final thisWeekStart = today.subtract(Duration(days: now.weekday - 1));
+
+    final List<AlertData> todayNotifications = [];
+    final List<AlertData> yesterdayNotifications = [];
+    final List<AlertData> thisWeekNotifications = [];
+    final List<AlertData> earlierNotifications = [];
+
+    for (final notification in _notifications) {
+      final notificationDate = DateTime(
+        notification.timestamp.year,
+        notification.timestamp.month,
+        notification.timestamp.day,
+      );
+
+      if (notificationDate.isAtSameMomentAs(today)) {
+        todayNotifications.add(notification);
+      } else if (notificationDate.isAtSameMomentAs(yesterday)) {
+        yesterdayNotifications.add(notification);
+      } else if (notificationDate.isAfter(thisWeekStart) && notificationDate.isBefore(yesterday)) {
+        thisWeekNotifications.add(notification);
+      } else {
+        earlierNotifications.add(notification);
+      }
+    }
+
+    // Build grouped list with headers
+    _groupedNotifications = [];
+
+    if (todayNotifications.isNotEmpty) {
+      _groupedNotifications.add(_AlertListItem.header('TODAY'));
+      _groupedNotifications.addAll(
+        todayNotifications.map((n) => _AlertListItem.notification(n))
+      );
+    }
+
+    if (yesterdayNotifications.isNotEmpty) {
+      _groupedNotifications.add(_AlertListItem.header('YESTERDAY'));
+      _groupedNotifications.addAll(
+        yesterdayNotifications.map((n) => _AlertListItem.notification(n))
+      );
+    }
+
+    if (thisWeekNotifications.isNotEmpty) {
+      _groupedNotifications.add(_AlertListItem.header('THIS WEEK'));
+      _groupedNotifications.addAll(
+        thisWeekNotifications.map((n) => _AlertListItem.notification(n))
+      );
+    }
+
+    if (earlierNotifications.isNotEmpty) {
+      _groupedNotifications.add(_AlertListItem.header('EARLIER'));
+      _groupedNotifications.addAll(
+        earlierNotifications.map((n) => _AlertListItem.notification(n))
+      );
+    }
+  }
+}
+
+/// Helper class for grouped notification list items
+class _AlertListItem {
+  final bool isHeader;
+  final String? headerText;
+  final AlertData? notification;
+
+  _AlertListItem._({
+    required this.isHeader,
+    this.headerText,
+    this.notification,
+  });
+
+  factory _AlertListItem.header(String text) {
+    return _AlertListItem._(
+      isHeader: true,
+      headerText: text,
+    );
+  }
+
+  factory _AlertListItem.notification(AlertData notification) {
+    return _AlertListItem._(
+      isHeader: false,
+      notification: notification,
     );
   }
 }

@@ -84,42 +84,6 @@ class _LegalDocumentsTabState extends State<LegalDocumentsTab> {
     }
   }
 
-  Future<void> _handleDeleteDocument(LegalDocumentModel document) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Document'),
-        content: Text(
-          'Are you sure you want to delete "${document.title}"?\n\n'
-          'This action cannot be undone and will delete all version history.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      try {
-        await _service.deleteDocument(document.id);
-        _showSuccessSnackbar('✅ Document deleted successfully');
-        _loadDocuments();
-      } catch (e) {
-        _showErrorSnackbar('Failed to delete document: $e');
-      }
-    }
-  }
-
   Future<void> _handleToggleStatus(LegalDocumentModel document) async {
     try {
       // If activating, deactivate all others of same type
@@ -281,7 +245,6 @@ class _LegalDocumentsTabState extends State<LegalDocumentsTab> {
               return _DocumentCard(
                 document: doc,
                 onEdit: () => _handleEditDocument(doc),
-                onDelete: () => _handleDeleteDocument(doc),
                 onToggleStatus: () => _handleToggleStatus(doc),
                 onViewHistory: () => _handleViewHistory(doc),
               );
@@ -296,14 +259,12 @@ class _LegalDocumentsTabState extends State<LegalDocumentsTab> {
 class _DocumentCard extends StatelessWidget {
   final LegalDocumentModel document;
   final VoidCallback onEdit;
-  final VoidCallback onDelete;
   final VoidCallback onToggleStatus;
   final VoidCallback onViewHistory;
 
   const _DocumentCard({
     required this.document,
     required this.onEdit,
-    required this.onDelete,
     required this.onToggleStatus,
     required this.onViewHistory,
   });
@@ -398,32 +359,36 @@ class _DocumentCard extends StatelessWidget {
             
             // Action buttons
             Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
                   onPressed: onViewHistory,
-                  icon: const Icon(Icons.history),
+                  icon: const Icon(Icons.history, size: 18),
                   tooltip: 'View History',
                   color: AppColors.textSecondary,
+                  padding: EdgeInsets.all(6),
+                  constraints: BoxConstraints(minWidth: 32, minHeight: 32),
                 ),
+                SizedBox(width: kSpacingSmall),
                 IconButton(
                   onPressed: onEdit,
-                  icon: const Icon(Icons.edit),
-                  tooltip: 'Edit',
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  tooltip: 'Edit Document',
                   color: AppColors.primary,
+                  padding: EdgeInsets.all(6),
+                  constraints: BoxConstraints(minWidth: 32, minHeight: 32),
                 ),
+                SizedBox(width: kSpacingSmall),
                 IconButton(
                   onPressed: onToggleStatus,
                   icon: Icon(
                     document.isActive ? Icons.toggle_on : Icons.toggle_off,
+                    size: 20,
                   ),
                   tooltip: document.isActive ? 'Deactivate' : 'Activate',
                   color: document.isActive ? AppColors.success : AppColors.textTertiary,
-                ),
-                IconButton(
-                  onPressed: onDelete,
-                  icon: const Icon(Icons.delete),
-                  tooltip: 'Delete',
-                  color: AppColors.error,
+                  padding: EdgeInsets.all(6),
+                  constraints: BoxConstraints(minWidth: 32, minHeight: 32),
                 ),
               ],
             ),

@@ -219,8 +219,8 @@ class _AIHistoryDetailPageState extends State<AIHistoryDetailPage> {
             const SizedBox(height: kMobileSizedBoxLarge),
           
           // Analysis Results
-          if (assessment.analysisResults.isNotEmpty) 
-            _buildAnalysisResultsCard(assessment),
+          // if (assessment.analysisResults.isNotEmpty) 
+          //   _buildAnalysisResultsCard(assessment),
           
           if (assessment.analysisResults.isNotEmpty)
             const SizedBox(height: kMobileSizedBoxLarge),
@@ -612,8 +612,33 @@ class _AIHistoryDetailPageState extends State<AIHistoryDetailPage> {
   }
 
   Widget _buildDetectionResultItem(DetectionResult detectionResult, int index) {
-    // Get only the highest confidence detection
-    final highestDetection = _getHighestConfidenceDetection(detectionResult);
+    // Get top 3 UNIQUE detections sorted by confidence (no duplicate diseases)
+    const int MAX_DETECTIONS_TO_SHOW = 3;
+    final sortedDetections = List<Detection>.from(detectionResult.detections);
+    sortedDetections.sort((a, b) => b.confidence.compareTo(a.confidence));
+    
+    // Filter for unique diseases only
+    final List<Detection> detectionsToShow = [];
+    final Set<String> seenDiseases = {};
+    
+    for (final detection in sortedDetections) {
+      final formattedLabel = DetectionUtils.formatConditionName(detection.label);
+      if (!seenDiseases.contains(formattedLabel)) {
+        detectionsToShow.add(detection);
+        seenDiseases.add(formattedLabel);
+        
+        if (detectionsToShow.length >= MAX_DETECTIONS_TO_SHOW) {
+          break;
+        }
+      }
+    }
+    
+    // Define rank-based colors matching the UI
+    final rankColors = [
+      const Color(0xFFFF9500), // Orange - Highest (1st)
+      const Color(0xFF007AFF), // Blue - Second (2nd)
+      const Color(0xFF34C759), // Green - Third (3rd)
+    ];
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -627,82 +652,106 @@ class _AIHistoryDetailPageState extends State<AIHistoryDetailPage> {
           ),
         ),
         const SizedBox(height: kMobileSizedBoxMedium),
-        if (highestDetection != null) ...[
-          Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              DetectionUtils.formatConditionName(highestDetection.label),
-                              style: kMobileTextStyleTitle.copyWith(
-                                color: AppColors.textPrimary,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              'Highest',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
+        if (detectionsToShow.isNotEmpty) ...[
+          // Show all detections (up to 3)
+          ...detectionsToShow.asMap().entries.map((entry) {
+            final detectionIndex = entry.key;
+            final detection = entry.value;
+            final detectionColor = rankColors[detectionIndex % rankColors.length];
+            
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                children: [
+                  // Rank indicator
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: detectionColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: detectionColor.withOpacity(0.3),
+                        width: 2,
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Confidence: ${(highestDetection.confidence * 100).toStringAsFixed(1)}%',
-                        style: kMobileTextStyleSubtitle.copyWith(
-                          color: AppColors.textSecondary,
-                          fontSize: 11,
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${detectionIndex + 1}',
+                        style: kMobileTextStyleLegend.copyWith(
+                          color: AppColors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  width: 40,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                  child: FractionallySizedBox(
-                    alignment: Alignment.centerLeft,
-                    widthFactor: highestDetection.confidence,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: _getConfidenceColor(highestDetection.confidence),
-                        borderRadius: BorderRadius.circular(3),
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          DetectionUtils.formatConditionName(detection.label),
+                          style: kMobileTextStyleTitle.copyWith(
+                            color: AppColors.textPrimary,
+                            fontSize: 13,
+                            fontWeight: detectionIndex == 0 
+                                ? FontWeight.w600 
+                                : FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.show_chart,
+                              size: 12,
+                              color: _getConfidenceColor(detection.confidence),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Confidence: ${(detection.confidence * 100).toStringAsFixed(1)}%',
+                              style: kMobileTextStyleSubtitle.copyWith(
+                                color: _getConfidenceColor(detection.confidence),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Confidence bar
+                  Container(
+                    width: 40,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    child: FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: detection.confidence,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: detectionColor,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
         ] else ...[
           Container(
             padding: const EdgeInsets.all(12),
@@ -916,120 +965,252 @@ class _AIHistoryDetailPageState extends State<AIHistoryDetailPage> {
     }
   }
 
-  /// Get only the highest confidence detection from a DetectionResult
-  Detection? _getHighestConfidenceDetection(DetectionResult detectionResult) {
-    if (detectionResult.detections.isEmpty) return null;
-    
-    // Sort by confidence and return the highest
-    final sortedDetections = List<Detection>.from(detectionResult.detections);
-    sortedDetections.sort((a, b) => b.confidence.compareTo(a.confidence));
-    return sortedDetections.first;
-  }
-
   /// Show fullscreen image viewer
   void _showFullscreenImage(String imageUrl, int index, AssessmentResult assessment) {
+    // Get detections for this specific image
+    List<Map<String, dynamic>> detectionsToShow = [];
+    if (index < assessment.detectionResults.length) {
+      final detectionResult = assessment.detectionResults[index];
+      // Get top 3 UNIQUE detections sorted by confidence (no duplicate diseases)
+      const int MAX_DETECTIONS_TO_SHOW = 3;
+      final sortedDetections = List<Detection>.from(detectionResult.detections);
+      sortedDetections.sort((a, b) => b.confidence.compareTo(a.confidence));
+      
+      // Filter for unique diseases only
+      final List<Detection> uniqueDetections = [];
+      final Set<String> seenDiseases = {};
+      
+      for (final detection in sortedDetections) {
+        final formattedLabel = DetectionUtils.formatConditionName(detection.label);
+        if (!seenDiseases.contains(formattedLabel)) {
+          uniqueDetections.add(detection);
+          seenDiseases.add(formattedLabel);
+          
+          if (uniqueDetections.length >= MAX_DETECTIONS_TO_SHOW) {
+            break;
+          }
+        }
+      }
+      
+      // Convert Detection objects to Map format for BoundingBoxPainter
+      detectionsToShow = uniqueDetections.map((detection) {
+        return {
+          'label': detection.label,
+          'confidence': detection.confidence,
+          'box': detection.boundingBox,
+        };
+      }).toList();
+    }
+    
+    // State variable must be outside the builder to persist across rebuilds
+    bool showingBoundingBoxes = detectionsToShow.isNotEmpty; // Show by default if detections exist
+    
     showDialog(
       context: context,
       barrierColor: Colors.black87,
       builder: (BuildContext context) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: EdgeInsets.zero,
-          child: Stack(
-            children: [
-              // Fullscreen image
-              Center(
-                child: InteractiveViewer(
-                  minScale: 0.5,
-                  maxScale: 4.0,
-                  child: Image.network(
-                    imageUrl,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        padding: const EdgeInsets.all(kMobilePaddingLarge),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: EdgeInsets.zero,
+              child: Stack(
+                children: [
+                  // Fullscreen image with bounding boxes
+                  Center(
+                    child: InteractiveViewer(
+                      minScale: 0.5,
+                      maxScale: 4.0,
+                      child: GestureDetector(
+                        onTap: () {}, // Prevent dialog close when tapping image
+                        child: Stack(
                           children: [
-                            Icon(
-                              Icons.image_not_supported,
-                              color: Colors.white,
-                              size: 64,
+                            Image.network(
+                              imageUrl,
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  padding: const EdgeInsets.all(kMobilePaddingLarge),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.image_not_supported,
+                                        color: Colors.white,
+                                        size: 64,
+                                      ),
+                                      const SizedBox(height: kMobileSizedBoxMedium),
+                                      Text(
+                                        'Failed to load image',
+                                        style: kMobileTextStyleTitle.copyWith(
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return Center(
+                                  child: CircularProgressIndicator(
+                                    value: loadingProgress.expectedTotalBytes != null
+                                        ? loadingProgress.cumulativeBytesLoaded /
+                                            loadingProgress.expectedTotalBytes!
+                                        : null,
+                                    color: AppColors.primary,
+                                  ),
+                                );
+                              },
                             ),
-                            const SizedBox(height: kMobileSizedBoxMedium),
-                            Text(
-                              'Failed to load image',
-                              style: kMobileTextStyleTitle.copyWith(
-                                color: Colors.white,
+                            
+                            // Bounding boxes overlay (only when toggled on)
+                            if (showingBoundingBoxes && detectionsToShow.isNotEmpty)
+                              Positioned.fill(
+                                child: LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    return CustomPaint(
+                                      painter: BoundingBoxPainter(
+                                        detectionsToShow,
+                                        strokeWidth: 4.0,
+                                        showLabels: true,
+                                        showConfidence: true,
+                                        originalImageWidth: 640.0,
+                                        originalImageHeight: 640.0,
+                                        useRankColors: true, // Enable color-coding for top 3
+                                      ),
+                                    );
+                                  },
+                                ),
                               ),
-                            ),
                           ],
                         ),
-                      );
-                    },
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Center(
-                        child: CircularProgressIndicator(
-                          value: loadingProgress.expectedTotalBytes != null
-                              ? loadingProgress.cumulativeBytesLoaded /
-                                  loadingProgress.expectedTotalBytes!
-                              : null,
-                          color: AppColors.primary,
+                      ),
+                    ),
+                  ),
+                  
+                  // Top controls
+                  Positioned(
+                    top: MediaQuery.of(context).padding.top + 16,
+                    left: 16,
+                    right: 16,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Close button
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: IconButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            icon: const Icon(
+                              Icons.close,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-              // Close button
-              Positioned(
-                top: MediaQuery.of(context).padding.top + 16,
-                right: 16,
-                child: Material(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(20),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(20),
-                    onTap: () => Navigator.of(context).pop(),
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(
-                        Icons.close,
-                        color: Colors.white,
-                        size: 24,
-                      ),
+                        
+                        // Bounding box toggle button (only show if detections exist)
+                        if (detectionsToShow.isNotEmpty)
+                          Container(
+                            decoration: BoxDecoration(
+                              color: showingBoundingBoxes 
+                                  ? AppColors.primary.withOpacity(0.9)
+                                  : Colors.black54,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: IconButton(
+                              onPressed: () {
+                                setDialogState(() {
+                                  showingBoundingBoxes = !showingBoundingBoxes;
+                                });
+                              },
+                              icon: Icon(
+                                showingBoundingBoxes 
+                                    ? Icons.visibility 
+                                    : Icons.visibility_off,
+                                color: Colors.white,
+                              ),
+                              tooltip: showingBoundingBoxes 
+                                  ? 'Hide Detections' 
+                                  : 'Show Detections',
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-                ),
-              ),
-              // Image counter
-              Positioned(
-                bottom: MediaQuery.of(context).padding.bottom + 16,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black54,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Text(
-                      '${index + 1} / ${assessment.imageUrls.length}',
-                      style: kMobileTextStyleSubtitle.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
+                  
+                  // Bottom info panel
+                  Positioned(
+                    bottom: MediaQuery.of(context).padding.bottom + 16,
+                    left: 16,
+                    right: 16,
+                    child: Column(
+                      children: [
+                        // Detection info badge (always visible when detections exist)
+                        if (detectionsToShow.isNotEmpty)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.8),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.info_outline,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      '${detectionsToShow.length} Detection${detectionsToShow.length > 1 ? 's' : ''} Found',
+                                      style: kMobileTextStyleSubtitle.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        
+                        // Image counter
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Text(
+                            '${index + 1} / ${assessment.imageUrls.length}',
+                            style: kMobileTextStyleSubtitle.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );

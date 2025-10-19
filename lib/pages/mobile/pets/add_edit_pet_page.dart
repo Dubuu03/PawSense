@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter/services.dart';
 import 'package:pawsense/core/models/user/pet_model.dart';
 import 'package:pawsense/core/models/user/user_model.dart';
 import 'package:pawsense/core/services/user/pet_service.dart';
@@ -383,12 +384,20 @@ class _AddEditPetPageState extends State<AddEditPetPage> {
                 controller: _petNameController,
                 label: 'Pet Name',
                 hint: 'Enter your pet\'s name',
+                maxLength: 20,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z0-9\s\-']")),
+                  LengthLimitingTextInputFormatter(20),
+                ],
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'Pet name is required';
                   }
                   if (value.trim().length < 2) {
                     return 'Pet name must be at least 2 characters';
+                  }
+                  if (value.trim().length > 20) {
+                    return 'Pet name must be at most 20 characters';
                   }
                   return null;
                 },
@@ -506,6 +515,11 @@ class _AddEditPetPageState extends State<AddEditPetPage> {
                       label: 'Age (months)',
                       hint: 'e.g., 24',
                       keyboardType: TextInputType.number,
+                      maxLength: 3,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(3),
+                      ],
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
                           return 'Age is required';
@@ -528,6 +542,9 @@ class _AddEditPetPageState extends State<AddEditPetPage> {
                       label: 'Weight (kg)',
                       hint: 'e.g., 15.5',
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'^\d{0,3}(\.\d{0,2})?$')),
+                      ],
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
                           return 'Weight is required';
@@ -536,8 +553,8 @@ class _AddEditPetPageState extends State<AddEditPetPage> {
                         if (weight == null || weight <= 0) {
                           return 'Enter valid weight';
                         }
-                        if (weight > 200) {
-                          return 'Weight seems too high';
+                        if (weight > 999.99) {
+                          return 'Weight too high (max 999.99)';
                         }
                         return null;
                       },

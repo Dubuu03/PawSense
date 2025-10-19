@@ -12,6 +12,8 @@ import '../../../core/services/admin/admin_appointment_notification_integrator.d
 import '../../../core/services/admin/admin_message_notification_integrator.dart';
 import '../../../core/utils/app_logger.dart';
 import '../../../core/guards/auth_guard.dart';
+import '../../../core/widgets/admin/setup/admin_dashboard_setup_wrapper.dart';
+import '../../../core/services/auth/auth_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key ?? const PageStorageKey('admin_dashboard'));
@@ -514,65 +516,85 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     
     final statsCards = _getStatsCards();
 
-    return Padding(
-      padding: EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ✅ Header appears immediately (no data dependency)
-          DashboardHeader(
-            selectedPeriod: selectedPeriod,
-            userName: _userName,
-            onPeriodChanged: (period) {
-              _safeSetState(() {
-                selectedPeriod = period;
-              });
-              _loadStats(); // Reload stats when period changes
-            },
-          ),
-          SizedBox(height: 24),
-          
-          // Stats section with loading state
-          _isLoadingStats
-              ? _buildLoadingStatsCards()
-              : statsCards.isNotEmpty
-                  ? StatsCards(statsList: statsCards)
-                  : Center(
-                      child: Container(
-                        height: 120,
-                        child: Center(
-                          child: Text(
-                            'No data available',
-                            style: TextStyle(color: AppColors.textSecondary),
-                          ),
-                        ),
-                      ),
-                    ),
-          SizedBox(height: 32),
-          
-          // Charts and activities section
-          Expanded(
-            child: Row(
+    // Wrap dashboard with schedule setup check
+    return FutureBuilder(
+      future: AuthService().getUserClinic(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        return AdminDashboardWithSetupCheck(
+          clinic: snapshot.data,
+          onSetupCompleted: () {
+            // Refresh clinic data and dashboard after setup completion
+            setState(() {
+              // This will trigger a rebuild and reload the clinic data
+            });
+            _loadDashboardData();
+          },
+          dashboardContent: Padding(
+            padding: EdgeInsets.all(24.0),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  flex: 1,
-                  child: CommonDiseasesChart(
-                    diseaseData: _diseaseData,
-                  ),
+                // ✅ Header appears immediately (no data dependency)
+                DashboardHeader(
+                  selectedPeriod: selectedPeriod,
+                  userName: _userName,
+                  onPeriodChanged: (period) {
+                    _safeSetState(() {
+                      selectedPeriod = period;
+                    });
+                    _loadStats(); // Reload stats when period changes
+                  },
                 ),
-                SizedBox(width: 24),
+                SizedBox(height: 24),
+                
+                // Stats section with loading state
+                _isLoadingStats
+                    ? _buildLoadingStatsCards()
+                    : statsCards.isNotEmpty
+                        ? StatsCards(statsList: statsCards)
+                        : Center(
+                            child: Container(
+                              height: 120,
+                              child: Center(
+                                child: Text(
+                                  'No data available',
+                                  style: TextStyle(color: AppColors.textSecondary),
+                                ),
+                              ),
+                            ),
+                          ),
+                SizedBox(height: 32),
+                
+                // Charts and activities section
                 Expanded(
-                  flex: 1,
-                  child: RecentActivityList(
-                    activities: _recentActivities,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 1,
+                        child: CommonDiseasesChart(
+                          diseaseData: _diseaseData,
+                        ),
+                      ),
+                      SizedBox(width: 24),
+                      Expanded(
+                        flex: 1,
+                        child: RecentActivityList(
+                          activities: _recentActivities,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

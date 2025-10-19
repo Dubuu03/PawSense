@@ -14,7 +14,7 @@ import '../../../core/widgets/shared/pagination_widget.dart';
 import '../../../core/services/super_admin/super_admin_service.dart';
 import '../../../core/services/super_admin/user_cache_service.dart';
 import '../../../core/services/super_admin/screen_state_service.dart';
-import '../../../core/widgets/super_admin/user_management/add_user_modal.dart';
+// import '../../../core/widgets/super_admin/user_management/add_user_modal.dart'; // Reserved for future use
 import '../../../core/services/super_admin/user_pdf_service.dart';
 
 class UserManagementScreen extends StatefulWidget {
@@ -505,6 +505,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> with Automa
     }
   }
 
+  // Reserved for future use - direct user creation from super admin
+  /*
   Future<void> _showAddUserModal() async {
     await showDialog(
       context: context,
@@ -547,6 +549,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> with Automa
       }
     }
   }
+  */
 
   Future<void> _handleExportCSV() async {
     // Show loading indicator

@@ -21,7 +21,7 @@ class AppointmentEditModal extends StatefulWidget {
 class _AppointmentEditModalState extends State<AppointmentEditModal> {
   final TextEditingController _reasonController = TextEditingController();
   bool _isLoading = false;
-  String? _errorMessage;
+  // String? _errorMessage; // Reserved for future error handling
 
   @override
   void dispose() {
@@ -260,8 +260,6 @@ class _AppointmentEditModalState extends State<AppointmentEditModal> {
         return AppColors.success;
       case AppointmentStatus.cancelled:
         return AppColors.error;
-      case AppointmentStatus.noShow:
-        return AppColors.textSecondary;
     }
   }
 
@@ -324,7 +322,7 @@ class _AppointmentEditModalState extends State<AppointmentEditModal> {
     if (reason != null && reason.isNotEmpty) {
       setState(() {
         _isLoading = true;
-        _errorMessage = null; // Clear previous errors
+        // _errorMessage = null; // Clear previous errors (not used currently)
       });
       
       final success = await AppointmentService.rejectAppointment(widget.appointment.id, reason);
@@ -338,9 +336,15 @@ class _AppointmentEditModalState extends State<AppointmentEditModal> {
           );
         } else {
           setState(() {
-            _errorMessage = 'Failed to reject appointment. Please try again.';
+            // _errorMessage = 'Failed to reject appointment. Please try again.'; // Not used currently
             _isLoading = false;
           });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to reject appointment. Please try again.'),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
       }
     }

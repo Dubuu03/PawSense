@@ -127,12 +127,34 @@ class _ScheduleSetupBannerState extends State<ScheduleSetupBanner> {
                 const SizedBox(height: 4),
                 Text(
                   _setupStatus!.inProgress
-                      ? 'You started setting up your clinic schedule. Complete it to become visible to users.'
-                      : 'Your clinic has been approved! Set up your schedule to start accepting appointments.',
+                      ? 'You started setting up your clinic schedule. Complete it to become visible to users and start accepting appointments.'
+                      : 'Your clinic has been approved! Set up your schedule to become visible to users and start accepting appointments.',
                   style: TextStyle(
                     fontSize: 14,
                     color: AppColors.textSecondary,
                   ),
+                ),
+                const SizedBox(height: 8),
+                // Visibility warning
+                Row(
+                  children: [
+                    Icon(
+                      Icons.visibility_off,
+                      size: 16,
+                      color: AppColors.warning,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Your clinic is currently not visible to pet owners',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.warning,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -280,34 +302,30 @@ class ScheduleSetupPrompt extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // Skip option
-            TextButton(
-              onPressed: () {
-                // Allow skip but show warning
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Skip Setup?'),
-                    content: const Text(
-                      'You can skip the setup for now, but your clinic won\'t be visible to users until you complete it. You can always complete the setup later from your dashboard.',
+            // Important Notice - Clinic visibility warning
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withOpacity(0.1),
+                border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: AppColors.warning, size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Your clinic will not be visible to users until you complete the schedule setup.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancel'),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.pop(context); // Close dialog
-                          // Navigate or handle skip
-                        },
-                        child: const Text('Skip for Now'),
-                      ),
-                    ],
                   ),
-                );
-              },
-              child: const Text('Skip for Now'),
+                ],
+              ),
             ),
           ],
         ),

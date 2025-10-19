@@ -159,6 +159,46 @@ class AuthService {
     await _auth.sendPasswordResetEmail(email: normalizedEmail);
   }
 
+  /// Changes the password for the currently signed-in user.
+  /// Requires the current password for re-authentication.
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('No user is currently signed in');
+    }
+
+    // Re-authenticate the user with their current password
+    final email = user.email;
+    if (email == null) {
+      throw Exception('User email is not available');
+    }
+
+    final credential = EmailAuthProvider.credential(
+      email: email,
+      password: currentPassword,
+    );
+
+    try {
+      // Re-authenticate
+      await user.reauthenticateWithCredential(credential);
+      
+      // Update password
+      await user.updatePassword(newPassword);
+    } catch (e) {
+      // Re-throw with more context
+      if (e.toString().contains('wrong-password') || 
+          e.toString().contains('invalid-credential')) {
+        throw Exception('wrong-password');
+      } else if (e.toString().contains('requires-recent-login')) {
+        throw Exception('requires-recent-login');
+      }
+      rethrow;
+    }
+  }
+
   /// Fetches the list of sign-in methods for the given email (e.g., ['password', 'google.com']).
   Future<List<String>> fetchSignInMethodsForEmail(String email) async {
     final normalizedEmail = email.trim().toLowerCase();

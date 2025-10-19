@@ -39,6 +39,13 @@ class SettingsNavigation extends StatelessWidget {
             value: 'security',
             isSelected: selectedSection == 'security',
           ),
+          SizedBox(height: kSpacingSmall),
+          _buildNavigationItem(
+            icon: Icons.description_outlined,
+            title: 'Legal Documents',
+            value: 'legal',
+            isSelected: selectedSection == 'legal',
+          ),
         ],
       ),
     );

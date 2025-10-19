@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/validators.dart';
 
@@ -255,7 +256,16 @@ class _AddPatientModalState extends State<AddPatientModal> {
                                       TextFormField(
                                         controller: _petName,
                                         validator: (v) => requiredValidator(v, 'pet name'),
-                                        decoration: const InputDecoration(border: OutlineInputBorder(), hintText: "Enter pet's name"),
+                                        maxLength: 20,
+                                        inputFormatters: [
+                                          FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z0-9\s\-']")),
+                                          LengthLimitingTextInputFormatter(20),
+                                        ],
+                                        decoration: const InputDecoration(
+                                          border: OutlineInputBorder(), 
+                                          hintText: "Enter pet's name",
+                                          counterText: "",
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -297,7 +307,16 @@ class _AddPatientModalState extends State<AddPatientModal> {
                                       TextFormField(
                                         controller: _breed,
                                         validator: (v) => requiredValidator(v, 'breed'),
-                                        decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'Enter breed'),
+                                        maxLength: 50,
+                                        inputFormatters: [
+                                          FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z\s\-']")),
+                                          LengthLimitingTextInputFormatter(50),
+                                        ],
+                                        decoration: const InputDecoration(
+                                          border: OutlineInputBorder(), 
+                                          hintText: 'Enter breed',
+                                          counterText: "",
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -311,7 +330,16 @@ class _AddPatientModalState extends State<AddPatientModal> {
                                       const SizedBox(height: 8),
                                       TextFormField(
                                         controller: _age,
-                                        decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'e.g., 2 years'),
+                                        maxLength: 3,
+                                        inputFormatters: [
+                                          FilteringTextInputFormatter.digitsOnly,
+                                          LengthLimitingTextInputFormatter(3),
+                                        ],
+                                        decoration: const InputDecoration(
+                                          border: OutlineInputBorder(), 
+                                          hintText: 'e.g., 24',
+                                          counterText: "",
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -331,7 +359,14 @@ class _AddPatientModalState extends State<AddPatientModal> {
                                       const SizedBox(height: 8),
                                       TextFormField(
                                         controller: _weight,
-                                        decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'e.g., 15 kg'),
+                                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                        inputFormatters: [
+                                          FilteringTextInputFormatter.allow(RegExp(r'^\d{0,3}(\.\d{0,2})?$')),
+                                        ],
+                                        decoration: const InputDecoration(
+                                          border: OutlineInputBorder(), 
+                                          hintText: 'e.g., 15.5',
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -391,12 +426,42 @@ class _AddPatientModalState extends State<AddPatientModal> {
 
                             const Text('Owner Name *', style: TextStyle(fontWeight: FontWeight.w600)),
                             const SizedBox(height: 8),
-                            TextFormField(controller: _ownerName, validator: (v) => requiredValidator(v, 'owner name'), decoration: const InputDecoration(border: OutlineInputBorder(), hintText: "Enter owner's full name")),
+                            TextFormField(
+                              controller: _ownerName, 
+                              validator: (v) => requiredValidator(v, 'owner name'), 
+                              maxLength: 50,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z\s\-']")),
+                                LengthLimitingTextInputFormatter(50),
+                              ],
+                              decoration: const InputDecoration(
+                                border: OutlineInputBorder(), 
+                                hintText: "Enter owner's full name",
+                                counterText: "",
+                              ),
+                            ),
                             const SizedBox(height: 12),
 
                             Row(
                               children: [
-                                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Phone Number *', style: TextStyle(fontWeight: FontWeight.w600)), const SizedBox(height: 8), TextFormField(controller: _ownerPhone, validator: phoneValidator, decoration: const InputDecoration(border: OutlineInputBorder(), hintText: '+1 (555) 123-4567'))])),
+                                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  const Text('Phone Number *', style: TextStyle(fontWeight: FontWeight.w600)), 
+                                  const SizedBox(height: 8), 
+                                  TextFormField(
+                                    controller: _ownerPhone, 
+                                    validator: phoneValidator, 
+                                    maxLength: 11,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.digitsOnly,
+                                      LengthLimitingTextInputFormatter(11),
+                                    ],
+                                    decoration: const InputDecoration(
+                                      border: OutlineInputBorder(), 
+                                      hintText: '09123456789',
+                                      counterText: "",
+                                    ),
+                                  ),
+                                ])),
                                 const SizedBox(width: 12),
                                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Email Address *', style: TextStyle(fontWeight: FontWeight.w600)), const SizedBox(height: 8), TextFormField(controller: _ownerEmail, validator: emailValidator, decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'owner@email.com'))])),
                               ],
@@ -405,12 +470,37 @@ class _AddPatientModalState extends State<AddPatientModal> {
                             const SizedBox(height: 12),
                             const Text('Address', style: TextStyle(fontWeight: FontWeight.w600)),
                             const SizedBox(height: 8),
-                            TextFormField(controller: _ownerAddress, maxLines: 3, decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'Home address')),
+                            TextFormField(
+                              controller: _ownerAddress, 
+                              maxLines: 3, 
+                              maxLength: 200,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z0-9\s\-'.,#/]")),
+                                LengthLimitingTextInputFormatter(200),
+                              ],
+                              decoration: const InputDecoration(
+                                border: OutlineInputBorder(), 
+                                hintText: 'Home address',
+                                counterText: "",
+                              ),
+                            ),
 
                             const SizedBox(height: 12),
                             const Text('Emergency Contact', style: TextStyle(fontWeight: FontWeight.w600)),
                             const SizedBox(height: 8),
-                            TextFormField(controller: _emergencyContact, decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'Emergency contact phone')),
+                            TextFormField(
+                              controller: _emergencyContact, 
+                              maxLength: 11,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                                LengthLimitingTextInputFormatter(11),
+                              ],
+                              decoration: const InputDecoration(
+                                border: OutlineInputBorder(), 
+                                hintText: '09123456789',
+                                counterText: "",
+                              ),
+                            ),
                           ],
                           if (_step == 2) ...[
                             const SizedBox(height: 8),
@@ -419,22 +509,51 @@ class _AddPatientModalState extends State<AddPatientModal> {
 
                             const Text('Known Allergies', style: TextStyle(fontWeight: FontWeight.w600)),
                             const SizedBox(height: 8),
-                            TextFormField(controller: _allergies, decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'List known allergies')),
+                            TextFormField(
+                              controller: _allergies, 
+                              maxLength: 300,
+                              decoration: const InputDecoration(
+                                border: OutlineInputBorder(), 
+                                hintText: 'List known allergies',
+                              ),
+                            ),
 
                             const SizedBox(height: 12),
                             const Text('Existing Conditions', style: TextStyle(fontWeight: FontWeight.w600)),
                             const SizedBox(height: 8),
-                            TextFormField(controller: _conditions, decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'e.g., Diabetes')),
+                            TextFormField(
+                              controller: _conditions, 
+                              maxLength: 300,
+                              decoration: const InputDecoration(
+                                border: OutlineInputBorder(), 
+                                hintText: 'e.g., Diabetes',
+                              ),
+                            ),
 
                             const SizedBox(height: 12),
                             const Text('Current Medications', style: TextStyle(fontWeight: FontWeight.w600)),
                             const SizedBox(height: 8),
-                            TextFormField(controller: _medications, decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'Medication names and dosages')),
+                            TextFormField(
+                              controller: _medications, 
+                              maxLength: 300,
+                              decoration: const InputDecoration(
+                                border: OutlineInputBorder(), 
+                                hintText: 'Medication names and dosages',
+                              ),
+                            ),
 
                             const SizedBox(height: 12),
                             const Text('Additional Notes', style: TextStyle(fontWeight: FontWeight.w600)),
                             const SizedBox(height: 8),
-                            TextFormField(controller: _medicalNotes, maxLines: 4, decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'Any additional medical information')),
+                            TextFormField(
+                              controller: _medicalNotes, 
+                              maxLines: 4, 
+                              maxLength: 300,
+                              decoration: const InputDecoration(
+                                border: OutlineInputBorder(), 
+                                hintText: 'Any additional medical information',
+                              ),
+                            ),
                           ],
 
                           const SizedBox(height: 16),
