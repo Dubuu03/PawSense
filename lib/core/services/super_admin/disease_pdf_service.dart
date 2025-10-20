@@ -12,6 +12,7 @@ class DiseasePdfService {
     String? severityFilter,
     String? searchQuery,
     String? generatedBy,
+    bool includeSummary = true, // New parameter to control summary display
   }) async {
     final pdf = pw.Document();
     final stats = _calculateStatistics(diseases);
@@ -34,8 +35,12 @@ class DiseasePdfService {
     allWidgets.add(pw.SizedBox(height: 20));
     allWidgets.add(_buildReportInfo(filtersText: filtersText, generatedAt: DateTime.now()));
     allWidgets.add(pw.SizedBox(height: 20));
-    allWidgets.add(_buildSummaryStatistics(stats));
-    allWidgets.add(pw.SizedBox(height: 20));
+    
+    // Summary Statistics Section (only if includeSummary is true)
+    if (includeSummary) {
+      allWidgets.add(_buildSummaryStatistics(stats));
+      allWidgets.add(pw.SizedBox(height: 20));
+    }
     
     if (aiDiseases.isNotEmpty) {
       allWidgets.add(_buildSectionHeader('AI Detection (${aiDiseases.length})', PdfColors.blue700));

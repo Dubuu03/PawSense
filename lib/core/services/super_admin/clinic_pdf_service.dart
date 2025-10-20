@@ -11,6 +11,7 @@ class ClinicPdfService {
     String? statusFilter,
     String? searchQuery,
     String? generatedBy,
+    bool includeSummary = true, // New parameter to control summary display
   }) async {
     final pdf = pw.Document();
     
@@ -48,9 +49,11 @@ class ClinicPdfService {
     ));
     allWidgets.add(pw.SizedBox(height: 20));
     
-    // Summary Statistics Section
-    allWidgets.add(_buildSummaryStatistics(stats));
-    allWidgets.add(pw.SizedBox(height: 20));
+    // Summary Statistics Section (only if includeSummary is true)
+    if (includeSummary) {
+      allWidgets.add(_buildSummaryStatistics(stats));
+      allWidgets.add(pw.SizedBox(height: 20));
+    }
     
     // Pending Clinics Section
     if (pendingClinics.isNotEmpty) {

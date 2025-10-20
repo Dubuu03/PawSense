@@ -328,7 +328,15 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> wit
       // Get current admin name
       String? adminName = 'Super Admin';
 
-      // Generate PDF
+      // Check if any filters are applied
+      final hasFilters = (_detectionFilter != null && _detectionFilter!.isNotEmpty) ||
+          (_speciesFilter.isNotEmpty) ||
+          (_severityFilter != null && _severityFilter!.isNotEmpty) ||
+          (_categoriesFilter.isNotEmpty) ||
+          (_contagiousFilter != null) ||
+          (_searchQuery.isNotEmpty);
+
+      // Generate PDF (include summary only when no filters are applied)
       final Uint8List pdfBytes = await DiseasePdfService.generateDiseaseReport(
         diseases: allFilteredDiseases,
         detectionMethodFilter: _detectionFilter != null && _detectionFilter!.isNotEmpty ? _detectionFilter : null,
@@ -336,6 +344,7 @@ class _DiseasesManagementScreenState extends State<DiseasesManagementScreen> wit
         severityFilter: _severityFilter != null && _severityFilter!.isNotEmpty ? _severityFilter : null,
         searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
         generatedBy: adminName,
+        includeSummary: !hasFilters, // Only include summary when exporting all data (no filters)
       );
 
       // Download PDF

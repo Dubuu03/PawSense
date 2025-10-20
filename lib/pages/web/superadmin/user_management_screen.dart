@@ -617,13 +617,19 @@ class _UserManagementScreenState extends State<UserManagementScreen> with Automa
       // Get current admin name
       String? adminName = 'Super Admin';
 
-      // Generate PDF
+      // Check if any filters are applied
+      final hasFilters = (_selectedRole != 'All Roles' && _selectedRole.isNotEmpty) ||
+          (_selectedStatus != 'All Status' && _selectedStatus.isNotEmpty) ||
+          (_searchQuery.isNotEmpty);
+
+      // Generate PDF (include summary only when no filters are applied)
       final Uint8List pdfBytes = await UserPdfService.generateUserReport(
         usersWithStatus: allFilteredUsers,
         roleFilter: _selectedRole != 'All Roles' ? _selectedRole : null,
         statusFilter: _selectedStatus != 'All Status' ? _selectedStatus : null,
         searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
         generatedBy: adminName,
+        includeSummary: !hasFilters, // Only include summary when exporting all data (no filters)
       );
 
       // Download PDF

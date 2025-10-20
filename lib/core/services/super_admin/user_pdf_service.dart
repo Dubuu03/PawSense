@@ -12,6 +12,7 @@ class UserPdfService {
     String? statusFilter,
     String? searchQuery,
     String? generatedBy,
+    bool includeSummary = true, // New parameter to control summary display
   }) async {
     final pdf = pw.Document();
     
@@ -46,9 +47,11 @@ class UserPdfService {
     ));
     allWidgets.add(pw.SizedBox(height: 20));
     
-    // Summary Statistics Section
-    allWidgets.add(_buildSummaryStatistics(stats));
-    allWidgets.add(pw.SizedBox(height: 20));
+    // Summary Statistics Section (only if includeSummary is true)
+    if (includeSummary) {
+      allWidgets.add(_buildSummaryStatistics(stats));
+      allWidgets.add(pw.SizedBox(height: 20));
+    }
     
     // Users Table (chunked to prevent "too many pages" error)
     allWidgets.add(_buildSectionHeader('User Details (${usersWithStatus.length})', PdfColors.blue700));
