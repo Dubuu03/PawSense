@@ -99,7 +99,7 @@ class RouteOptimizer {
         await _preloadSettings();
         break;
         
-      case 'support_screen':
+      case 'faq_management_screen':
       case 'support':
         await _preloadSupport();
         break;

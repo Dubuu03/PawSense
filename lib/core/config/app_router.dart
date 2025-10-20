@@ -40,7 +40,7 @@ import 'package:pawsense/pages/web/admin/vet_profile_screen.dart';
 import 'package:pawsense/pages/web/admin/clinic_ratings_page.dart';
 import 'package:pawsense/pages/web/admin/messaging_screen.dart';
 
-import 'package:pawsense/pages/web/admin/support_screen.dart';
+import 'package:pawsense/pages/web/admin/faq_management_screen.dart';
 import 'package:pawsense/pages/web/admin/settings_screen.dart';
 import 'package:pawsense/core/widgets/admin/notifications/admin_notification_dropdown.dart';
 import 'package:pawsense/pages/web/superadmin/clinic_management_screen.dart';
@@ -354,9 +354,9 @@ class AppRouter {
           ),
           GoRoute(
             path: '/admin/support',
-            builder: (context, state) => SupportCenterScreen(),
+            builder: (context, state) => const FAQManagementScreen(),
             pageBuilder: (context, state) => NoTransitionPage(
-              child: SupportCenterScreen(),
+              child: const FAQManagementScreen(),
             ),
           ),
           GoRoute(

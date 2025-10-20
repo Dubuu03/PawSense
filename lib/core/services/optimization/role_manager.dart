@@ -38,7 +38,7 @@ class RoleManager {
         RouteInfo('/admin/vet-profile', 'Vet Profile & Services', Icons.person_outline),
         RouteInfo('/admin/ratings', 'Ratings & Reviews', Icons.star_outline),
         RouteInfo('/admin/messaging', 'Messages', Icons.message_outlined),
-        RouteInfo('/admin/support', 'Support', Icons.help_outline),
+        RouteInfo('/admin/support', 'FAQ Management', Icons.help_outline),
         RouteInfo('/admin/settings', 'Settings', Icons.settings_outlined),
       ],
       permissions: [
