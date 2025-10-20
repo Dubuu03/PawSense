@@ -18,6 +18,7 @@ class AppointmentHistoryData {
   final DateTime timestamp;
   final String? clinicName;
   final DateTime createdAt; // Added for sorting by booking creation date
+  final bool isFollowUp; // Indicates if this is a follow-up appointment
 
   AppointmentHistoryData({
     required this.id,
@@ -27,6 +28,7 @@ class AppointmentHistoryData {
     required this.timestamp,
     this.clinicName,
     required this.createdAt, // Required for sorting
+    this.isFollowUp = false, // Default to false
   });
 }
 
@@ -121,6 +123,9 @@ class AppointmentHistoryItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Debug print
+    print('AppointmentHistoryItem: ${data.title}, isFollowUp: ${data.isFollowUp}');
+    
     return Container(
       margin: const EdgeInsets.only(bottom: kMobileSizedBoxMedium),
       decoration: BoxDecoration(
@@ -161,13 +166,55 @@ class AppointmentHistoryItem extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        data.title,
-                        style: kMobileTextStyleTitle.copyWith(
-                          color: AppColors.textPrimary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              data.title,
+                              style: kMobileTextStyleTitle.copyWith(
+                                color: AppColors.textPrimary,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          if (data.isFollowUp) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.info.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: AppColors.info.withValues(alpha: 0.3),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.refresh,
+                                    size: 10,
+                                    color: AppColors.info,
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    'Follow-up',
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.info,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 2),
                       Text(

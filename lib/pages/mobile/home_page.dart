@@ -525,6 +525,10 @@ class _UserHomePageState extends State<UserHomePage> {
   List<AppointmentHistoryData> _convertAppointmentsToHistoryData(List<booking.AppointmentBooking> appointments) {
     print('DEBUG: Converting ${appointments.length} appointments to history data');
     
+    // Check for follow-up appointments
+    final followUpCount = appointments.where((a) => a.isFollowUp == true).length;
+    print('DEBUG: Found $followUpCount follow-up appointments out of ${appointments.length} total');
+    
     // Use appointment ID as the unique key - each appointment is a separate booking
     // This ensures all appointments are shown, even if they have the same service/date/time
     final Map<String, booking.AppointmentBooking> uniqueAppointments = {};
@@ -536,7 +540,7 @@ class _UserHomePageState extends State<UserHomePage> {
       // Each appointment ID is unique, so this should always be a new entry
       if (!uniqueAppointments.containsKey(uniqueKey)) {
         uniqueAppointments[uniqueKey] = appointment;
-        print('DEBUG: Added appointment: ${appointment.serviceName} on ${appointment.appointmentDate.toIso8601String().split('T')[0]} at ${appointment.appointmentTime} - Status: ${appointment.status} - ID: ${appointment.id}');
+        print('DEBUG: Added appointment: ${appointment.serviceName} on ${appointment.appointmentDate.toIso8601String().split('T')[0]} at ${appointment.appointmentTime} - Status: ${appointment.status} - Follow-up: ${appointment.isFollowUp} - ID: ${appointment.id}');
       } else {
         // This should rarely happen (only if appointment ID is null and composite key matches)
         // Keep the appointment with the most recent update time
@@ -578,6 +582,11 @@ class _UserHomePageState extends State<UserHomePage> {
       final statusStr = _getStatusDisplayName(appointment.status);
       final subtitle = '$dateStr • ${appointment.appointmentTime} • $statusStr';
       
+      final isFollowUp = appointment.isFollowUp ?? false;
+      if (isFollowUp) {
+        print('DEBUG: Creating history data with follow-up flag for: ${appointment.serviceName}');
+      }
+      
       return AppointmentHistoryData(
         id: appointment.id ?? '',
         title: _getStatusTitle(appointment),
@@ -586,11 +595,14 @@ class _UserHomePageState extends State<UserHomePage> {
         timestamp: appointment.appointmentDate,
         clinicName: appointment.serviceName, // Store service name for reference
         createdAt: appointment.createdAt, // Add createdAt for sorting
+        isFollowUp: isFollowUp, // Pass follow-up status
       );
     }).toList();
     
     // Sort by creation date (most recently booked first)
     historyList.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    
+    print('DEBUG: Final history list has ${historyList.where((h) => h.isFollowUp).length} follow-up appointments');
     
     return historyList;
   }

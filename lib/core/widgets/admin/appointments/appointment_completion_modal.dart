@@ -471,17 +471,37 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
         final followUpTimeSlot = '$_followUpTime-${_addMinutes(_followUpTime!, 20)}';
         
         batch.set(followUpRef, {
+          // Required fields for AppointmentBooking model (mobile compatibility)
+          'userId': widget.appointment.owner.id,
+          'petId': widget.appointment.pet.id,
           'clinicId': widget.appointment.clinicId,
+          'serviceName': widget.appointment.serviceType ?? widget.appointment.diseaseReason,
+          'serviceId': widget.appointment.serviceType ?? 'general',
+          'appointmentDate': Timestamp.fromDate(DateTime(
+            _followUpDate!.year,
+            _followUpDate!.month,
+            _followUpDate!.day,
+          )),
+          'appointmentTime': _followUpTime,
+          'notes': 'Follow-up appointment from previous visit',
+          'status': 'confirmed',
+          'type': 'followUp',
+          'estimatedPrice': 0.0,
+          'duration': '${widget.appointment.estimatedDuration?.toInt() ?? 20} minutes',
+          'createdAt': Timestamp.now(),
+          'updatedAt': Timestamp.now(),
+          
+          // Legacy fields (for backward compatibility with admin)
           'date': '${_followUpDate!.year}-${_followUpDate!.month.toString().padLeft(2, '0')}-${_followUpDate!.day.toString().padLeft(2, '0')}',
           'time': _followUpTime,
           'timeSlot': followUpTimeSlot,
           'pet': widget.appointment.pet.toMap(),
           'diseaseReason': 'Follow-up for: ${widget.appointment.diseaseReason}',
           'owner': widget.appointment.owner.toMap(),
-          'status': 'confirmed',
-          'notes': 'Follow-up appointment from previous visit',
-          'createdAt': Timestamp.now(),
-          'updatedAt': Timestamp.now(),
+          'serviceType': widget.appointment.serviceType,
+          'estimatedDuration': widget.appointment.estimatedDuration,
+          
+          // Follow-up specific fields
           'isFollowUp': true,
           'previousAppointmentId': widget.appointment.id,
         });
