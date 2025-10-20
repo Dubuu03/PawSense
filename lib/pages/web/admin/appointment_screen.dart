@@ -892,7 +892,15 @@ class _OptimizedAppointmentManagementScreenState
         print('⚠️ Could not fetch user name: $e');
       }
 
-      // Generate PDF
+      // Check if any filters are applied
+      final hasFilters = (selectedStatus != 'All Status') ||
+          (searchQuery.isNotEmpty) ||
+          (startDate != null) ||
+          (endDate != null) ||
+          (selectedPetType != null) ||
+          (selectedBreed != null);
+      
+      // Generate PDF (include summary only when no filters are applied)
       final pdfBytes = await AppointmentPdfService.generateAppointmentReport(
         appointments: allAppointments,
         clinicName: _cachedClinicName ?? 'Veterinary Clinic',
@@ -905,6 +913,7 @@ class _OptimizedAppointmentManagementScreenState
         petTypeFilter: selectedPetType,
         breedFilter: selectedBreed,
         generatedBy: generatedBy,
+        includeSummary: !hasFilters, // Only include summary when exporting all data (no filters)
       );
 
       // Create filename with clinic name and timestamp
