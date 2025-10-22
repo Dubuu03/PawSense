@@ -194,8 +194,8 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
           .get();
 
       final Map<String, List<String>> diseasesByType = {
-        'Dogs': <String>[],
-        'Cats': <String>[],
+        'Dog': <String>[],
+        'Cat': <String>[],
       };
 
       for (var doc in diseasesSnapshot.docs) {
@@ -204,11 +204,28 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
         final species = data['species'] as List<dynamic>? ?? [];
 
         if (name.isNotEmpty) {
-          // Add the disease to appropriate species lists
+          // Clean the disease name (remove parentheses if content matches)
+          final cleanedName = _cleanDiseaseName(name);
+          
+          // Add the disease to appropriate species lists based on species field
           for (var specie in species) {
-            final specieStr = specie.toString();
-            if (diseasesByType.containsKey(specieStr)) {
-              diseasesByType[specieStr]!.add(name);
+            final specieStr = specie.toString().toLowerCase();
+            
+            // Match species to pet type (Dog or Cat)
+            if (specieStr.contains('dog') && !diseasesByType['Dog']!.contains(cleanedName)) {
+              diseasesByType['Dog']!.add(cleanedName);
+            }
+            if (specieStr.contains('cat') && !diseasesByType['Cat']!.contains(cleanedName)) {
+              diseasesByType['Cat']!.add(cleanedName);
+            }
+            // Handle "both" species
+            if (specieStr == 'both') {
+              if (!diseasesByType['Dog']!.contains(cleanedName)) {
+                diseasesByType['Dog']!.add(cleanedName);
+              }
+              if (!diseasesByType['Cat']!.contains(cleanedName)) {
+                diseasesByType['Cat']!.add(cleanedName);
+              }
             }
           }
         }
@@ -221,15 +238,12 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
       }
 
       setState(() {
-        // Map from plural to singular for compatibility with existing pet types
-        _diseasesByPetType = {
-          'Dog': diseasesByType['Dogs'] ?? [],
-          'Cat': diseasesByType['Cats'] ?? [],
-        };
+        _diseasesByPetType = diseasesByType;
         _isLoadingDiseases = false;
       });
 
-      print('Loaded diseases: $_diseasesByPetType');
+      print('Loaded diseases for Dog: ${_diseasesByPetType['Dog']?.length ?? 0}');
+      print('Loaded diseases for Cat: ${_diseasesByPetType['Cat']?.length ?? 0}');
     } catch (e) {
       print('Error loading diseases: $e');
       setState(() {
@@ -241,6 +255,26 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
         _isLoadingDiseases = false;
       });
     }
+  }
+  
+  /// Clean disease name by removing parentheses if the content inside matches
+  /// E.g., "Alopecia (Alopecia)" -> "Alopecia"
+  /// E.g., "Alopecia (Hair Loss)" -> "Alopecia (Hair Loss)" (keeps it if different)
+  String _cleanDiseaseName(String name) {
+    final regex = RegExp(r'^(.+?)\s*\((.+?)\)$');
+    final match = regex.firstMatch(name);
+    
+    if (match != null) {
+      final mainName = match.group(1)?.trim() ?? '';
+      final parenthesesContent = match.group(2)?.trim() ?? '';
+      
+      // If the content in parentheses is the same as the main name, remove it
+      if (mainName.toLowerCase() == parenthesesContent.toLowerCase()) {
+        return mainName;
+      }
+    }
+    
+    return name;
   }
 
   List<String> _getDiseasesForPetType() {
@@ -510,14 +544,23 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
               imageTrainingData['assessmentMetadata'] = _assessmentMetadata;
             }
             
-            // Add unique filename for file storage/organization
-            imageTrainingData['uniqueFilename'] = uniqueFilename;
-            imageTrainingData['diseaseLabel'] = _aiAssessmentCorrect == false 
+            // Clean disease label for storage (remove parentheses content)
+            final rawDiseaseLabel = _aiAssessmentCorrect == false 
                 ? _selectedCorrectDisease 
                 : (_aiPredictions.isNotEmpty ? _aiPredictions.first['condition'] : _diagnosisController.text.trim());
+            final cleanedDiseaseLabel = rawDiseaseLabel != null ? _cleanDiseaseName(rawDiseaseLabel) : '';
+            
+            // Add unique filename for file storage/organization
+            imageTrainingData['uniqueFilename'] = uniqueFilename;
+            imageTrainingData['diseaseLabel'] = cleanedDiseaseLabel;
             imageTrainingData['petType'] = widget.appointment.pet.type;
             imageTrainingData['correctionType'] = _aiAssessmentCorrect == false ? 'manual_correction' : 'validation';
           }
+          
+          // Clean the correct disease label before saving (remove parentheses content)
+          final cleanedCorrectDisease = _aiAssessmentCorrect == false && _selectedCorrectDisease != null
+              ? _cleanDiseaseName(_selectedCorrectDisease!)
+              : null;
           
           batch.set(validationRef, {
             'appointmentId': widget.appointment.id,
@@ -528,11 +571,11 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
             'clinicDiagnosis': _diagnosisController.text.trim(),
             'overallCorrect': _aiAssessmentCorrect,
             'feedback': _aiAssessmentFeedback,
-            'correctDisease': _aiAssessmentCorrect == false ? _selectedCorrectDisease : null,
+            'correctDisease': cleanedCorrectDisease,
             'validatedAt': Timestamp.now(),
             'validatedBy': widget.appointment.clinicId,
             'canUseForTraining': _aiAssessmentCorrect == true, // Mark for retraining
-            'canUseForRetraining': _aiAssessmentCorrect == false && _selectedCorrectDisease != null, // Mark for correction training
+            'canUseForRetraining': _aiAssessmentCorrect == false && cleanedCorrectDisease != null, // Mark for correction training
             'imageData': imageTrainingData.isNotEmpty ? imageTrainingData : null,
             'hasImageAssessment': (_originalImageUrl != null || _assessmentImages.isNotEmpty),
             'trainingDataType': _originalImageUrl != null ? 'image_assessment' : 'text_assessment',
