@@ -6,6 +6,7 @@ import '../../../models/clinic/appointment_models.dart';
 import '../../../services/notifications/notification_service.dart';
 import '../../../models/notifications/notification_model.dart';
 import '../../../services/clinic/clinic_schedule_service.dart';
+import '../../../models/clinic/clinic_schedule_model.dart';
 
 /// Class to track training data validation for each image
 class ImageTrainingValidation {
@@ -53,8 +54,11 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
   DateTime? _followUpDate;
   String? _followUpTime;
   
-  // Holidays for date picker
+  // Clinic schedule data
   List<DateTime> _holidayDates = [];
+  Map<String, ClinicScheduleModel> _weeklySchedule = {};
+  List<String> _availableTimeSlots = [];
+  bool _isLoadingSchedule = false;
   
   // AI Assessment Validation
   bool _hasAIAssessment = false;
@@ -84,6 +88,7 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
     _loadAIAssessment();
     _loadDiseasesFromFirestore();
     _loadHolidays();
+    _loadClinicSchedule();
   }
 
   @override
@@ -367,6 +372,121 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
     }
   }
 
+  /// Load clinic weekly schedule
+  Future<void> _loadClinicSchedule() async {
+    try {
+      setState(() => _isLoadingSchedule = true);
+      
+      final weeklySchedule = await ClinicScheduleService.getWeeklySchedule(widget.appointment.clinicId);
+      
+      if (mounted) {
+        setState(() {
+          _weeklySchedule = weeklySchedule.schedules;
+          _isLoadingSchedule = false;
+        });
+      }
+      print('✅ Loaded weekly schedule for clinic');
+    } catch (e) {
+      print('❌ Error loading clinic schedule: $e');
+      if (mounted) {
+        setState(() {
+          _weeklySchedule = {};
+          _isLoadingSchedule = false;
+        });
+      }
+    }
+  }
+
+  /// Load available time slots for a specific date
+  Future<void> _loadAvailableTimeSlotsForDate(DateTime date) async {
+    try {
+      setState(() => _isLoadingSchedule = true);
+      
+      // Get day name from selected date
+      const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      final dayName = daysOfWeek[date.weekday - 1];
+      
+      // Get schedule for this day
+      final daySchedule = _weeklySchedule[dayName];
+      
+      if (daySchedule == null || !daySchedule.isOpen || daySchedule.openTime == null || daySchedule.closeTime == null) {
+        if (mounted) {
+          setState(() {
+            _availableTimeSlots = [];
+            _isLoadingSchedule = false;
+          });
+        }
+        return;
+      }
+      
+      // Generate hourly time slots (e.g., "09:00 - 10:00")
+      final slots = <String>[];
+      final openParts = daySchedule.openTime!.split(':');
+      final closeParts = daySchedule.closeTime!.split(':');
+      final openHour = int.parse(openParts[0]);
+      final closeHour = int.parse(closeParts[0]);
+      
+      // Generate 1-hour blocks
+      for (int hour = openHour; hour < closeHour; hour++) {
+        final startTime = '${hour.toString().padLeft(2, '0')}:00';
+        final endHour = hour + 1;
+        final endTime = '${endHour.toString().padLeft(2, '0')}:00';
+        
+        // Check if this hour block is during a break time
+        bool isDuringBreak = false;
+        for (final breakTime in daySchedule.breakTimes) {
+          if (_isHourBlockInBreak(startTime, endTime, breakTime.startTime, breakTime.endTime)) {
+            isDuringBreak = true;
+            break;
+          }
+        }
+        
+        if (!isDuringBreak) {
+          // Store as "HH:00 - HH:00" format for display
+          slots.add('$startTime - $endTime');
+        }
+      }
+      
+      if (mounted) {
+        setState(() {
+          _availableTimeSlots = slots;
+          // Auto-select first available slot if current selection is not available
+          if (_followUpTime == null || !slots.contains(_followUpTime)) {
+            _followUpTime = slots.isNotEmpty ? slots.first : null;
+          }
+          _isLoadingSchedule = false;
+        });
+      }
+      
+      print('✅ Loaded ${slots.length} hourly time slots for $dayName');
+    } catch (e) {
+      print('❌ Error loading time slots: $e');
+      if (mounted) {
+        setState(() {
+          _availableTimeSlots = [];
+          _isLoadingSchedule = false;
+        });
+      }
+    }
+  }
+  
+  /// Check if an hour block overlaps with a break time
+  bool _isHourBlockInBreak(String blockStart, String blockEnd, String breakStart, String breakEnd) {
+    final blockStartMinutes = _timeToMinutes(blockStart);
+    final blockEndMinutes = _timeToMinutes(blockEnd);
+    final breakStartMinutes = _timeToMinutes(breakStart);
+    final breakEndMinutes = _timeToMinutes(breakEnd);
+    
+    // Check if there's any overlap between the hour block and break time
+    return !(blockEndMinutes <= breakStartMinutes || blockStartMinutes >= breakEndMinutes);
+  }
+  
+  /// Convert time string (HH:mm) to minutes since midnight
+  int _timeToMinutes(String time) {
+    final parts = time.split(':');
+    return int.parse(parts[0]) * 60 + int.parse(parts[1]);
+  }
+
   /// Check if a date should be selectable for follow-up
   bool _isDateSelectableForFollowUp(DateTime date) {
     // Parse the appointment date (format: "YYYY-MM-DD")
@@ -400,7 +520,47 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
       return false;
     }
     
+    // Check if clinic is open on this day of the week
+    final dayOfWeek = _getDayOfWeek(date.weekday);
+    final daySchedule = _weeklySchedule[dayOfWeek];
+    
+    if (daySchedule == null || !daySchedule.isOpen) {
+      return false;
+    }
+    
     return true;
+  }
+
+  /// Get day of week name from weekday number (1 = Monday, 7 = Sunday)
+  String _getDayOfWeek(int weekday) {
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    return days[weekday - 1];
+  }
+
+  /// Format time slot for display (e.g., "09:00 - 10:00" -> "9:00 AM - 10:00 AM")
+  String _formatTimeSlotWithRange(String timeRange) {
+    // Handle new format "HH:mm - HH:mm"
+    if (timeRange.contains(' - ')) {
+      final parts = timeRange.split(' - ');
+      final startTime = _formatSingleTime(parts[0]);
+      final endTime = _formatSingleTime(parts[1]);
+      return '$startTime - $endTime';
+    }
+    
+    // Fallback for old format "HH:mm"
+    return _formatSingleTime(timeRange);
+  }
+  
+  /// Format a single time (e.g., "09:00" -> "9:00 AM")
+  String _formatSingleTime(String time) {
+    final parts = time.split(':');
+    final hour = int.parse(parts[0]);
+    final minute = int.parse(parts[1]);
+    
+    final period = hour >= 12 ? 'PM' : 'AM';
+    final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
+    
+    return '$displayHour:${minute.toString().padLeft(2, '0')} $period';
   }
 
   Future<void> _selectFollowUpDate() async {
@@ -441,31 +601,13 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
     );
 
     if (selectedDate != null) {
-      setState(() => _followUpDate = selectedDate);
-    }
-  }
-
-  Future<void> _selectFollowUpTime() async {
-    final selectedTime = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: AppColors.primary,
-              onPrimary: Colors.white,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (selectedTime != null) {
       setState(() {
-        _followUpTime = '${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}';
+        _followUpDate = selectedDate;
+        _followUpTime = null; // Reset time when date changes
       });
+      
+      // Load available time slots for the selected date
+      await _loadAvailableTimeSlotsForDate(selectedDate);
     }
   }
 
@@ -611,7 +753,15 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
         final followUpRef = FirebaseFirestore.instance.collection('appointments').doc();
         followUpAppointmentId = followUpRef.id;
         
-        final followUpTimeSlot = '$_followUpTime-${_addMinutes(_followUpTime!, 20)}';
+        // Extract start time from hour block format "HH:mm - HH:mm"
+        String formattedTime;
+        if (_followUpTime!.contains(' - ')) {
+          formattedTime = _followUpTime!.split(' - ')[0]; // Get start time only
+        } else {
+          formattedTime = _followUpTime!;
+        }
+        
+        final followUpTimeSlot = '$formattedTime-${_addMinutes(formattedTime, 20)}';
         
         batch.set(followUpRef, {
           // Required fields for AppointmentBooking model (mobile compatibility)
@@ -625,7 +775,7 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
             _followUpDate!.month,
             _followUpDate!.day,
           )),
-          'appointmentTime': _followUpTime,
+          'appointmentTime': formattedTime,
           'notes': 'Follow-up appointment from previous visit',
           'status': 'confirmed',
           'type': 'followUp',
@@ -636,7 +786,7 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
           
           // Legacy fields (for backward compatibility with admin)
           'date': '${_followUpDate!.year}-${_followUpDate!.month.toString().padLeft(2, '0')}-${_followUpDate!.day.toString().padLeft(2, '0')}',
-          'time': _followUpTime,
+          'time': formattedTime,
           'timeSlot': followUpTimeSlot,
           'pet': widget.appointment.pet.toMap(),
           'diseaseReason': 'Follow-up for: ${widget.appointment.diseaseReason}',
@@ -655,11 +805,19 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
       // 5. Create notification for follow-up appointment
       if (_needsFollowUp && followUpAppointmentId != null && _followUpDate != null && _followUpTime != null) {
         try {
+          // Extract start time from hour block format "HH:mm - HH:mm" for notification
+          String displayTime;
+          if (_followUpTime!.contains(' - ')) {
+            displayTime = _followUpTime!.split(' - ')[0];
+          } else {
+            displayTime = _followUpTime!;
+          }
+          
           // Build a comprehensive message about the follow-up need
           final diagnosisText = _diagnosisController.text.trim();
           final messageText = diagnosisText.isNotEmpty 
-              ? 'Based on the diagnosis "${diagnosisText}", a follow-up appointment for ${widget.appointment.pet.name} has been scheduled for ${_followUpDate!.day}/${_followUpDate!.month}/${_followUpDate!.year} at $_followUpTime. Tap to view details and previous evaluation.'
-              : 'A follow-up appointment for ${widget.appointment.pet.name} has been scheduled for ${_followUpDate!.day}/${_followUpDate!.month}/${_followUpDate!.year} at $_followUpTime. Tap to view details and previous evaluation.';
+              ? 'Based on the diagnosis "${diagnosisText}", a follow-up appointment for ${widget.appointment.pet.name} has been scheduled for ${_followUpDate!.day}/${_followUpDate!.month}/${_followUpDate!.year} at $displayTime. Tap to view details and previous evaluation.'
+              : 'A follow-up appointment for ${widget.appointment.pet.name} has been scheduled for ${_followUpDate!.day}/${_followUpDate!.month}/${_followUpDate!.year} at $displayTime. Tap to view details and previous evaluation.';
           
           await NotificationService.createNotification(
             userId: widget.appointment.owner.id,
@@ -678,7 +836,7 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
               'time': widget.appointment.time, // Use completed appointment time
               'followUpAppointmentId': followUpAppointmentId,
               'followUpDate': '${_followUpDate!.year}-${_followUpDate!.month.toString().padLeft(2, '0')}-${_followUpDate!.day.toString().padLeft(2, '0')}',
-              'followUpTime': _followUpTime,
+              'followUpTime': displayTime,
               'diseaseReason': 'Follow-up for: ${widget.appointment.diseaseReason}',
               'isFollowUp': true,
               'notificationType': 'followUp',
@@ -928,9 +1086,11 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              _currentStep == 1 
-                                  ? 'Step 1: Complete Appointment' 
-                                  : 'Step 2: Validate Training Data',
+                              _hasAIAssessment && _imageValidations.isNotEmpty
+                                  ? (_currentStep == 1 
+                                      ? 'Step 1: Complete Appointment' 
+                                      : 'Step 2: Validate Training Data')
+                                  : 'Complete Appointment',
                               style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
@@ -958,23 +1118,24 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
                     ],
                   ),
                   const SizedBox(height: 12),
-                  // Step Progress Indicator (tighter spacing, centered)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildStepIndicator(1, 'Clinic Evaluation'),
-                      // shorter connector and reduced horizontal spacing
-                      SizedBox(
-                        width: 120,
-                        child: Container(
-                          height: 2,
-                          color: _currentStep >= 2 ? Colors.white : Colors.white.withOpacity(0.3),
-                          margin: const EdgeInsets.symmetric(horizontal: 6),
+                  // Step Progress Indicator (only show if there's AI assessment with images)
+                  if (_hasAIAssessment && _imageValidations.isNotEmpty)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _buildStepIndicator(1, 'Clinic Evaluation'),
+                        // shorter connector and reduced horizontal spacing
+                        SizedBox(
+                          width: 120,
+                          child: Container(
+                            height: 2,
+                            color: _currentStep >= 2 ? Colors.white : Colors.white.withOpacity(0.3),
+                            margin: const EdgeInsets.symmetric(horizontal: 6),
+                          ),
                         ),
-                      ),
-                      _buildStepIndicator(2, 'Training Data'),
-                    ],
-                  ),
+                        _buildStepIndicator(2, 'Training Data'),
+                      ],
+                    ),
                 ],
               ),
             ),
@@ -1227,73 +1388,276 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
                                     ],
                                   ),
                                   if (_needsFollowUp) ...[
-                                    const SizedBox(height: 12),
+                                    const SizedBox(height: 16),
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary.withOpacity(0.05),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: AppColors.primary.withOpacity(0.2),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.info_outline,
+                                            size: 18,
+                                            color: AppColors.primary,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              'Select a date and time for the follow-up appointment. Only dates when the clinic is open are available.',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: AppColors.primary,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
                                     Row(
                                       children: [
                                         Expanded(
                                           child: Column(
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
-                                              const Text(
-                                                'Date',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
+                                              Row(
+                                                children: [
+                                                  Icon(
+                                                    Icons.calendar_today,
+                                                    size: 14,
+                                                    color: AppColors.primary,
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  const Text(
+                                                    'Follow-up Date',
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: AppColors.textPrimary,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
-                                              const SizedBox(height: 4),
+                                              const SizedBox(height: 8),
                                               InkWell(
                                                 onTap: _selectFollowUpDate,
                                                 child: Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                                                   decoration: BoxDecoration(
-                                                    border: Border.all(color: Colors.grey),
-                                                    borderRadius: BorderRadius.circular(4),
-                                                  ),
-                                                  child: Text(
-                                                    _followUpDate != null
-                                                        ? '${_followUpDate!.day}/${_followUpDate!.month}/${_followUpDate!.year}'
-                                                        : 'Select Date',
-                                                    style: TextStyle(
-                                                      fontSize: 12,
-                                                      color: _followUpDate != null ? Colors.black : Colors.grey,
+                                                    color: Colors.white,
+                                                    border: Border.all(
+                                                      color: _followUpDate != null 
+                                                          ? AppColors.primary 
+                                                          : AppColors.border,
+                                                      width: _followUpDate != null ? 2 : 1,
                                                     ),
+                                                    borderRadius: BorderRadius.circular(8),
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                    children: [
+                                                      Text(
+                                                        _followUpDate != null
+                                                            ? '${_followUpDate!.day.toString().padLeft(2, '0')}/${_followUpDate!.month.toString().padLeft(2, '0')}/${_followUpDate!.year}'
+                                                            : 'Select Date',
+                                                        style: TextStyle(
+                                                          fontSize: 13,
+                                                          color: _followUpDate != null 
+                                                              ? AppColors.textPrimary 
+                                                              : AppColors.textSecondary,
+                                                          fontWeight: _followUpDate != null 
+                                                              ? FontWeight.w500 
+                                                              : FontWeight.normal,
+                                                        ),
+                                                      ),
+                                                      Icon(
+                                                        Icons.calendar_month,
+                                                        size: 18,
+                                                        color: _followUpDate != null 
+                                                            ? AppColors.primary 
+                                                            : AppColors.textSecondary,
+                                                      ),
+                                                    ],
                                                   ),
                                                 ),
                                               ),
                                             ],
                                           ),
                                         ),
-                                        const SizedBox(width: 12),
+                                        const SizedBox(width: 16),
                                         Expanded(
                                           child: Column(
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
-                                              const Text(
-                                                'Time',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              InkWell(
-                                                onTap: _selectFollowUpTime,
-                                                child: Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                                                  decoration: BoxDecoration(
-                                                    border: Border.all(color: Colors.grey),
-                                                    borderRadius: BorderRadius.circular(4),
+                                              Row(
+                                                children: [
+                                                  Icon(
+                                                    Icons.access_time,
+                                                    size: 14,
+                                                    color: AppColors.primary,
                                                   ),
-                                                  child: Text(
-                                                    _followUpTime ?? 'Select Time',
+                                                  const SizedBox(width: 6),
+                                                  const Text(
+                                                    'Follow-up Time',
                                                     style: TextStyle(
-                                                      fontSize: 12,
-                                                      color: _followUpTime != null ? Colors.black : Colors.grey,
+                                                      fontSize: 13,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: AppColors.textPrimary,
                                                     ),
                                                   ),
-                                                ),
+                                                ],
                                               ),
+                                              const SizedBox(height: 8),
+                                              _followUpDate == null
+                                                  ? Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.grey.shade100,
+                                                        border: Border.all(color: AppColors.border),
+                                                        borderRadius: BorderRadius.circular(8),
+                                                      ),
+                                                      child: Row(
+                                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                        children: [
+                                                          Text(
+                                                            'Select date first',
+                                                            style: TextStyle(
+                                                              fontSize: 13,
+                                                              color: AppColors.textSecondary,
+                                                            ),
+                                                          ),
+                                                          Icon(
+                                                            Icons.lock_outline,
+                                                            size: 18,
+                                                            color: AppColors.textSecondary,
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    )
+                                                  : _isLoadingSchedule
+                                                      ? Container(
+                                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                                                          decoration: BoxDecoration(
+                                                            color: Colors.white,
+                                                            border: Border.all(color: AppColors.border),
+                                                            borderRadius: BorderRadius.circular(8),
+                                                          ),
+                                                          child: Row(
+                                                            mainAxisAlignment: MainAxisAlignment.center,
+                                                            children: [
+                                                              SizedBox(
+                                                                width: 14,
+                                                                height: 14,
+                                                                child: CircularProgressIndicator(
+                                                                  strokeWidth: 2,
+                                                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                                                    AppColors.primary,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                              const SizedBox(width: 8),
+                                                              Text(
+                                                                'Loading slots...',
+                                                                style: TextStyle(
+                                                                  fontSize: 13,
+                                                                  color: AppColors.textSecondary,
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        )
+                                                      : _availableTimeSlots.isEmpty
+                                                          ? Container(
+                                                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                                                              decoration: BoxDecoration(
+                                                                color: Colors.orange.shade50,
+                                                                border: Border.all(color: Colors.orange.shade200),
+                                                                borderRadius: BorderRadius.circular(8),
+                                                              ),
+                                                              child: Row(
+                                                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                                children: [
+                                                                  Expanded(
+                                                                    child: Text(
+                                                                      'No slots available',
+                                                                      style: TextStyle(
+                                                                        fontSize: 13,
+                                                                        color: Colors.orange.shade900,
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                                  Icon(
+                                                                    Icons.warning_amber,
+                                                                    size: 18,
+                                                                    color: Colors.orange.shade900,
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            )
+                                                          : DropdownButtonFormField<String>(
+                                                              value: _followUpTime,
+                                                              decoration: InputDecoration(
+                                                                contentPadding: const EdgeInsets.symmetric(
+                                                                  horizontal: 12,
+                                                                  vertical: 14,
+                                                                ),
+                                                                border: OutlineInputBorder(
+                                                                  borderRadius: BorderRadius.circular(8),
+                                                                  borderSide: BorderSide(color: AppColors.border),
+                                                                ),
+                                                                enabledBorder: OutlineInputBorder(
+                                                                  borderRadius: BorderRadius.circular(8),
+                                                                  borderSide: BorderSide(color: AppColors.border),
+                                                                ),
+                                                                focusedBorder: OutlineInputBorder(
+                                                                  borderRadius: BorderRadius.circular(8),
+                                                                  borderSide: BorderSide(
+                                                                    color: AppColors.primary,
+                                                                    width: 2,
+                                                                  ),
+                                                                ),
+                                                                filled: true,
+                                                                fillColor: Colors.white,
+                                                              ),
+                                                              hint: Text(
+                                                                'Select Time',
+                                                                style: TextStyle(
+                                                                  fontSize: 13,
+                                                                  color: AppColors.textSecondary,
+                                                                ),
+                                                              ),
+                                                              icon: Icon(
+                                                                Icons.arrow_drop_down,
+                                                                color: AppColors.primary,
+                                                              ),
+                                                              style: TextStyle(
+                                                                fontSize: 13,
+                                                                color: AppColors.textPrimary,
+                                                                fontWeight: FontWeight.w500,
+                                                              ),
+                                                              dropdownColor: Colors.white,
+                                                              items: _availableTimeSlots.map((time) {
+                                                                return DropdownMenuItem<String>(
+                                                                  value: time,
+                                                                  child: Text(
+                                                                    _formatTimeSlotWithRange(time),
+                                                                    style: const TextStyle(fontSize: 13),
+                                                                  ),
+                                                                );
+                                                              }).toList(),
+                                                              onChanged: (value) {
+                                                                setState(() {
+                                                                  _followUpTime = value;
+                                                                });
+                                                              },
+                                                              isExpanded: true,
+                                                              menuMaxHeight: 250,
+                                                            ),
                                             ],
                                           ),
                                         ),
