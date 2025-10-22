@@ -115,6 +115,21 @@ class VetProfileService {
     );
   }
 
+  /// Add specialization with certificate (delegates to SpecializationService)
+  static Future<bool> addSpecializationWithCertificate(
+    String specialization, {
+    String? level,
+    bool? hasCertification,
+    String? certificateUrl,
+  }) async {
+    return await SpecializationService.addSpecializationWithCertificate(
+      specialization,
+      level: level,
+      hasCertification: hasCertification,
+      certificateUrl: certificateUrl,
+    );
+  }
+
   /// Delete specialization (delegates to SpecializationService)
   static Future<bool> deleteSpecialization(String specialization) async {
     return await SpecializationService.deleteSpecialization(specialization);

@@ -48,6 +48,7 @@ import 'package:pawsense/pages/web/superadmin/system_analytics_screen.dart';
 import 'package:pawsense/pages/web/superadmin/user_management_screen.dart';
 import 'package:pawsense/pages/web/superadmin/breed_management_screen.dart';
 import 'package:pawsense/pages/web/superadmin/diseases_management_screen.dart';
+import 'package:pawsense/pages/web/superadmin/specializations_management_screen.dart';
 import 'package:pawsense/pages/web/superadmin/model_training_management_screen.dart';
 import 'package:pawsense/pages/web/superadmin/system_settings_screen.dart';
 import 'package:flutter/foundation.dart';
@@ -416,6 +417,13 @@ class AppRouter {
             builder: (context, state) => const ModelTrainingManagementScreen(),
             pageBuilder: (context, state) => NoTransitionPage(
               child: const ModelTrainingManagementScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/super-admin/specializations',
+            builder: (context, state) => const SpecializationsManagementScreen(),
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: const SpecializationsManagementScreen(),
             ),
           ),
           GoRoute(
