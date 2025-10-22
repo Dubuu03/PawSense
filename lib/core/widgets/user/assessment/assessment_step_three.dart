@@ -813,7 +813,9 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
 
   Future<void> _handleNewPetCreation(UserModel user) async {
     final selectedPetId = widget.assessmentData['selectedPet'] as String?;
-    final newPetData = widget.assessmentData['newPetData'] as Map<String, dynamic>? ?? {};
+    final newPetData = widget.assessmentData['newPetData'] != null 
+        ? Map<String, dynamic>.from(widget.assessmentData['newPetData'] as Map)
+        : <String, dynamic>{};
     
     // Check if this is a new pet that needs to be saved
     if ((selectedPetId == null || selectedPetId.isEmpty) && newPetData.isNotEmpty) {
@@ -852,7 +854,9 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
 
   Future<AssessmentResult> _createAssessmentResult(UserModel user) async {
     final selectedPetId = widget.assessmentData['selectedPet'] as String?;
-    final newPetData = widget.assessmentData['newPetData'] as Map<String, dynamic>? ?? {};
+    final newPetData = widget.assessmentData['newPetData'] != null 
+        ? Map<String, dynamic>.from(widget.assessmentData['newPetData'] as Map)
+        : <String, dynamic>{};
     final photos = widget.assessmentData['photos'] as List<XFile>? ?? [];
     final symptoms = widget.assessmentData['symptoms'] as List<String>? ?? [];
     final notes = widget.assessmentData['notes'] as String? ?? '';
