@@ -470,7 +470,13 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
   }
 
   Future<void> _saveCompletion() async {
-    if (!_formKey.currentState!.validate()) return;
+    // Only validate the clinic evaluation form if it's currently mounted.
+    // When the user is on Step 2 the Form from Step 1 is not in the widget
+    // tree, so _formKey.currentState will be null — avoid calling validate()
+    // in that case to prevent exceptions and allow completing from Step 2.
+    if (_formKey.currentState != null) {
+      if (!_formKey.currentState!.validate()) return;
+    }
 
     // Clear previous error
     setState(() => _errorMessage = null);

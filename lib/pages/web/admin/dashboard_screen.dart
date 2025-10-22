@@ -141,17 +141,28 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
 
   /// Safe setState that prevents lifecycle crashes
   void _safeSetState(VoidCallback callback) {
+    // If the widget is already disposed, skip immediately.
     if (!mounted) {
       AppLogger.debug('Skipping setState - widget not mounted');
       return;
     }
-    
-    try {
-      setState(callback);
-    } catch (e) {
-      AppLogger.error('Error in setState: $e', tag: 'DashboardScreen');
-      // Don't rethrow - just log and continue
-    }
+
+    // Schedule setState in a post-frame callback to avoid lifecycle races where
+    // the element becomes defunct between the `mounted` check and the actual
+    // setState call (this can happen during rapid navigator/pop sequences).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        AppLogger.debug('Skipping scheduled setState - widget disposed before frame');
+        return;
+      }
+
+      try {
+        setState(callback);
+      } catch (e, st) {
+        AppLogger.error('Error in setState: $e\n$st', tag: 'DashboardScreen');
+        // Swallow the error to avoid crashing the app UI thread.
+      }
+    });
   }
 
   /// Get current user's display name
@@ -528,7 +539,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
           clinic: snapshot.data,
           onSetupCompleted: () {
             // Refresh clinic data and dashboard after setup completion
-            setState(() {
+            _safeSetState(() {
               // This will trigger a rebuild and reload the clinic data
             });
             _loadDashboardData();
