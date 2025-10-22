@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants.dart';
 import 'package:pawsense/core/config/app_router.dart';
+import 'package:go_router/go_router.dart';
 import 'nav_item.dart';
 
 class SideNavigation extends StatelessWidget {
@@ -40,7 +41,7 @@ class SideNavigation extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _buildLogo(),
+          _buildLogo(context),
           Divider(height: 1, color: AppColors.textSecondary.withOpacity(0.2)),
           SizedBox(height: 24),
           _buildNavItems(),
@@ -51,34 +52,47 @@ class SideNavigation extends StatelessWidget {
     );
   }
 
-  Widget _buildLogo() {
-    return Container(
-      padding: EdgeInsets.fromLTRB(32, 24, 24, 16),
-      child: Row(
-        children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Image.asset(
-              'assets/img/logo.png',
-              width: 60,
-              height: 60,
-              fit: BoxFit.contain,
-            ),
+  Widget _buildLogo(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () {
+          // Navigate to role-specific dashboard
+          if (userRole == 'super_admin') {
+            GoRouter.of(context).go('/super-admin/system-analytics');
+          } else {
+            GoRouter.of(context).go('/admin/dashboard');
+          }
+        },
+        child: Container(
+          padding: EdgeInsets.fromLTRB(32, 24, 24, 16),
+          child: Row(
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Image.asset(
+                  'assets/img/logo.png',
+                  width: 60,
+                  height: 60,
+                  fit: BoxFit.contain,
+                ),
+              ),
+              SizedBox(width: 12),
+              Text(
+                'PawSense',
+                style: TextStyle(
+                  fontSize: kFontSizeLarge,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
           ),
-          SizedBox(width: 12),
-          Text(
-            'PawSense',
-            style: TextStyle(
-              fontSize: kFontSizeLarge,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
