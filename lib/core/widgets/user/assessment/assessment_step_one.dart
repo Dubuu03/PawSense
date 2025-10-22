@@ -35,14 +35,12 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
   final _nameController = TextEditingController();
   final _ageController = TextEditingController();
   final _weightController = TextEditingController();
-  final _breedController = TextEditingController();
   final _durationController = TextEditingController();
   final _notesController = TextEditingController();
 
   // Breed dropdown state
-  bool _showBreedDropdown = false;
-  List<String> _filteredBreeds = [];
-  final FocusNode _breedFocusNode = FocusNode();
+  List<String> _allBreeds = [];
+  String? _selectedBreed;
 
   // Validation state tracking
   bool _showValidationErrors = false;
@@ -75,12 +73,8 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
     // Load real pets data
     _loadUserPets();
     
-    // Initialize breed functionality
-    _breedController.addListener(_onBreedTextChanged);
-    _breedFocusNode.addListener(_onBreedFocusChanged);
-    
     // Add listeners to update assessment data in real-time
-  _nameController.addListener(_updatePetData);
+    _nameController.addListener(_updatePetData);
     _ageController.addListener(_updatePetData);
     _weightController.addListener(_updatePetData);
     _notesController.addListener(_updateNotesData);
@@ -109,7 +103,7 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
       _nameController.text = newPetData['name'] ?? '';
       _ageController.text = newPetData['age'] ?? '';
       _weightController.text = newPetData['weight'] ?? '';
-      _breedController.text = newPetData['breed'] ?? '';
+      _selectedBreed = newPetData['breed'];
     }
     _durationController.text = widget.assessmentData['duration'] ?? '';
     _notesController.text = widget.assessmentData['notes'] ?? '';
@@ -191,8 +185,10 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
       _loadBreedsForPetType(newPetType ?? 'Dog');
       
       // Clear breed field if it was filled
-      if (_breedController.text.isNotEmpty) {
-        _breedController.clear();
+      if (_selectedBreed != null) {
+        setState(() {
+          _selectedBreed = null;
+        });
         
         // Defer the update to avoid setState during build
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -204,23 +200,14 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
       }
     }
   }
-  
-  Future<void> _loadBreedsForPetType(String petType) async {
-    final breeds = await BreedOptions.getBreedsForPetType(petType);
-    setState(() {
-      _filteredBreeds = breeds;
-    });
-  }
 
   @override
   void dispose() {
     _nameController.dispose();
     _ageController.dispose();
     _weightController.dispose();
-    _breedController.dispose();
     _durationController.dispose();
     _notesController.dispose();
-    _breedFocusNode.dispose();
     super.dispose();
   }
   
@@ -228,51 +215,24 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
     final petType = widget.assessmentData['selectedPetType'] ?? 'Dog';
     final breeds = await BreedOptions.getBreedsForPetType(petType);
     setState(() {
-      _filteredBreeds = breeds;
+      _allBreeds = breeds;
     });
   }
 
-  void _onBreedTextChanged() {
-    final query = _breedController.text;
+  Future<void> _loadBreedsForPetType(String petType) async {
+    final breeds = await BreedOptions.getBreedsForPetType(petType);
     setState(() {
-      // Filter from the current _filteredBreeds list
-      if (query.isEmpty) {
-        // Don't filter if query is empty (show all breeds)
-        _showBreedDropdown = false;
-      } else {
-        final petType = widget.assessmentData['selectedPetType'] ?? 'Dog';
-        // Load all breeds for the pet type first
-        BreedOptions.getBreedsForPetType(petType).then((breeds) {
-          final filtered = BreedOptions.filterBreeds(breeds, query);
-          if (mounted) {
-            setState(() {
-              _filteredBreeds = filtered;
-            });
-          }
-        });
-        _showBreedDropdown = _breedFocusNode.hasFocus;
-      }
+      _allBreeds = breeds;
     });
+  }
+
+  void _selectBreed(String? breed) {
+    if (breed == null) return;
     
-    // Update validation state when text changes
-    if (_showValidationErrors) {
-      _updateValidationState();
-    }
-  }
-
-  void _onBreedFocusChanged() {
-    setState(() {
-      _showBreedDropdown = _breedController.text.isNotEmpty && _breedFocusNode.hasFocus;
-    });
-  }
-
-  void _selectBreed(String breed) {
     print('_selectBreed called with: $breed');
-    _breedController.text = breed;
     setState(() {
-      _showBreedDropdown = false;
+      _selectedBreed = breed;
     });
-    _breedFocusNode.unfocus();
     
     // Update validation state when breed is selected
     if (_showValidationErrors) {
@@ -286,7 +246,7 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
         'breed': breed,
       });
     });
-    print('Breed controller text set to: ${_breedController.text}');
+    print('Breed selected: $breed');
   }
 
   void _updatePetData() {
@@ -294,7 +254,7 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
       'name': _nameController.text,
       'age': _ageController.text,
       'weight': _weightController.text,
-      'breed': _breedController.text,
+      'breed': _selectedBreed ?? '',
     };
     
     // Update validation state for visual feedback
@@ -321,17 +281,15 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
       _fieldErrors['name'] = _showValidationErrors && (nameTrimmed.isEmpty || nameTrimmed.length > 20);
       _fieldErrors['age'] = _showValidationErrors && _ageController.text.trim().isEmpty;
       _fieldErrors['weight'] = _showValidationErrors && _weightController.text.trim().isEmpty;
-      _fieldErrors['breed'] = _showValidationErrors && (_breedController.text.trim().isEmpty || !_isValidBreed());
+      _fieldErrors['breed'] = _showValidationErrors && (_selectedBreed == null || _selectedBreed!.trim().isEmpty || !_isValidBreed());
     });
   }
 
   bool _isValidBreed() {
-    final breed = _breedController.text.trim();
-    if (breed.isEmpty) return false;
+    if (_selectedBreed == null || _selectedBreed!.trim().isEmpty) return false;
     
-    // Check if breed exists in current filtered breeds list
-    // This is synchronous and uses the cached breeds already loaded
-    return _filteredBreeds.contains(breed);
+    // Check if breed exists in all breeds list
+    return _allBreeds.contains(_selectedBreed);
   }
 
   void _triggerValidation() {
@@ -346,27 +304,6 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
     _triggerValidation();
   }
 
-  List<Widget> _buildBreedOptions() {
-    return _filteredBreeds.map((breed) => 
-      Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            print('Breed option tapped: $breed');
-            _selectBreed(breed);
-          },
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-            child: Text(
-              breed,
-              style: const TextStyle(fontSize: 14),
-            ),
-          ),
-        ),
-      ),
-    ).toList();
-  }
-
   Widget _buildPetBreedField() {
     final hasError = _showValidationErrors && isNewPet && _fieldErrors['breed'] == true;
     
@@ -378,58 +315,49 @@ class _AssessmentStepOneState extends State<AssessmentStepOne> {
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
         ),
         const SizedBox(height: 6),
-        Column(
-          children: [
-            TextField(
-              controller: _breedController,
-              focusNode: _breedFocusNode,
-              decoration: InputDecoration(
-                hintText: "Type to search breed...",
-                fillColor: Colors.grey.shade100,
-                filled: true,
-                suffixIcon: Icon(
-                  _showBreedDropdown ? Icons.arrow_drop_up : Icons.arrow_drop_down,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(
-                    color: hasError ? Colors.red : AppColors.border,
-                    width: hasError ? 2 : 1,
-                  ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(
-                    color: hasError ? Colors.red : AppColors.border,
-                    width: hasError ? 2 : 1,
-                  ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(
-                    color: hasError ? Colors.red : AppColors.primary,
-                    width: 2,
-                  ),
-                ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        DropdownButtonFormField<String>(
+          value: _selectedBreed,
+          decoration: InputDecoration(
+            hintText: "Select breed",
+            fillColor: Colors.grey.shade100,
+            filled: true,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(
+                color: hasError ? Colors.red : AppColors.border,
+                width: hasError ? 2 : 1,
               ),
             ),
-            if (_showBreedDropdown && _filteredBreeds.isNotEmpty)
-              Container(
-                margin: const EdgeInsets.only(top: 4),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade300, width: 1),
-                  color: Colors.white,
-                ),
-                constraints: const BoxConstraints(maxHeight: 200),
-                child: ListView(
-                  shrinkWrap: true,
-                  physics: const BouncingScrollPhysics(),
-                  children: _buildBreedOptions(),
-                ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(
+                color: hasError ? Colors.red : AppColors.border,
+                width: hasError ? 2 : 1,
               ),
-          ],
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(
+                color: hasError ? Colors.red : AppColors.primary,
+                width: 2,
+              ),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          ),
+          isExpanded: true,
+          items: _allBreeds.map((String breed) {
+            return DropdownMenuItem<String>(
+              value: breed,
+              child: Text(
+                breed,
+                style: const TextStyle(fontSize: 14),
+              ),
+            );
+          }).toList(),
+          onChanged: (String? value) {
+            _selectBreed(value);
+          },
+          menuMaxHeight: 300,
         ),
       ],
     );
