@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants.dart';
 import 'package:pawsense/core/config/app_router.dart';
+import 'package:pawsense/core/services/admin/schedule_setup_guard.dart';
 import 'package:go_router/go_router.dart';
 import 'nav_item.dart';
 
-class SideNavigation extends StatelessWidget {
+class SideNavigation extends StatefulWidget {
   final int selectedIndex;
   final ValueChanged<int> onItemSelected;
   final String userRole; // Add user role parameter
@@ -24,6 +25,47 @@ class SideNavigation extends StatelessWidget {
     this.adminEmail,
     this.adminPhone,
   });
+
+  @override
+  State<SideNavigation> createState() => _SideNavigationState();
+}
+
+class _SideNavigationState extends State<SideNavigation> {
+  bool _setupRequired = false;
+  bool _isLoadingSetupStatus = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSetupStatus();
+  }
+
+  Future<void> _checkSetupStatus() async {
+    // Only check for admin users
+    if (widget.userRole != 'admin') {
+      setState(() {
+        _isLoadingSetupStatus = false;
+      });
+      return;
+    }
+
+    try {
+      final setupStatus = await ScheduleSetupGuard.checkScheduleSetupStatus();
+      if (mounted) {
+        setState(() {
+          _setupRequired = setupStatus.needsSetup;
+          _isLoadingSetupStatus = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _setupRequired = false;
+          _isLoadingSetupStatus = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +87,7 @@ class SideNavigation extends StatelessWidget {
           Divider(height: 1, color: AppColors.textSecondary.withOpacity(0.2)),
           SizedBox(height: 24),
           _buildNavItems(),
+          if (_setupRequired && widget.userRole == 'admin') _buildSetupWarning(),
           Divider(height: 1, color: AppColors.textSecondary.withOpacity(0.2)),
           _buildEmergencyContact(),
         ],
@@ -58,7 +101,7 @@ class SideNavigation extends StatelessWidget {
       child: GestureDetector(
         onTap: () {
           // Navigate to role-specific dashboard
-          if (userRole == 'super_admin') {
+          if (widget.userRole == 'super_admin') {
             GoRouter.of(context).go('/super-admin/system-analytics');
           } else {
             GoRouter.of(context).go('/admin/dashboard');
@@ -99,7 +142,7 @@ class SideNavigation extends StatelessWidget {
 
   Widget _buildNavItems() {
     // Get role-based routes from router configuration
-    final routes = AppRouter.getRoutesForRole(userRole);
+    final routes = AppRouter.getRoutesForRole(widget.userRole);
 
     return Expanded(
       child: ListView.builder(
@@ -107,20 +150,55 @@ class SideNavigation extends StatelessWidget {
         itemCount: routes.length,
         itemBuilder: (context, index) {
           final route = routes[index];
+          final isDisabled = _setupRequired && 
+                           widget.userRole == 'admin' && 
+                           route.path != '/admin/dashboard' &&
+                           route.path != '/admin/clinic-schedule' &&
+                           route.path != '/admin/vet-profile';
+          
           return NavItem(
             icon: route.icon,
             title: route.title,
-            isActive: selectedIndex == index,
-            onTap: () => onItemSelected(index),
+            isActive: widget.selectedIndex == index,
+            isDisabled: isDisabled,
+            onTap: isDisabled ? null : () => widget.onItemSelected(index),
           );
         },
       ),
     );
   }
 
+  Widget _buildSetupWarning() {
+    return Container(
+      margin: EdgeInsets.all(16),
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withOpacity(0.1),
+        border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.warning_amber, color: AppColors.warning, size: 18),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Complete clinic setup to access all features',
+              style: TextStyle(
+                fontSize: 11,
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildEmergencyContact() {
     // Show different content based on role
-    if (userRole == 'super_admin') {
+    if (widget.userRole == 'super_admin') {
       return _buildSuperAdminInfo();
     } else {
       return _buildAdminContactInfo();
@@ -187,47 +265,45 @@ class SideNavigation extends StatelessWidget {
             ),
           ),
           SizedBox(height: 8),
-          if (adminName != null && adminName!.isNotEmpty)
-            Row(
-              children: [
-                Icon(Icons.person, size: 15, color: AppColors.textSecondary),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    adminName!,
-                    style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+          if (widget.adminName != null && widget.adminName!.isNotEmpty)
+            SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.person, size: 16, color: AppColors.textSecondary),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  widget.adminName!,
+                  style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
                 ),
-              ],
-            ),
-          if (adminPhone != null && adminPhone!.isNotEmpty) ...[
+              ),
+            ],
+          ),
+          if (widget.adminPhone != null && widget.adminPhone!.isNotEmpty) ...[
             SizedBox(height: 6),
             Row(
               children: [
-                Icon(Icons.phone, size: 15, color: AppColors.textSecondary),
+                Icon(Icons.phone, size: 16, color: AppColors.textSecondary),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    adminPhone!,
+                    widget.adminPhone!,
                     style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
           ],
-          if (adminEmail != null && adminEmail!.isNotEmpty) ...[
+          if (widget.adminEmail != null && widget.adminEmail!.isNotEmpty) ...[
             SizedBox(height: 6),
             Row(
               children: [
-                Icon(Icons.email, size: 15, color: AppColors.textSecondary),
+                Icon(Icons.email, size: 16, color: AppColors.textSecondary),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    adminEmail!,
+                    widget.adminEmail!,
                     style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],

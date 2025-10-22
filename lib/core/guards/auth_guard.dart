@@ -315,17 +315,28 @@ class AuthGuard {
       print('AuthGuard: User authenticated - UID: ${user.uid}, Role: ${user.role}');
       
       // For admin users on web, check schedule setup status before allowing route access
-      if (kIsWeb && user.role == 'admin' && !_isScheduleSetupRoute(routePath) && !_isPublicRoute(routePath)) {
-        print('AuthGuard: Checking schedule setup status for admin user');
-        final setupStatus = await ScheduleSetupGuard.checkScheduleSetupStatus();
+      if (kIsWeb && user.role == 'admin' && !_isPublicRoute(routePath)) {
+        print('AuthGuard: Checking schedule setup status for admin user with UID: ${user.uid}');
+        final setupStatus = await ScheduleSetupGuard.checkScheduleSetupStatus(user.uid);
+        
+        print('AuthGuard: Setup Status Response:');
+        print('   - needsSetup: ${setupStatus.needsSetup}');
+        print('   - inProgress: ${setupStatus.inProgress}');
+        print('   - clinic: ${setupStatus.clinic?.clinicName}');
+        print('   - message: ${setupStatus.message}');
         
         if (setupStatus.needsSetup) {
-          print('AuthGuard: Admin needs to complete schedule setup, allowing access to dashboard only');
-          // Allow access only to dashboard - the dashboard will show the setup prompt
-          if (routePath != '/admin/dashboard') {
-            print('AuthGuard: Redirecting to dashboard for schedule setup');
+          print('AuthGuard: Admin needs to complete schedule setup');
+          
+          // Only allow access to dashboard and setup-related routes
+          if (!_isScheduleSetupRoute(routePath) && routePath != '/admin/dashboard') {
+            print('AuthGuard: Blocking access to $routePath, redirecting to dashboard for schedule setup');
             return '/admin/dashboard';
+          } else {
+            print('AuthGuard: Allowing access to setup-related route: $routePath');
           }
+        } else {
+          print('AuthGuard: Schedule setup completed, allowing access to all routes');
         }
       }
       
@@ -374,7 +385,9 @@ class AuthGuard {
   /// Check if route is related to schedule setup (should not block these routes)
   static bool _isScheduleSetupRoute(String routePath) {
     // Routes that are part of the schedule setup process should not be blocked
-    return routePath == '/admin/clinic-schedule' || 
+    // Also allow dashboard as it's the main setup interface
+    return routePath == '/admin/dashboard' ||
+           routePath == '/admin/clinic-schedule' || 
            routePath == '/admin/vet-profile';
   }
 

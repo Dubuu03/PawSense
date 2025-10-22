@@ -1,4 +1,6 @@
 // core/models/clinic_model.dart
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class Clinic {
   final String id;
   final String userId; // Reference to user UID
@@ -59,11 +61,37 @@ class Clinic {
       status: map['status'] ?? 'pending',
       scheduleStatus: map['scheduleStatus'] ?? 'pending',
       isVisible: map['isVisible'] ?? false,
-      scheduleCompletedAt: map['scheduleCompletedAt'] != null 
-          ? DateTime.parse(map['scheduleCompletedAt'])
-          : null,
-      createdAt: DateTime.parse(map['createdAt']),
+      scheduleCompletedAt: _parseDateTime(map['scheduleCompletedAt']),
+      createdAt: _parseDateTime(map['createdAt']) ?? DateTime.now(),
     );
+  }
+
+  /// Helper method to parse DateTime from various Firestore formats
+  static DateTime? _parseDateTime(dynamic value) {
+    if (value == null) return null;
+    
+    // Handle Firestore Timestamp
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+    
+    // Handle string format
+    if (value is String) {
+      try {
+        return DateTime.parse(value);
+      } catch (e) {
+        print('Warning: Failed to parse date string: $value');
+        return null;
+      }
+    }
+    
+    // Handle DateTime (already parsed)
+    if (value is DateTime) {
+      return value;
+    }
+    
+    print('Warning: Unexpected date format: $value (${value.runtimeType})');
+    return null;
   }
 
   Clinic copyWith({

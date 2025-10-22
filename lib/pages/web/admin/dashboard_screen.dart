@@ -572,11 +572,22 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
         return AdminDashboardWithSetupCheck(
           clinic: snapshot.data,
           onSetupCompleted: () {
+            print('🎉 Dashboard: Setup completed callback received');
+            // Clear all cached data and refresh everything
+            _statsCache.clear();
+            _cachedActivities = null;
+            _cachedDiseases = null;
+            _clinicId = null;
+            
             // Refresh clinic data and dashboard after setup completion
             _safeSetState(() {
-              // This will trigger a rebuild and reload the clinic data
+              _isLoadingStats = true;
             });
-            _loadDashboardData();
+            
+            // Reload all data with a delay to ensure database updates are reflected
+            Future.delayed(const Duration(milliseconds: 1000), () {
+              _loadDashboardData();
+            });
           },
           dashboardContent: Padding(
             padding: EdgeInsets.all(24.0),
