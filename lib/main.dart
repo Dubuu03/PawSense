@@ -7,6 +7,7 @@ import 'package:pawsense/core/config/app_router.dart';
 import 'package:pawsense/core/services/shared/data_service.dart';
 import 'package:pawsense/core/services/notifications/appointment_reminder_service.dart';
 import 'package:pawsense/core/services/clinic/appointment_auto_cancellation_service.dart';
+import 'package:pawsense/core/services/auth/auth_recovery_service.dart';
 import 'package:pawsense/core/widgets/shared/global_notification_wrapper.dart';
 
 void main() async {
@@ -20,6 +21,14 @@ void main() async {
 
   // Initialize DataService and enable Firebase
   DataService().enableFirebase(true);
+
+  // Check for authentication recovery scenarios
+  // This helps users who verified email outside the app
+  AuthRecoveryService().checkForRecovery().then((result) {
+    print('🔄 Auth recovery check: ${result.message}');
+  }).catchError((e) {
+    print('⚠️ Error during auth recovery check: $e');
+  });
 
   // Start appointment reminder service
   AppointmentReminderService.startReminderService();

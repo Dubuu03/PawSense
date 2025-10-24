@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
 import '../../../core/services/auth/auth_service_mobile.dart';
+import '../../../core/services/auth/auth_recovery_service.dart';
 import '../../../core/services/messaging/mobile_messaging_preferences_service.dart';
 import 'forgot_password_page.dart';
 import '../../../core/utils/constants.dart';
@@ -66,6 +68,49 @@ class _SignInPageState extends State<SignInPage>
     
     _fadeController.forward();
     _slideController.forward();
+    
+    // Check for session recovery on page load
+    _checkSessionRecovery();
+  }
+
+  /// Check if user has a recoverable session (verified email but missing data)
+  Future<void> _checkSessionRecovery() async {
+    try {
+      final recoveryService = AuthRecoveryService();
+      final result = await recoveryService.checkForRecovery();
+      
+      if (result.isComplete && result.userData != null) {
+        // User has complete session, redirect to home
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Welcome back! Resuming your session.'),
+              backgroundColor: Colors.green.shade600,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+          context.go('/home');
+        }
+      } else if (result.needsRecovery && result.firebaseUser != null) {
+        // User needs data recovery
+        if (mounted) {
+          final recovered = await recoveryService.attemptDataRecovery(result.firebaseUser!);
+          if (recovered) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Account recovered! Welcome back.'),
+                backgroundColor: Colors.green.shade600,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+            context.go('/home');
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Session recovery check failed: $e');
+      // Don't show error to user, just continue with normal flow
+    }
   }
 
   @override

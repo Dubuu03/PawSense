@@ -21,7 +21,7 @@ class AuthService {
   }
 
   /// Registers a new user with email and password, returns the UID if successful.
-  /// Also sends an email verification to the new user.
+  /// Also sends an email verification to the new user and saves user data to Firestore.
   Future<String?> signUpWithEmail({
     required String email,
     required String password,
@@ -41,6 +41,28 @@ class AuthService {
     if (cred.user != null) {
       final displayName = '${firstName.trim()} ${lastName.trim()}';
       await cred.user!.updateDisplayName(displayName);
+      
+      // Save user data immediately to Firestore (before verification)
+      // This ensures data persists even if app restarts during verification
+      final userModel = UserModel(
+        uid: cred.user!.uid,
+        username: '${firstName.trim()} ${lastName.trim()}',
+        email: normalizedEmail,
+        contactNumber: contactNumber,
+        agreedToTerms: agreedToTerms,
+        createdAt: DateTime.now(),
+        address: address,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        role: 'user', // Set default role for mobile users
+      );
+      
+      await _firestore
+          .collection('users')
+          .doc(cred.user!.uid)
+          .set(userModel.toMap());
+      
+      debugPrint('User data saved during signup: ${cred.user!.uid}');
     }
     
     await cred.user?.sendEmailVerification();
@@ -111,7 +133,7 @@ class AuthService {
   User? get currentUser => _auth.currentUser;
 
   /// Signs in a user with email and password. Returns the Firebase user if successful.
-  /// Also checks if the user account is active before allowing sign in.
+  /// Also checks if the user account is active and email is verified before allowing sign in.
   Future<User?> signInWithEmail({
     required String email,
     required String password,
@@ -124,6 +146,15 @@ class AuthService {
     
     // Check if user account is active
     if (cred.user != null) {
+      // Check email verification status
+      if (!cred.user!.emailVerified) {
+        await _auth.signOut();
+        throw FirebaseAuthException(
+          code: 'email-not-verified',
+          message: 'Please verify your email address before signing in. Check your inbox for a verification email.',
+        );
+      }
+      
       final userData = await getUserData(cred.user!.uid);
       if (userData != null && userData.isActive == false) {
         // Sign out the user since their account is inactive
@@ -221,6 +252,45 @@ class AuthService {
     } catch (e) {
       debugPrint('Error fetching user data: $e');
       return null;
+    }
+  }
+
+  /// Check if current signed-in user has verified email but missing Firestore data
+  /// This helps recover from session loss during verification
+  Future<bool> needsDataRecovery() async {
+    final user = _auth.currentUser;
+    if (user == null) return false;
+    
+    // If email is verified but no Firestore data exists, recovery is needed
+    if (user.emailVerified) {
+      final userData = await getUserData(user.uid);
+      return userData == null;
+    }
+    
+    return false;
+  }
+
+  /// Attempt to recover user session by checking verification status
+  /// Returns true if user is verified and has data, false otherwise
+  Future<bool> attemptSessionRecovery() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return false;
+      
+      // Reload user to get latest verification status
+      await user.reload();
+      final updatedUser = _auth.currentUser;
+      
+      if (updatedUser?.emailVerified == true) {
+        // Check if user data exists
+        final userData = await getUserData(updatedUser!.uid);
+        return userData != null;
+      }
+      
+      return false;
+    } catch (e) {
+      debugPrint('Error during session recovery: $e');
+      return false;
     }
   }
 }
