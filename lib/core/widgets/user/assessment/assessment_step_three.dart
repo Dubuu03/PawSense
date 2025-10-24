@@ -486,27 +486,60 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     try {
       // Get the highest confidence condition
       final highestConfidenceCondition = _analysisResults.first.condition;
+      print('🔍 Searching for disease info for: "$highestConfidenceCondition"');
       
       // Search for the disease in the database
       final diseaseService = SkinDiseaseService();
       final allDiseases = await diseaseService.getAllDiseases();
+      print('📚 Total diseases in database: ${allDiseases.length}');
+      
+      // Normalize the detected condition for better matching
+      final normalizedCondition = _normalizeConditionName(highestConfidenceCondition);
+      print('🔄 Normalized condition: "$normalizedCondition"');
       
       // Try to match by name (case-insensitive, fuzzy matching)
       SkinDiseaseModel? matchedDisease;
       
       for (var disease in allDiseases) {
-        // Direct match
-        if (disease.name.toLowerCase() == highestConfidenceCondition.toLowerCase()) {
+        final diseaseName = disease.name.toLowerCase();
+        final normalizedDiseaseName = _normalizeConditionName(disease.name);
+        
+        // 1. Exact normalized match
+        if (normalizedDiseaseName == normalizedCondition) {
           matchedDisease = disease;
+          print('✅ Found exact normalized match: "${disease.name}"');
           break;
         }
         
-        // Partial match (contains)
-        if (disease.name.toLowerCase().contains(highestConfidenceCondition.toLowerCase()) ||
-            highestConfidenceCondition.toLowerCase().contains(disease.name.toLowerCase())) {
+        // 2. Direct contains match
+        if (diseaseName.contains(normalizedCondition) || 
+            normalizedCondition.contains(normalizedDiseaseName)) {
           matchedDisease = disease;
+          print('✅ Found contains match: "${disease.name}"');
           break;
         }
+        
+        // 3. Word-based matching (check if key words match)
+        final conditionWords = normalizedCondition.split(' ');
+        final diseaseWords = normalizedDiseaseName.split(' ');
+        
+        // If main word(s) match (e.g., "flea" matches "flea allergy dermatitis")
+        bool hasCommonWords = conditionWords.any((word) => 
+          diseaseWords.any((diseaseWord) => 
+            diseaseWord.contains(word) || word.contains(diseaseWord)
+          )
+        );
+        
+        if (hasCommonWords && conditionWords.first.length > 3) {
+          matchedDisease = disease;
+          print('✅ Found word-based match: "${disease.name}"');
+          break;
+        }
+      }
+      
+      if (matchedDisease == null) {
+        print('❌ No matching disease found in database for: "$highestConfidenceCondition"');
+        print('💡 Available diseases: ${allDiseases.map((d) => d.name).join(", ")}');
       }
       
       if (mounted) {
@@ -516,13 +549,23 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
         });
       }
     } catch (e) {
-      print('Error fetching disease info: $e');
+      print('❌ Error fetching disease info: $e');
       if (mounted) {
         setState(() {
           _isLoadingDiseaseInfo = false;
         });
       }
     }
+  }
+  
+  /// Normalize condition names for better matching
+  /// Converts AI detection labels to searchable format
+  String _normalizeConditionName(String name) {
+    return name
+        .toLowerCase()
+        .replaceAll('_', ' ')  // feline_acne -> feline acne
+        .replaceAll('-', ' ')  // hot-spot -> hot spot
+        .trim();
   }
 
   // Save assessment to Firebase without generating PDF
