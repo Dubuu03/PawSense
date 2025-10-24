@@ -567,12 +567,24 @@ class PatientRecordService {
       
       print('📋 Filtered to ${followUpDocs.length} follow-up appointments for this pet');
       
-      // Combine both queries
-      final allDocs = [...legacyQuery.docs, ...followUpDocs];
+      // Combine both queries and deduplicate by document ID
+      final Map<String, QueryDocumentSnapshot> uniqueDocs = {};
+      
+      // Add legacy appointments
+      for (final doc in legacyQuery.docs) {
+        uniqueDocs[doc.id] = doc;
+      }
+      
+      // Add follow-up appointments (this will naturally overwrite any duplicates)
+      for (final doc in followUpDocs) {
+        uniqueDocs[doc.id] = doc;
+      }
+      
+      print('📋 After deduplication: ${uniqueDocs.length} unique appointments (was ${legacyQuery.docs.length + followUpDocs.length} before deduplication)');
       
       // Convert to list
-      final appointments = allDocs.map((doc) {
-        final data = doc.data();
+      final appointments = uniqueDocs.values.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
         print('  └─ Appointment ${doc.id}: isFollowUp = ${data['isFollowUp']}, status = ${data['status']}, diseaseReason = ${data['diseaseReason']}');
         
         // Check if this is the new Appointment format (has 'pet' as map) or old AppointmentBooking format (has 'petId' as string)

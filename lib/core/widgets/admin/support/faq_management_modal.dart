@@ -270,9 +270,6 @@ class _FAQManagementModalState extends State<FAQManagementModal> {
                           if (value == null || value.trim().isEmpty) {
                             return 'Please enter a question';
                           }
-                          if (value.trim().length < 10) {
-                            return 'Question must be at least 10 characters';
-                          }
                           return null;
                         },
                       ),
@@ -301,9 +298,6 @@ class _FAQManagementModalState extends State<FAQManagementModal> {
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
                             return 'Please enter an answer';
-                          }
-                          if (value.trim().length < 20) {
-                            return 'Answer must be at least 20 characters';
                           }
                           return null;
                         },

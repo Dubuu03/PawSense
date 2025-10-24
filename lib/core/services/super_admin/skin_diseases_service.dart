@@ -297,12 +297,12 @@ class SkinDiseasesService {
 
   /// Validate disease before save
   static void _validateDisease(SkinDiseaseModel disease) {
-    if (disease.name.trim().length < 5 || disease.name.trim().length > 100) {
-      throw Exception('Disease name must be 5-100 characters');
+    if (disease.name.trim().isEmpty || disease.name.trim().length > 100) {
+      throw Exception('Disease name must be 1-100 characters');
     }
 
-    if (disease.description.trim().length < 20 || disease.description.trim().length > 500) {
-      throw Exception('Description must be 20-500 characters');
+    if (disease.description.trim().isEmpty || disease.description.trim().length > 500) {
+      throw Exception('Description must be 1-500 characters');
     }
 
     if (disease.species.isEmpty) {

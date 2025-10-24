@@ -2263,8 +2263,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
               ],
               validator: (value) {
                 if (value?.trim().isEmpty ?? true) return 'Service description is required';
-                if (value!.trim().length < 10) return 'Description must be at least 10 characters';
-                if (value.length > 300) return 'Description cannot exceed 300 characters';
+                if (value!.length > 300) return 'Description cannot exceed 300 characters';
                 return null;
               },
             ),
