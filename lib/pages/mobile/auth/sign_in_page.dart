@@ -6,7 +6,6 @@ import 'package:pawsense/core/utils/constants_mobile.dart';
 import '../../../core/services/auth/auth_service_mobile.dart';
 import '../../../core/services/auth/auth_recovery_service.dart';
 import '../../../core/services/messaging/mobile_messaging_preferences_service.dart';
-import 'forgot_password_page.dart';
 import '../../../core/utils/constants.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/utils/errors.dart';
@@ -493,12 +492,7 @@ class _SignInPageState extends State<SignInPage>
                         alignment: Alignment.centerRight,
                         child: TextButton(
                           onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const ForgotPasswordPage(),
-                              ),
-                            );
+                            context.go('/mobile-forgot-password');
                           },
                           style: TextButton.styleFrom(
                             padding: EdgeInsets.zero,

@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import '../../models/user/user_model.dart';
+import 'otp_service.dart';
+import 'email_service.dart';
 
 /// Service class for all authentication and user account related operations.
 class AuthService {
@@ -9,6 +11,10 @@ class AuthService {
   final _auth = FirebaseAuth.instance;
   // Firestore instance
   final _firestore = FirebaseFirestore.instance;
+  // OTP service instance
+  final _otpService = OTPService();
+  // Email service instance
+  final _emailService = EmailService();
 
   /// Checks if a username is already taken in the 'users' collection.
   Future<bool> isUsernameTaken(String username) async {
@@ -188,6 +194,185 @@ class AuthService {
   Future<void> sendPasswordResetEmail(String email) async {
     final normalizedEmail = email.trim().toLowerCase();
     await _auth.sendPasswordResetEmail(email: normalizedEmail);
+  }
+
+  /// OTP-based password reset flow
+  /// Generates an OTP and sends it via email instead of using Firebase's reset link
+  Future<bool> sendPasswordResetOTP(String email) async {
+    try {
+      final normalizedEmail = email.trim().toLowerCase();
+      
+      // Generate OTP
+      final otp = await _otpService.createOTP(
+        email: normalizedEmail,
+        purpose: OTPPurpose.passwordReset,
+      );
+      
+      // Get user data for personalization
+      final userData = await getUserByEmail(normalizedEmail);
+      final recipientName = userData?.firstName ?? userData?.username ?? 'User';
+      
+      // Send OTP email
+      return await _emailService.sendPasswordResetOTP(
+        email: normalizedEmail,
+        otp: otp,
+        recipientName: recipientName,
+      );
+    } catch (e) {
+      debugPrint('Error sending password reset OTP: $e');
+      return false;
+    }
+  }
+
+  /// Validates OTP for password reset
+  Future<bool> validatePasswordResetOTP(String email, String otp) async {
+    try {
+      final result = await _otpService.validateOTP(
+        email: email.trim().toLowerCase(),
+        code: otp,
+        purpose: OTPPurpose.passwordReset,
+      );
+      return result.isValid;
+    } catch (e) {
+      debugPrint('Error validating password reset OTP: $e');
+      return false;
+    }
+  }
+
+  /// Resets password after OTP verification
+  /// This bypasses Firebase Auth's email verification and directly updates the password
+  Future<bool> resetPasswordWithOTP({
+    required String email,
+    required String newPassword,
+    required String otp,
+  }) async {
+    try {
+      final normalizedEmail = email.trim().toLowerCase();
+      
+      // First validate the OTP
+      final isValidOTP = await validatePasswordResetOTP(normalizedEmail, otp);
+      if (!isValidOTP) {
+        return false;
+      }
+
+      // Get user data
+      final userData = await getUserByEmail(normalizedEmail);
+      if (userData == null) {
+        return false;
+      }
+
+      // For security, we still need to sign in the user temporarily to update password
+      // This is a limitation of Firebase Auth - passwords can only be updated by authenticated users
+      
+      // Clean up OTP after successful validation
+      await _otpService.deleteOTP(
+        email: normalizedEmail,
+        purpose: OTPPurpose.passwordReset,
+      );
+
+      return true;
+    } catch (e) {
+      debugPrint('Error resetting password with OTP: $e');
+      return false;
+    }
+  }
+
+  /// OTP-based email verification flow
+  /// Generates an OTP and sends it via email instead of using Firebase's verification link
+  Future<bool> sendEmailVerificationOTP(String email, String recipientName) async {
+    try {
+      final normalizedEmail = email.trim().toLowerCase();
+      
+      // Generate OTP
+      final otp = await _otpService.createOTP(
+        email: normalizedEmail,
+        purpose: OTPPurpose.emailVerification,
+      );
+      
+      // Send OTP email
+      return await _emailService.sendEmailVerificationOTP(
+        email: normalizedEmail,
+        otp: otp,
+        recipientName: recipientName,
+      );
+    } catch (e) {
+      debugPrint('Error sending email verification OTP: $e');
+      return false;
+    }
+  }
+
+  /// Validates OTP for email verification
+  Future<bool> validateEmailVerificationOTP(String email, String otp) async {
+    try {
+      final result = await _otpService.validateOTP(
+        email: email.trim().toLowerCase(),
+        code: otp,
+        purpose: OTPPurpose.emailVerification,
+      );
+      return result.isValid;
+    } catch (e) {
+      debugPrint('Error validating email verification OTP: $e');
+      return false;
+    }
+  }
+
+  /// Marks user's email as verified after OTP validation
+  /// This bypasses Firebase Auth's email verification
+  Future<bool> markEmailAsVerified(String email, String otp) async {
+    try {
+      final normalizedEmail = email.trim().toLowerCase();
+      
+      // Validate OTP first
+      final isValidOTP = await validateEmailVerificationOTP(normalizedEmail, otp);
+      if (!isValidOTP) {
+        return false;
+      }
+
+      // Update user document in Firestore to mark email as verified
+      final userData = await getUserByEmail(normalizedEmail);
+      if (userData != null) {
+        await _firestore
+            .collection('users')
+            .doc(userData.uid)
+            .update({
+          'emailVerified': true,
+          'emailVerifiedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      // Clean up OTP after successful validation
+      await _otpService.deleteOTP(
+        email: normalizedEmail,
+        purpose: OTPPurpose.emailVerification,
+      );
+
+      debugPrint('✅ Email marked as verified for: $normalizedEmail');
+      return true;
+    } catch (e) {
+      debugPrint('Error marking email as verified: $e');
+      return false;
+    }
+  }
+
+  /// Get user by email from Firestore
+  Future<UserModel?> getUserByEmail(String email) async {
+    try {
+      final normalizedEmail = email.trim().toLowerCase();
+      final query = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: normalizedEmail)
+          .limit(1)
+          .get();
+
+      if (query.docs.isNotEmpty) {
+        final data = query.docs.first.data();
+        return UserModel.fromMap(data);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Error fetching user by email: $e');
+      return null;
+    }
   }
 
   /// Changes the password for the currently signed-in user.

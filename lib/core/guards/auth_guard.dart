@@ -372,6 +372,7 @@ class AuthGuard {
       '/login', // Alias for web_login
       '/admin_signup',
       '/forgot-password', // Web admin forgot password
+      '/mobile-forgot-password', // Mobile OTP forgot password
       '/signin',
       '/signup',
       '/verify-email',

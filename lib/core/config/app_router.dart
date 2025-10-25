@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pawsense/pages/mobile/auth/sign_in_page.dart';
 import 'package:pawsense/pages/mobile/auth/sign_up_page.dart';
-import 'package:pawsense/pages/mobile/auth/verify_email_page.dart';
+import 'package:pawsense/pages/mobile/auth/otp_verify_email_page.dart';
+import 'package:pawsense/pages/mobile/auth/otp_forgot_password_page.dart';
 import 'package:pawsense/pages/mobile/auth/change_password_page.dart';
 import 'package:pawsense/pages/mobile/home_page.dart';
 import 'package:pawsense/pages/mobile/assessment_page.dart';
@@ -31,7 +32,7 @@ import 'package:pawsense/core/models/user/user_model.dart';
 import 'package:pawsense/core/models/user/pet_model.dart';
 import 'package:pawsense/pages/web/auth/web_login_page.dart';
 import 'package:pawsense/pages/web/auth/admin_signup_page.dart';
-import 'package:pawsense/pages/web/auth/forgot_password_page.dart';
+import 'package:pawsense/pages/web/auth/web_otp_forgot_password_page.dart';
 import 'package:pawsense/pages/web/admin/dashboard_screen.dart';
 import 'package:pawsense/pages/web/admin/appointment_screen.dart';
 import 'package:pawsense/pages/web/admin/patient_record_screen.dart';
@@ -72,13 +73,17 @@ class AppRouter {
         builder: (context, state) => const SignUpPage(),
       ),
       GoRoute(
+        path: '/mobile-forgot-password',
+        builder: (context, state) => const OTPForgotPasswordPage(),
+      ),
+      GoRoute(
         path: '/verify-email',
         builder: (context, state) {
           final extra = state.extra as Map<String, dynamic>?;
           if (extra == null) {
             return const SignUpPage(); // Redirect back to signup if no data
           }
-          return VerifyEmailPage(
+          return OTPVerifyEmailPage(
             firstName: extra['firstName'] as String,
             lastName: extra['lastName'] as String,
             email: extra['email'] as String,
@@ -262,7 +267,7 @@ class AppRouter {
       ),
       GoRoute(
         path: '/forgot-password',
-        builder: (context, state) => const WebForgotPasswordPage(),
+        builder: (context, state) => const WebOTPForgotPasswordPage(),
       ),
 
       // Admin shell with nested routes
