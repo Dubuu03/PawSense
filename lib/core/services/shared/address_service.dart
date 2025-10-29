@@ -59,22 +59,29 @@ class AddressService {
     
     if (_addressData == null) return [];
 
-    final regionData = _addressData![regionCode];
-    if (regionData == null) return [];
+    try {
+      final regionData = _addressData![regionCode];
+      if (regionData == null || regionData is! Map) return [];
 
-    final provinceList = regionData['province_list'];
-    if (provinceList == null) return [];
+      final provinceList = regionData['province_list'];
+      if (provinceList == null || provinceList is! Map) return [];
 
-    List<ProvinceData> provinces = [];
-    provinceList.forEach((provinceName, provinceInfo) {
-      provinces.add(ProvinceData(
-        name: provinceName,
-      ));
-    });
+      List<ProvinceData> provinces = [];
+      provinceList.forEach((provinceName, provinceInfo) {
+        if (provinceName is String) {
+          provinces.add(ProvinceData(
+            name: provinceName,
+          ));
+        }
+      });
 
-    // Sort alphabetically
-    provinces.sort((a, b) => a.name.compareTo(b.name));
-    return provinces;
+      // Sort alphabetically
+      provinces.sort((a, b) => a.name.compareTo(b.name));
+      return provinces;
+    } catch (e) {
+      print('Error loading provinces: $e');
+      return [];
+    }
   }
 
   /// Get municipalities for a specific region and province
@@ -86,28 +93,35 @@ class AddressService {
     
     if (_addressData == null) return [];
 
-    final regionData = _addressData![regionCode];
-    if (regionData == null) return [];
+    try {
+      final regionData = _addressData![regionCode];
+      if (regionData == null || regionData is! Map) return [];
 
-    final provinceList = regionData['province_list'];
-    if (provinceList == null) return [];
+      final provinceList = regionData['province_list'];
+      if (provinceList == null || provinceList is! Map) return [];
 
-    final provinceData = provinceList[provinceName];
-    if (provinceData == null) return [];
+      final provinceData = provinceList[provinceName];
+      if (provinceData == null || provinceData is! Map) return [];
 
-    final municipalityList = provinceData['municipality_list'];
-    if (municipalityList == null) return [];
+      final municipalityList = provinceData['municipality_list'];
+      if (municipalityList == null || municipalityList is! Map) return [];
 
-    List<MunicipalityData> municipalities = [];
-    municipalityList.forEach((municipalityName, municipalityInfo) {
-      municipalities.add(MunicipalityData(
-        name: municipalityName,
-      ));
-    });
+      List<MunicipalityData> municipalities = [];
+      municipalityList.forEach((municipalityName, municipalityInfo) {
+        if (municipalityName is String) {
+          municipalities.add(MunicipalityData(
+            name: municipalityName,
+          ));
+        }
+      });
 
-    // Sort alphabetically
-    municipalities.sort((a, b) => a.name.compareTo(b.name));
-    return municipalities;
+      // Sort alphabetically
+      municipalities.sort((a, b) => a.name.compareTo(b.name));
+      return municipalities;
+    } catch (e) {
+      print('Error loading municipalities: $e');
+      return [];
+    }
   }
 
   /// Get barangays for a specific region, province, and municipality
@@ -120,34 +134,43 @@ class AddressService {
     
     if (_addressData == null) return [];
 
-    final regionData = _addressData![regionCode];
-    if (regionData == null) return [];
+    try {
+      final regionData = _addressData![regionCode];
+      if (regionData == null || regionData is! Map) return [];
 
-    final provinceList = regionData['province_list'];
-    if (provinceList == null) return [];
+      final provinceList = regionData['province_list'];
+      if (provinceList == null || provinceList is! Map) return [];
 
-    final provinceData = provinceList[provinceName];
-    if (provinceData == null) return [];
+      final provinceData = provinceList[provinceName];
+      if (provinceData == null || provinceData is! Map) return [];
 
-    final municipalityList = provinceData['municipality_list'];
-    if (municipalityList == null) return [];
+      final municipalityList = provinceData['municipality_list'];
+      if (municipalityList == null || municipalityList is! Map) return [];
 
-    final municipalityData = municipalityList[municipalityName];
-    if (municipalityData == null) return [];
+      final municipalityData = municipalityList[municipalityName];
+      if (municipalityData == null || municipalityData is! Map) return [];
 
-    final barangayList = municipalityData['barangay_list'];
-    if (barangayList == null || barangayList is! List) return [];
+      final barangayList = municipalityData['barangay_list'];
+      if (barangayList == null) return [];
 
-    List<BarangayData> barangays = [];
-    for (var barangayName in barangayList) {
-      if (barangayName is String) {
-        barangays.add(BarangayData(name: barangayName));
+      // Handle barangay_list as a List
+      if (barangayList is List) {
+        List<BarangayData> barangays = [];
+        for (var item in barangayList) {
+          if (item is String) {
+            barangays.add(BarangayData(name: item));
+          }
+        }
+        // Sort alphabetically
+        barangays.sort((a, b) => a.name.compareTo(b.name));
+        return barangays;
       }
-    }
 
-    // Sort alphabetically
-    barangays.sort((a, b) => a.name.compareTo(b.name));
-    return barangays;
+      return [];
+    } catch (e) {
+      print('Error loading barangays: $e');
+      return [];
+    }
   }
 
   /// Format complete address
