@@ -59,11 +59,6 @@ String? passwordValidator(String? value) {
     return 'Password must contain a number';
   }
   
-  // Check for at least one special character
-  if (!RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(value)) {
-    return 'Password must contain special character';
-  }
-  
   return null;
 }
 

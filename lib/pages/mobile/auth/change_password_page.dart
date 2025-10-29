@@ -324,47 +324,85 @@ class _ChangePasswordPageState extends State<ChangePasswordPage>
     setState(() => _isLoading = true);
 
     try {
+      // Store user email before password change
+      final userEmail = _authService.currentUser?.email;
+      
       // Change password using auth service
       await _authService.changePassword(
         currentPassword: _currentPasswordController.text.trim(),
         newPassword: _newPasswordController.text.trim(),
       );
 
-      if (mounted) {
-        // Show success message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle, color: Colors.white, size: 20),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Password changed successfully!',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.green.shade600,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            margin: const EdgeInsets.all(16),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-
-        // Navigate back after a short delay
-        Future.delayed(const Duration(seconds: 1), () {
+      if (mounted && userEmail != null) {
+        // Sign out and back in with new password to ensure it's fully committed
+        // This is important because Firebase may cache credentials
+        await _authService.signOut();
+        
+        // Wait a moment for sign out to complete
+        await Future.delayed(const Duration(milliseconds: 500));
+        
+        // Sign back in with new password to verify it works
+        try {
+          await _authService.signInWithEmail(
+            email: userEmail,
+            password: _newPasswordController.text.trim(),
+          );
+          
           if (mounted) {
-            context.pop();
+            // Show success message
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Password changed successfully!',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                backgroundColor: Colors.green.shade600,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                margin: const EdgeInsets.all(16),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+
+            // Navigate back after a short delay
+            Future.delayed(const Duration(seconds: 1), () {
+              if (mounted) {
+                context.pop();
+              }
+            });
           }
-        });
+        } catch (signInError) {
+          // If sign-in with new password fails, something went wrong
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: AppColors.error,
+                duration: const Duration(seconds: 5),
+                behavior: SnackBarBehavior.floating,
+                content: Text(
+                  'Password change verification failed. Please sign in again.',
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ),
+            );
+            
+            // Navigate to sign-in page
+            context.go('/sign-in');
+          }
+        }
       }
     } catch (e) {
       String errorMessage = 'Failed to change password';

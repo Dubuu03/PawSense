@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../../models/user/user_model.dart';
@@ -64,6 +65,7 @@ class AuthService {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         role: 'user', // Set default role for mobile users
+        emailVerified: false, // Will be set to true after OTP verification
       );
       
       await _firestore
@@ -171,18 +173,34 @@ class AuthService {
             lastName: _extractLastName(user.displayName ?? ''),
             role: 'user',
             profileImageUrl: user.photoURL,
+            emailVerified: true, // Google accounts are pre-verified
+            emailVerifiedAt: DateTime.now(),
           );
           
           await saveUser(newUserModel);
           debugPrint('✅ New Google user created: ${user.uid}');
         } else {
           // Update existing user with Google profile image if needed
+          bool needsUpdate = false;
+          var updatedUser = userData;
+          
           if (userData.profileImageUrl != user.photoURL) {
-            final updatedUser = userData.copyWith(
-              profileImageUrl: user.photoURL,
+            updatedUser = updatedUser.copyWith(profileImageUrl: user.photoURL);
+            needsUpdate = true;
+          }
+          
+          // Ensure email verification status is set for Google users
+          if (userData.emailVerified != true) {
+            updatedUser = updatedUser.copyWith(
+              emailVerified: true,
+              emailVerifiedAt: DateTime.now(),
             );
+            needsUpdate = true;
+          }
+          
+          if (needsUpdate) {
             await saveUser(updatedUser);
-            debugPrint('✅ Existing user updated with Google profile image: ${user.uid}');
+            debugPrint('✅ Existing user updated with Google data: ${user.uid}');
           }
         }
         
@@ -242,15 +260,66 @@ class AuthService {
     required String password,
   }) async {
     final normalizedEmail = email.trim().toLowerCase();
+    debugPrint('🔐 AuthService.signInWithEmail: Attempting sign-in for $normalizedEmail');
+    
     final cred = await _auth.signInWithEmailAndPassword(
       email: normalizedEmail,
       password: password,
     );
     
+    debugPrint('✅ AuthService: Firebase Auth sign-in successful');
+    
     // Check if user account is active
     if (cred.user != null) {
-      // Check email verification status
-      if (!cred.user!.emailVerified) {
+      // Get user data from Firestore to check verification and active status
+      final userData = await getUserData(cred.user!.uid);
+      debugPrint('📄 AuthService: User data fetched from Firestore');
+      
+      // Check if user data exists
+      if (userData == null) {
+        debugPrint('❌ AuthService: No user data found in Firestore for UID: ${cred.user!.uid}');
+        await _auth.signOut();
+        throw FirebaseAuthException(
+          code: 'user-not-found',
+          message: 'User account not found. Please sign up first.',
+        );
+      }
+      
+      debugPrint('👤 AuthService: User found - Email: ${userData.email}, Role: ${userData.role}');
+      debugPrint('✉️ AuthService: Email verification check - Firestore: ${userData.emailVerified}, Firebase Auth: ${cred.user!.emailVerified}');
+      
+      // Check email verification status from Firestore (using custom OTP system)
+      // For email/password users, check Firestore emailVerified field
+      // For Google sign-in users, they're auto-verified
+      // For legacy users (created before emailVerified field), fall back to Firebase Auth verification
+      final bool isEmailVerified;
+      if (userData.emailVerified != null) {
+        // New flow: use Firestore emailVerified field (OTP verification)
+        isEmailVerified = userData.emailVerified!;
+        debugPrint('✅ AuthService: Using Firestore emailVerified: $isEmailVerified');
+      } else {
+        // Legacy flow: fall back to Firebase Auth verification
+        // OR if it's a Google sign-in user (they're auto-verified)
+        isEmailVerified = cred.user!.emailVerified;
+        debugPrint('🔄 AuthService: Legacy user - Using Firebase Auth emailVerified: $isEmailVerified');
+        
+        // If they're verified via Firebase Auth but don't have the field in Firestore, update it
+        if (isEmailVerified) {
+          try {
+            debugPrint('🔄 AuthService: Migrating legacy user to new verification system...');
+            await _firestore.collection('users').doc(cred.user!.uid).update({
+              'emailVerified': true,
+              'emailVerifiedAt': FieldValue.serverTimestamp(),
+            });
+            debugPrint('✅ AuthService: Migrated email verification status for legacy user: ${cred.user!.uid}');
+          } catch (e) {
+            debugPrint('⚠️ AuthService: Failed to migrate email verification status: $e');
+          }
+        }
+      }
+      
+      if (!isEmailVerified) {
+        debugPrint('❌ AuthService: Email not verified - blocking sign-in');
         await _auth.signOut();
         throw FirebaseAuthException(
           code: 'email-not-verified',
@@ -258,8 +327,10 @@ class AuthService {
         );
       }
       
-      final userData = await getUserData(cred.user!.uid);
-      if (userData != null && userData.isActive == false) {
+      debugPrint('✅ AuthService: Email verified - proceeding with sign-in');
+      
+      // Check if account is active
+      if (userData.isActive == false) {
         // Sign out the user since their account is inactive
         await _auth.signOut();
         throw FirebaseAuthException(
@@ -269,7 +340,7 @@ class AuthService {
       }
       
       // Update display name for existing users (migration fix)
-      if (userData != null && userData.firstName != null && userData.lastName != null) {
+      if (userData.firstName != null && userData.lastName != null) {
         final currentDisplayName = cred.user!.displayName;
         final expectedDisplayName = '${userData.firstName!.trim()} ${userData.lastName!.trim()}';
         
@@ -282,6 +353,7 @@ class AuthService {
           }
         }
       }
+      
     }
     
     return cred.user;
@@ -336,8 +408,8 @@ class AuthService {
     }
   }
 
-  /// Resets password after OTP verification
-  /// This bypasses Firebase Auth's email verification and directly updates the password
+  /// Resets password after OTP verification using Cloud Functions
+  /// This uses Firebase Admin SDK to update password without requiring authentication
   Future<bool> resetPasswordWithOTP({
     required String email,
     required String newPassword,
@@ -346,30 +418,32 @@ class AuthService {
     try {
       final normalizedEmail = email.trim().toLowerCase();
       
-      // First validate the OTP
-      final isValidOTP = await validatePasswordResetOTP(normalizedEmail, otp);
-      if (!isValidOTP) {
+      debugPrint('🔐 resetPasswordWithOTP: Starting password reset for $normalizedEmail');
+      debugPrint('🔐 resetPasswordWithOTP: Calling Cloud Function...');
+
+      // Call Cloud Function to reset password
+      // Use us-central1 region to match deployed function location
+      final functions = FirebaseFunctions.instanceFor(region: 'us-central1');
+      final callable = functions.httpsCallable('resetPasswordWithOTP');
+      final result = await callable.call<Map<String, dynamic>>({
+        'email': normalizedEmail,
+        'newPassword': newPassword,
+        'otp': otp,
+      });
+
+      final data = result.data;
+      if (data['success'] == true) {
+        debugPrint('✅ resetPasswordWithOTP: Password updated successfully via Cloud Function');
+        return true;
+      } else {
+        debugPrint('❌ resetPasswordWithOTP: Cloud Function returned failure');
         return false;
       }
-
-      // Get user data
-      final userData = await getUserByEmail(normalizedEmail);
-      if (userData == null) {
-        return false;
-      }
-
-      // For security, we still need to sign in the user temporarily to update password
-      // This is a limitation of Firebase Auth - passwords can only be updated by authenticated users
-      
-      // Clean up OTP after successful validation
-      await _otpService.deleteOTP(
-        email: normalizedEmail,
-        purpose: OTPPurpose.passwordReset,
-      );
-
-      return true;
+    } on FirebaseFunctionsException catch (e) {
+      debugPrint('❌ Cloud Function error: ${e.code} - ${e.message}');
+      return false;
     } catch (e) {
-      debugPrint('Error resetting password with OTP: $e');
+      debugPrint('❌ Error resetting password with OTP: $e');
       return false;
     }
   }
@@ -495,12 +569,29 @@ class AuthService {
     );
 
     try {
+      debugPrint('🔐 Starting password change process for: $email');
+      
       // Re-authenticate
+      debugPrint('🔐 Re-authenticating user...');
       await user.reauthenticateWithCredential(credential);
+      debugPrint('✅ Re-authentication successful');
       
       // Update password
+      debugPrint('🔐 Updating password...');
       await user.updatePassword(newPassword);
+      debugPrint('✅ Password updated in Firebase Auth');
+      
+      // Force reload the user to ensure the password change is committed
+      await user.reload();
+      debugPrint('✅ User reloaded successfully');
+      
+      // Optional: Get the updated user instance
+      final updatedUser = _auth.currentUser;
+      if (updatedUser != null) {
+        debugPrint('✅ Password change completed for: ${updatedUser.email}');
+      }
     } catch (e) {
+      debugPrint('❌ Error during password change: $e');
       // Re-throw with more context
       if (e.toString().contains('wrong-password') || 
           e.toString().contains('invalid-credential')) {

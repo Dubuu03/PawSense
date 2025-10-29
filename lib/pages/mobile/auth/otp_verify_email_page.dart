@@ -226,7 +226,7 @@ class _OTPVerifyEmailPageState extends State<OTPVerifyEmailPage>
         final capitalizedLastName = TextUtils.capitalizeWords(widget.lastName);
         final username = TextUtils.formatFullName(widget.firstName, widget.lastName);
         
-        // Save user data to Firestore
+        // Save user data to Firestore with email verification status
         await _authService.saveUser(
           UserModel(
             uid: widget.uid,
@@ -239,6 +239,8 @@ class _OTPVerifyEmailPageState extends State<OTPVerifyEmailPage>
             firstName: capitalizedFirstName,
             lastName: capitalizedLastName,
             role: 'user',
+            emailVerified: true, // Mark email as verified after OTP validation
+            emailVerifiedAt: DateTime.now(),
           ),
         );
         

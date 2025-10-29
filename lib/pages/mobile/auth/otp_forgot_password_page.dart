@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/services/auth/otp_service.dart';
 import '../../../core/services/auth/email_service.dart';
+import '../../../core/services/auth/auth_service_mobile.dart';
 import '../../../core/services/user/user_services.dart';
 import '../../../core/utils/constants_mobile.dart';
 import '../../../core/utils/validators.dart';
@@ -34,6 +35,7 @@ class _OTPForgotPasswordPageState extends State<OTPForgotPasswordPage>
   String? _errorMessage;
   String? _successMessage;
   String _currentEmail = '';
+  String _verifiedOTP = ''; // Store the verified OTP code
   Timer? _successMessageTimer;
   Timer? _otpVerifiedTimer;
   bool _showOtpVerifiedMessage = false;
@@ -314,6 +316,7 @@ class _OTPForgotPasswordPageState extends State<OTPForgotPasswordPage>
       if (result.isValid) {
         setState(() {
           _isOTPVerified = true;
+          _verifiedOTP = otp; // Store the verified OTP for password reset
           _showOtpVerifiedMessage = true;
         });
         _showSuccessMessage('OTP verified successfully!');
@@ -361,17 +364,24 @@ class _OTPForgotPasswordPageState extends State<OTPForgotPasswordPage>
         return;
       }
 
-      // In a real app, you would update the password through Firebase Auth
-      // For now, we'll show a success message
-      // await _authService.updatePassword(user.uid, _newPasswordController.text);
+      // Reset password using Cloud Function
+      final _authService = AuthService();
       
-      // Clean up OTP
-      await _otpService.deleteOTP(
+      // Call Cloud Function to update password directly
+      final success = await _authService.resetPasswordWithOTP(
         email: _currentEmail,
-        purpose: OTPPurpose.passwordReset,
+        newPassword: _newPasswordController.text.trim(),
+        otp: _verifiedOTP, // Use the stored verified OTP
       );
 
-      _showSuccessDialog();
+      if (success) {
+        // Show success dialog
+        _showSuccessDialog();
+      } else {
+        setState(() {
+          _errorMessage = 'Failed to reset password. Please try again.';
+        });
+      }
     } catch (e) {
       setState(() {
         _errorMessage = 'Failed to reset password. Please try again.';
@@ -411,7 +421,7 @@ class _OTPForgotPasswordPageState extends State<OTPForgotPasswordPage>
             ),
             SizedBox(height: kMobileSizedBoxXXLarge),
             Text(
-              'Password Reset Successful!',
+              'Password Reset Complete!',
               style: kMobileTextStyleTitle.copyWith(
                 fontWeight: FontWeight.w600,
                 color: AppColors.textPrimary,
@@ -424,32 +434,37 @@ class _OTPForgotPasswordPageState extends State<OTPForgotPasswordPage>
               'Your password has been reset successfully. You can now sign in with your new password.',
               style: kMobileTextStyleSubtitle.copyWith(
                 color: AppColors.textSecondary,
+                height: 1.4,
               ),
               textAlign: TextAlign.center,
             ),
             SizedBox(height: kMobileSizedBoxHuge),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context); // close dialog
-                context.pushReplacement('/signin'); // go to sign in
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(vertical: kMobilePaddingSmall),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(kMobileBorderRadiusSmall),
+            SizedBox(
+                width: double.infinity, // makes it fill the available width
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context); // close dialog
+                    context.pushReplacement('/signin'); // go to sign in
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(vertical: kMobilePaddingSmall),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(kMobileBorderRadiusSmall),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    'Go to Sign In',
+                    style: kMobileTextStyleSubtitle.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
-                elevation: 0,
               ),
-              child: Text(
-                'Go to Sign In',
-                style: kMobileTextStyleSubtitle.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
+
           ],
         ),
       ),

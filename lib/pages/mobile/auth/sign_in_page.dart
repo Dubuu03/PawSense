@@ -362,10 +362,14 @@ class _SignInPageState extends State<SignInPage>
     setState(() => _isLoading = true);
 
     try {
+      debugPrint('🔐 Attempting sign-in with email: ${_emailController.text.trim().toLowerCase()}');
+      
       final user = await _authService.signInWithEmail(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
+
+      debugPrint('✅ Sign-in successful for user: ${user?.uid}');
 
       if (user == null) {
         ScaffoldMessenger.of(context).showSnackBar(

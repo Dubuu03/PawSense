@@ -55,5 +55,19 @@ service cloud.firestore {
                                 resource.data.clinicId == request.auth.uid && 
                                 get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
     }
+    
+    // Pending password updates collection (for OTP-based password reset)
+    match /pending_password_updates/{uid} {
+      // Only allow write from authenticated services (via server-side code)
+      // Users cannot directly read or write to this collection
+      allow read, write: if false;
+    }
+    
+    // OTP collection (for email verification and password reset)
+    match /otps/{otpId} {
+      // Only allow write from authenticated services
+      // Users cannot directly access OTPs
+      allow read, write: if false;
+    }
   }
 }

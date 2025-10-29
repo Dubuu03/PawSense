@@ -1,4 +1,5 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:pawsense/core/utils/app_theme.dart';
@@ -18,6 +19,9 @@ void main() async {
 
   // Initialize Firebase with proper options
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  
+  // Initialize Cloud Functions with the correct region
+  FirebaseFunctions.instanceFor(region: 'us-central1');
 
   // Initialize DataService and enable Firebase
   DataService().enableFirebase(true);

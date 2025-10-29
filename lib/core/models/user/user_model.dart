@@ -20,6 +20,9 @@ class UserModel {
   final String? suspensionReason;
   final DateTime? suspendedAt;
   final DateTime? updatedAt;
+  // Email verification field (for custom OTP verification)
+  final bool? emailVerified;
+  final DateTime? emailVerifiedAt;
 
   /// Creates a new UserModel instance.
   const UserModel({
@@ -41,6 +44,9 @@ class UserModel {
     this.suspensionReason,
     this.suspendedAt,
     this.updatedAt,
+    // Email verification fields
+    this.emailVerified,
+    this.emailVerifiedAt,
   });
 
   /// Converts the UserModel to a map for Firestore storage.
@@ -62,6 +68,9 @@ class UserModel {
     'suspensionReason': suspensionReason,
     'suspendedAt': suspendedAt?.toIso8601String(),
     'updatedAt': updatedAt?.toIso8601String(),
+    // Email verification fields
+    'emailVerified': emailVerified,
+    'emailVerifiedAt': emailVerifiedAt?.toIso8601String(),
   };
 
   /// Creates a UserModel from a Firestore map.
@@ -84,6 +93,9 @@ class UserModel {
       suspensionReason: map['suspensionReason'],
       suspendedAt: _parseDateTime(map['suspendedAt']),
       updatedAt: _parseDateTime(map['updatedAt']),
+      // Email verification fields
+      emailVerified: map['emailVerified'],
+      emailVerifiedAt: _parseDateTime(map['emailVerifiedAt']),
     );
   }
 
@@ -122,6 +134,8 @@ class UserModel {
     String? suspensionReason,
     DateTime? suspendedAt,
     DateTime? updatedAt,
+    bool? emailVerified,
+    DateTime? emailVerifiedAt,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
@@ -140,6 +154,8 @@ class UserModel {
       suspensionReason: suspensionReason ?? this.suspensionReason,
       suspendedAt: suspendedAt ?? this.suspendedAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      emailVerified: emailVerified ?? this.emailVerified,
+      emailVerifiedAt: emailVerifiedAt ?? this.emailVerifiedAt,
     );
   }
 }
