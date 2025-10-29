@@ -23,6 +23,8 @@ import 'package:pawsense/core/services/user/skin_disease_service.dart';
 import 'package:pawsense/core/models/skin_disease/skin_disease_model.dart';
 import 'package:pawsense/core/utils/data_cache.dart';
 import 'package:pawsense/core/guards/auth_guard.dart';
+import 'package:pawsense/core/services/clinic/clinic_recommendation_service.dart';
+import 'package:pawsense/core/widgets/user/clinic/recommended_clinics_widget.dart';
 
 class AssessmentStepThree extends StatefulWidget {
   final Map<String, dynamic> assessmentData;
@@ -51,12 +53,15 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
   Set<int> _fullscreenBoundingBoxes = {}; // Track bounding boxes in fullscreen mode
   SkinDiseaseModel? _detectedDisease; // Store the fetched disease info
   bool _isLoadingDiseaseInfo = false;
+  List<Map<String, dynamic>> _recommendedClinics = []; // Store recommended clinics
+  bool _isLoadingClinics = false;
   
   @override
   void initState() {
     super.initState();
     _processDetectionResults();
     _fetchDiseaseInfo();
+    _fetchRecommendedClinics();
   }
 
   void _showFullscreenImage(XFile photo, int index, List<Map<String, dynamic>> detectionsToShow) {
@@ -566,6 +571,50 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
         .replaceAll('_', ' ')  // feline_acne -> feline acne
         .replaceAll('-', ' ')  // hot-spot -> hot spot
         .trim();
+  }
+
+  /// Fetch recommended clinics based on detected diseases
+  Future<void> _fetchRecommendedClinics() async {
+    if (_analysisResults.isEmpty || 
+        (_analysisResults.length == 1 && 
+         (_analysisResults.first.condition == 'No high-confidence detections' ||
+          _analysisResults.first.condition == 'No skin disease detected'))) {
+      return;
+    }
+    
+    setState(() {
+      _isLoadingClinics = true;
+    });
+    
+    try {
+      // Get all detected disease names
+      final diseaseNames = _analysisResults
+          .map((result) => result.condition)
+          .toList();
+      
+      print('🔍 Fetching recommended clinics for: ${diseaseNames.join(", ")}');
+      
+      // Fetch recommended clinics
+      final recommendedClinics = diseaseNames.length == 1
+          ? await ClinicRecommendationService.getRecommendedClinicsForDisease(diseaseNames.first)
+          : await ClinicRecommendationService.getRecommendedClinicsForMultipleDiseases(diseaseNames);
+      
+      if (mounted) {
+        setState(() {
+          _recommendedClinics = recommendedClinics;
+          _isLoadingClinics = false;
+        });
+      }
+      
+      print('✅ Found ${recommendedClinics.length} recommended clinics');
+    } catch (e) {
+      print('❌ Error fetching recommended clinics: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingClinics = false;
+        });
+      }
+    }
   }
 
   // Save assessment to Firebase without generating PDF
@@ -1447,6 +1496,13 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
           _buildRemediesSection(),
           const SizedBox(height: kSpacingMedium),
           
+          // Recommended Clinics Section
+          if (_recommendedClinics.isNotEmpty || _isLoadingClinics)
+            _buildRecommendedClinicsSection(),
+          
+          if (_recommendedClinics.isNotEmpty || _isLoadingClinics)
+            const SizedBox(height: kSpacingMedium),
+          
           // Action Buttons
           Column(
             children: [
@@ -2193,6 +2249,55 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildRecommendedClinicsSection() {
+    if (_isLoadingClinics) {
+      return Container(
+        padding: const EdgeInsets.all(kSpacingMedium),
+        child: Center(
+          child: Column(
+            children: [
+              CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+              ),
+              const SizedBox(height: kSpacingSmall),
+              Text(
+                'Finding specialized clinics...',
+                style: kMobileTextStyleLegend.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_recommendedClinics.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    // Get the highest confidence disease for display
+    final detectedDisease = _analysisResults.isNotEmpty 
+        ? _analysisResults.first.condition 
+        : null;
+
+    return RecommendedClinicsWidget(
+      recommendedClinics: _recommendedClinics,
+      detectedDisease: detectedDisease,
+      onClinicTap: (clinicId, clinicName) {
+        // Navigate to book appointment with preselected clinic
+        context.push(
+          '/book-appointment',
+          extra: {
+            'preselectedClinicId': clinicId,
+            'preselectedClinicName': clinicName,
+            'assessmentResultId': widget.assessmentData['assessmentResultId'],
+          },
+        );
+      },
     );
   }
 

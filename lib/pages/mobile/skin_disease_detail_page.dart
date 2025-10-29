@@ -4,6 +4,8 @@ import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
 import 'package:pawsense/core/widgets/shared/ui/scroll_to_top_fab.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pawsense/core/services/clinic/clinic_recommendation_service.dart';
+import 'package:pawsense/core/widgets/user/clinic/recommended_clinics_widget.dart';
 
 /// Skin Disease Detail Page (Mobile/User)
 /// 
@@ -24,11 +26,14 @@ class SkinDiseaseDetailPage extends StatefulWidget {
 class _SkinDiseaseDetailPageState extends State<SkinDiseaseDetailPage> {
   final ScrollController _scrollController = ScrollController();
   bool _isCollapsed = false;
+  List<Map<String, dynamic>> _recommendedClinics = [];
+  bool _isLoadingClinics = false;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    _fetchRecommendedClinics();
   }
 
   @override
@@ -45,6 +50,36 @@ class _SkinDiseaseDetailPageState extends State<SkinDiseaseDetailPage> {
       setState(() {
         _isCollapsed = shouldCollapse;
       });
+    }
+  }
+
+  /// Fetch recommended clinics based on the disease
+  Future<void> _fetchRecommendedClinics() async {
+    setState(() {
+      _isLoadingClinics = true;
+    });
+    
+    try {
+      print('🔍 Fetching recommended clinics for: ${widget.disease.name}');
+      
+      final recommendedClinics = await ClinicRecommendationService
+          .getRecommendedClinicsForDisease(widget.disease.name);
+      
+      if (mounted) {
+        setState(() {
+          _recommendedClinics = recommendedClinics;
+          _isLoadingClinics = false;
+        });
+      }
+      
+      print('✅ Found ${recommendedClinics.length} recommended clinics');
+    } catch (e) {
+      print('❌ Error fetching recommended clinics: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingClinics = false;
+        });
+      }
     }
   }
 
@@ -107,6 +142,13 @@ class _SkinDiseaseDetailPageState extends State<SkinDiseaseDetailPage> {
                 // Initial Care Guidelines (if available)
                 if (widget.disease.initialRemedies != null)
                   _buildInitialCareSection(),
+                
+                // Recommended Clinics Section
+                if (_recommendedClinics.isNotEmpty || _isLoadingClinics)
+                  _buildRecommendedClinicsSection(),
+                
+                if (_recommendedClinics.isNotEmpty || _isLoadingClinics)
+                  const SizedBox(height: 24),
                 
                 // Action buttons
                 _buildActionButtons(context),
@@ -767,6 +809,50 @@ class _SkinDiseaseDetailPageState extends State<SkinDiseaseDetailPage> {
           ],
         ],
       ),
+    );
+  }
+
+  Widget _buildRecommendedClinicsSection() {
+    if (_isLoadingClinics) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        child: Center(
+          child: Column(
+            children: [
+              CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Finding specialized clinics...',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_recommendedClinics.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return RecommendedClinicsWidget(
+      recommendedClinics: _recommendedClinics,
+      detectedDisease: widget.disease.name,
+      onClinicTap: (clinicId, clinicName) {
+        // Navigate to book appointment with preselected clinic
+        context.push(
+          '/book-appointment',
+          extra: {
+            'preselectedClinicId': clinicId,
+            'preselectedClinicName': clinicName,
+          },
+        );
+      },
     );
   }
 
