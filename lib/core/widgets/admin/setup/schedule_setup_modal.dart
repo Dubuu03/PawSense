@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../models/clinic/clinic_model.dart';
 import '../../../services/admin/schedule_setup_guard.dart';
 import '../../../utils/app_colors.dart';
+import '../../../guards/auth_guard.dart';
 import '../clinic_schedule/schedule_settings_modal_new.dart';
 
 class ScheduleSetupModal extends StatefulWidget {
@@ -37,9 +38,18 @@ class _ScheduleSetupModalState extends State<ScheduleSetupModal> {
     setState(() => _isLoading = true);
 
     try {
+      print('🔄 Completing schedule setup for clinic: ${widget.clinic.id}');
       final success = await ScheduleSetupGuard.completeScheduleSetup(widget.clinic.id);
       
       if (success && mounted) {
+        print('✅ Schedule setup completed successfully');
+        
+        // Clear AuthGuard cache to refresh user data and route validation
+        AuthGuard.clearUserCache();
+        
+        // Force a complete app state refresh by refreshing user data
+        await AuthGuard.refreshUserData();
+        
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -47,20 +57,30 @@ class _ScheduleSetupModalState extends State<ScheduleSetupModal> {
               children: [
                 Icon(Icons.check_circle, color: Colors.white),
                 SizedBox(width: 12),
-                Text('Clinic schedule setup completed! Your clinic is now visible to users.'),
+                Expanded(
+                  child: Text('Clinic schedule setup completed! Your clinic is now visible to users. You now have access to all admin features.'),
+                ),
               ],
             ),
             backgroundColor: AppColors.success,
-            duration: Duration(seconds: 4),
+            duration: Duration(seconds: 5),
           ),
         );
 
-        // Close modal and refresh parent
+        // Wait a moment for the success message to be visible
+        await Future.delayed(const Duration(milliseconds: 500));
+        
+        // Close modal
         Navigator.of(context).pop();
+        
+        // Trigger parent refresh with a slight delay to ensure state is updated
         if (widget.onCompleted != null) {
-          widget.onCompleted!();
+          Future.delayed(const Duration(milliseconds: 100), () {
+            widget.onCompleted!();
+          });
         }
       } else if (mounted) {
+        print('❌ Failed to complete schedule setup');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Failed to complete setup. Please try again.'),
@@ -69,6 +89,7 @@ class _ScheduleSetupModalState extends State<ScheduleSetupModal> {
         );
       }
     } catch (e) {
+      print('❌ Error completing schedule setup: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

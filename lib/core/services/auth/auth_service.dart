@@ -7,6 +7,8 @@ import '../../guards/auth_guard.dart';
 import 'token_manager.dart';
 import '../cloudinary/cloudinary_service.dart';
 import '../messaging/messaging_preferences_service.dart';
+import '../super_admin/screen_state_service.dart';
+import '../notifications/paginated_notification_service.dart';
 
 /// Comprehensive authentication service that integrates with all models
 class AuthService {
@@ -435,18 +437,55 @@ class AuthService {
     }
   }
 
-  /// Sign out current user
+  /// Sign out current user - Clears all caches, sessions, and state
   Future<void> signOut() async {
-    _tokenManager.clearToken();
+    print('🔒 Starting sign out process...');
     
-    // Clear session data but keep user-specific preferences stored
+    // 1. Clear token manager
+    _tokenManager.clearToken();
+    print('  ✓ Cleared token manager');
+    
+    // 2. Clear messaging session data
     try {
       await MessagingPreferencesService.instance.clearSessionData();
+      print('  ✓ Cleared messaging session data');
     } catch (e) {
-      print('Warning: Failed to clear messaging session data: $e');
+      print('  ⚠️ Warning: Failed to clear messaging session data: $e');
     }
     
+    // 3. Clear AuthGuard cache
+    try {
+      await AuthGuard.signOut();
+      print('  ✓ Cleared AuthGuard cache');
+    } catch (e) {
+      print('  ⚠️ Warning: Failed to clear AuthGuard cache: $e');
+    }
+    
+    // 4. Clear screen state service (prevents state leakage between users)
+    try {
+      ScreenStateService().clearOnSignOut();
+      print('  ✓ Cleared screen state service');
+    } catch (e) {
+      print('  ⚠️ Warning: Failed to clear screen state service: $e');
+    }
+    
+    // 5. Clear notification caches
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser != null) {
+        // Import is at top: import '../notifications/paginated_notification_service.dart';
+        PaginatedNotificationService.clearUserCache(currentUser.uid);
+        print('  ✓ Cleared notification cache');
+      }
+    } catch (e) {
+      print('  ⚠️ Warning: Failed to clear notification cache: $e');
+    }
+    
+    // 6. Sign out from Firebase Auth (must be last to ensure we have user ID for clearing caches)
     await _auth.signOut();
+    print('  ✓ Signed out from Firebase Auth');
+    
+    print('✅ Sign out complete - all caches and state cleared');
   }
 
   /// Sign in with email and password

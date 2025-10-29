@@ -19,6 +19,7 @@ dependencies:
   firebase_auth: ^5.6.0
   cloud_firestore: ^5.6.9
   firebase_storage: ^12.4.10
+  google_sign_in: ^6.1.5
   
   # Navigation and routing
   go_router: ^14.6.2
@@ -56,6 +57,9 @@ dependencies:
   pdf: ^3.10.8
   printing: ^5.12.0
   
+  # Archive for ZIP file creation
+  archive: ^3.6.1
+  
   # Environment variables
   flutter_dotenv: ^5.1.0
   intl: ^0.20.2
@@ -64,6 +68,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.13.1
 
 flutter:
   uses-material-design: true
@@ -83,3 +88,22 @@ flutter:
           weight: 600
         - asset: assets/fonts/Poppins-Light.ttf
           weight: 300
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/img/logo.png"
+  min_sdk_android: 21 # android min sdk min:16, default 21
+  remove_alpha_ios: true
+  web:
+    generate: true
+    image_path: "assets/img/logo.png"
+    background_color: "#FFFFFF"
+    theme_color: "#8B4FC3"
+  windows:
+    generate: true
+    image_path: "assets/img/logo.png"
+    icon_size: 48 # min:48, max:256, default: 48
+  macos:
+    generate: true
+    image_path: "assets/img/logo.png"

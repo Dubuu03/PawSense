@@ -12,7 +12,20 @@
           "package_name": "com.example.pawsense"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1040108127502-nli1b6d51s9ekl4rkd6gb09mlt6iqmb6.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.pawsense",
+            "certificate_hash": "fba28bbd8be785ba30940bf167e29c4a9ea4d309"
+          }
+        },
+        {
+          "client_id": "1040108127502-op46ntlos2ih5cfptujajkicbij8b8pc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCHh98U_IIh6-Uq_BDJyDwGC3yz2MXaUZ4"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1040108127502-op46ntlos2ih5cfptujajkicbij8b8pc.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

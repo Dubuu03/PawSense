@@ -65,7 +65,7 @@ class _AddEditPetPageState extends State<AddEditPetPage> {
     if (_isEditing) {
       final pet = widget.pet!;
       _petNameController.text = pet.petName;
-      _ageController.text = pet.age.toString();
+      _ageController.text = pet.initialAge.toString(); // Use initialAge for editing
       _weightController.text = pet.weight.toString();
       _selectedPetType = pet.petType;
       _selectedBreed = pet.breed;
@@ -196,7 +196,7 @@ class _AddEditPetPageState extends State<AddEditPetPage> {
         userId: _user!.uid,
         petName: _petNameController.text.trim(),
         petType: _selectedPetType,
-        age: int.parse(_ageController.text),
+        initialAge: int.parse(_ageController.text),
         weight: double.parse(_weightController.text),
         breed: _selectedBreed,
         imageUrl: _petImageUrl,

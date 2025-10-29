@@ -669,9 +669,6 @@ class _AddEditDiseaseModalState extends State<AddEditDiseaseModal>
               if (value == null || value.trim().isEmpty) {
                 return 'Disease name is required';
               }
-              if (value.trim().length < 5) {
-                return 'Disease name must be at least 5 characters';
-              }
               if (value.trim().length > 100) {
                 return 'Disease name must not exceed 100 characters';
               }
@@ -697,9 +694,6 @@ class _AddEditDiseaseModalState extends State<AddEditDiseaseModal>
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
                 return 'Description is required';
-              }
-              if (value.trim().length < 20) {
-                return 'Description must be at least 20 characters';
               }
               if (value.trim().length > 500) {
                 return 'Description must not exceed 500 characters';

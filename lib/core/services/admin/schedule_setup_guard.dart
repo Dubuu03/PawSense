@@ -9,8 +9,11 @@ class ScheduleSetupGuard {
   /// Check if the current admin needs to set up their clinic schedule
   static Future<ScheduleSetupStatus> checkScheduleSetupStatus([String? clinicId]) async {
     try {
+      print('🔍 ScheduleSetupGuard: Checking setup status for clinic: ${clinicId ?? 'current user'}');
+      
       final user = _auth.currentUser;
       if (user == null) {
+        print('❌ ScheduleSetupGuard: No authenticated user found');
         return ScheduleSetupStatus(
           needsSetup: false,
           inProgress: false,
@@ -23,8 +26,10 @@ class ScheduleSetupGuard {
       
       if (clinicId != null) {
         // Get specific clinic by ID
+        print('🔍 ScheduleSetupGuard: Fetching clinic by ID: $clinicId');
         clinicDoc = await _firestore.collection('clinics').doc(clinicId).get();
         if (!clinicDoc.exists) {
+          print('❌ ScheduleSetupGuard: Clinic not found with ID: $clinicId');
           return ScheduleSetupStatus(
             needsSetup: false,
             inProgress: false,
@@ -34,6 +39,7 @@ class ScheduleSetupGuard {
         }
       } else {
         // Get clinic data for current user
+        print('🔍 ScheduleSetupGuard: Fetching clinic for user: ${user.uid}');
         final clinicQuery = await _firestore
             .collection('clinics')
             .where('userId', isEqualTo: user.uid)
@@ -41,6 +47,7 @@ class ScheduleSetupGuard {
             .get();
 
         if (clinicQuery.docs.isEmpty) {
+          print('❌ ScheduleSetupGuard: No clinic found for user: ${user.uid}');
           return ScheduleSetupStatus(
             needsSetup: false,
             inProgress: false,
@@ -51,15 +58,35 @@ class ScheduleSetupGuard {
         clinicDoc = clinicQuery.docs.first;
       }
 
+      final clinicData = clinicDoc.data() as Map<String, dynamic>;
       final clinic = Clinic.fromMap({
         'id': clinicDoc.id,
-        ...clinicDoc.data() as Map<String, dynamic>,
+        ...clinicData,
       });
+
+      // Check clinic approval status first
+      final approvalStatus = clinic.status;
+      if (approvalStatus != 'approved') {
+        print('❌ ScheduleSetupGuard: Clinic not approved yet (status: $approvalStatus)');
+        return ScheduleSetupStatus(
+          needsSetup: false,
+          inProgress: false,
+          clinic: clinic,
+          message: 'Clinic not yet approved by admin',
+        );
+      }
 
       // Check schedule status
       final scheduleStatus = clinic.scheduleStatus;
       final isInProgress = scheduleStatus == 'in_progress';
       final needsSetup = scheduleStatus == 'pending' || isInProgress;
+      
+      print('📊 ScheduleSetupGuard: Status analysis:');
+      print('   - Approval Status: $approvalStatus');
+      print('   - Schedule Status: $scheduleStatus');
+      print('   - Needs Setup: $needsSetup');
+      print('   - In Progress: $isInProgress');
+      print('   - Is Visible: ${clinic.isVisible}');
 
       if (needsSetup) {
         return ScheduleSetupStatus(
@@ -72,6 +99,7 @@ class ScheduleSetupGuard {
         );
       }
 
+      print('✅ ScheduleSetupGuard: Setup completed, clinic is ready');
       return ScheduleSetupStatus(
         needsSetup: false,
         inProgress: false,
@@ -79,9 +107,10 @@ class ScheduleSetupGuard {
         message: 'Schedule setup completed',
       );
     } catch (e) {
-      print('Error checking schedule setup status: $e');
+      print('❌ ScheduleSetupGuard: Error checking setup status: $e');
+      // Return a safe default that won't break the flow
       return ScheduleSetupStatus(
-        needsSetup: false,
+        needsSetup: true, // Default to requiring setup on error to be safe
         inProgress: false,
         clinic: null,
         message: 'Error checking setup status: $e',
@@ -92,12 +121,17 @@ class ScheduleSetupGuard {
   /// Mark schedule setup as in progress
   static Future<bool> markScheduleSetupInProgress(String clinicId) async {
     try {
+      print('🔄 ScheduleSetupGuard: Marking schedule setup as in progress for clinic: $clinicId');
+      
       await _firestore.collection('clinics').doc(clinicId).update({
         'scheduleStatus': 'in_progress',
+        'updatedAt': Timestamp.now(),
       });
+      
+      print('✅ ScheduleSetupGuard: Setup marked as in progress');
       return true;
     } catch (e) {
-      print('Error marking schedule setup in progress: $e');
+      print('❌ ScheduleSetupGuard: Error marking schedule setup in progress: $e');
       return false;
     }
   }
@@ -105,14 +139,41 @@ class ScheduleSetupGuard {
   /// Complete schedule setup process
   static Future<bool> completeScheduleSetup(String clinicId) async {
     try {
+      print('✅ ScheduleSetupGuard: Completing schedule setup for clinic: $clinicId');
+      
+      // Verify clinic exists and is in the right state
+      final clinicDoc = await _firestore.collection('clinics').doc(clinicId).get();
+      if (!clinicDoc.exists) {
+        print('❌ ScheduleSetupGuard: Clinic not found: $clinicId');
+        return false;
+      }
+      
+      final clinicData = clinicDoc.data() as Map<String, dynamic>;
+      final currentStatus = clinicData['status'] as String?;
+      final currentScheduleStatus = clinicData['scheduleStatus'] as String?;
+      
+      // Only allow completion if clinic is approved
+      if (currentStatus != 'approved') {
+        print('❌ ScheduleSetupGuard: Cannot complete setup - clinic not approved (status: $currentStatus)');
+        return false;
+      }
+      
+      // Update schedule completion
       await _firestore.collection('clinics').doc(clinicId).update({
         'scheduleStatus': 'completed',
         'isVisible': true,
         'scheduleCompletedAt': Timestamp.now(),
+        'updatedAt': Timestamp.now(),
       });
+      
+      print('✅ ScheduleSetupGuard: Schedule setup completed successfully');
+      print('   - Previous schedule status: $currentScheduleStatus');
+      print('   - New schedule status: completed');
+      print('   - Clinic is now visible to users');
+      
       return true;
     } catch (e) {
-      print('Error completing schedule setup: $e');
+      print('❌ ScheduleSetupGuard: Error completing schedule setup: $e');
       return false;
     }
   }

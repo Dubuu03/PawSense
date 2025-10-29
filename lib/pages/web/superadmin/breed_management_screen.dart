@@ -445,13 +445,19 @@ class _BreedManagementScreenState extends State<BreedManagementScreen> with Auto
       // Get current admin name
       String? adminName = 'Super Admin';
 
-      // Generate PDF
+      // Check if any filters are applied
+      final hasFilters = (_selectedSpecies != BreedSpecies.all) ||
+          (_selectedStatus != BreedStatus.all) ||
+          (_searchQuery.isNotEmpty);
+
+      // Generate PDF (include summary only when no filters are applied)
       final Uint8List pdfBytes = await BreedPdfService.generateBreedReport(
         breeds: allFilteredBreeds,
-        speciesFilter: _selectedSpecies != BreedSpecies.all ? _selectedSpecies.displayName : null,
-        statusFilter: _selectedStatus != BreedStatus.all ? _selectedStatus.displayName : null,
+        speciesFilter: _selectedSpecies == BreedSpecies.all ? null : _selectedSpecies.value,
+        statusFilter: _selectedStatus == BreedStatus.all ? null : _selectedStatus.value,
         searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
         generatedBy: adminName,
+        includeSummary: !hasFilters, // Only include summary when exporting all data (no filters)
       );
 
       // Download PDF

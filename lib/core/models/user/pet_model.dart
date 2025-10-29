@@ -5,7 +5,7 @@ class Pet {
   final String userId;
   final String petName;
   final String petType; // Dog, Cat, Bird, etc.
-  final int age; // in months
+  final int initialAge; // initial age in months when pet was added
   final double weight; // in kg
   final String breed;
   final String? imageUrl;
@@ -17,7 +17,7 @@ class Pet {
     required this.userId,
     required this.petName,
     required this.petType,
-    required this.age,
+    required this.initialAge,
     required this.weight,
     required this.breed,
     this.imageUrl,
@@ -25,13 +25,20 @@ class Pet {
     required this.updatedAt,
   });
 
+  // Dynamic age calculation - adds 1 month for each month that has passed since creation
+  int get age {
+    final now = DateTime.now();
+    final monthsSinceCreation = (now.year - createdAt.year) * 12 + (now.month - createdAt.month);
+    return initialAge + monthsSinceCreation;
+  }
+
   // Convert Pet to Map for Firestore
   Map<String, dynamic> toMap() {
     return {
       'userId': userId,
       'petName': petName,
       'petType': petType,
-      'age': age,
+      'initialAge': initialAge,
       'weight': weight,
       'breed': breed,
       'imageUrl': imageUrl,
@@ -47,7 +54,7 @@ class Pet {
       userId: map['userId'] ?? '',
       petName: map['petName'] ?? '',
       petType: map['petType'] ?? '',
-      age: map['age']?.toInt() ?? 0,
+      initialAge: map['initialAge']?.toInt() ?? map['age']?.toInt() ?? 0, // fallback to 'age' for existing data
       weight: map['weight']?.toDouble() ?? 0.0,
       breed: map['breed'] ?? '',
       imageUrl: map['imageUrl'],
@@ -66,7 +73,7 @@ class Pet {
     String? userId,
     String? petName,
     String? petType,
-    int? age,
+    int? initialAge,
     double? weight,
     String? breed,
     String? imageUrl,
@@ -78,7 +85,7 @@ class Pet {
       userId: userId ?? this.userId,
       petName: petName ?? this.petName,
       petType: petType ?? this.petType,
-      age: age ?? this.age,
+      initialAge: initialAge ?? this.initialAge,
       weight: weight ?? this.weight,
       breed: breed ?? this.breed,
       imageUrl: imageUrl ?? this.imageUrl,
@@ -120,7 +127,7 @@ class Pet {
         other.userId == userId &&
         other.petName == petName &&
         other.petType == petType &&
-        other.age == age &&
+        other.initialAge == initialAge &&
         other.weight == weight &&
         other.breed == breed;
   }
@@ -131,7 +138,7 @@ class Pet {
         userId.hashCode ^
         petName.hashCode ^
         petType.hashCode ^
-        age.hashCode ^
+        initialAge.hashCode ^
         weight.hashCode ^
         breed.hashCode;
   }

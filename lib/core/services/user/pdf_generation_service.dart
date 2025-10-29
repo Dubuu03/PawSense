@@ -505,6 +505,10 @@ class PDFGenerationService {
             'Images analyzed: ${assessmentImages.length}',
             style: pw.TextStyle(fontSize: 12, color: PdfColors.grey600),
           ),
+          pw.SizedBox(height: 10),
+          
+          // Add compiled list of all detected diseases
+          _buildCompiledDetectionsSummary(assessmentResult),
           pw.SizedBox(height: 15),
           
           // Display images with bounding box information
@@ -705,6 +709,140 @@ class PDFGenerationService {
           ],
         ],
       ),
+    );
+  }
+
+  // Build a compiled summary of all detected diseases across all images
+  static pw.Widget _buildCompiledDetectionsSummary(AssessmentResult assessmentResult) {
+    // Collect all detections from all images
+    Map<String, double> allDetections = {};
+    
+    for (final detectionResult in assessmentResult.detectionResults) {
+      for (final detection in detectionResult.detections) {
+        // Keep the highest confidence for each disease
+        if (!allDetections.containsKey(detection.label) || 
+            allDetections[detection.label]! < detection.confidence) {
+          allDetections[detection.label] = detection.confidence;
+        }
+      }
+    }
+    
+    // Sort by confidence descending
+    final sortedDetections = allDetections.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    
+    if (sortedDetections.isEmpty) {
+      return pw.Container(
+        padding: const pw.EdgeInsets.all(16),
+        child: pw.Text(
+          'No diseases detected in any image',
+          style: pw.TextStyle(
+            fontSize: 14,
+            color: PdfColors.grey600,
+            fontStyle: pw.FontStyle.italic,
+            fontWeight: pw.FontWeight.normal,
+          ),
+        ),
+      );
+    }
+    
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        // Display as a clean list without any box styling
+        ...sortedDetections.asMap().entries.map((entry) {
+          final index = entry.key;
+          final detection = entry.value;
+          final isHighConfidence = detection.value >= 0.7;
+          final isMediumConfidence = detection.value >= 0.5;
+          
+          return pw.Container(
+            margin: const pw.EdgeInsets.only(bottom: 8),
+            padding: const pw.EdgeInsets.all(12),
+            decoration: pw.BoxDecoration(
+              color: isHighConfidence 
+                  ? PdfColors.red50 
+                  : isMediumConfidence 
+                      ? PdfColors.orange50 
+                      : PdfColors.yellow50,
+              border: pw.Border.all(
+                color: isHighConfidence 
+                    ? PdfColors.red400 
+                    : isMediumConfidence 
+                        ? PdfColors.orange400 
+                        : PdfColors.yellow400,
+                width: 1.5,
+              ),
+              borderRadius: pw.BorderRadius.circular(6),
+            ),
+            child: pw.Row(
+              children: [
+                // Priority indicator
+                pw.Container(
+                  width: 20,
+                  height: 20,
+                  decoration: pw.BoxDecoration(
+                    color: isHighConfidence 
+                        ? PdfColors.red600 
+                        : isMediumConfidence 
+                            ? PdfColors.orange600 
+                            : PdfColors.yellow600,
+                    shape: pw.BoxShape.circle,
+                  ),
+                  child: pw.Center(
+                    child: pw.Text(
+                      '${index + 1}',
+                      style: pw.TextStyle(
+                        fontSize: 11,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                pw.SizedBox(width: 12),
+                
+                // Disease name
+                pw.Expanded(
+                  child: pw.Text(
+                    detection.key,
+                    style: pw.TextStyle(
+                      fontSize: 14,
+                      fontWeight: pw.FontWeight.bold,
+                      color: isHighConfidence 
+                          ? PdfColors.red800 
+                          : isMediumConfidence 
+                              ? PdfColors.orange800 
+                              : PdfColors.yellow800,
+                    ),
+                  ),
+                ),
+                
+                // Confidence percentage
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: pw.BoxDecoration(
+                    color: isHighConfidence 
+                        ? PdfColors.red600 
+                        : isMediumConfidence 
+                            ? PdfColors.orange600 
+                            : PdfColors.yellow600,
+                    borderRadius: pw.BorderRadius.circular(15),
+                  ),
+                  child: pw.Text(
+                    '${(detection.value * 100).toStringAsFixed(1)}%',
+                    style: pw.TextStyle(
+                      fontSize: 13,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ],
     );
   }
 

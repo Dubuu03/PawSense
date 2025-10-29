@@ -340,20 +340,6 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
     );
   }
 
-  double _getProfileCompletionPercentage(UserModel? user) {
-    if (user == null) return 0.0;
-    
-    int completedFields = 0;
-    const int totalFields = 4;
-    
-    if (user.firstName?.isNotEmpty == true) completedFields++;
-    if (user.lastName?.isNotEmpty == true) completedFields++;
-    if (user.email.isNotEmpty) completedFields++;
-    if (user.profileImageUrl?.isNotEmpty == true) completedFields++;
-    
-    return completedFields / totalFields;
-  }
-
   Future<void> _pickProfileImage(BuildContext context, UserModel? user) async {
     if (user == null) return;
 

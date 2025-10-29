@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/services/auth/auth_service_mobile.dart';
@@ -131,11 +132,22 @@ class _VerifyEmailPageState extends State<VerifyEmailPage>
   Future<void> _saveUser() async {
     final user = _authService.currentUser;
     if (!_saved && user != null) {
+      // Check if user data already exists (from updated signup flow)
+      final existingUserData = await _authService.getUserData(user.uid);
+      
+      if (existingUserData != null) {
+        // User data already exists, just mark as saved
+        debugPrint('✅ User data already exists in Firestore: ${user.uid}');
+        _saved = true;
+        return;
+      }
+      
       // Create a username with proper capitalization using utility
       final capitalizedFirstName = TextUtils.capitalizeWords(widget.firstName);
       final capitalizedLastName = TextUtils.capitalizeWords(widget.lastName);
       final username = TextUtils.formatFullName(widget.firstName, widget.lastName);
       
+      // Save user data (fallback for older flow)
       await _authService.saveUser(
         UserModel(
           uid: widget.uid,
@@ -147,9 +159,11 @@ class _VerifyEmailPageState extends State<VerifyEmailPage>
           address: widget.address,
           firstName: capitalizedFirstName,
           lastName: capitalizedLastName,
+          role: 'user',
         ),
       );
       _saved = true;
+      debugPrint('✅ User data saved as fallback: ${user.uid}');
     }
   }
 

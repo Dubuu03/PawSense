@@ -43,9 +43,10 @@ class _EditServiceModalState extends State<EditServiceModal> {
     final durationNumber = RegExp(r'\d+').firstMatch(durationStr)?.group(0) ?? '30';
     _durationController = TextEditingController(text: durationNumber);
     
-    // Extract price number from string like "PHP 750.00" or "PHP 750" - only integer part
+    // Extract price number from string like "PHP 750.00" or "750" - only integer part
     final priceStr = widget.service['price'] ?? '0';
-    final priceMatch = RegExp(r'\d+').firstMatch(priceStr);
+    // Remove PHP prefix and any non-digit characters, keep only the number
+    final priceMatch = RegExp(r'\d+').firstMatch(priceStr.replaceAll('PHP', '').trim());
     final priceNumber = priceMatch?.group(0) ?? '0';
     _priceController = TextEditingController(text: priceNumber);
     
@@ -104,7 +105,7 @@ class _EditServiceModalState extends State<EditServiceModal> {
         serviceId: widget.service['id'],
         serviceName: _serviceNameController.text.trim(),
         serviceDescription: _descriptionController.text.trim(),
-        estimatedPrice: 'PHP ${_priceController.text.trim()}',
+        estimatedPrice: _priceController.text.trim(), // Save only numeric value
         duration: '${_durationController.text.trim()} minutes',
         category: _selectedCategory.name,
       );
@@ -295,10 +296,7 @@ class _EditServiceModalState extends State<EditServiceModal> {
                       contentPadding: EdgeInsets.all(kSpacingMedium),
                     ),
                     validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter a description';
-                      }
-                      if (value.length > 300) {
+                      if (value != null && value.length > 300) {
                         return 'Description cannot exceed 300 characters';
                       }
                       return null;
@@ -370,7 +368,7 @@ class _EditServiceModalState extends State<EditServiceModal> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Price (\PHP)',
+                              'Price (PHP)',
                               style: TextStyle(
                                 fontSize: kFontSizeRegular,
                                 fontWeight: FontWeight.w600,
@@ -386,6 +384,11 @@ class _EditServiceModalState extends State<EditServiceModal> {
                               ],
                               decoration: InputDecoration(
                                 hintText: '0',
+                                prefixText: '₱ ',
+                                prefixStyle: TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: kFontSizeRegular,
+                                ),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(kBorderRadiusSmall),
                                   borderSide: BorderSide(color: AppColors.border),

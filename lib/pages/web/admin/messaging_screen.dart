@@ -228,14 +228,6 @@ class _MessagingScreenState extends State<MessagingScreen> {
     );
   }
 
-  void _onCallPressed() {
-    _showSuccessSnackBar('Voice call feature coming soon!');
-  }
-
-  void _onVideoPressed() {
-    _showSuccessSnackBar('Video call feature coming soon!');
-  }
-
   void _onInfoPressed() {
     if (_selectedConversation != null) {
       _showConversationInfo();
@@ -344,16 +336,6 @@ class _MessagingScreenState extends State<MessagingScreen> {
     return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
 
-
-
-  void _onAttachPressed() {
-    _showSuccessSnackBar('File attachment feature coming soon!');
-  }
-
-  void _onEmojiPressed() {
-    _showSuccessSnackBar('Emoji picker coming soon!');
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -383,8 +365,6 @@ class _MessagingScreenState extends State<MessagingScreen> {
                   // Chat header
                   ChatHeader(
                     conversation: _selectedConversation,
-                    onCallPressed: _onCallPressed,
-                    onVideoPressed: _onVideoPressed,
                     onInfoPressed: _onInfoPressed,
                   ),
                   
@@ -402,8 +382,6 @@ class _MessagingScreenState extends State<MessagingScreen> {
                   // Message input
                   MessageInput(
                     onSendMessage: _sendMessage,
-                    onAttachPressed: _onAttachPressed,
-                    onEmojiPressed: _onEmojiPressed,
                     isEnabled: _selectedConversation != null,
                   ),
                 ],

@@ -9,10 +9,8 @@ class ProfilePopupModal extends StatelessWidget {
   final String userRole;
   final VoidCallback? onViewProfile;
   final VoidCallback? onSettings;
-  final VoidCallback? onToggleDarkMode;
   final VoidCallback? onHelpSupport;
   final VoidCallback? onSignOut;
-  final bool isDarkMode;
 
   const ProfilePopupModal({
     super.key,
@@ -21,10 +19,8 @@ class ProfilePopupModal extends StatelessWidget {
     required this.userRole,
     this.onViewProfile,
     this.onSettings,
-    this.onToggleDarkMode,
     this.onHelpSupport,
     this.onSignOut,
-    this.isDarkMode = false,
   });
 
   @override
@@ -120,54 +116,72 @@ class ProfilePopupModal extends StatelessWidget {
           // Menu Items
           Padding(
             padding: const EdgeInsets.only(bottom: kSpacingMedium),
-            child: Column(
-              children: [
-                _buildMenuItem(
-                  icon: Icons.person_outline,
-                  title: 'View Profile',
-                  onTap: onViewProfile ?? () {
-                    Navigator.of(context).pop();
-                  },
-                ),
-                _buildMenuItem(
-                  icon: Icons.settings_outlined,
-                  title: 'Settings',
-                  onTap: onSettings ?? () {
-                    Navigator.of(context).pop();
-                    context.go('/admin/settings');
-                  },
-                ),
-                _buildMenuItem(
-                  icon: isDarkMode ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
-                  title: 'Dark Mode',
-                  onTap: onToggleDarkMode ?? () {
-                    Navigator.of(context).pop();
-                  },
-                ),
-                _buildMenuItem(
-                  icon: Icons.help_outline,
-                  title: 'Help & Support',
-                  onTap: onHelpSupport ?? () {
-                    Navigator.of(context).pop();
-                    context.go('/admin/support');
-                  },
-                ),
-                // Divider
-                Container(
-                  height: 1,
-                  margin: const EdgeInsets.symmetric(vertical: kSpacingSmall),
-                  color: AppColors.border,
-                ),
-                _buildMenuItem(
-                  icon: Icons.logout_outlined,
-                  title: 'Sign Out',
-                  onTap: onSignOut ?? () {
-                    Navigator.of(context).pop();
-                    context.go('/web_login');
-                  },
-                  isDestructive: true,
-                ),
-              ],
+            child: Builder(
+              builder: (context) {
+                final isSuperAdmin = userRole.toLowerCase().contains('super');
+
+                if (isSuperAdmin) {
+                  // Superadmin - only show Sign Out
+                  return Column(
+                    children: [
+                      _buildMenuItem(
+                        icon: Icons.logout_outlined,
+                        title: 'Sign Out',
+                        onTap: onSignOut ?? () {
+                          Navigator.of(context).pop();
+                          context.go('/web_login');
+                        },
+                        isDestructive: true,
+                      ),
+                    ],
+                  );
+                }
+
+                // Default admin/user menu
+                return Column(
+                  children: [
+                    _buildMenuItem(
+                      icon: Icons.person_outline,
+                      title: 'View Profile',
+                      onTap: onViewProfile ?? () {
+                        Navigator.of(context).pop();
+                        context.go('/admin/vet-profile');
+                      },
+                    ),
+                    _buildMenuItem(
+                      icon: Icons.settings_outlined,
+                      title: 'Settings',
+                      onTap: onSettings ?? () {
+                        Navigator.of(context).pop();
+                        context.go('/admin/settings');
+                      },
+                    ),
+                    _buildMenuItem(
+                      icon: Icons.help_outline,
+                      title: 'FAQs',
+                      onTap: onHelpSupport ?? () {
+                        Navigator.of(context).pop();
+                        context.go('/admin/support');
+                      },
+                    ),
+                    // Divider
+                    Container(
+                      height: 1,
+                      margin: const EdgeInsets.symmetric(vertical: kSpacingSmall),
+                      color: AppColors.border,
+                    ),
+                    _buildMenuItem(
+                      icon: Icons.logout_outlined,
+                      title: 'Sign Out',
+                      onTap: onSignOut ?? () {
+                        Navigator.of(context).pop();
+                        context.go('/web_login');
+                      },
+                      isDestructive: true,
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ],

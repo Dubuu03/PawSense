@@ -18,6 +18,7 @@ class AppointmentPdfService {
     String? petTypeFilter,
     String? breedFilter,
     String? generatedBy,
+    bool includeSummary = true, // New parameter to control summary display
   }) async {
     final pdf = pw.Document();
     
@@ -76,9 +77,11 @@ class AppointmentPdfService {
     ));
     allWidgets.add(pw.SizedBox(height: 20));
     
-    // Summary Statistics Section
-    allWidgets.add(_buildSummaryStatistics(stats));
-    allWidgets.add(pw.SizedBox(height: 20));
+    // Summary Statistics Section (only if includeSummary is true)
+    if (includeSummary) {
+      allWidgets.add(_buildSummaryStatistics(stats));
+      allWidgets.add(pw.SizedBox(height: 20));
+    }
     
     // Dog Appointments Section
     if (dogAppointments.isNotEmpty) {

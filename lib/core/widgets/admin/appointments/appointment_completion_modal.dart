@@ -5,6 +5,29 @@ import '../../../utils/app_colors.dart';
 import '../../../models/clinic/appointment_models.dart';
 import '../../../services/notifications/notification_service.dart';
 import '../../../models/notifications/notification_model.dart';
+import '../../../services/clinic/clinic_schedule_service.dart';
+import '../../../models/clinic/clinic_schedule_model.dart';
+
+/// Class to track training data validation for each image
+class ImageTrainingValidation {
+  final String imageUrl;
+  final String imageType; // 'original', 'annotated', 'detection'
+  bool? isCorrect;
+  String? correctDisease;
+  String feedback;
+  List<Map<String, dynamic>> aiPredictions;
+  Map<String, bool> predictionValidation;
+
+  ImageTrainingValidation({
+    required this.imageUrl,
+    required this.imageType,
+    this.isCorrect,
+    this.correctDisease,
+    this.feedback = '',
+    required this.aiPredictions,
+    required this.predictionValidation,
+  });
+}
 
 class AppointmentCompletionModal extends StatefulWidget {
   final Appointment appointment;
@@ -31,23 +54,29 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
   DateTime? _followUpDate;
   String? _followUpTime;
   
+  // Clinic schedule data
+  List<DateTime> _holidayDates = [];
+  Map<String, ClinicScheduleModel> _weeklySchedule = {};
+  List<String> _availableTimeSlots = [];
+  bool _isLoadingSchedule = false;
+  
   // AI Assessment Validation
   bool _hasAIAssessment = false;
-  bool? _aiAssessmentCorrect;
-  String _aiAssessmentFeedback = '';
   List<Map<String, dynamic>> _aiPredictions = [];
-  Map<String, bool> _predictionValidation = {};
-  String? _selectedCorrectDisease; // For when AI assessment is incorrect
   
   // Disease name lists loaded from Firestore
   Map<String, List<String>> _diseasesByPetType = {};
-  bool _isLoadingDiseases = false;
   
-  // Image Assessment Data for Training
+  // Image Assessment Data for Training (Multiple Images Support)
   List<Map<String, dynamic>> _assessmentImages = [];
   String? _originalImageUrl;
   String? _annotatedImageUrl;
-  Map<String, dynamic>? _assessmentMetadata;
+  
+  // Multi-image training data validation
+  List<ImageTrainingValidation> _imageValidations = [];
+  
+  // Two-step modal state
+  int _currentStep = 1; // 1 = Clinic Evaluation, 2 = Training Data Validation
   
   bool _isLoading = false;
   bool _isSaving = false;
@@ -58,6 +87,8 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
     super.initState();
     _loadAIAssessment();
     _loadDiseasesFromFirestore();
+    _loadHolidays();
+    _loadClinicSchedule();
   }
 
   @override
@@ -129,9 +160,6 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
             }
           }
           
-          // Load metadata
-          _assessmentMetadata = data['metadata'] as Map<String, dynamic>?;
-          
           print('✅ AI Assessment loaded: hasAssessment=$_hasAIAssessment, predictions=${_aiPredictions.length}');
           print('🖼️ Image URLs - Original: $_originalImageUrl, Annotated: $_annotatedImageUrl');
           
@@ -162,10 +190,34 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
           
           print('📦 Total assessment images: ${_assessmentImages.length}');
           
-          // Initialize validation map
-          for (var i = 0; i < _aiPredictions.length; i++) {
-            _predictionValidation[i.toString()] = false;
+          // Initialize image validations for each image
+          _imageValidations = [];
+          
+          // Add original image if available
+          if (_originalImageUrl != null && _originalImageUrl!.isNotEmpty) {
+            _imageValidations.add(ImageTrainingValidation(
+              imageUrl: _originalImageUrl!,
+              imageType: 'original',
+              aiPredictions: List.from(_aiPredictions),
+              predictionValidation: {},
+            ));
           }
+          
+          // Add other assessment images
+          for (var img in _assessmentImages) {
+            final url = img['url'] as String?;
+            final type = img['type'] as String? ?? 'detection';
+            if (url != null && url.isNotEmpty && url != _originalImageUrl) {
+              _imageValidations.add(ImageTrainingValidation(
+                imageUrl: url,
+                imageType: type,
+                aiPredictions: List.from(_aiPredictions),
+                predictionValidation: {},
+              ));
+            }
+          }
+          
+          print('✅ Initialized ${_imageValidations.length} image validations');
         });
       } else {
         print('❌ Assessment document does not exist');
@@ -181,16 +233,14 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
   }
 
   Future<void> _loadDiseasesFromFirestore() async {
-    setState(() => _isLoadingDiseases = true);
-
     try {
       final diseasesSnapshot = await FirebaseFirestore.instance
           .collection('skinDiseases')
           .get();
 
       final Map<String, List<String>> diseasesByType = {
-        'Dogs': <String>[],
-        'Cats': <String>[],
+        'Dog': <String>[],
+        'Cat': <String>[],
       };
 
       for (var doc in diseasesSnapshot.docs) {
@@ -199,11 +249,28 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
         final species = data['species'] as List<dynamic>? ?? [];
 
         if (name.isNotEmpty) {
-          // Add the disease to appropriate species lists
+          // Clean the disease name (remove parentheses if content matches)
+          final cleanedName = _cleanDiseaseName(name);
+          
+          // Add the disease to appropriate species lists based on species field
           for (var specie in species) {
-            final specieStr = specie.toString();
-            if (diseasesByType.containsKey(specieStr)) {
-              diseasesByType[specieStr]!.add(name);
+            final specieStr = specie.toString().toLowerCase();
+            
+            // Match species to pet type (Dog or Cat)
+            if (specieStr.contains('dog') && !diseasesByType['Dog']!.contains(cleanedName)) {
+              diseasesByType['Dog']!.add(cleanedName);
+            }
+            if (specieStr.contains('cat') && !diseasesByType['Cat']!.contains(cleanedName)) {
+              diseasesByType['Cat']!.add(cleanedName);
+            }
+            // Handle "both" species
+            if (specieStr == 'both') {
+              if (!diseasesByType['Dog']!.contains(cleanedName)) {
+                diseasesByType['Dog']!.add(cleanedName);
+              }
+              if (!diseasesByType['Cat']!.contains(cleanedName)) {
+                diseasesByType['Cat']!.add(cleanedName);
+              }
             }
           }
         }
@@ -216,15 +283,11 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
       }
 
       setState(() {
-        // Map from plural to singular for compatibility with existing pet types
-        _diseasesByPetType = {
-          'Dog': diseasesByType['Dogs'] ?? [],
-          'Cat': diseasesByType['Cats'] ?? [],
-        };
-        _isLoadingDiseases = false;
+        _diseasesByPetType = diseasesByType;
       });
 
-      print('Loaded diseases: $_diseasesByPetType');
+      print('Loaded diseases for Dog: ${_diseasesByPetType['Dog']?.length ?? 0}');
+      print('Loaded diseases for Cat: ${_diseasesByPetType['Cat']?.length ?? 0}');
     } catch (e) {
       print('Error loading diseases: $e');
       setState(() {
@@ -233,9 +296,28 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
           'Dog': ['Contact Dermatitis', 'Allergic Dermatitis', 'Bacterial Infection', 'Fungal Infection', 'Other'],
           'Cat': ['Contact Dermatitis', 'Allergic Dermatitis', 'Bacterial Infection', 'Fungal Infection', 'Other'],
         };
-        _isLoadingDiseases = false;
       });
     }
+  }
+  
+  /// Clean disease name by removing parentheses if the content inside matches
+  /// E.g., "Alopecia (Alopecia)" -> "Alopecia"
+  /// E.g., "Alopecia (Hair Loss)" -> "Alopecia (Hair Loss)" (keeps it if different)
+  String _cleanDiseaseName(String name) {
+    final regex = RegExp(r'^(.+?)\s*\((.+?)\)$');
+    final match = regex.firstMatch(name);
+    
+    if (match != null) {
+      final mainName = match.group(1)?.trim() ?? '';
+      final parenthesesContent = match.group(2)?.trim() ?? '';
+      
+      // If the content in parentheses is the same as the main name, remove it
+      if (mainName.toLowerCase() == parenthesesContent.toLowerCase()) {
+        return mainName;
+      }
+    }
+    
+    return name;
   }
 
   List<String> _getDiseasesForPetType() {
@@ -249,8 +331,8 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
     final petType = widget.appointment.pet.type.toLowerCase();
     final appointmentId = widget.appointment.id.substring(0, 8); // First 8 chars of appointment ID
     
-    // Use the selected correct disease if available, otherwise use the AI prediction or diagnosis
-    String diseaseForFilename = diseaseName ?? _selectedCorrectDisease ?? _diagnosisController.text.trim();
+    // Use the provided disease name, otherwise use diagnosis
+    String diseaseForFilename = diseaseName ?? _diagnosisController.text.trim();
     
     if (diseaseForFilename.isEmpty && _aiPredictions.isNotEmpty) {
       diseaseForFilename = _aiPredictions.first['condition'] ?? 'unknown';
@@ -270,13 +352,241 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
     return '${petType}_${diseaseForFilename}_${appointmentId}_${timestamp}';
   }
 
+  /// Load holidays for the clinic
+  Future<void> _loadHolidays() async {
+    try {
+      final holidays = await ClinicScheduleService.getHolidays(widget.appointment.clinicId);
+      if (mounted) {
+        setState(() {
+          _holidayDates = holidays;
+        });
+      }
+      print('✅ Loaded ${holidays.length} holidays for appointment completion');
+    } catch (e) {
+      print('❌ Error loading holidays: $e');
+      if (mounted) {
+        setState(() {
+          _holidayDates = [];
+        });
+      }
+    }
+  }
+
+  /// Load clinic weekly schedule
+  Future<void> _loadClinicSchedule() async {
+    try {
+      setState(() => _isLoadingSchedule = true);
+      
+      final weeklySchedule = await ClinicScheduleService.getWeeklySchedule(widget.appointment.clinicId);
+      
+      if (mounted) {
+        setState(() {
+          _weeklySchedule = weeklySchedule.schedules;
+          _isLoadingSchedule = false;
+        });
+      }
+      print('✅ Loaded weekly schedule for clinic');
+    } catch (e) {
+      print('❌ Error loading clinic schedule: $e');
+      if (mounted) {
+        setState(() {
+          _weeklySchedule = {};
+          _isLoadingSchedule = false;
+        });
+      }
+    }
+  }
+
+  /// Load available time slots for a specific date
+  Future<void> _loadAvailableTimeSlotsForDate(DateTime date) async {
+    try {
+      setState(() => _isLoadingSchedule = true);
+      
+      // Get day name from selected date
+      const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      final dayName = daysOfWeek[date.weekday - 1];
+      
+      // Get schedule for this day
+      final daySchedule = _weeklySchedule[dayName];
+      
+      if (daySchedule == null || !daySchedule.isOpen || daySchedule.openTime == null || daySchedule.closeTime == null) {
+        if (mounted) {
+          setState(() {
+            _availableTimeSlots = [];
+            _isLoadingSchedule = false;
+          });
+        }
+        return;
+      }
+      
+      // Generate hourly time slots (e.g., "09:00 - 10:00")
+      final slots = <String>[];
+      final openParts = daySchedule.openTime!.split(':');
+      final closeParts = daySchedule.closeTime!.split(':');
+      final openHour = int.parse(openParts[0]);
+      final closeHour = int.parse(closeParts[0]);
+      
+      // Generate 1-hour blocks
+      for (int hour = openHour; hour < closeHour; hour++) {
+        final startTime = '${hour.toString().padLeft(2, '0')}:00';
+        final endHour = hour + 1;
+        final endTime = '${endHour.toString().padLeft(2, '0')}:00';
+        
+        // Check if this hour block is during a break time
+        bool isDuringBreak = false;
+        for (final breakTime in daySchedule.breakTimes) {
+          if (_isHourBlockInBreak(startTime, endTime, breakTime.startTime, breakTime.endTime)) {
+            isDuringBreak = true;
+            break;
+          }
+        }
+        
+        if (!isDuringBreak) {
+          // Store as "HH:00 - HH:00" format for display
+          slots.add('$startTime - $endTime');
+        }
+      }
+      
+      if (mounted) {
+        setState(() {
+          _availableTimeSlots = slots;
+          // Auto-select first available slot if current selection is not available
+          if (_followUpTime == null || !slots.contains(_followUpTime)) {
+            _followUpTime = slots.isNotEmpty ? slots.first : null;
+          }
+          _isLoadingSchedule = false;
+        });
+      }
+      
+      print('✅ Loaded ${slots.length} hourly time slots for $dayName');
+    } catch (e) {
+      print('❌ Error loading time slots: $e');
+      if (mounted) {
+        setState(() {
+          _availableTimeSlots = [];
+          _isLoadingSchedule = false;
+        });
+      }
+    }
+  }
+  
+  /// Check if an hour block overlaps with a break time
+  bool _isHourBlockInBreak(String blockStart, String blockEnd, String breakStart, String breakEnd) {
+    final blockStartMinutes = _timeToMinutes(blockStart);
+    final blockEndMinutes = _timeToMinutes(blockEnd);
+    final breakStartMinutes = _timeToMinutes(breakStart);
+    final breakEndMinutes = _timeToMinutes(breakEnd);
+    
+    // Check if there's any overlap between the hour block and break time
+    return !(blockEndMinutes <= breakStartMinutes || blockStartMinutes >= breakEndMinutes);
+  }
+  
+  /// Convert time string (HH:mm) to minutes since midnight
+  int _timeToMinutes(String time) {
+    final parts = time.split(':');
+    return int.parse(parts[0]) * 60 + int.parse(parts[1]);
+  }
+
+  /// Check if a date should be selectable for follow-up
+  bool _isDateSelectableForFollowUp(DateTime date) {
+    // Parse the appointment date (format: "YYYY-MM-DD")
+    final appointmentDateParts = widget.appointment.date.split('-');
+    final appointmentDate = DateTime(
+      int.parse(appointmentDateParts[0]),
+      int.parse(appointmentDateParts[1]),
+      int.parse(appointmentDateParts[2]),
+    );
+    
+    // Normalize dates to compare only year, month, day (ignore time)
+    final dateOnly = DateTime(date.year, date.month, date.day);
+    final appointmentDateOnly = DateTime(
+      appointmentDate.year,
+      appointmentDate.month,
+      appointmentDate.day,
+    );
+    
+    // Disable if date is before or equal to appointment date
+    if (dateOnly.isBefore(appointmentDateOnly) || dateOnly.isAtSameMomentAs(appointmentDateOnly)) {
+      return false;
+    }
+    
+    // Disable if date is a holiday
+    final isHoliday = _holidayDates.any((holiday) {
+      final holidayOnly = DateTime(holiday.year, holiday.month, holiday.day);
+      return dateOnly.isAtSameMomentAs(holidayOnly);
+    });
+    
+    if (isHoliday) {
+      return false;
+    }
+    
+    // Check if clinic is open on this day of the week
+    final dayOfWeek = _getDayOfWeek(date.weekday);
+    final daySchedule = _weeklySchedule[dayOfWeek];
+    
+    if (daySchedule == null || !daySchedule.isOpen) {
+      return false;
+    }
+    
+    return true;
+  }
+
+  /// Get day of week name from weekday number (1 = Monday, 7 = Sunday)
+  String _getDayOfWeek(int weekday) {
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    return days[weekday - 1];
+  }
+
+  /// Format time slot for display (e.g., "09:00 - 10:00" -> "9:00 AM - 10:00 AM")
+  String _formatTimeSlotWithRange(String timeRange) {
+    // Handle new format "HH:mm - HH:mm"
+    if (timeRange.contains(' - ')) {
+      final parts = timeRange.split(' - ');
+      final startTime = _formatSingleTime(parts[0]);
+      final endTime = _formatSingleTime(parts[1]);
+      return '$startTime - $endTime';
+    }
+    
+    // Fallback for old format "HH:mm"
+    return _formatSingleTime(timeRange);
+  }
+  
+  /// Format a single time (e.g., "09:00" -> "9:00 AM")
+  String _formatSingleTime(String time) {
+    final parts = time.split(':');
+    final hour = int.parse(parts[0]);
+    final minute = int.parse(parts[1]);
+    
+    final period = hour >= 12 ? 'PM' : 'AM';
+    final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
+    
+    return '$displayHour:${minute.toString().padLeft(2, '0')} $period';
+  }
+
   Future<void> _selectFollowUpDate() async {
+    // Parse the appointment date
+    final appointmentDateParts = widget.appointment.date.split('-');
+    final appointmentDate = DateTime(
+      int.parse(appointmentDateParts[0]),
+      int.parse(appointmentDateParts[1]),
+      int.parse(appointmentDateParts[2]),
+    );
+    
+    // Start from day after appointment
+    final firstSelectableDate = appointmentDate.add(const Duration(days: 1));
     final now = DateTime.now();
+    
+    // Use the later of tomorrow or day after appointment
+    final initialDate = firstSelectableDate.isAfter(now) 
+        ? firstSelectableDate.add(const Duration(days: 6)) // 7 days after appointment
+        : now.add(const Duration(days: 7)); // 7 days from now
+    
     final selectedDate = await showDatePicker(
       context: context,
-      initialDate: now.add(const Duration(days: 7)),
-      firstDate: now,
+      initialDate: initialDate,
+      firstDate: firstSelectableDate.isAfter(now) ? firstSelectableDate : now.add(const Duration(days: 1)),
       lastDate: now.add(const Duration(days: 365)),
+      selectableDayPredicate: _isDateSelectableForFollowUp,
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -291,36 +601,24 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
     );
 
     if (selectedDate != null) {
-      setState(() => _followUpDate = selectedDate);
-    }
-  }
-
-  Future<void> _selectFollowUpTime() async {
-    final selectedTime = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: AppColors.primary,
-              onPrimary: Colors.white,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (selectedTime != null) {
       setState(() {
-        _followUpTime = '${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}';
+        _followUpDate = selectedDate;
+        _followUpTime = null; // Reset time when date changes
       });
+      
+      // Load available time slots for the selected date
+      await _loadAvailableTimeSlotsForDate(selectedDate);
     }
   }
 
   Future<void> _saveCompletion() async {
-    if (!_formKey.currentState!.validate()) return;
+    // Only validate the clinic evaluation form if it's currently mounted.
+    // When the user is on Step 2 the Form from Step 1 is not in the widget
+    // tree, so _formKey.currentState will be null — avoid calling validate()
+    // in that case to prevent exceptions and allow completing from Step 2.
+    if (_formKey.currentState != null) {
+      if (!_formKey.currentState!.validate()) return;
+    }
 
     // Clear previous error
     setState(() => _errorMessage = null);
@@ -337,16 +635,22 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
       }
     }
 
-    // Validate AI assessment if available
-    if (_hasAIAssessment && _aiAssessmentCorrect == null) {
-      setState(() => _errorMessage = 'Please indicate if the AI assessment was correct');
-      return;
-    }
-
-    // Validate correct disease selection if AI assessment is marked as incorrect
-    if (_hasAIAssessment && _aiAssessmentCorrect == false && (_selectedCorrectDisease == null || _selectedCorrectDisease!.isEmpty)) {
-      setState(() => _errorMessage = 'Please select the correct disease when marking AI assessment as incorrect');
-      return;
+    // Validate AI assessment if available - check all images are validated
+    // Only validate if we're on step 2 or have gone through step 2
+    if (_currentStep == 2 && _hasAIAssessment && _imageValidations.isNotEmpty) {
+      for (var i = 0; i < _imageValidations.length; i++) {
+        if (_imageValidations[i].isCorrect == null) {
+          setState(() => _errorMessage = 'Please validate all images (Image ${i + 1} is not validated)');
+          return;
+        }
+        if (_imageValidations[i].isCorrect == false) {
+          final correctDisease = _imageValidations[i].correctDisease;
+          if (correctDisease == null || correctDisease.isEmpty) {
+            setState(() => _errorMessage = 'Please select correct disease for Image ${i + 1}');
+            return;
+          }
+        }
+      }
     }
 
     setState(() => _isSaving = true);
@@ -374,91 +678,72 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
         'updatedAt': Timestamp.now(),
       });
 
-      // 2. If AI assessment exists, save validation feedback
-      if (_hasAIAssessment && widget.appointment.assessmentResultId != null) {
-        final assessmentRef = FirebaseFirestore.instance
-            .collection('assessment_results')
-            .doc(widget.appointment.assessmentResultId);
+      // 2. If AI assessment exists AND user went through Step 2, save validation feedback and create training data entries
+      if (_hasAIAssessment && widget.appointment.assessmentResultId != null && _currentStep == 2) {
+        // Count how many images were actually validated
+        final validatedCount = _imageValidations.where((v) => v.isCorrect != null).length;
         
-        // Collect individual prediction validations
-        final validatedPredictions = _aiPredictions.asMap().entries.map((entry) {
-          return {
-            'condition': entry.value['condition'],
-            'percentage': entry.value['percentage'],
-            'colorHex': entry.value['colorHex'],
-            'isCorrect': _predictionValidation[entry.key.toString()] ?? false,
-          };
-        }).toList();
-
-        batch.update(assessmentRef, {
-          'clinicValidation': {
-            'isValidated': true,
-            'validatedAt': Timestamp.now(),
-            'validatedBy': widget.appointment.clinicId,
-            'overallCorrect': _aiAssessmentCorrect,
-            'feedback': _aiAssessmentFeedback,
-            'predictionsValidation': validatedPredictions,
-            'clinicDiagnosis': _diagnosisController.text.trim(),
-            'clinicTreatment': _treatmentController.text.trim(),
-            'correctDisease': _aiAssessmentCorrect == false ? _selectedCorrectDisease : null,
-          },
-          'updatedAt': Timestamp.now(),
-        });
-
-        // 3. Store validation data for model training
-        if (_aiAssessmentCorrect != null) {
-          final validationRef = FirebaseFirestore.instance
-              .collection('model_training_data')
-              .doc();
+        // Only update assessment if at least one image was validated
+        if (validatedCount > 0) {
+          final assessmentRef = FirebaseFirestore.instance
+              .collection('assessment_results')
+              .doc(widget.appointment.assessmentResultId);
           
-          // Prepare image data for training with unique filename
-          Map<String, dynamic> imageTrainingData = {};
-          if (_originalImageUrl != null || _assessmentImages.isNotEmpty) {
+          batch.update(assessmentRef, {
+            'clinicValidation': {
+              'isValidated': true,
+              'validatedAt': Timestamp.now(),
+              'validatedBy': widget.appointment.clinicId,
+              'clinicDiagnosis': _diagnosisController.text.trim(),
+              'clinicTreatment': _treatmentController.text.trim(),
+              'totalImagesValidated': validatedCount,
+            },
+            'updatedAt': Timestamp.now(),
+          });
+
+          // 3. Create individual training data entries for each validated image
+          for (var i = 0; i < _imageValidations.length; i++) {
+            final validation = _imageValidations[i];
+            
+            if (validation.isCorrect != null) {
+            final validationRef = FirebaseFirestore.instance
+                .collection('model_training_data')
+                .doc();
+            
+            // Determine the disease label
+            final rawDiseaseLabel = validation.isCorrect == false 
+                ? validation.correctDisease 
+                : (_aiPredictions.isNotEmpty ? _aiPredictions.first['condition'] : _diagnosisController.text.trim());
+            final cleanedDiseaseLabel = rawDiseaseLabel != null ? _cleanDiseaseName(rawDiseaseLabel) : '';
+            
             // Generate unique filename based on the disease
             final uniqueFilename = _generateUniqueFilename(
-              diseaseName: _aiAssessmentCorrect == false ? _selectedCorrectDisease : null
+              diseaseName: validation.isCorrect == false ? validation.correctDisease : null
             );
             
-            if (_originalImageUrl != null) {
-              imageTrainingData['originalImageUrl'] = _originalImageUrl;
-            }
-            if (_annotatedImageUrl != null) {
-              imageTrainingData['annotatedImageUrl'] = _annotatedImageUrl;
-            }
-            if (_assessmentImages.isNotEmpty) {
-              imageTrainingData['assessmentImages'] = _assessmentImages;
-            }
-            if (_assessmentMetadata != null) {
-              imageTrainingData['assessmentMetadata'] = _assessmentMetadata;
-            }
-            
-            // Add unique filename for file storage/organization
-            imageTrainingData['uniqueFilename'] = uniqueFilename;
-            imageTrainingData['diseaseLabel'] = _aiAssessmentCorrect == false 
-                ? _selectedCorrectDisease 
-                : (_aiPredictions.isNotEmpty ? _aiPredictions.first['condition'] : _diagnosisController.text.trim());
-            imageTrainingData['petType'] = widget.appointment.pet.type;
-            imageTrainingData['correctionType'] = _aiAssessmentCorrect == false ? 'manual_correction' : 'validation';
+            batch.set(validationRef, {
+              'appointmentId': widget.appointment.id,
+              'assessmentResultId': widget.appointment.assessmentResultId,
+              'petType': widget.appointment.pet.type,
+              'petBreed': widget.appointment.pet.breed,
+              'imageUrl': validation.imageUrl,
+              'imageType': validation.imageType,
+              'aiPredictions': validation.aiPredictions,
+              'clinicDiagnosis': _diagnosisController.text.trim(),
+              'isCorrect': validation.isCorrect,
+              'correctDisease': validation.isCorrect == false ? _cleanDiseaseName(validation.correctDisease!) : null,
+              'diseaseLabel': cleanedDiseaseLabel,
+              'uniqueFilename': uniqueFilename,
+              'validatedAt': Timestamp.now(),
+              'validatedBy': widget.appointment.clinicId,
+              'canUseForTraining': validation.isCorrect == true,
+              'canUseForRetraining': validation.isCorrect == false && validation.correctDisease != null,
+              'hasImageAssessment': true,
+              'trainingDataType': 'image_assessment',
+              'correctionType': validation.isCorrect == false ? 'manual_correction' : 'validation',
+            });
           }
-          
-          batch.set(validationRef, {
-            'appointmentId': widget.appointment.id,
-            'assessmentResultId': widget.appointment.assessmentResultId,
-            'petType': widget.appointment.pet.type,
-            'petBreed': widget.appointment.pet.breed,
-            'aiPredictions': validatedPredictions,
-            'clinicDiagnosis': _diagnosisController.text.trim(),
-            'overallCorrect': _aiAssessmentCorrect,
-            'feedback': _aiAssessmentFeedback,
-            'correctDisease': _aiAssessmentCorrect == false ? _selectedCorrectDisease : null,
-            'validatedAt': Timestamp.now(),
-            'validatedBy': widget.appointment.clinicId,
-            'canUseForTraining': _aiAssessmentCorrect == true, // Mark for retraining
-            'canUseForRetraining': _aiAssessmentCorrect == false && _selectedCorrectDisease != null, // Mark for correction training
-            'imageData': imageTrainingData.isNotEmpty ? imageTrainingData : null,
-            'hasImageAssessment': (_originalImageUrl != null || _assessmentImages.isNotEmpty),
-            'trainingDataType': _originalImageUrl != null ? 'image_assessment' : 'text_assessment',
-          });
+        }
         }
       }
 
@@ -468,20 +753,48 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
         final followUpRef = FirebaseFirestore.instance.collection('appointments').doc();
         followUpAppointmentId = followUpRef.id;
         
-        final followUpTimeSlot = '$_followUpTime-${_addMinutes(_followUpTime!, 20)}';
+        // Extract start time from hour block format "HH:mm - HH:mm"
+        String formattedTime;
+        if (_followUpTime!.contains(' - ')) {
+          formattedTime = _followUpTime!.split(' - ')[0]; // Get start time only
+        } else {
+          formattedTime = _followUpTime!;
+        }
+        
+        final followUpTimeSlot = '$formattedTime-${_addMinutes(formattedTime, 20)}';
         
         batch.set(followUpRef, {
+          // Required fields for AppointmentBooking model (mobile compatibility)
+          'userId': widget.appointment.owner.id,
+          'petId': widget.appointment.pet.id,
           'clinicId': widget.appointment.clinicId,
+          'serviceName': widget.appointment.serviceType ?? widget.appointment.diseaseReason,
+          'serviceId': widget.appointment.serviceType ?? 'general',
+          'appointmentDate': Timestamp.fromDate(DateTime(
+            _followUpDate!.year,
+            _followUpDate!.month,
+            _followUpDate!.day,
+          )),
+          'appointmentTime': formattedTime,
+          'notes': 'Follow-up appointment from previous visit',
+          'status': 'confirmed',
+          'type': 'followUp',
+          'estimatedPrice': 0.0,
+          'duration': '${widget.appointment.estimatedDuration?.toInt() ?? 20} minutes',
+          'createdAt': Timestamp.now(),
+          'updatedAt': Timestamp.now(),
+          
+          // Legacy fields (for backward compatibility with admin)
           'date': '${_followUpDate!.year}-${_followUpDate!.month.toString().padLeft(2, '0')}-${_followUpDate!.day.toString().padLeft(2, '0')}',
-          'time': _followUpTime,
+          'time': formattedTime,
           'timeSlot': followUpTimeSlot,
           'pet': widget.appointment.pet.toMap(),
           'diseaseReason': 'Follow-up for: ${widget.appointment.diseaseReason}',
           'owner': widget.appointment.owner.toMap(),
-          'status': 'confirmed',
-          'notes': 'Follow-up appointment from previous visit',
-          'createdAt': Timestamp.now(),
-          'updatedAt': Timestamp.now(),
+          'serviceType': widget.appointment.serviceType,
+          'estimatedDuration': widget.appointment.estimatedDuration,
+          
+          // Follow-up specific fields
           'isFollowUp': true,
           'previousAppointmentId': widget.appointment.id,
         });
@@ -492,11 +805,19 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
       // 5. Create notification for follow-up appointment
       if (_needsFollowUp && followUpAppointmentId != null && _followUpDate != null && _followUpTime != null) {
         try {
+          // Extract start time from hour block format "HH:mm - HH:mm" for notification
+          String displayTime;
+          if (_followUpTime!.contains(' - ')) {
+            displayTime = _followUpTime!.split(' - ')[0];
+          } else {
+            displayTime = _followUpTime!;
+          }
+          
           // Build a comprehensive message about the follow-up need
           final diagnosisText = _diagnosisController.text.trim();
           final messageText = diagnosisText.isNotEmpty 
-              ? 'Based on the diagnosis "${diagnosisText}", a follow-up appointment for ${widget.appointment.pet.name} has been scheduled for ${_followUpDate!.day}/${_followUpDate!.month}/${_followUpDate!.year} at $_followUpTime. Tap to view details and previous evaluation.'
-              : 'A follow-up appointment for ${widget.appointment.pet.name} has been scheduled for ${_followUpDate!.day}/${_followUpDate!.month}/${_followUpDate!.year} at $_followUpTime. Tap to view details and previous evaluation.';
+              ? 'Based on the diagnosis "${diagnosisText}", a follow-up appointment for ${widget.appointment.pet.name} has been scheduled for ${_followUpDate!.day}/${_followUpDate!.month}/${_followUpDate!.year} at $displayTime. Tap to view details and previous evaluation.'
+              : 'A follow-up appointment for ${widget.appointment.pet.name} has been scheduled for ${_followUpDate!.day}/${_followUpDate!.month}/${_followUpDate!.year} at $displayTime. Tap to view details and previous evaluation.';
           
           await NotificationService.createNotification(
             userId: widget.appointment.owner.id,
@@ -515,7 +836,7 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
               'time': widget.appointment.time, // Use completed appointment time
               'followUpAppointmentId': followUpAppointmentId,
               'followUpDate': '${_followUpDate!.year}-${_followUpDate!.month.toString().padLeft(2, '0')}-${_followUpDate!.day.toString().padLeft(2, '0')}',
-              'followUpTime': _followUpTime,
+              'followUpTime': displayTime,
               'diseaseReason': 'Follow-up for: ${widget.appointment.diseaseReason}',
               'isFollowUp': true,
               'notificationType': 'followUp',
@@ -578,6 +899,46 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
     final newHour = (totalMinutes ~/ 60) % 24;
     final newMinute = totalMinutes % 60;
     return '${newHour.toString().padLeft(2, '0')}:${newMinute.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildStepIndicator(int step, String label) {
+    final isActive = _currentStep == step;
+    final isCompleted = _currentStep > step;
+    
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: isCompleted || isActive ? Colors.white : Colors.white.withOpacity(0.3),
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: isCompleted
+                ? const Icon(Icons.check, color: AppColors.primary, size: 18)
+                : Text(
+                    step.toString(),
+                    style: TextStyle(
+                      color: isActive ? AppColors.primary : Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: TextStyle(
+            color: isActive || isCompleted ? Colors.white : Colors.white.withOpacity(0.7),
+            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+            fontSize: 13,
+          ),
+        ),
+      ],
+    );
   }
 
   void _showImageZoomDialog(String imageUrl) {
@@ -699,12 +1060,12 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
   Widget build(BuildContext context) {
     return Dialog(
       child: Container(
-        width: 650,
-        constraints: const BoxConstraints(maxHeight: 750),
+        width: 700,
+        constraints: const BoxConstraints(maxHeight: 800),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Header (Compact)
+            // Header with Step Indicator
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               decoration: const BoxDecoration(
@@ -714,40 +1075,67 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
                   topRight: Radius.circular(4),
                 ),
               ),
-              child: Row(
+              child: Column(
                 children: [
-                  const Icon(Icons.task_alt, color: Colors.white, size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  Row(
+                    children: [
+                      const Icon(Icons.task_alt, color: Colors.white, size: 24),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _hasAIAssessment && _imageValidations.isNotEmpty
+                                  ? (_currentStep == 1 
+                                      ? 'Step 1: Complete Appointment' 
+                                      : 'Step 2: Validate Training Data')
+                                  : 'Complete Appointment',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${widget.appointment.pet.name} - ${widget.appointment.date}',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Colors.white70,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white, size: 20),
+                        onPressed: () => Navigator.of(context).pop(),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Step Progress Indicator (only show if there's AI assessment with images)
+                  if (_hasAIAssessment && _imageValidations.isNotEmpty)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text(
-                          'Complete Appointment',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                        _buildStepIndicator(1, 'Clinic Evaluation'),
+                        // shorter connector and reduced horizontal spacing
+                        SizedBox(
+                          width: 120,
+                          child: Container(
+                            height: 2,
+                            color: _currentStep >= 2 ? Colors.white : Colors.white.withOpacity(0.3),
+                            margin: const EdgeInsets.symmetric(horizontal: 6),
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${widget.appointment.pet.name} - ${widget.appointment.date}',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Colors.white70,
-                          ),
-                        ),
+                        _buildStepIndicator(2, 'Training Data'),
                       ],
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white, size: 20),
-                    onPressed: () => Navigator.of(context).pop(),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    visualDensity: VisualDensity.compact,
-                  ),
                 ],
               ),
             ),
@@ -763,11 +1151,26 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
                           child: CircularProgressIndicator(color: AppColors.primary),
                         ),
                       )
-                    : Form(
-                        key: _formKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
+                    : _currentStep == 1
+                        ? _buildStep1ClinicEvaluation()
+                        : _buildStep2TrainingDataValidation(),
+              ),
+            ),
+
+            // Footer Actions
+            _buildFooter(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStep1ClinicEvaluation() {
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
                             // Error Banner
                             if (_errorMessage != null)
                               Container(
@@ -985,73 +1388,276 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
                                     ],
                                   ),
                                   if (_needsFollowUp) ...[
-                                    const SizedBox(height: 12),
+                                    const SizedBox(height: 16),
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary.withOpacity(0.05),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: AppColors.primary.withOpacity(0.2),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.info_outline,
+                                            size: 18,
+                                            color: AppColors.primary,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              'Select a date and time for the follow-up appointment. Only dates when the clinic is open are available.',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: AppColors.primary,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
                                     Row(
                                       children: [
                                         Expanded(
                                           child: Column(
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
-                                              const Text(
-                                                'Date',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
+                                              Row(
+                                                children: [
+                                                  Icon(
+                                                    Icons.calendar_today,
+                                                    size: 14,
+                                                    color: AppColors.primary,
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  const Text(
+                                                    'Follow-up Date',
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: AppColors.textPrimary,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
-                                              const SizedBox(height: 4),
+                                              const SizedBox(height: 8),
                                               InkWell(
                                                 onTap: _selectFollowUpDate,
                                                 child: Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                                                   decoration: BoxDecoration(
-                                                    border: Border.all(color: Colors.grey),
-                                                    borderRadius: BorderRadius.circular(4),
-                                                  ),
-                                                  child: Text(
-                                                    _followUpDate != null
-                                                        ? '${_followUpDate!.day}/${_followUpDate!.month}/${_followUpDate!.year}'
-                                                        : 'Select Date',
-                                                    style: TextStyle(
-                                                      fontSize: 12,
-                                                      color: _followUpDate != null ? Colors.black : Colors.grey,
+                                                    color: Colors.white,
+                                                    border: Border.all(
+                                                      color: _followUpDate != null 
+                                                          ? AppColors.primary 
+                                                          : AppColors.border,
+                                                      width: _followUpDate != null ? 2 : 1,
                                                     ),
+                                                    borderRadius: BorderRadius.circular(8),
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                    children: [
+                                                      Text(
+                                                        _followUpDate != null
+                                                            ? '${_followUpDate!.day.toString().padLeft(2, '0')}/${_followUpDate!.month.toString().padLeft(2, '0')}/${_followUpDate!.year}'
+                                                            : 'Select Date',
+                                                        style: TextStyle(
+                                                          fontSize: 13,
+                                                          color: _followUpDate != null 
+                                                              ? AppColors.textPrimary 
+                                                              : AppColors.textSecondary,
+                                                          fontWeight: _followUpDate != null 
+                                                              ? FontWeight.w500 
+                                                              : FontWeight.normal,
+                                                        ),
+                                                      ),
+                                                      Icon(
+                                                        Icons.calendar_month,
+                                                        size: 18,
+                                                        color: _followUpDate != null 
+                                                            ? AppColors.primary 
+                                                            : AppColors.textSecondary,
+                                                      ),
+                                                    ],
                                                   ),
                                                 ),
                                               ),
                                             ],
                                           ),
                                         ),
-                                        const SizedBox(width: 12),
+                                        const SizedBox(width: 16),
                                         Expanded(
                                           child: Column(
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
-                                              const Text(
-                                                'Time',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              InkWell(
-                                                onTap: _selectFollowUpTime,
-                                                child: Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                                                  decoration: BoxDecoration(
-                                                    border: Border.all(color: Colors.grey),
-                                                    borderRadius: BorderRadius.circular(4),
+                                              Row(
+                                                children: [
+                                                  Icon(
+                                                    Icons.access_time,
+                                                    size: 14,
+                                                    color: AppColors.primary,
                                                   ),
-                                                  child: Text(
-                                                    _followUpTime ?? 'Select Time',
+                                                  const SizedBox(width: 6),
+                                                  const Text(
+                                                    'Follow-up Time',
                                                     style: TextStyle(
-                                                      fontSize: 12,
-                                                      color: _followUpTime != null ? Colors.black : Colors.grey,
+                                                      fontSize: 13,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: AppColors.textPrimary,
                                                     ),
                                                   ),
-                                                ),
+                                                ],
                                               ),
+                                              const SizedBox(height: 8),
+                                              _followUpDate == null
+                                                  ? Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.grey.shade100,
+                                                        border: Border.all(color: AppColors.border),
+                                                        borderRadius: BorderRadius.circular(8),
+                                                      ),
+                                                      child: Row(
+                                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                        children: [
+                                                          Text(
+                                                            'Select date first',
+                                                            style: TextStyle(
+                                                              fontSize: 13,
+                                                              color: AppColors.textSecondary,
+                                                            ),
+                                                          ),
+                                                          Icon(
+                                                            Icons.lock_outline,
+                                                            size: 18,
+                                                            color: AppColors.textSecondary,
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    )
+                                                  : _isLoadingSchedule
+                                                      ? Container(
+                                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                                                          decoration: BoxDecoration(
+                                                            color: Colors.white,
+                                                            border: Border.all(color: AppColors.border),
+                                                            borderRadius: BorderRadius.circular(8),
+                                                          ),
+                                                          child: Row(
+                                                            mainAxisAlignment: MainAxisAlignment.center,
+                                                            children: [
+                                                              SizedBox(
+                                                                width: 14,
+                                                                height: 14,
+                                                                child: CircularProgressIndicator(
+                                                                  strokeWidth: 2,
+                                                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                                                    AppColors.primary,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                              const SizedBox(width: 8),
+                                                              Text(
+                                                                'Loading slots...',
+                                                                style: TextStyle(
+                                                                  fontSize: 13,
+                                                                  color: AppColors.textSecondary,
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        )
+                                                      : _availableTimeSlots.isEmpty
+                                                          ? Container(
+                                                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                                                              decoration: BoxDecoration(
+                                                                color: Colors.orange.shade50,
+                                                                border: Border.all(color: Colors.orange.shade200),
+                                                                borderRadius: BorderRadius.circular(8),
+                                                              ),
+                                                              child: Row(
+                                                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                                children: [
+                                                                  Expanded(
+                                                                    child: Text(
+                                                                      'No slots available',
+                                                                      style: TextStyle(
+                                                                        fontSize: 13,
+                                                                        color: Colors.orange.shade900,
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                                  Icon(
+                                                                    Icons.warning_amber,
+                                                                    size: 18,
+                                                                    color: Colors.orange.shade900,
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            )
+                                                          : DropdownButtonFormField<String>(
+                                                              value: _followUpTime,
+                                                              decoration: InputDecoration(
+                                                                contentPadding: const EdgeInsets.symmetric(
+                                                                  horizontal: 12,
+                                                                  vertical: 14,
+                                                                ),
+                                                                border: OutlineInputBorder(
+                                                                  borderRadius: BorderRadius.circular(8),
+                                                                  borderSide: BorderSide(color: AppColors.border),
+                                                                ),
+                                                                enabledBorder: OutlineInputBorder(
+                                                                  borderRadius: BorderRadius.circular(8),
+                                                                  borderSide: BorderSide(color: AppColors.border),
+                                                                ),
+                                                                focusedBorder: OutlineInputBorder(
+                                                                  borderRadius: BorderRadius.circular(8),
+                                                                  borderSide: BorderSide(
+                                                                    color: AppColors.primary,
+                                                                    width: 2,
+                                                                  ),
+                                                                ),
+                                                                filled: true,
+                                                                fillColor: Colors.white,
+                                                              ),
+                                                              hint: Text(
+                                                                'Select Time',
+                                                                style: TextStyle(
+                                                                  fontSize: 13,
+                                                                  color: AppColors.textSecondary,
+                                                                ),
+                                                              ),
+                                                              icon: Icon(
+                                                                Icons.arrow_drop_down,
+                                                                color: AppColors.primary,
+                                                              ),
+                                                              style: TextStyle(
+                                                                fontSize: 13,
+                                                                color: AppColors.textPrimary,
+                                                                fontWeight: FontWeight.w500,
+                                                              ),
+                                                              dropdownColor: Colors.white,
+                                                              items: _availableTimeSlots.map((time) {
+                                                                return DropdownMenuItem<String>(
+                                                                  value: time,
+                                                                  child: Text(
+                                                                    _formatTimeSlotWithRange(time),
+                                                                    style: const TextStyle(fontSize: 13),
+                                                                  ),
+                                                                );
+                                                              }).toList(),
+                                                              onChanged: (value) {
+                                                                setState(() {
+                                                                  _followUpTime = value;
+                                                                });
+                                                              },
+                                                              isExpanded: true,
+                                                              menuMaxHeight: 250,
+                                                            ),
                                             ],
                                           ),
                                         ),
@@ -1062,492 +1668,359 @@ class _AppointmentCompletionModalState extends State<AppointmentCompletionModal>
                               ),
                             ),
                             const SizedBox(height: 20),
+                        ],
+                      ),
+    );
+  }
 
-                            // AI Assessment Validation Section (After Clinic Evaluation)
-                            if (_hasAIAssessment) ...[
-                              Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: AppColors.info.withOpacity(0.05),
-                                  border: Border.all(color: AppColors.info.withOpacity(0.2)),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Icon(Icons.smart_toy, color: AppColors.primary, size: 18),
-                                        const SizedBox(width: 8),
-                                        const Text(
-                                          'AI Assessment Validation',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.bold,
-                                            color: AppColors.textPrimary,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 12),
-                                    
-                                    // Display predictions in compact list
-                                    ..._aiPredictions.asMap().entries.map((entry) {
-                                      final index = entry.key;
-                                      final prediction = entry.value;
-                                      
-                                      // Parse color from hex
-                                      Color conditionColor = AppColors.primary;
-                                      final colorHex = prediction['colorHex'] as String?;
-                                      if (colorHex != null && colorHex.startsWith('#')) {
-                                        try {
-                                          conditionColor = Color(int.parse(colorHex.substring(1), radix: 16) + 0xFF000000);
-                                        } catch (e) {
-                                          // Use default if parsing fails
-                                        }
-                                      }
-                                      
-                                      return Padding(
-                                        padding: const EdgeInsets.only(bottom: 8),
-                                        child: Row(
-                                          crossAxisAlignment: CrossAxisAlignment.center,
-                                          children: [
-                                            Padding(
-                                              padding: const EdgeInsets.only(top: 2),
-                                              child: Checkbox(
-                                                value: _predictionValidation[index.toString()] ?? false,
-                                                onChanged: (value) {
-                                                  setState(() {
-                                                    _predictionValidation[index.toString()] = value ?? false;
-                                                  });
-                                                },
-                                                activeColor: AppColors.success,
-                                                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                                visualDensity: VisualDensity.compact,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: Text(
-                                                prediction['condition'],
-                                                style: const TextStyle(
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
-                                            ),
-                                            Text(
-                                              '${(prediction['percentage'] as num).toStringAsFixed(1)}%',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 13,
-                                                color: conditionColor,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    }).toList(),
-
-                                    const Divider(height: 24),
-                                    
-                                    // Overall assessment - compact radio buttons
-                                    const Text(
-                                      'Overall Assessment:',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: RadioListTile<bool>(
-                                            title: const Text('Correct', style: TextStyle(fontSize: 13, color: AppColors.success, fontWeight: FontWeight.w600)),
-                                            value: true,
-                                            groupValue: _aiAssessmentCorrect,
-                                            onChanged: (value) {
-                                              setState(() {
-                                                _aiAssessmentCorrect = value;
-                                                if (value == true) {
-                                                  _selectedCorrectDisease = null; // Reset when switching to correct
-                                                }
-                                              });
-                                            },
-                                            activeColor: AppColors.success,
-                                            dense: true,
-                                            contentPadding: EdgeInsets.zero,
-                                            visualDensity: VisualDensity.compact,
-                                          ),
-                                        ),
-                                        Expanded(
-                                          child: RadioListTile<bool>(
-                                            title: const Text('Incorrect', style: TextStyle(fontSize: 13, color: AppColors.error, fontWeight: FontWeight.w600)),
-                                            value: false,
-                                            groupValue: _aiAssessmentCorrect,
-                                            onChanged: (value) {
-                                              setState(() {
-                                                _aiAssessmentCorrect = value;
-                                                if (value == true) {
-                                                  _selectedCorrectDisease = null; // Reset when switching to correct
-                                                }
-                                              });
-                                            },
-                                            activeColor: AppColors.error,
-                                            dense: true,
-                                            contentPadding: EdgeInsets.zero,
-                                            visualDensity: VisualDensity.compact,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    
-                                    // Disease Selection Dropdown (when AI is incorrect)
-                                    if (_aiAssessmentCorrect == false) ...[
-                                      const SizedBox(height: 16),
-                                      Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          const Text(
-                                            'Select Correct Disease *',
-                                            style: TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600,
-                                              color: AppColors.textPrimary,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Container(
-                                            decoration: BoxDecoration(
-                                              border: Border.all(color: AppColors.border),
-                                              borderRadius: BorderRadius.circular(8),
-                                              color: AppColors.white,
-                                            ),
-                                            child: _isLoadingDiseases 
-                                                ? Container(
-                                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                                                    child: Row(
-                                                      children: [
-                                                        SizedBox(
-                                                          width: 16,
-                                                          height: 16,
-                                                          child: CircularProgressIndicator(
-                                                            strokeWidth: 2,
-                                                            valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-                                                          ),
-                                                        ),
-                                                        const SizedBox(width: 12),
-                                                        Text(
-                                                          'Loading diseases...',
-                                                          style: TextStyle(
-                                                            fontSize: 13,
-                                                            color: AppColors.textSecondary,
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  )
-                                                : DropdownButtonFormField<String>(
-                                                    value: _selectedCorrectDisease,
-                                                    decoration: InputDecoration(
-                                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                                      border: InputBorder.none,
-                                                      hintText: _getDiseasesForPetType().isEmpty 
-                                                          ? 'No diseases available' 
-                                                          : 'Select the correct disease',
-                                                      hintStyle: const TextStyle(
-                                                        fontSize: 13,
-                                                        color: AppColors.textSecondary,
-                                                      ),
-                                                    ),
-                                                    style: const TextStyle(
-                                                      fontSize: 13,
-                                                      color: AppColors.textPrimary,
-                                                    ),
-                                                    items: _getDiseasesForPetType().map((disease) {
-                                                      return DropdownMenuItem<String>(
-                                                        value: disease,
-                                                        child: Text(
-                                                          disease,
-                                                          style: const TextStyle(fontSize: 13),
-                                                        ),
-                                                      );
-                                                    }).toList(),
-                                                    onChanged: _getDiseasesForPetType().isEmpty ? null : (value) {
-                                                      setState(() {
-                                                        _selectedCorrectDisease = value;
-                                                      });
-                                                    },
-                                                    validator: (value) {
-                                                      if (_aiAssessmentCorrect == false && (value == null || value.isEmpty)) {
-                                                        return 'Please select the correct disease';
-                                                      }
-                                                      return null;
-                                                    },
-                                                    isExpanded: true,
-                                                    dropdownColor: AppColors.white,
-                                                    iconEnabledColor: AppColors.primary,
-                                                  ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            'This will help improve our AI model accuracy for ${widget.appointment.pet.type.toLowerCase()} diseases.',
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                              color: AppColors.textSecondary,
-                                              fontStyle: FontStyle.italic,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                    
-                                    const SizedBox(height: 12),
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const Text(
-                                          'Feedback (Optional)',
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.grey,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        TextFormField(
-                                            decoration: const InputDecoration(
-                                              hintText: 'Additional comments...',
-                                              hintStyle: TextStyle(fontSize: 13),
-                                              border: OutlineInputBorder(),
-                                              filled: true,
-                                              fillColor: Colors.white,
-                                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                                              isDense: true,
-                                            ),
-                                            style: const TextStyle(fontSize: 13),
-                                            maxLines: 2,
-                                            maxLength: 300,
-                                            onChanged: (value) => _aiAssessmentFeedback = value,
-                                          ),
-                                      ],
-                                    ),
-                                    
-                                    // Image Assessment Validation for Model Training
-                                    if (_hasAIAssessment) ...[
-                                      const SizedBox(height: 16),
-                                      const Divider(height: 1),
-                                      const SizedBox(height: 16),
-                                      
-                                      Row(
-                                        children: [
-                                          Icon(Icons.image, color: AppColors.primary, size: 18),
-                                          const SizedBox(width: 8),
-                                          const Text(
-                                            'Image Assessment for Model Training',
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.bold,
-                                              color: AppColors.textPrimary,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 12),
-                                      
-                                      // Display assessment images (always show container)
-                                      InkWell(
-                                        onTap: _originalImageUrl != null && _originalImageUrl!.isNotEmpty
-                                            ? () => _showImageZoomDialog(_originalImageUrl!)
-                                            : null,
-                                        child: Container(
-                                          width: double.infinity,
-                                          height: 300,
-                                          decoration: BoxDecoration(
-                                            border: Border.all(color: Colors.grey.withOpacity(0.3)),
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: Stack(
-                                            children: [
-                                              ClipRRect(
-                                                borderRadius: BorderRadius.circular(8),
-                                                child: _originalImageUrl != null && _originalImageUrl!.isNotEmpty
-                                                    ? Image.network(
-                                                        _originalImageUrl!,
-                                                        width: double.infinity,
-                                                        height: double.infinity,
-                                                        fit: BoxFit.cover,
-                                                        loadingBuilder: (context, child, loadingProgress) {
-                                                          if (loadingProgress == null) return child;
-                                                          return const Center(
-                                                            child: CircularProgressIndicator(),
-                                                          );
-                                                        },
-                                                        errorBuilder: (context, error, stackTrace) {
-                                                          return Container(
-                                                            color: Colors.grey.withOpacity(0.1),
-                                                            child: const Center(
-                                                              child: Column(
-                                                                mainAxisAlignment: MainAxisAlignment.center,
-                                                                children: [
-                                                                  Icon(Icons.broken_image, size: 40, color: Colors.grey),
-                                                                  Text('Image not available', style: TextStyle(color: Colors.grey)),
-                                                                ],
-                                                              ),
-                                                            ),
-                                                          );
-                                                        },
-                                                      )
-                                                    : Container(
-                                                        color: Colors.grey.withOpacity(0.1),
-                                                        child: const Center(
-                                                          child: Column(
-                                                            mainAxisAlignment: MainAxisAlignment.center,
-                                                            children: [
-                                                              Icon(Icons.image, size: 40, color: Colors.grey),
-                                                              Text('No assessment image available', style: TextStyle(color: Colors.grey)),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                      ),
-                                              ),
-                                              // Zoom icon overlay when image is available
-                                              if (_originalImageUrl != null && _originalImageUrl!.isNotEmpty)
-                                                Positioned(
-                                                  top: 8,
-                                                  right: 8,
-                                                  child: Container(
-                                                    padding: const EdgeInsets.all(6),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.black.withOpacity(0.6),
-                                                      borderRadius: BorderRadius.circular(6),
-                                                    ),
-                                                    child: const Icon(
-                                                      Icons.zoom_in,
-                                                      color: Colors.white,
-                                                      size: 20,
-                                                    ),
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      const Text(
-                                        'Original Assessment Image',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: AppColors.textSecondary,
-                                          fontStyle: FontStyle.italic,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      
-                                      // Image validation confirmation
-                                      Container(
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.warning.withOpacity(0.05),
-                                          border: Border.all(color: AppColors.warning.withOpacity(0.2)),
-                                          borderRadius: BorderRadius.circular(6),
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            const Text(
-                                              'Training Data Validation',
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w600,
-                                                color: AppColors.textPrimary,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            const Text(
-                                              'By confirming the AI assessment as correct, this image and assessment data will be used to improve our AI model. Please verify the accuracy before confirming.',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: AppColors.textSecondary,
-                                                height: 1.3,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            if (_assessmentMetadata != null) ...[
-                                              Text(
-                                                'Assessment Date: ${(_assessmentMetadata!['timestamp'] as Timestamp?)?.toDate().toString().split(' ')[0] ?? 'Unknown'}',
-                                                style: const TextStyle(
-                                                  fontSize: 12,
-                                                  color: AppColors.textSecondary,
-                                                ),
-                                              ),
-                                              if (_assessmentMetadata!['confidence'] != null)
-                                                Text(
-                                                  'AI Confidence: ${(_assessmentMetadata!['confidence'] as num).toStringAsFixed(1)}%',
-                                                  style: const TextStyle(
-                                                    fontSize: 12,
-                                                    color: AppColors.textSecondary,
-                                                  ),
-                                                ),
-                                            ],
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ],
+  Widget _buildStep2TrainingDataValidation() {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Training Data Validation',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Validate each assessment image for AI model training. Review the images below and mark whether the AI prediction is correct.',
+            style: TextStyle(
+              fontSize: 13,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 20),
+          
+          if (_imageValidations.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32.0),
+                child: Column(
+                  children: const [
+                    Icon(Icons.image_not_supported, size: 48, color: Colors.grey),
+                    SizedBox(height: 12),
+                    Text(
+                      'No assessment images available for validation',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            Column(
+              children: _imageValidations.asMap().entries.map((entry) {
+                final index = entry.key;
+                final validation = entry.value;
+                
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 20),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.info.withOpacity(0.05),
+                    border: Border.all(
+                      color: validation.isCorrect == null 
+                          ? AppColors.info.withOpacity(0.2)
+                          : validation.isCorrect! 
+                              ? AppColors.success.withOpacity(0.3)
+                              : AppColors.error.withOpacity(0.3),
+                      width: 2,
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header
+                      Row(
+                        children: [
+                          Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: validation.isCorrect == null
+                                  ? AppColors.info
+                                  : validation.isCorrect!
+                                      ? AppColors.success
+                                      : AppColors.error,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Center(
+                              child: Text(
+                                '${index + 1}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
                                 ),
                               ),
-                              const SizedBox(height: 20),
-                            ],
-                          ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Image ${index + 1} - ${validation.imageType}',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      // Image
+                      InkWell(
+                        onTap: () => _showImageZoomDialog(validation.imageUrl),
+                        child: Container(
+                          height: 200,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: AppColors.border),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              validation.imageUrl,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return const Center(child: CircularProgressIndicator());
+                              },
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.error_outline, size: 48, color: Colors.grey),
+                                      SizedBox(height: 8),
+                                      Text('Failed to load image', style: TextStyle(color: Colors.grey)),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
                         ),
                       ),
-              ),
-            ),
-
-            // Footer Actions (Compact)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
-                border: Border(top: BorderSide(color: AppColors.border)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
-                    child: const Text('Cancel', style: TextStyle(fontSize: 14)),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton.icon(
-                    onPressed: _isSaving ? null : _saveCompletion,
-                    icon: _isSaving
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      const SizedBox(height: 16),
+                      
+                      // AI Prediction (highest confidence only)
+                      if (_aiPredictions.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.smart_toy, color: AppColors.primary, size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  () {
+                                    var highest = _aiPredictions.first;
+                                    for (var prediction in _aiPredictions) {
+                                      if ((prediction['percentage'] as num) > (highest['percentage'] as num)) {
+                                        highest = prediction;
+                                      }
+                                    }
+                                    return 'AI Prediction: ${highest['condition']} (${(highest['percentage'] as num).toStringAsFixed(1)}%)';
+                                  }(),
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+                      
+                      // Validation controls
+                      const Text(
+                        'Is the AI prediction correct for this image?',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: RadioListTile<bool>(
+                              title: const Text('Correct', style: TextStyle(fontSize: 13)),
+                              value: true,
+                              groupValue: validation.isCorrect,
+                              onChanged: (value) {
+                                setState(() {
+                                  validation.isCorrect = value;
+                                  if (value == true) {
+                                    validation.correctDisease = null;
+                                  }
+                                });
+                              },
+                              activeColor: AppColors.success,
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
                             ),
-                          )
-                        : const Icon(Icons.check, size: 18),
-                    label: Text(
-                      _isSaving ? 'Saving...' : 'Complete Appointment',
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.success,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    ),
+                          ),
+                          Expanded(
+                            child: RadioListTile<bool>(
+                              title: const Text('Incorrect', style: TextStyle(fontSize: 13)),
+                              value: false,
+                              groupValue: validation.isCorrect,
+                              onChanged: (value) {
+                                setState(() {
+                                  validation.isCorrect = value;
+                                });
+                              },
+                              activeColor: AppColors.error,
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ),
+                        ],
+                      ),
+                      
+                      // Disease dropdown when incorrect
+                      if (validation.isCorrect == false) ...[
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Select Correct Disease *',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        DropdownButtonFormField<String>(
+                          value: validation.correctDisease,
+                          decoration: const InputDecoration(
+                            hintText: 'Select the correct disease',
+                            hintStyle: TextStyle(fontSize: 13),
+                            border: OutlineInputBorder(),
+                            filled: true,
+                            fillColor: Colors.white,
+                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            isDense: true,
+                          ),
+                          style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
+                          items: _getDiseasesForPetType().map((disease) {
+                            return DropdownMenuItem(
+                              value: disease,
+                              child: Text(disease),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              validation.correctDisease = value;
+                            });
+                          },
+                        ),
+                      ],
+                    ],
                   ),
-                ],
-              ),
+                );
+              }).toList(),
             ),
-          ],
-        ),
+        ],
       ),
     );
+  }
+
+  Widget _buildFooter() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: AppColors.border)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          if (_currentStep == 2)
+            TextButton.icon(
+              onPressed: () {
+                setState(() {
+                  _currentStep = 1;
+                });
+              },
+              icon: const Icon(Icons.arrow_back, size: 18),
+              label: const Text('Back to Evaluation'),
+            )
+          else
+            const SizedBox.shrink(),
+          if (_currentStep == 1 && _hasAIAssessment && _imageValidations.isNotEmpty)
+            ElevatedButton.icon(
+              onPressed: _validateStep1AndProceed,
+              icon: const Icon(Icons.arrow_forward, size: 18),
+              label: const Text('Next: Training Data', style: TextStyle(fontSize: 14)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
+            )
+          else
+            ElevatedButton.icon(
+              onPressed: _isSaving ? null : _saveCompletion,
+              icon: _isSaving
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Icon(Icons.check, size: 18),
+              label: Text(
+                _isSaving ? 'Saving...' : 'Complete Appointment',
+                style: const TextStyle(fontSize: 14),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.success,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _validateStep1AndProceed() {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _errorMessage = null);
+
+    if (_needsFollowUp) {
+      if (_followUpDate == null) {
+        setState(() => _errorMessage = 'Please select a follow-up date');
+        return;
+      }
+      if (_followUpTime == null) {
+        setState(() => _errorMessage = 'Please select a follow-up time');
+        return;
+      }
+    }
+
+    setState(() {
+      _currentStep = 2;
+    });
   }
 }

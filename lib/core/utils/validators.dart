@@ -103,10 +103,6 @@ String? addressValidator(String? value) {
   
   final trimmedValue = value.trim();
   
-  if (trimmedValue.length < 10) {
-    return 'Address must be at least 10 characters';
-  }
-  
   if (trimmedValue.length > 200) {
     return 'Address too long (max 200 characters)';
   }

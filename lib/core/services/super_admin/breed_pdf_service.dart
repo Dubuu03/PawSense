@@ -11,6 +11,7 @@ class BreedPdfService {
     String? statusFilter,
     String? searchQuery,
     String? generatedBy,
+    bool includeSummary = true, // New parameter to control summary display
   }) async {
     final pdf = pw.Document();
     final stats = _calculateStatistics(breeds);
@@ -31,8 +32,12 @@ class BreedPdfService {
     allWidgets.add(pw.SizedBox(height: 20));
     allWidgets.add(_buildReportInfo(filtersText: filtersText, generatedAt: DateTime.now()));
     allWidgets.add(pw.SizedBox(height: 20));
-    allWidgets.add(_buildSummaryStatistics(stats));
-    allWidgets.add(pw.SizedBox(height: 20));
+    
+    // Summary Statistics Section (only if includeSummary is true)
+    if (includeSummary) {
+      allWidgets.add(_buildSummaryStatistics(stats));
+      allWidgets.add(pw.SizedBox(height: 20));
+    }
     
     if (dogBreeds.isNotEmpty) {
       allWidgets.add(_buildSectionHeader('Dog Breeds (${dogBreeds.length})', PdfColors.blue700));

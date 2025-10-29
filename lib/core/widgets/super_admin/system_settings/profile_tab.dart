@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:pawsense/core/models/system/system_settings_model.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants.dart';
+import 'package:pawsense/core/guards/auth_guard.dart';
+import 'package:pawsense/core/models/user/user_model.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 
 class ProfileTab extends StatefulWidget {
@@ -23,14 +26,41 @@ class _ProfileTabState extends State<ProfileTab> {
   late TextEditingController _lastNameController;
   late TextEditingController _emailController;
   late TextEditingController _phoneController;
+  
+  UserModel? _currentUser;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _firstNameController = TextEditingController(text: widget.settings.firstName);
-    _lastNameController = TextEditingController(text: widget.settings.lastName);
-    _emailController = TextEditingController(text: widget.settings.email);
-    _phoneController = TextEditingController(text: widget.settings.phoneNumber);
+    _firstNameController = TextEditingController();
+    _lastNameController = TextEditingController();
+    _emailController = TextEditingController();
+    _phoneController = TextEditingController();
+    _loadCurrentUser();
+  }
+  
+  Future<void> _loadCurrentUser() async {
+    try {
+      final user = await AuthGuard.getCurrentUser();
+      if (user != null && mounted) {
+        setState(() {
+          _currentUser = user;
+          _firstNameController.text = user.firstName ?? '';
+          _lastNameController.text = user.lastName ?? '';
+          _emailController.text = user.email;
+          _phoneController.text = user.contactNumber ?? '';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading current user: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -44,6 +74,25 @@ class _ProfileTabState extends State<ProfileTab> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Center(
+        child: CircularProgressIndicator(
+          color: AppColors.primary,
+        ),
+      );
+    }
+    
+    if (_currentUser == null) {
+      return Center(
+        child: Text(
+          'Failed to load user profile',
+          style: kTextStyleRegular.copyWith(
+            color: AppColors.textSecondary,
+          ),
+        ),
+      );
+    }
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -72,7 +121,7 @@ class _ProfileTabState extends State<ProfileTab> {
               ),
               child: Center(
                 child: Text(
-                  '${widget.settings.firstName[0]}${widget.settings.lastName[0]}',
+                  '${(_currentUser!.firstName?.isNotEmpty == true ? _currentUser!.firstName![0] : _currentUser!.username[0]).toUpperCase()}${(_currentUser!.lastName?.isNotEmpty == true ? _currentUser!.lastName![0] : _currentUser!.username.length > 1 ? _currentUser!.username[1] : '').toUpperCase()}',
                   style: kTextStyleLarge.copyWith(
                     color: AppColors.white,
                     fontWeight: FontWeight.bold,
@@ -86,14 +135,14 @@ class _ProfileTabState extends State<ProfileTab> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${widget.settings.firstName} ${widget.settings.lastName}',
+                  '${_currentUser!.firstName ?? _currentUser!.username} ${_currentUser!.lastName ?? ''}',
                   style: kTextStyleTitle.copyWith(
                     color: AppColors.textPrimary,
                   ),
                 ),
                 SizedBox(height: kSpacingSmall / 2),
                 Text(
-                  widget.settings.role,
+                  _currentUser!.role.replaceAll('_', ' ').split(' ').map((word) => word[0].toUpperCase() + word.substring(1)).join(' '),
                   style: kTextStyleRegular.copyWith(
                     color: AppColors.textSecondary,
                   ),
@@ -247,23 +296,46 @@ class _ProfileTabState extends State<ProfileTab> {
     String? email,
     String? phoneNumber,
   }) {
-    widget.onSettingsChanged(
-      widget.settings.copyWith(
-        firstName: firstName,
-        lastName: lastName,
-        email: email,
-        phoneNumber: phoneNumber,
-      ),
-    );
+    // Update local state only - actual save happens on Save button click
   }
 
-  void _saveChanges() {
-    // Add save logic here
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Profile updated successfully'),
-        backgroundColor: AppColors.success,
-      ),
-    );
+  Future<void> _saveChanges() async {
+    if (_currentUser == null) return;
+    
+    try {
+      // Update user in Firestore
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_currentUser!.uid)
+          .update({
+        'firstName': _firstNameController.text.trim(),
+        'lastName': _lastNameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'contactNumber': _phoneController.text.trim(),
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+      
+      // Reload user data
+      await _loadCurrentUser();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Profile updated successfully'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error saving profile: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update profile: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 }

@@ -72,8 +72,19 @@ class _AdminDashboardWithSetupCheckState extends State<AdminDashboardWithSetupCh
   }
 
   void _onSetupCompleted() {
-    // Refresh the status after setup completion
-    _checkSetupStatus();
+    print('🔄 Setup completion callback triggered, refreshing status...');
+    
+    // Clear state and refresh
+    setState(() {
+      _setupStatus = null;
+      _clinic = null;
+      _isLoading = true;
+    });
+    
+    // Refresh the status after setup completion with a delay to ensure database is updated
+    Future.delayed(const Duration(milliseconds: 500), () {
+      _checkSetupStatus();
+    });
     
     // Call parent callback
     if (widget.onSetupCompleted != null) {

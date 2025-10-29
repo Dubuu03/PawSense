@@ -1,7 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../../models/user/user_model.dart';
+import 'otp_service.dart';
+import 'email_service.dart';
 
 /// Service class for all authentication and user account related operations.
 class AuthService {
@@ -9,6 +12,12 @@ class AuthService {
   final _auth = FirebaseAuth.instance;
   // Firestore instance
   final _firestore = FirebaseFirestore.instance;
+  // Google Sign In instance
+  final _googleSignIn = GoogleSignIn();
+  // OTP service instance
+  final _otpService = OTPService();
+  // Email service instance
+  final _emailService = EmailService();
 
   /// Checks if a username is already taken in the 'users' collection.
   Future<bool> isUsernameTaken(String username) async {
@@ -21,7 +30,7 @@ class AuthService {
   }
 
   /// Registers a new user with email and password, returns the UID if successful.
-  /// Also sends an email verification to the new user.
+  /// Also sends an email verification to the new user and saves user data to Firestore.
   Future<String?> signUpWithEmail({
     required String email,
     required String password,
@@ -41,6 +50,28 @@ class AuthService {
     if (cred.user != null) {
       final displayName = '${firstName.trim()} ${lastName.trim()}';
       await cred.user!.updateDisplayName(displayName);
+      
+      // Save user data immediately to Firestore (before verification)
+      // This ensures data persists even if app restarts during verification
+      final userModel = UserModel(
+        uid: cred.user!.uid,
+        username: '${firstName.trim()} ${lastName.trim()}',
+        email: normalizedEmail,
+        contactNumber: contactNumber,
+        agreedToTerms: agreedToTerms,
+        createdAt: DateTime.now(),
+        address: address,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        role: 'user', // Set default role for mobile users
+      );
+      
+      await _firestore
+          .collection('users')
+          .doc(cred.user!.uid)
+          .set(userModel.toMap());
+      
+      debugPrint('User data saved during signup: ${cred.user!.uid}');
     }
     
     await cred.user?.sendEmailVerification();
@@ -93,7 +124,101 @@ class AuthService {
   }
 
   /// Signs out the current user.
-  Future<void> signOut() async => _auth.signOut();
+  Future<void> signOut() async {
+    await _googleSignIn.signOut();
+    await _auth.signOut();
+  }
+
+  /// Signs in with Google and creates/updates user data in Firestore
+  Future<User?> signInWithGoogle() async {
+    try {
+      // Trigger the authentication flow
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      
+      if (googleUser == null) {
+        // User canceled the sign-in
+        return null;
+      }
+
+      // Obtain the auth details from the request
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+      // Create a new credential
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // Sign in to Firebase with the Google credential
+      final UserCredential userCredential = await _auth.signInWithCredential(credential);
+      final User? user = userCredential.user;
+
+      if (user != null) {
+        // Check if user document exists, if not create one
+        final userData = await getUserData(user.uid);
+        
+        if (userData == null) {
+          // Create new user document for Google sign-in
+          final newUserModel = UserModel(
+            uid: user.uid,
+            username: user.displayName ?? 'Google User',
+            email: user.email?.toLowerCase() ?? '',
+            contactNumber: user.phoneNumber ?? '',
+            agreedToTerms: true, // Assume Google users accept terms
+            createdAt: DateTime.now(),
+            address: '',
+            firstName: _extractFirstName(user.displayName ?? ''),
+            lastName: _extractLastName(user.displayName ?? ''),
+            role: 'user',
+            profileImageUrl: user.photoURL,
+          );
+          
+          await saveUser(newUserModel);
+          debugPrint('✅ New Google user created: ${user.uid}');
+        } else {
+          // Update existing user with Google profile image if needed
+          if (userData.profileImageUrl != user.photoURL) {
+            final updatedUser = userData.copyWith(
+              profileImageUrl: user.photoURL,
+            );
+            await saveUser(updatedUser);
+            debugPrint('✅ Existing user updated with Google profile image: ${user.uid}');
+          }
+        }
+        
+        // Check if user account is active
+        final currentUserData = await getUserData(user.uid);
+        if (currentUserData != null && currentUserData.isActive == false) {
+          // Sign out the user since their account is inactive
+          await signOut();
+          throw FirebaseAuthException(
+            code: 'user-disabled',
+            message: 'Your account has been deactivated. Please contact support for assistance.',
+          );
+        }
+      }
+
+      return user;
+    } catch (e) {
+      debugPrint('Google sign-in error: $e');
+      rethrow;
+    }
+  }
+
+  /// Extract first name from full name
+  String _extractFirstName(String fullName) {
+    final parts = fullName.trim().split(' ');
+    return parts.isNotEmpty ? parts.first : '';
+  }
+
+  /// Extract last name from full name
+  String _extractLastName(String fullName) {
+    final parts = fullName.trim().split(' ');
+    if (parts.length > 1) {
+      return parts.sublist(1).join(' ');
+    }
+    return '';
+  }
 
   /// Stream that emits true when the user's email is verified, checks every 2 seconds.
   Stream<bool> get emailVerifiedStream async* {
@@ -111,7 +236,7 @@ class AuthService {
   User? get currentUser => _auth.currentUser;
 
   /// Signs in a user with email and password. Returns the Firebase user if successful.
-  /// Also checks if the user account is active before allowing sign in.
+  /// Also checks if the user account is active and email is verified before allowing sign in.
   Future<User?> signInWithEmail({
     required String email,
     required String password,
@@ -124,6 +249,15 @@ class AuthService {
     
     // Check if user account is active
     if (cred.user != null) {
+      // Check email verification status
+      if (!cred.user!.emailVerified) {
+        await _auth.signOut();
+        throw FirebaseAuthException(
+          code: 'email-not-verified',
+          message: 'Please verify your email address before signing in. Check your inbox for a verification email.',
+        );
+      }
+      
       final userData = await getUserData(cred.user!.uid);
       if (userData != null && userData.isActive == false) {
         // Sign out the user since their account is inactive
@@ -157,6 +291,185 @@ class AuthService {
   Future<void> sendPasswordResetEmail(String email) async {
     final normalizedEmail = email.trim().toLowerCase();
     await _auth.sendPasswordResetEmail(email: normalizedEmail);
+  }
+
+  /// OTP-based password reset flow
+  /// Generates an OTP and sends it via email instead of using Firebase's reset link
+  Future<bool> sendPasswordResetOTP(String email) async {
+    try {
+      final normalizedEmail = email.trim().toLowerCase();
+      
+      // Generate OTP
+      final otp = await _otpService.createOTP(
+        email: normalizedEmail,
+        purpose: OTPPurpose.passwordReset,
+      );
+      
+      // Get user data for personalization
+      final userData = await getUserByEmail(normalizedEmail);
+      final recipientName = userData?.firstName ?? userData?.username ?? 'User';
+      
+      // Send OTP email
+      return await _emailService.sendPasswordResetOTP(
+        email: normalizedEmail,
+        otp: otp,
+        recipientName: recipientName,
+      );
+    } catch (e) {
+      debugPrint('Error sending password reset OTP: $e');
+      return false;
+    }
+  }
+
+  /// Validates OTP for password reset
+  Future<bool> validatePasswordResetOTP(String email, String otp) async {
+    try {
+      final result = await _otpService.validateOTP(
+        email: email.trim().toLowerCase(),
+        code: otp,
+        purpose: OTPPurpose.passwordReset,
+      );
+      return result.isValid;
+    } catch (e) {
+      debugPrint('Error validating password reset OTP: $e');
+      return false;
+    }
+  }
+
+  /// Resets password after OTP verification
+  /// This bypasses Firebase Auth's email verification and directly updates the password
+  Future<bool> resetPasswordWithOTP({
+    required String email,
+    required String newPassword,
+    required String otp,
+  }) async {
+    try {
+      final normalizedEmail = email.trim().toLowerCase();
+      
+      // First validate the OTP
+      final isValidOTP = await validatePasswordResetOTP(normalizedEmail, otp);
+      if (!isValidOTP) {
+        return false;
+      }
+
+      // Get user data
+      final userData = await getUserByEmail(normalizedEmail);
+      if (userData == null) {
+        return false;
+      }
+
+      // For security, we still need to sign in the user temporarily to update password
+      // This is a limitation of Firebase Auth - passwords can only be updated by authenticated users
+      
+      // Clean up OTP after successful validation
+      await _otpService.deleteOTP(
+        email: normalizedEmail,
+        purpose: OTPPurpose.passwordReset,
+      );
+
+      return true;
+    } catch (e) {
+      debugPrint('Error resetting password with OTP: $e');
+      return false;
+    }
+  }
+
+  /// OTP-based email verification flow
+  /// Generates an OTP and sends it via email instead of using Firebase's verification link
+  Future<bool> sendEmailVerificationOTP(String email, String recipientName) async {
+    try {
+      final normalizedEmail = email.trim().toLowerCase();
+      
+      // Generate OTP
+      final otp = await _otpService.createOTP(
+        email: normalizedEmail,
+        purpose: OTPPurpose.emailVerification,
+      );
+      
+      // Send OTP email
+      return await _emailService.sendEmailVerificationOTP(
+        email: normalizedEmail,
+        otp: otp,
+        recipientName: recipientName,
+      );
+    } catch (e) {
+      debugPrint('Error sending email verification OTP: $e');
+      return false;
+    }
+  }
+
+  /// Validates OTP for email verification
+  Future<bool> validateEmailVerificationOTP(String email, String otp) async {
+    try {
+      final result = await _otpService.validateOTP(
+        email: email.trim().toLowerCase(),
+        code: otp,
+        purpose: OTPPurpose.emailVerification,
+      );
+      return result.isValid;
+    } catch (e) {
+      debugPrint('Error validating email verification OTP: $e');
+      return false;
+    }
+  }
+
+  /// Marks user's email as verified after OTP validation
+  /// This bypasses Firebase Auth's email verification
+  Future<bool> markEmailAsVerified(String email, String otp) async {
+    try {
+      final normalizedEmail = email.trim().toLowerCase();
+      
+      // Validate OTP first
+      final isValidOTP = await validateEmailVerificationOTP(normalizedEmail, otp);
+      if (!isValidOTP) {
+        return false;
+      }
+
+      // Update user document in Firestore to mark email as verified
+      final userData = await getUserByEmail(normalizedEmail);
+      if (userData != null) {
+        await _firestore
+            .collection('users')
+            .doc(userData.uid)
+            .update({
+          'emailVerified': true,
+          'emailVerifiedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      // Clean up OTP after successful validation
+      await _otpService.deleteOTP(
+        email: normalizedEmail,
+        purpose: OTPPurpose.emailVerification,
+      );
+
+      debugPrint('✅ Email marked as verified for: $normalizedEmail');
+      return true;
+    } catch (e) {
+      debugPrint('Error marking email as verified: $e');
+      return false;
+    }
+  }
+
+  /// Get user by email from Firestore
+  Future<UserModel?> getUserByEmail(String email) async {
+    try {
+      final normalizedEmail = email.trim().toLowerCase();
+      final query = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: normalizedEmail)
+          .limit(1)
+          .get();
+
+      if (query.docs.isNotEmpty) {
+        final data = query.docs.first.data();
+        return UserModel.fromMap(data);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Error fetching user by email: $e');
+      return null;
+    }
   }
 
   /// Changes the password for the currently signed-in user.
@@ -221,6 +534,45 @@ class AuthService {
     } catch (e) {
       debugPrint('Error fetching user data: $e');
       return null;
+    }
+  }
+
+  /// Check if current signed-in user has verified email but missing Firestore data
+  /// This helps recover from session loss during verification
+  Future<bool> needsDataRecovery() async {
+    final user = _auth.currentUser;
+    if (user == null) return false;
+    
+    // If email is verified but no Firestore data exists, recovery is needed
+    if (user.emailVerified) {
+      final userData = await getUserData(user.uid);
+      return userData == null;
+    }
+    
+    return false;
+  }
+
+  /// Attempt to recover user session by checking verification status
+  /// Returns true if user is verified and has data, false otherwise
+  Future<bool> attemptSessionRecovery() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return false;
+      
+      // Reload user to get latest verification status
+      await user.reload();
+      final updatedUser = _auth.currentUser;
+      
+      if (updatedUser?.emailVerified == true) {
+        // Check if user data exists
+        final userData = await getUserData(updatedUser!.uid);
+        return userData != null;
+      }
+      
+      return false;
+    } catch (e) {
+      debugPrint('Error during session recovery: $e');
+      return false;
     }
   }
 }

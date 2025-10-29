@@ -4,15 +4,11 @@ import 'package:pawsense/core/utils/constants.dart';
 
 class MessageInput extends StatefulWidget {
   final Function(String) onSendMessage;
-  final VoidCallback? onAttachPressed;
-  final VoidCallback? onEmojiPressed;
   final bool isEnabled;
 
   const MessageInput({
     super.key,
     required this.onSendMessage,
-    this.onAttachPressed,
-    this.onEmojiPressed,
     this.isEnabled = true,
   });
 
@@ -63,17 +59,6 @@ class _MessageInputState extends State<MessageInput> {
       ),
       child: Row(
         children: [
-          // Attach button
-          IconButton(
-            onPressed: widget.isEnabled ? widget.onAttachPressed : null,
-            icon: Icon(
-              Icons.attach_file,
-              color: widget.isEnabled ? AppColors.primary : AppColors.textSecondary,
-              size: 20,
-            ),
-            tooltip: 'Attach file',
-          ),
-          
           // Message input field
           Expanded(
             child: Container(
@@ -85,46 +70,28 @@ class _MessageInputState extends State<MessageInput> {
                   width: 1,
                 ),
               ),
-              child: Row(
-                children: [
-                  // Emoji button
-                  IconButton(
-                    onPressed: widget.isEnabled ? widget.onEmojiPressed : null,
-                    icon: Icon(
-                      Icons.emoji_emotions_outlined,
-                      color: widget.isEnabled ? AppColors.textSecondary : AppColors.textSecondary.withOpacity(0.5),
-                      size: 20,
-                    ),
-                    tooltip: 'Add emoji',
+              child: TextField(
+                controller: _messageController,
+                enabled: widget.isEnabled,
+                maxLines: null,
+                keyboardType: TextInputType.multiline,
+                textInputAction: TextInputAction.newline,
+                onSubmitted: (_) => _sendMessage(),
+                decoration: InputDecoration(
+                  hintText: widget.isEnabled ? 'Type a message...' : 'Select a conversation to reply',
+                  hintStyle: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 14,
                   ),
-                  
-                  // Text field
-                  Expanded(
-                    child: TextField(
-                      controller: _messageController,
-                      enabled: widget.isEnabled,
-                      maxLines: null,
-                      keyboardType: TextInputType.multiline,
-                      textInputAction: TextInputAction.newline,
-                      onSubmitted: (_) => _sendMessage(),
-                      decoration: InputDecoration(
-                        hintText: widget.isEnabled ? 'Aa' : 'Select a conversation to reply',
-                        hintStyle: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 14,
-                        ),
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: kSpacingSmall,
-                          vertical: kSpacingSmall,
-                        ),
-                      ),
-                      style: kTextStyleRegular.copyWith(
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: kSpacingMedium,
+                    vertical: kSpacingSmall,
                   ),
-                ],
+                ),
+                style: kTextStyleRegular.copyWith(
+                  color: AppColors.textPrimary,
+                ),
               ),
             ),
           ),

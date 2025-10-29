@@ -14,6 +14,7 @@ import '../../../core/widgets/admin/vet_profile/vet_profile_header.dart';
 import '../../../core/widgets/admin/vet_profile/add_service_modal.dart';
 import '../../../core/widgets/admin/vet_profile/edit_service_modal.dart';
 import '../../../core/widgets/admin/vet_profile/add_specialization_modal.dart';
+import '../../../core/widgets/admin/vet_profile/specialization_preview_modal.dart';
 import '../../../core/services/vet_profile/vet_profile_service.dart';
 import '../../../core/utils/firestore_sample_data_util.dart';
 import '../../../core/utils/file_downloader.dart' as file_downloader;
@@ -118,6 +119,7 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
                   'title': specialty.toString(),
                   'level': 'Expert',
                   'hasCertification': true,
+                  'certificateUrl': null, // No certificate for old format
                 }).toList();
               } else {
                 // New format: already maps
@@ -125,6 +127,7 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
                   'title': spec['title'] ?? '',
                   'level': spec['level'] ?? 'Expert',
                   'hasCertification': spec['hasCertification'] ?? true,
+                  'certificateUrl': spec['certificateUrl'], // Include certificate URL
                 }).toList();
               }
               
@@ -438,6 +441,60 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
     }();
   }
 
+  /// Show Specialization Certificate Preview
+  void _showSpecializationPreview(Map<String, dynamic> specialization) {
+    final certificateUrl = specialization['certificateUrl'] as String?;
+    if (certificateUrl == null) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => SpecializationPreviewModal(
+        title: specialization['title'] ?? 'Specialization',
+        level: specialization['level'] ?? 'Basic',
+        certificateUrl: certificateUrl,
+        onDownload: () => _downloadSpecializationCertificate(certificateUrl),
+      ),
+    );
+  }
+
+  /// Download Specialization Certificate
+  void _downloadSpecializationCertificate(String certificateUrl) {
+    final uri = Uri.tryParse(certificateUrl);
+    if (uri == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Invalid certificate URL'), backgroundColor: AppColors.error),
+      );
+      return;
+    }
+
+    () async {
+      try {
+        final response = await http.get(uri);
+        if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
+          final fileName = uri.pathSegments.isNotEmpty 
+              ? uri.pathSegments.last 
+              : 'specialization_certificate_${DateTime.now().millisecondsSinceEpoch}';
+          final savedPath = await file_downloader.downloadFile(fileName, response.bodyBytes);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(savedPath != null ? 'Saved to $savedPath' : 'Download started'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to download certificate'), backgroundColor: AppColors.error),
+          );
+        }
+      } catch (e) {
+        print('Error downloading certificate: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error downloading certificate'), backgroundColor: AppColors.error),
+        );
+      }
+    }();
+  }
+
   /// Show Delete Certification Confirmation
   Future<void> _showDeleteCertificationConfirmation(String certificationId) async {
     final result = await showDialog<bool>(
@@ -732,6 +789,10 @@ class _VetProfileScreenState extends State<VetProfileScreen> {
                                           title: spec['title'] ?? '',
                                           level: spec['level'] ?? 'Basic',
                                           hasCertification: spec['hasCertification'] ?? false,
+                                          certificateUrl: spec['certificateUrl'],
+                                          onPreview: spec['certificateUrl'] != null
+                                              ? () => _showSpecializationPreview(spec)
+                                              : null,
                                           onDelete: () => _showDeleteSpecializationConfirmation(spec['title'] ?? ''),
                                         )),
                                     ],

@@ -217,7 +217,7 @@ class AppointmentService {
         userId: booking.userId,
         petName: 'Unknown Pet',
         petType: 'Unknown',
-        age: 0,
+        initialAge: 0,
         weight: 0.0,
         breed: 'Unknown',
         createdAt: DateTime.now(),
@@ -410,14 +410,20 @@ class AppointmentService {
       
       final timeSlots = <String>[];
       final appointments = scheduleData['appointments'] as List<Map<String, dynamic>>? ?? [];
-      final bookedTimes = appointments.map((apt) => apt['appointmentTime'] as String).toSet();
+      
+      // Count appointments per time slot instead of treating them as binary
+      final appointmentCountPerTime = <String, int>{};
+      for (final apt in appointments) {
+        final time = apt['appointmentTime'] as String;
+        appointmentCountPerTime[time] = (appointmentCountPerTime[time] ?? 0) + 1;
+      }
 
       // Generate slots from open to close time
       var currentTime = openTime;
       while (_isTimeBefore(currentTime, closeTime)) {
         final timeString = '${currentTime.hour.toString().padLeft(2, '0')}:${currentTime.minute.toString().padLeft(2, '0')}';
         
-        // Check if time is not during break and not already booked
+        // Check if time is not during break and has available capacity
         bool isAvailable = true;
         
         // Check break times
@@ -432,8 +438,9 @@ class AppointmentService {
           }
         }
         
-        // Check if already booked
-        if (bookedTimes.contains(timeString)) {
+        // Check if slot still has capacity (allow multiple appointments per slot up to slotsPerHour)
+        final currentCount = appointmentCountPerTime[timeString] ?? 0;
+        if (currentCount >= slotsPerHour) {
           isAvailable = false;
         }
 

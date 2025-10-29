@@ -37,21 +37,30 @@ class SuperAdminService {
 
       print('SuperAdminService: Retrieved ${allDocs.length} users from Firestore');
 
-      // Convert all documents to user objects with status
-      final allUsers = allDocs.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        final user = UserModel.fromMap({
-          'uid': doc.id,
-          ...data,
-        });
+      // Convert all documents to user objects with status, EXCLUDING super_admin role
+      final allUsers = allDocs
+          .map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final user = UserModel.fromMap({
+              'uid': doc.id,
+              ...data,
+            });
 
-        return {
-          'user': user,
-          'isActive': user.isActive,
-          'suspensionReason': user.suspensionReason,
-          'suspendedAt': user.suspendedAt,
-        };
-      }).toList();
+            return {
+              'user': user,
+              'isActive': user.isActive,
+              'suspensionReason': user.suspensionReason,
+              'suspendedAt': user.suspendedAt,
+            };
+          })
+          .where((userMap) {
+            // Filter out super_admin users
+            final user = userMap['user'] as UserModel;
+            return user.role != 'super_admin';
+          })
+          .toList();
+
+      print('SuperAdminService: After filtering super_admins: ${allUsers.length} users');
 
       // Apply search filter FIRST (before pagination)
       List<Map<String, dynamic>> filteredUsers = allUsers;
@@ -127,12 +136,15 @@ class SuperAdminService {
       query = query.limit(limit);
       
       final querySnapshot = await query.get();
-      List<UserModel> users = querySnapshot.docs.map((doc) {
-        return UserModel.fromMap({
-          'uid': doc.id,
-          ...doc.data() as Map<String, dynamic>,
-        });
-      }).toList();
+      List<UserModel> users = querySnapshot.docs
+          .map((doc) {
+            return UserModel.fromMap({
+              'uid': doc.id,
+              ...doc.data() as Map<String, dynamic>,
+            });
+          })
+          .where((user) => user.role != 'super_admin') // Filter out super_admin users
+          .toList();
       
       // Apply search filter (client-side for now)
       if (searchQuery != null && searchQuery.isNotEmpty) {
@@ -690,7 +702,7 @@ class SuperAdminService {
     try {
       final snapshot = await _firestore.collection('users').get();
       
-      int total = snapshot.docs.length;
+      int total = 0;
       int active = 0;
       int suspended = 0;
       int admins = 0;
@@ -698,8 +710,16 @@ class SuperAdminService {
       
       for (var doc in snapshot.docs) {
         final data = doc.data();
-        final isActive = data['isActive'] ?? true;
         final role = data['role'] ?? 'user';
+        
+        // Skip super_admin users
+        if (role == 'super_admin') {
+          continue;
+        }
+        
+        total++;
+        
+        final isActive = data['isActive'] ?? true;
         
         if (isActive) {
           active++;
@@ -707,7 +727,7 @@ class SuperAdminService {
           suspended++;
         }
         
-        if (role == 'admin' || role == 'super_admin') {
+        if (role == 'admin') {
           admins++;
         } else {
           users++;

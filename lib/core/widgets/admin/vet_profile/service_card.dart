@@ -172,7 +172,7 @@ class ServiceCard extends StatelessWidget {
                   ),
                   SizedBox(width: 4),
                   Text(
-                    price,
+                    '₱$price',
                     style: TextStyle(
                       fontSize: kFontSizeSmall,
                       fontWeight: FontWeight.w600,

@@ -74,7 +74,7 @@ class _AddServiceModalState extends State<AddServiceModal> {
       final success = await VetProfileService.addService(
         serviceName: _serviceNameController.text.trim(),
         serviceDescription: _descriptionController.text.trim(),
-        estimatedPrice: 'PHP ${_priceController.text.trim()}',
+        estimatedPrice: _priceController.text.trim(), // Save only numeric value
         duration: '${_durationController.text.trim()} minutes',
         category: _selectedCategory.name,
         isActive: true,
@@ -295,10 +295,7 @@ class _AddServiceModalState extends State<AddServiceModal> {
                       contentPadding: EdgeInsets.all(kSpacingMedium),
                     ),
                     validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter a description';
-                      }
-                      if (value.length > 300) {
+                      if (value != null && value.length > 300) {
                         return 'Description cannot exceed 300 characters';
                       }
                       return null;

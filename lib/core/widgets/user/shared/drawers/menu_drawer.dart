@@ -143,25 +143,6 @@ class MenuDrawer extends StatelessWidget {
                     },
                   ),
                   
-                  // Divider
-                  Container(
-                    margin: const EdgeInsets.symmetric(vertical: 8),
-                    child: Divider(
-                      color: AppColors.border.withValues(alpha: 0.2),
-                      thickness: 1,
-                    ),
-                  ),
-                  
-
-
-                  _buildMenuItem(
-                    icon: Icons.help_outline,
-                    title: 'Help & Support',
-                    onTap: () {
-                      Navigator.pop(context);
-                      // Navigate to help
-                    },
-                  ),
                 ],
               ),
             ),

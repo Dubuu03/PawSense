@@ -53,6 +53,21 @@ class SpecializationService {
     String? level,
     bool? hasCertification,
   }) async {
+    return await addSpecializationWithCertificate(
+      specialization,
+      level: level,
+      hasCertification: hasCertification,
+      certificateUrl: null,
+    );
+  }
+
+  /// Add specialization with certificate to current user's clinic details
+  static Future<bool> addSpecializationWithCertificate(
+    String specialization, {
+    String? level,
+    bool? hasCertification,
+    String? certificateUrl,
+  }) async {
     try {
       print('DEBUG: Adding specialization: $specialization');
       
@@ -108,6 +123,7 @@ class SpecializationService {
             'level': level ?? 'Expert',
             'hasCertification': hasCertification ?? true,
             'addedAt': DateTime.now().toIso8601String(),
+            if (certificateUrl != null) 'certificateUrl': certificateUrl,
           };
           
           currentSpecializations.add(newSpecialization);
@@ -132,10 +148,11 @@ class SpecializationService {
         final success = await ClinicDetailsService.createClinicDetailsDocument(currentUser.uid);
         if (success) {
           print('DEBUG: Created clinic details document. Retrying...');
-          return await addSpecialization(
+          return await addSpecializationWithCertificate(
             specialization,
             level: level,
             hasCertification: hasCertification,
+            certificateUrl: certificateUrl,
           );
         } else {
           print('DEBUG: Failed to create clinic details document');

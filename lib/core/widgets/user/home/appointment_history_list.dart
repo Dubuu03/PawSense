@@ -18,6 +18,7 @@ class AppointmentHistoryData {
   final DateTime timestamp;
   final String? clinicName;
   final DateTime createdAt; // Added for sorting by booking creation date
+  final bool isFollowUp; // Indicates if this is a follow-up appointment
 
   AppointmentHistoryData({
     required this.id,
@@ -27,6 +28,7 @@ class AppointmentHistoryData {
     required this.timestamp,
     this.clinicName,
     required this.createdAt, // Required for sorting
+    this.isFollowUp = false, // Default to false
   });
 }
 
@@ -121,6 +123,9 @@ class AppointmentHistoryItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Debug print
+    print('AppointmentHistoryItem: ${data.title}, isFollowUp: ${data.isFollowUp}');
+    
     return Container(
       margin: const EdgeInsets.only(bottom: kMobileSizedBoxMedium),
       decoration: BoxDecoration(
@@ -161,21 +166,53 @@ class AppointmentHistoryItem extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        data.title,
-                        style: kMobileTextStyleTitle.copyWith(
-                          color: AppColors.textPrimary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              data.title,
+                              style: kMobileTextStyleTitle.copyWith(
+                                color: AppColors.textPrimary,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (data.isFollowUp) ...[
+                            const SizedBox(width: 8),
+                            Tooltip(
+                              message: 'Follow-up appointment',
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.info,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(
+                                  Icons.refresh,
+                                  size: 10,
+                                  color: AppColors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 4),
                       Text(
                         data.subtitle,
                         style: kMobileTextStyleSubtitle.copyWith(
                           color: AppColors.textSecondary,
                           fontSize: 11,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),

@@ -6,15 +6,11 @@ import 'user_avatar.dart';
 
 class ChatHeader extends StatelessWidget {
   final Conversation? conversation;
-  final VoidCallback? onCallPressed;
-  final VoidCallback? onVideoPressed;
   final VoidCallback? onInfoPressed;
 
   const ChatHeader({
     super.key,
     this.conversation,
-    this.onCallPressed,
-    this.onVideoPressed,
     this.onInfoPressed,
   });
 
@@ -79,36 +75,14 @@ class ChatHeader extends StatelessWidget {
           ),
           
           // Action buttons
-          Row(
-            children: [
-              IconButton(
-                onPressed: onCallPressed,
-                icon: Icon(
-                  Icons.phone,
-                  color: AppColors.primary,
-                  size: 20,
-                ),
-                tooltip: 'Voice call',
-              ),
-              IconButton(
-                onPressed: onVideoPressed,
-                icon: Icon(
-                  Icons.videocam,
-                  color: AppColors.primary,
-                  size: 20,
-                ),
-                tooltip: 'Video call',
-              ),
-              IconButton(
-                onPressed: onInfoPressed,
-                icon: Icon(
-                  Icons.info_outline,
-                  color: AppColors.primary,
-                  size: 20,
-                ),
-                tooltip: 'Conversation info',
-              ),
-            ],
+          IconButton(
+            onPressed: onInfoPressed,
+            icon: Icon(
+              Icons.info_outline,
+              color: AppColors.primary,
+              size: 20,
+            ),
+            tooltip: 'Conversation info',
           ),
         ],
       ),

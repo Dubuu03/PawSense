@@ -1457,7 +1457,7 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
                                 Row(
                                   children: [
                                     Text(
-                                      '${service['estimatedPrice'] ?? '0.00'} • ${service['duration'] ?? '30 mins'}',
+                                      'PHP ${service['estimatedPrice'] ?? '0.00'} • ${service['duration'] ?? '30 mins'}',
                                       style: TextStyle(
                                         fontSize: 12,
                                         color: AppColors.textSecondary,
@@ -2225,7 +2225,7 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
         userId: '',
         petName: '',
         petType: '',
-        age: 0,
+        initialAge: 0,
         weight: 0.0,
         breed: '',
         createdAt: DateTime.now(),
@@ -2240,7 +2240,7 @@ class _BookAppointmentPageState extends State<BookAppointmentPage> {
           userId: userId,
           petName: _assessmentResult!.petName,
           petType: _assessmentResult!.petType,
-          age: _assessmentResult!.petAge,
+          initialAge: _assessmentResult!.petAge,
           weight: _assessmentResult!.petWeight,
           breed: _assessmentResult!.petBreed,
           createdAt: DateTime.now(),

@@ -8,7 +8,9 @@ import 'faq_item.dart';
 import 'faq_management_modal.dart';
 
 class FAQList extends StatefulWidget {
-  const FAQList({super.key});
+  final String? searchQuery;
+  
+  const FAQList({super.key, this.searchQuery});
 
   @override
   _FAQListState createState() => _FAQListState();
@@ -16,6 +18,7 @@ class FAQList extends StatefulWidget {
 
 class _FAQListState extends State<FAQList> {
   List<FAQItemModel> _faqItems = [];
+  List<FAQItemModel> _filteredFaqItems = [];
   bool _isLoading = true;
   String? _errorMessage;
   bool _isSuperAdmin = false;
@@ -47,6 +50,7 @@ class _FAQListState extends State<FAQList> {
       if (mounted) {
         setState(() {
           _faqItems = faqs;
+          _applySearchFilter();
           _isLoading = false;
         });
       }
@@ -57,6 +61,30 @@ class _FAQListState extends State<FAQList> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  void _applySearchFilter() {
+    final query = widget.searchQuery?.toLowerCase() ?? '';
+    
+    if (query.isEmpty) {
+      _filteredFaqItems = _faqItems;
+    } else {
+      _filteredFaqItems = _faqItems.where((faq) {
+        return faq.question.toLowerCase().contains(query) ||
+            faq.answer.toLowerCase().contains(query) ||
+            faq.category.toLowerCase().contains(query);
+      }).toList();
+    }
+  }
+
+  @override
+  void didUpdateWidget(FAQList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.searchQuery != widget.searchQuery) {
+      setState(() {
+        _applySearchFilter();
+      });
     }
   }
 
@@ -201,7 +229,7 @@ class _FAQListState extends State<FAQList> {
 
         // FAQ List or Empty State
         Expanded(
-          child: _faqItems.isEmpty
+          child: _filteredFaqItems.isEmpty
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -213,7 +241,9 @@ class _FAQListState extends State<FAQList> {
                       ),
                       SizedBox(height: kSpacingMedium),
                       Text(
-                        'No FAQs yet',
+                        widget.searchQuery?.isNotEmpty == true
+                            ? 'No FAQs match your search'
+                            : 'No FAQs yet',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -222,45 +252,55 @@ class _FAQListState extends State<FAQList> {
                       ),
                       SizedBox(height: kSpacingSmall),
                       Text(
-                        'Create your first FAQ to help users',
+                        widget.searchQuery?.isNotEmpty == true
+                            ? 'Try different keywords'
+                            : 'Create your first FAQ to help users',
                         style: TextStyle(
                           color: AppColors.textTertiary,
                         ),
                       ),
-                      SizedBox(height: kSpacingLarge),
-                      ElevatedButton.icon(
-                        onPressed: _showAddFAQModal,
-                        icon: Icon(Icons.add),
-                        label: Text('Add Your First FAQ'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: AppColors.white,
-                          padding: EdgeInsets.symmetric(
-                            horizontal: kSpacingLarge,
-                            vertical: kSpacingMedium,
+                      if (_faqItems.isEmpty) ...[
+                        SizedBox(height: kSpacingLarge),
+                        ElevatedButton.icon(
+                          onPressed: _showAddFAQModal,
+                          icon: Icon(Icons.add),
+                          label: Text('Add Your First FAQ'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: AppColors.white,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: kSpacingLarge,
+                              vertical: kSpacingMedium,
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 )
               : RefreshIndicator(
                   onRefresh: _loadFAQs,
                   child: ListView.separated(
-                    itemCount: _faqItems.length,
+                    itemCount: _filteredFaqItems.length,
                     separatorBuilder: (context, index) => SizedBox(height: kSpacingMedium),
                     itemBuilder: (context, index) {
+                      final faq = _filteredFaqItems[index];
                       return FAQItem(
-                        faqItem: _faqItems[index],
+                        faqItem: faq,
                         onToggleExpanded: () {
                           setState(() {
-                            _faqItems[index] = _faqItems[index].copyWith(
-                              isExpanded: !_faqItems[index].isExpanded,
-                            );
+                            // Update the original item in _faqItems
+                            final originalIndex = _faqItems.indexWhere((f) => f.id == faq.id);
+                            if (originalIndex != -1) {
+                              _faqItems[originalIndex] = _faqItems[originalIndex].copyWith(
+                                isExpanded: !_faqItems[originalIndex].isExpanded,
+                              );
+                              _applySearchFilter();
+                            }
                           });
                         },
-                        onEdit: () => _showEditFAQModal(_faqItems[index]),
-                        onDelete: () => _deleteFAQ(_faqItems[index]),
+                        onEdit: () => _showEditFAQModal(faq),
+                        onDelete: () => _deleteFAQ(faq),
                       );
                     },
                   ),

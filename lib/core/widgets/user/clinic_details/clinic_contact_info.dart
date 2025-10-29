@@ -4,6 +4,8 @@ import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
 import 'package:pawsense/core/models/clinic/clinic_details_model.dart';
 import 'package:pawsense/core/models/clinic/clinic_model.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/services.dart';
 
 class ClinicContactInfo extends StatefulWidget {
   final ClinicDetails clinic;
@@ -235,17 +237,70 @@ class _ClinicContactInfoState extends State<ClinicContactInfo> {
   }
 
   void _makePhoneCall(String phone) {
-    // Show phone number in a dialog or copy to clipboard
-    print('Phone call functionality: $phone');
+    if (phone.isEmpty) {
+      _showSnack('No phone number available');
+      return;
+    }
+
+    final uri = Uri(scheme: 'tel', path: phone);
+    canLaunchUrl(uri).then((can) async {
+      if (can) {
+        await launchUrl(uri);
+      } else {
+        // Fallback: copy to clipboard
+        await Clipboard.setData(ClipboardData(text: phone));
+        _showSnack('Phone number copied to clipboard');
+      }
+    });
   }
 
   void _sendEmail(String email) {
-    // Show email in a dialog or copy to clipboard
-    print('Email functionality: $email');
+    if (email.isEmpty) {
+      _showSnack('No email available');
+      return;
+    }
+
+    final uri = Uri(
+      scheme: 'mailto',
+      path: email,
+    );
+
+    canLaunchUrl(uri).then((can) async {
+      if (can) {
+        await launchUrl(uri);
+      } else {
+        await Clipboard.setData(ClipboardData(text: email));
+        _showSnack('Email copied to clipboard');
+      }
+    });
   }
 
   void _openWebsite(String website) {
-    // Show website URL in a dialog or copy to clipboard
-    print('Website functionality: $website');
+    if (website.isEmpty) {
+      _showSnack('No website available');
+      return;
+    }
+
+    var url = website;
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'https://$url';
+    }
+
+    final uri = Uri.parse(url);
+    canLaunchUrl(uri).then((can) async {
+      if (can) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        await Clipboard.setData(ClipboardData(text: url));
+        _showSnack('Website URL copied to clipboard');
+      }
+    });
+  }
+
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 }

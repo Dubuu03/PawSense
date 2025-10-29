@@ -44,10 +44,8 @@ class _TopNavBarState extends State<TopNavBar> {
   @override
   void initState() {
     super.initState();
-    // Initialize notification service if user is admin or super admin
-    if (widget.userRole.toLowerCase() == 'admin' || 
-        widget.userRole.toLowerCase() == 'super_admin' ||
-        widget.userRole.toLowerCase() == 'super admin') {
+    // Initialize notification service only for admin users (not superadmin)
+    if (widget.userRole.toLowerCase() == 'admin') {
       _notificationService.initialize();
     }
   }
@@ -97,19 +95,15 @@ class _TopNavBarState extends State<TopNavBar> {
                     userRole: widget.userRole,
                     onViewProfile: () {
                       _closeMenu();
-                      widget.onProfileTap?.call();
+                      context.go('/admin/vet-profile');
                     },
                     onSettings: () {
                       _closeMenu();
-                      // Navigate to settings will be handled by the modal
-                    },
-                    onToggleDarkMode: () {
-                      _closeMenu();
-                      // Toggle dark mode will be handled by the modal
+                      context.go('/admin/settings');
                     },
                     onHelpSupport: () {
                       _closeMenu();
-                      // Navigate to help & support will be handled by the modal
+                      context.go('/admin/support');
                     },
                     onSignOut: () {
                       // Clean up overlay immediately without setState
@@ -293,10 +287,8 @@ class _TopNavBarState extends State<TopNavBar> {
           ),
           const Spacer(),
 
-          // Notification button (only for admin users)
-          if (widget.userRole.toLowerCase() == 'admin' || 
-              widget.userRole.toLowerCase() == 'super_admin' ||
-              widget.userRole.toLowerCase() == 'super admin')
+          // Notification button (only for admin users, not superadmin)
+          if (widget.userRole.toLowerCase() == 'admin')
             _buildNotificationButton(),
           const SizedBox(width: 24),
 

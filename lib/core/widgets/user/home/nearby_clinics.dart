@@ -464,24 +464,28 @@ class _NearbyClinicsWidgetState extends State<NearbyClinicsWidget> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
+                color: clinic.logoUrl != null && clinic.logoUrl!.isNotEmpty
+                    ? AppColors.white
+                    : AppColors.primary,
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: AppColors.border,
-                  width: 1,
-                ),
+                border: clinic.logoUrl != null && clinic.logoUrl!.isNotEmpty
+                    ? Border.all(
+                        color: AppColors.border,
+                        width: 1,
+                      )
+                    : null,
               ),
-              padding: const EdgeInsets.all(4), // Add padding to make image smaller inside circle
-              child: ClipOval(
-                child: clinic.logoUrl != null && clinic.logoUrl!.isNotEmpty
-                    ? Image.network(
+              padding: EdgeInsets.all(clinic.logoUrl != null && clinic.logoUrl!.isNotEmpty ? 4 : 8),
+              child: clinic.logoUrl != null && clinic.logoUrl!.isNotEmpty
+                  ? ClipOval(
+                      child: Image.network(
                         clinic.logoUrl!,
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
-                          return Icon(
-                            clinic.isVerified ? Icons.verified : Icons.local_hospital,
+                          return const Icon(
+                            Icons.local_hospital,
                             size: 20,
-                            color: clinic.isVerified ? AppColors.success : AppColors.primary,
+                            color: AppColors.white,
                           );
                         },
                         loadingBuilder: (context, child, loadingProgress) {
@@ -497,13 +501,13 @@ class _NearbyClinicsWidgetState extends State<NearbyClinicsWidget> {
                             ),
                           );
                         },
-                      )
-                    : Icon(
-                        clinic.isVerified ? Icons.verified : Icons.local_hospital,
-                        size: 20,
-                        color: clinic.isVerified ? AppColors.success : AppColors.primary,
                       ),
-              ),
+                    )
+                  : const Icon(
+                      Icons.local_hospital,
+                      size: 20,
+                      color: AppColors.white,
+                    ),
             ),
 
             const SizedBox(width: 12),

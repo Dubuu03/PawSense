@@ -1,14 +1,16 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
 import '../../../core/services/auth/auth_service_mobile.dart';
+import '../../../core/services/auth/auth_recovery_service.dart';
 import '../../../core/services/messaging/mobile_messaging_preferences_service.dart';
-import 'forgot_password_page.dart';
 import '../../../core/utils/constants.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/utils/errors.dart';
 import '../../../core/utils/app_colors.dart';
+import '../../../core/widgets/mobile/google_sign_in_button.dart';
 
 /// Sign In Page
 ///
@@ -30,6 +32,7 @@ class _SignInPageState extends State<SignInPage>
   final _passwordController = TextEditingController();
 
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
   bool _obscurePassword = true;
   late AnimationController _fadeController;
   late AnimationController _slideController;
@@ -66,6 +69,49 @@ class _SignInPageState extends State<SignInPage>
     
     _fadeController.forward();
     _slideController.forward();
+    
+    // Check for session recovery on page load
+    _checkSessionRecovery();
+  }
+
+  /// Check if user has a recoverable session (verified email but missing data)
+  Future<void> _checkSessionRecovery() async {
+    try {
+      final recoveryService = AuthRecoveryService();
+      final result = await recoveryService.checkForRecovery();
+      
+      if (result.isComplete && result.userData != null) {
+        // User has complete session, redirect to home
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Welcome back! Resuming your session.'),
+              backgroundColor: Colors.green.shade600,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+          context.go('/home');
+        }
+      } else if (result.needsRecovery && result.firebaseUser != null) {
+        // User needs data recovery
+        if (mounted) {
+          final recovered = await recoveryService.attemptDataRecovery(result.firebaseUser!);
+          if (recovered) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Account recovered! Welcome back.'),
+                backgroundColor: Colors.green.shade600,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+            context.go('/home');
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Session recovery check failed: $e');
+      // Don't show error to user, just continue with normal flow
+    }
   }
 
   @override
@@ -82,6 +128,144 @@ class _SignInPageState extends State<SignInPage>
       return 'Please enter your password';
     }
     return null;
+  }
+
+  Future<void> _signInWithGoogle() async {
+    // Close any existing snackbar to prevent stacking
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    
+    setState(() => _isGoogleLoading = true);
+
+    try {
+      final user = await _authService.signInWithGoogle();
+
+      if (user != null && mounted) {
+        // Initialize mobile messaging preferences for the signed-in user
+        try {
+          await MobileMessagingPreferencesService.instance.initializeForUser(user.uid);
+        } catch (e) {
+          debugPrint('Error initializing mobile messaging preferences: $e');
+          // Don't block sign-in for preferences initialization error
+        }
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Sign in successful! Welcome back.',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            margin: const EdgeInsets.all(16),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        context.go('/home');
+      }
+    } on FirebaseAuthException catch (e) {
+      String errorMessage;
+      switch (e.code) {
+        case 'account-exists-with-different-credential':
+          errorMessage = 'An account already exists with this email address.';
+          break;
+        case 'user-disabled':
+          errorMessage = 'Your account has been deactivated. Please contact support.';
+          break;
+        case 'operation-not-allowed':
+          errorMessage = 'Google sign-in is not enabled. Please contact support.';
+          break;
+        default:
+          errorMessage = 'Failed to sign in with Google. Please try again.';
+          break;
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.error,
+          duration: const Duration(days: 365), // Effectively no auto-close
+          behavior: SnackBarBehavior.floating,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), 
+          content: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  errorMessage,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    height: 1.2,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 18), 
+                padding: EdgeInsets.zero,   
+                constraints: const BoxConstraints(),
+                onPressed: () {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    } catch (e, stack) {
+      debugPrint('Unexpected Google sign-in error: $e\n$stack');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.error,
+          duration: const Duration(days: 365), // Effectively no auto-close
+          behavior: SnackBarBehavior.floating,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), 
+          content: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  'An unexpected error occurred. Please try again.',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    height: 1.2,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 18), 
+                padding: EdgeInsets.zero,   
+                constraints: const BoxConstraints(),
+                onPressed: () {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isGoogleLoading = false);
+      }
+    }
   }
 
   Future<void> _signIn() async {
@@ -448,12 +632,7 @@ class _SignInPageState extends State<SignInPage>
                         alignment: Alignment.centerRight,
                         child: TextButton(
                           onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const ForgotPasswordPage(),
-                              ),
-                            );
+                            context.go('/mobile-forgot-password');
                           },
                           style: TextButton.styleFrom(
                             padding: EdgeInsets.zero,
@@ -513,6 +692,44 @@ class _SignInPageState extends State<SignInPage>
 
                       SizedBox(height: 16),
 
+                      // Divider with "or" text
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Divider(
+                              color: Colors.grey.shade300,
+                              thickness: 1,
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(
+                              'or',
+                              style: kTextStyleSmall.copyWith(
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Divider(
+                              color: Colors.grey.shade300,
+                              thickness: 1,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      SizedBox(height: 16),
+
+                      // Google Sign-In button
+                      GoogleSignInButton(
+                        onPressed: _signInWithGoogle,
+                        isLoading: _isGoogleLoading,
+                      ),
+
+                      SizedBox(height: 16),
+
                       // Sign up link
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -542,7 +759,7 @@ class _SignInPageState extends State<SignInPage>
                           ),
                         ],
                       ),
-                      SizedBox(height: 173),
+                      SizedBox(height: 83),
 
                       Image.asset(
                         'assets/img/image 9.png',

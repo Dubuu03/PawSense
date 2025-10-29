@@ -174,6 +174,28 @@ class AppointmentBookingService {
 
       // 3. Use Firestore transaction to ensure atomic slot check and booking
       final result = await _firestore.runTransaction<Map<String, dynamic>>((transaction) async {
+        // Get clinic schedule to determine actual capacity for the time slot
+        final dayOfWeek = _getDayOfWeek(appointmentDate.weekday);
+        final scheduleDoc = await _firestore
+            .collection('clinic_schedules')
+            .doc(clinicId)
+            .get();
+        
+        int maxAppointmentsPerSlot = 3; // Default fallback if schedule not found
+        
+        if (scheduleDoc.exists) {
+          final scheduleData = scheduleDoc.data();
+          if (scheduleData != null && scheduleData.containsKey('schedule')) {
+            final schedule = scheduleData['schedule'] as Map<String, dynamic>;
+            if (schedule.containsKey(dayOfWeek)) {
+              final daySchedule = schedule[dayOfWeek] as Map<String, dynamic>;
+              // Get slotsPerHour from the schedule (default to 3 if not found)
+              maxAppointmentsPerSlot = daySchedule['slotsPerHour'] as int? ?? 3;
+              print('📊 Clinic capacity for $dayOfWeek: $maxAppointmentsPerSlot appointments per hour');
+            }
+          }
+        }
+        
         // Check if slot is still available within transaction
         final startOfDay = DateTime(appointmentDate.year, appointmentDate.month, appointmentDate.day);
         final endOfDay = DateTime(appointmentDate.year, appointmentDate.month, appointmentDate.day, 23, 59, 59);
@@ -192,12 +214,12 @@ class AppointmentBookingService {
           return status == 'pending' || status == 'confirmed';
         }).length;
         
-        const maxAppointmentsPerSlot = 1;
+        print('📊 Current active appointments at $appointmentTime: $activeCount / $maxAppointmentsPerSlot');
         
         if (activeCount >= maxAppointmentsPerSlot) {
           return {
             'success': false,
-            'message': 'This time slot was just booked by another user. Please select a different time.',
+            'message': 'This time slot is fully booked ($activeCount/$maxAppointmentsPerSlot). Please select a different time.',
             'appointmentId': null,
             'slotFull': true,
           };
@@ -579,6 +601,28 @@ class AppointmentBookingService {
     } catch (e) {
       print('Error getting appointment stats: $e');
       return {};
+    }
+  }
+  
+  /// Helper method to convert weekday number to day name
+  static String _getDayOfWeek(int weekday) {
+    switch (weekday) {
+      case 1:
+        return 'monday';
+      case 2:
+        return 'tuesday';
+      case 3:
+        return 'wednesday';
+      case 4:
+        return 'thursday';
+      case 5:
+        return 'friday';
+      case 6:
+        return 'saturday';
+      case 7:
+        return 'sunday';
+      default:
+        return 'monday';
     }
   }
 }

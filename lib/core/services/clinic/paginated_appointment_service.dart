@@ -362,7 +362,7 @@ class PaginatedAppointmentService {
       userId: userId,
       petName: 'Unknown Pet',
       petType: 'Unknown',
-      age: 0,
+      initialAge: 0,
       weight: 0.0,
       breed: 'Unknown',
       createdAt: DateTime.now(),

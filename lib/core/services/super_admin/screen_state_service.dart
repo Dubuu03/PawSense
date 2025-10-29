@@ -250,5 +250,12 @@ class ScreenStateService {
     resetScheduleState();
     resetBreedState();
     resetDiseaseState();
+    print('🧹 All screen states reset to defaults');
+  }
+
+  /// Clear all states on sign out (reset to initial defaults)
+  void clearOnSignOut() {
+    resetAllStates();
+    print('🔒 Screen states cleared for sign out');
   }
 }

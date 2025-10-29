@@ -28,11 +28,34 @@ class _AdminShellState extends State<AdminShell> {
   String? _userEmail;
   String? _userPhone;
   String? _userFullName;
+  
+  // Add a key to force SideNavigation to rebuild when setup status changes
+  Key _sideNavigationKey = UniqueKey();
 
   @override
   void initState() {
     super.initState();
     _checkUserRole();
+    
+    // Listen for route changes to refresh navigation when needed
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      GoRouter.of(context).routerDelegate.addListener(_onRouteChanged);
+    });
+  }
+  
+  @override
+  void dispose() {
+    GoRouter.of(context).routerDelegate.removeListener(_onRouteChanged);
+    super.dispose();
+  }
+  
+  void _onRouteChanged() {
+    // Force navigation rebuild when route changes (useful after setup completion)
+    if (_userRole == 'admin') {
+      setState(() {
+        _sideNavigationKey = UniqueKey();
+      });
+    }
   }
 
   Future<void> _checkUserRole() async {
@@ -210,7 +233,7 @@ class _AdminShellState extends State<AdminShell> {
       body: Row(
         children: [
           SideNavigation(
-            key: ValueKey(_userRole), // Prevent unnecessary rebuilds
+            key: _sideNavigationKey, // Use unique key to force rebuild on setup completion
             selectedIndex: _getCurrentIndex(),
             onItemSelected: _onNavItemSelected,
             userRole: _userRole,
