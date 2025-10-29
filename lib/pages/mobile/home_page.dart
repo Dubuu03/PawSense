@@ -11,6 +11,7 @@ import 'package:pawsense/core/widgets/user/shared/navigation/user_bottom_nav_bar
 import 'package:pawsense/core/widgets/user/shared/tab_toggle.dart';
 import 'package:pawsense/core/widgets/user/home/profile_header.dart';
 import 'package:pawsense/core/widgets/user/home/pet_info_card.dart';
+import 'package:pawsense/core/widgets/user/home/area_statistics_card.dart';
 import 'package:pawsense/core/widgets/user/home/health_snapshot.dart';
 import 'package:pawsense/core/widgets/user/home/nearby_clinics.dart';
 import 'package:pawsense/core/widgets/user/home/services_grid.dart';
@@ -1002,7 +1003,13 @@ class _UserHomePageState extends State<UserHomePage> {
                         nextAppointmentTime: _nextAppointmentTime,
                       ),
 
-                      // Add space between pets and health snapshot
+                      // Add space between pets and statistics
+                      const SizedBox(height: kMobileSizedBoxHuge),
+
+                      // Area Statistics Card
+                      const AreaStatisticsCard(),
+
+                      // Add space between statistics and health snapshot
                       const SizedBox(height: kMobileSizedBoxHuge),
 
                       HealthSnapshot(
