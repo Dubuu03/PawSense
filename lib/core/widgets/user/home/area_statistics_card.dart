@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
@@ -145,7 +146,7 @@ class AreaStatisticsCardState extends State<AreaStatisticsCard> {
           else if (_error != null)
             _buildErrorState()
           else if (_statistics == null || 
-                   (_statistics!.dogStatistic == null && _statistics!.catStatistic == null))
+                   (_statistics!.dogStatistics.isEmpty && _statistics!.catStatistics.isEmpty))
             _buildNoDataState()
           else
             _buildStatisticsContent(),
@@ -236,227 +237,221 @@ class AreaStatisticsCardState extends State<AreaStatisticsCard> {
 
   Widget _buildStatisticsContent() {
     final statistics = _statistics!;
-    final dogStat = statistics.dogStatistic;
-    final catStat = statistics.catStatistic;
+    final dogStats = statistics.dogStatistics;
+    final catStats = statistics.catStatistics;
     
     return Column(
       children: [
-        // Dog statistics
-        if (dogStat != null) ...[
-          _buildSpeciesStatistic(dogStat, '🐶', AppColors.primary),
-          if (catStat != null) const SizedBox(height: 16),
-        ],
-        
-        // Cat statistics
-        if (catStat != null) ...[
-          _buildSpeciesStatistic(catStat, '🐱', const Color(0xFF9C27B0)), // Purple for cats
-        ],
-      ],
-    );
-  }
-
-  Widget _buildSpeciesStatistic(DiseaseStatistic statistic, String emoji, Color accentColor) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Species header
-        Row(
-          children: [
-            Text(
-              emoji,
-              style: const TextStyle(fontSize: 20),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              '${statistic.species}s',
-              style: kMobileTextStyleTitle.copyWith(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
-            ),
-          ],
-        ),
-        
-        const SizedBox(height: 12),
-        
-        // Disease name and location
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                accentColor.withOpacity(0.1),
-                accentColor.withOpacity(0.05),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: accentColor.withOpacity(0.2),
-              width: 1,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.medical_services,
-                    color: accentColor,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _formatDiseaseName(statistic.diseaseName),
-                      style: kMobileTextStyleTitle.copyWith(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: accentColor,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(
-                    Icons.location_on,
-                    color: AppColors.textSecondary,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      'in ${statistic.location}',
-                      style: kMobileTextStyleSubtitle.copyWith(
-                        fontSize: 13,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 12),
-
-        // Statistics row
-        Row(
-          children: [
-            Expanded(
-              child: _buildStatItem(
-                icon: Icons.medical_information,
-                label: 'Cases',
-                value: '${statistic.count}',
-                color: accentColor,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildStatItem(
-                icon: Icons.percent,
-                label: 'Prevalence',
-                value: '${statistic.percentage.toStringAsFixed(1)}%',
-                color: AppColors.warning,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildStatItem(
-                icon: Icons.assessment,
-                label: 'Total',
-                value: '${statistic.totalCases}',
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 12),
-
-        // Info message
+        // Location display
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: AppColors.info.withOpacity(0.1),
+            color: AppColors.primary.withOpacity(0.1),
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: AppColors.info.withOpacity(0.3),
+              color: AppColors.primary.withOpacity(0.2),
               width: 1,
             ),
           ),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(
-                Icons.info_outline,
-                color: AppColors.info,
+                Icons.location_on,
+                color: AppColors.primary,
                 size: 16,
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Based on ${statistic.totalCases} ${statistic.species.toLowerCase()} assessments',
+                  statistics.location,
                   style: kMobileTextStyleSubtitle.copyWith(
-                    fontSize: 11,
-                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
                   ),
                 ),
               ),
             ],
           ),
         ),
+        
+        const SizedBox(height: 20),
+        
+        // Dog statistics
+        if (dogStats.isNotEmpty) ...[
+          _buildSpeciesSection(dogStats, '🐶 Dogs', AppColors.primary),
+          if (catStats.isNotEmpty) const SizedBox(height: 24),
+        ],
+        
+        // Cat statistics
+        if (catStats.isNotEmpty) ...[
+          _buildSpeciesSection(catStats, '🐱 Cats', const Color(0xFF9C27B0)),
+        ],
       ],
     );
   }
 
-  Widget _buildStatItem({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-  }) {
+  Widget _buildSpeciesSection(List<DiseaseStatistic> statistics, String title, Color accentColor) {
+    if (statistics.isEmpty) return const SizedBox.shrink();
+    
+    final totalCases = statistics.first.totalCases;
+    final topStats = statistics.take(5).toList();
+    
+    // Predefined colors for the chart segments
+    final colors = [
+      accentColor,
+      accentColor.withOpacity(0.8),
+      accentColor.withOpacity(0.6),
+      accentColor.withOpacity(0.4),
+      accentColor.withOpacity(0.25),
+    ];
+    
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(8),
+        color: accentColor.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: color.withOpacity(0.2),
+          color: accentColor.withOpacity(0.2),
           width: 1,
         ),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            icon,
-            color: color,
-            size: 20,
+          // Header
+          Row(
+            children: [
+              Text(
+                title,
+                style: kMobileTextStyleTitle.copyWith(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: accentColor.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '$totalCases total',
+                  style: kMobileTextStyleSubtitle.copyWith(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: accentColor,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: kMobileTextStyleTitle.copyWith(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: kMobileTextStyleSubtitle.copyWith(
-              fontSize: 10,
-              color: AppColors.textSecondary,
-            ),
-            textAlign: TextAlign.center,
+          
+          const SizedBox(height: 16),
+          
+          // Row with labels on left and chart on right
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Labels (left side)
+              Expanded(
+                flex: 3,
+                child: Column(
+                  children: topStats.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final stat = entry.value;
+                    final color = colors[index % colors.length];
+                    
+                    return Padding(
+                      padding: EdgeInsets.only(bottom: index < topStats.length - 1 ? 10 : 0),
+                      child: Row(
+                        children: [
+                          // Color indicator
+                          Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: color.withOpacity(0.4),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                          ),
+                          
+                          const SizedBox(width: 8),
+                          
+                          // Disease name
+                          Expanded(
+                            child: Text(
+                              _formatDiseaseName(stat.diseaseName),
+                              style: kMobileTextStyleSubtitle.copyWith(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          
+                          const SizedBox(width: 8),
+                          
+                          // Count and percentage
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                '${stat.count}',
+                                style: kMobileTextStyleTitle.copyWith(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: color,
+                                ),
+                              ),
+                              Text(
+                                '${stat.percentage.toStringAsFixed(1)}%',
+                                style: kMobileTextStyleSubtitle.copyWith(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              
+              const SizedBox(width: 16),
+              
+              // Pie chart (right side)
+              SizedBox(
+                width: 120,
+                height: 120,
+                child: CustomPaint(
+                  painter: _PieChartPainter(
+                    data: topStats.asMap().entries.map((entry) {
+                      final stat = entry.value;
+                      return _ChartData(
+                        value: stat.count.toDouble(),
+                        color: colors[entry.key % colors.length],
+                        percentage: stat.percentage,
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -473,4 +468,86 @@ class AreaStatisticsCardState extends State<AreaStatisticsCard> {
             : word[0].toUpperCase() + word.substring(1).toLowerCase())
         .join(' ');
   }
+}
+
+// Chart data model
+class _ChartData {
+  final double value;
+  final Color color;
+  final double percentage;
+
+  _ChartData({
+    required this.value,
+    required this.color,
+    required this.percentage,
+  });
+}
+
+// Custom painter for pie chart
+class _PieChartPainter extends CustomPainter {
+  final List<_ChartData> data;
+
+  _PieChartPainter({required this.data});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (data.isEmpty) return;
+
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+    final total = data.fold<double>(0, (sum, item) => sum + item.value);
+
+    double startAngle = -math.pi / 2; // Start from top (-90 degrees)
+
+    for (var segment in data) {
+      final sweepAngle = (segment.value / total) * 2 * math.pi;
+
+      // Draw main segment
+      final paint = Paint()
+        ..color = segment.color
+        ..style = PaintingStyle.fill;
+
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        startAngle,
+        sweepAngle,
+        true,
+        paint,
+      );
+
+      // Draw border between segments
+      final borderPaint = Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3;
+
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        startAngle,
+        sweepAngle,
+        true,
+        borderPaint,
+      );
+
+      startAngle += sweepAngle;
+    }
+
+    // Draw center circle (donut chart effect)
+    final centerPaint = Paint()
+      ..color = AppColors.white
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(center, radius * 0.5, centerPaint);
+
+    // Draw center border
+    final centerBorderPaint = Paint()
+      ..color = AppColors.border.withOpacity(0.2)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+
+    canvas.drawCircle(center, radius * 0.5, centerBorderPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

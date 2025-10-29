@@ -160,21 +160,38 @@ class DiseaseStatisticsService {
             final assessment = AssessmentResult.fromMap(data, doc.id);
             final petType = assessment.petType.toLowerCase();
             
-            // Extract all detections and categorize by species
+            // Extract only the HIGHEST confidence detection per image
             for (var detectionResult in assessment.detectionResults) {
               print('      🖼️ Image: ${detectionResult.imageUrl}');
-              print('      🔬 Detections in this image: ${detectionResult.detections.length}');
+              print('      🔬 Total detections in this image: ${detectionResult.detections.length}');
               
+              if (detectionResult.detections.isEmpty) {
+                print('      ⚠️ No detections found in this image');
+                continue;
+              }
+              
+              // Show all detections for debugging
               for (var detection in detectionResult.detections) {
                 print('         - Disease: ${detection.label} (Confidence: ${(detection.confidence * 100).toStringAsFixed(1)}%)');
               }
               
+              // Find the detection with highest confidence
+              Detection highestConfidenceDetection = detectionResult.detections.first;
+              for (var detection in detectionResult.detections) {
+                if (detection.confidence > highestConfidenceDetection.confidence) {
+                  highestConfidenceDetection = detection;
+                }
+              }
+              
+              print('      🏆 Highest confidence: ${highestConfidenceDetection.label} (${(highestConfidenceDetection.confidence * 100).toStringAsFixed(1)}%)');
+              
+              // Only add the highest confidence detection to statistics
               if (petType.contains('dog')) {
-                dogDetections.addAll(detectionResult.detections);
-                print('      ✅ Added ${detectionResult.detections.length} dog detections');
+                dogDetections.add(highestConfidenceDetection);
+                print('      ✅ Added to dog statistics');
               } else if (petType.contains('cat')) {
-                catDetections.addAll(detectionResult.detections);
-                print('      ✅ Added ${detectionResult.detections.length} cat detections');
+                catDetections.add(highestConfidenceDetection);
+                print('      ✅ Added to cat statistics');
               } else {
                 print('      ⚠️ Unknown pet type: $petType');
               }
@@ -185,63 +202,51 @@ class DiseaseStatisticsService {
         }
       }
       
-      print('\n📊 SUMMARY:');
+      print('\n========================================');
+      print('📊 STEP 3 SUMMARY:');
       print('   Total assessments found: $totalAssessmentsFound');
-      print('   Total dog detections: ${dogDetections.length}');
-      print('   Total cat detections: ${catDetections.length}');
+      print('   Dog detections (highest confidence per image): ${dogDetections.length}');
+      print('   Cat detections (highest confidence per image): ${catDetections.length}');
+      print('   Note: Only the highest confidence detection per image is counted');
+      print('========================================');
 
       final location = '$barangay, $city';
 
-      print('\n🔎 Step 4: Calculating most common diseases...');
+      print('\n🔎 Step 4: Calculating top 5 diseases per species...');
       
-      // Calculate statistics for dogs
-      DiseaseStatistic? dogStatistic;
+      // Calculate top 5 diseases for dogs
+      final dogStatistics = <DiseaseStatistic>[];
       if (dogDetections.isNotEmpty) {
         print('\n🐶 Processing dog statistics...');
-        dogStatistic = _calculateMostCommonDisease(
-          dogDetections,
-          location,
-          'Dog',
-        );
-        if (dogStatistic != null) {
-          print('   ✅ Most common dog disease: ${dogStatistic.diseaseName}');
-          print('   📊 Cases: ${dogStatistic.count} out of ${dogStatistic.totalCases} (${dogStatistic.percentage.toStringAsFixed(1)}%)');
-        }
+        dogStatistics.addAll(_calculateTopDiseases(dogDetections, 'Dog'));
       } else {
         print('\n🐶 No dog detections found');
       }
 
-      // Calculate statistics for cats
-      DiseaseStatistic? catStatistic;
+      // Calculate top 5 diseases for cats
+      final catStatistics = <DiseaseStatistic>[];
       if (catDetections.isNotEmpty) {
         print('\n🐱 Processing cat statistics...');
-        catStatistic = _calculateMostCommonDisease(
-          catDetections,
-          location,
-          'Cat',
-        );
-        if (catStatistic != null) {
-          print('   ✅ Most common cat disease: ${catStatistic.diseaseName}');
-          print('   📊 Cases: ${catStatistic.count} out of ${catStatistic.totalCases} (${catStatistic.percentage.toStringAsFixed(1)}%)');
-        }
+        catStatistics.addAll(_calculateTopDiseases(catDetections, 'Cat'));
       } else {
         print('\n🐱 No cat detections found');
       }
 
-      if (dogStatistic == null && catStatistic == null) {
+      if (dogStatistics.isEmpty && catStatistics.isEmpty) {
         print('\n❌ No disease statistics available');
         print('========================================\n');
         return null;
       }
 
       print('\n✅ AREA STATISTICS COMPLETE!');
-      print('   Dogs: ${dogStatistic?.diseaseName ?? "None"} (${dogStatistic?.count ?? 0} cases)');
-      print('   Cats: ${catStatistic?.diseaseName ?? "None"} (${catStatistic?.count ?? 0} cases)');
+      print('   Dogs: ${dogStatistics.length} diseases found');
+      print('   Cats: ${catStatistics.length} diseases found');
       print('========================================\n');
 
       return AreaDiseaseStatistics(
-        dogStatistic: dogStatistic,
-        catStatistic: catStatistic,
+        dogStatistics: dogStatistics,
+        catStatistics: catStatistics,
+        location: location,
       );
     } catch (e) {
       print('\n❌ ERROR in getMostCommonDiseaseInArea: $e');
@@ -251,15 +256,15 @@ class DiseaseStatisticsService {
     }
   }
 
-  /// Calculate most common disease from a list of detections
-  DiseaseStatistic? _calculateMostCommonDisease(
+  /// Calculate top 5 most common diseases from a list of detections
+  List<DiseaseStatistic> _calculateTopDiseases(
     List<Detection> detections,
-    String location,
     String species,
+    {int limit = 5}
   ) {
     if (detections.isEmpty) {
       print('   ⚠️ No detections provided for $species');
-      return null;
+      return [];
     }
 
     print('   📊 Analyzing ${detections.length} detections for $species...');
@@ -276,47 +281,48 @@ class DiseaseStatisticsService {
       print('      - $disease: $count');
     });
 
-    // Find the most common disease
-    String mostCommonDisease = '';
-    int maxCount = 0;
+    // Sort diseases by count (descending) and take top 5
+    final sortedDiseases = diseaseCount.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
     
-    diseaseCount.forEach((disease, count) {
-      if (count > maxCount) {
-        maxCount = count;
-        mostCommonDisease = disease;
-      }
-    });
-
-    if (mostCommonDisease.isEmpty) {
-      print('   ❌ Could not determine most common disease');
-      return null;
+    final topDiseases = sortedDiseases.take(limit).toList();
+    
+    if (topDiseases.isEmpty) {
+      print('   ❌ Could not determine disease statistics');
+      return [];
     }
 
-    // Calculate percentage
     final totalDetections = detections.length;
-    final percentage = (maxCount / totalDetections * 100);
+    final statistics = <DiseaseStatistic>[];
+    
+    print('   ✅ Top ${topDiseases.length} diseases:');
+    for (var entry in topDiseases) {
+      final percentage = (entry.value / totalDetections * 100);
+      print('      ${statistics.length + 1}. ${entry.key}: ${entry.value} cases (${percentage.toStringAsFixed(1)}%)');
+      
+      statistics.add(DiseaseStatistic(
+        diseaseName: entry.key,
+        count: entry.value,
+        totalCases: totalDetections,
+        percentage: percentage,
+        species: species,
+      ));
+    }
 
-    print('   ✅ Most common: $mostCommonDisease ($maxCount/$totalDetections = ${percentage.toStringAsFixed(1)}%)');
-
-    return DiseaseStatistic(
-      diseaseName: mostCommonDisease,
-      count: maxCount,
-      totalCases: totalDetections,
-      percentage: percentage,
-      location: location,
-      species: species,
-    );
+    return statistics;
   }
 }
 
 /// Model for area disease statistics (combines dog and cat statistics)
 class AreaDiseaseStatistics {
-  final DiseaseStatistic? dogStatistic;
-  final DiseaseStatistic? catStatistic;
+  final List<DiseaseStatistic> dogStatistics;
+  final List<DiseaseStatistic> catStatistics;
+  final String location;
 
   AreaDiseaseStatistics({
-    this.dogStatistic,
-    this.catStatistic,
+    required this.dogStatistics,
+    required this.catStatistics,
+    required this.location,
   });
 }
 
@@ -326,7 +332,6 @@ class DiseaseStatistic {
   final int count;
   final int totalCases;
   final double percentage;
-  final String location;
   final String species; // 'Dog' or 'Cat'
 
   DiseaseStatistic({
@@ -334,7 +339,6 @@ class DiseaseStatistic {
     required this.count,
     required this.totalCases,
     required this.percentage,
-    required this.location,
     required this.species,
   });
 }
