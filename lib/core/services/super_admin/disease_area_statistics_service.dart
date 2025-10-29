@@ -56,6 +56,8 @@ class DiseaseAreaStatisticsService {
   }
 
   /// Get all disease statistics grouped by area
+  /// Uses the same logic as user home: filters by barangay + city/municipality,
+  /// counts only highest confidence detection per image per user
   static Future<List<DiseaseAreaStatistic>> getDiseaseStatisticsByArea({
     String? filterProvince,
     String? filterMunicipality,
@@ -65,93 +67,138 @@ class DiseaseAreaStatisticsService {
   }) async {
     try {
       print('🔍 Fetching disease statistics by area...');
+      print('📅 Date range: ${startDate?.toIso8601String() ?? "Any"} to ${endDate?.toIso8601String() ?? "Any"}');
 
       // Get all users with addresses
       final usersSnapshot = await _firestore.collection('users').get();
 
-      // Map user IDs to their addresses
+      // Map user IDs to their addresses and address components
       final userAddresses = <String, String>{};
+      final userAddressComponents = <String, Map<String, String>>{};
+      
       for (var doc in usersSnapshot.docs) {
         final data = doc.data();
         final address = data['address'] as String?;
         if (address != null && address.isNotEmpty) {
           userAddresses[doc.id] = address;
+          userAddressComponents[doc.id] = _extractAddressComponents(address);
         }
       }
 
       print('📍 Found ${userAddresses.length} users with addresses');
 
-      // Get all assessment results
-      Query query = _firestore.collection('assessmentResults');
+      // Get all assessment results from correct collection name
+      Query query = _firestore.collection('assessment_results');
 
       if (startDate != null) {
-        query = query.where('createdAt', isGreaterThanOrEqualTo: startDate);
+        query = query.where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
       }
       if (endDate != null) {
-        query = query.where('createdAt', isLessThanOrEqualTo: endDate);
+        // Set end date to end of day
+        final endOfDay = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
+        query = query.where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(endOfDay));
       }
 
       final assessmentsSnapshot = await query.get();
       print('📊 Found ${assessmentsSnapshot.docs.length} assessment results');
 
       // Map to store disease counts by location
-      // Key: "disease|barangay|municipality|province|region"
+      // Key: "disease|barangay|municipality"
+      // We group by barangay + municipality only (not province/region)
       final Map<String, _DiseaseLocationData> diseaseLocationMap = {};
+
+      // Track processed images per user to count only highest confidence per image
+      final processedImages = <String, Set<String>>{}; // userId -> Set of imageUrls
+
+      int totalAssessments = 0;
+      int filteredOutByLocation = 0;
+      int imagesProcessed = 0;
 
       for (var doc in assessmentsSnapshot.docs) {
         try {
+          totalAssessments++;
           final data = doc.data() as Map<String, dynamic>?;
           if (data == null) continue;
+          
           final assessment = AssessmentResult.fromMap(data, doc.id);
-          final userAddress = userAddresses[assessment.userId];
+          final userId = assessment.userId;
+          final addressComponents = userAddressComponents[userId];
 
-          if (userAddress == null || userAddress.isEmpty) continue;
+          if (addressComponents == null) continue;
 
-          final addressComponents = _extractAddressComponents(userAddress);
           final barangay = addressComponents['barangay']!;
           final municipality = addressComponents['municipality']!;
           final province = addressComponents['province']!;
           final region = addressComponents['region']!;
 
-          // Apply filters
+          // Apply location filters (strict matching on barangay + municipality)
           if (filterProvince != null && 
-              province.toLowerCase() != filterProvince.toLowerCase()) {
+              province.toLowerCase().trim() != filterProvince.toLowerCase().trim()) {
+            filteredOutByLocation++;
             continue;
           }
           if (filterMunicipality != null && 
-              municipality.toLowerCase() != filterMunicipality.toLowerCase()) {
+              municipality.toLowerCase().trim() != filterMunicipality.toLowerCase().trim()) {
+            filteredOutByLocation++;
             continue;
           }
           if (filterBarangay != null && 
-              barangay.toLowerCase() != filterBarangay.toLowerCase()) {
+              barangay.toLowerCase().trim() != filterBarangay.toLowerCase().trim()) {
+            filteredOutByLocation++;
             continue;
           }
 
-          // Extract all detections
+          // Process each detection result (image)
           for (var detectionResult in assessment.detectionResults) {
-            for (var detection in detectionResult.detections) {
-              final disease = detection.label;
+            final imageUrl = detectionResult.imageUrl;
+            
+            // Initialize set for this user if not exists
+            processedImages[userId] ??= {};
+            
+            // Skip if we already processed this image for this user
+            if (processedImages[userId]!.contains(imageUrl)) {
+              continue;
+            }
+            
+            processedImages[userId]!.add(imageUrl);
+            imagesProcessed++;
 
-              final key = '$disease|$barangay|$municipality|$province|$region';
+            // Find the detection with highest confidence for this image
+            if (detectionResult.detections.isEmpty) continue;
+            
+            final highestConfidenceDetection = detectionResult.detections.reduce(
+              (curr, next) => curr.confidence > next.confidence ? curr : next
+            );
 
-              if (diseaseLocationMap.containsKey(key)) {
-                diseaseLocationMap[key]!.increment(assessment.createdAt);
-              } else {
-                diseaseLocationMap[key] = _DiseaseLocationData(
-                  disease: disease,
-                  barangay: barangay,
-                  municipality: municipality,
-                  province: province,
-                  region: region,
-                  firstDate: assessment.createdAt,
-                );
-              }
+            final disease = highestConfidenceDetection.label;
+
+            // Group by disease + barangay + municipality
+            // This ensures we count per area (not mixing different provinces with same city name)
+            final key = '$disease|$barangay|$municipality|$province|$region';
+
+            if (diseaseLocationMap.containsKey(key)) {
+              diseaseLocationMap[key]!.increment(assessment.createdAt);
+            } else {
+              diseaseLocationMap[key] = _DiseaseLocationData(
+                disease: disease,
+                barangay: barangay,
+                municipality: municipality,
+                province: province,
+                region: region,
+                firstDate: assessment.createdAt,
+              );
             }
           }
         } catch (e) {
           print('⚠️ Error processing assessment ${doc.id}: $e');
         }
       }
+
+      print('📈 Statistics:');
+      print('   Total assessments: $totalAssessments');
+      print('   Filtered by location: $filteredOutByLocation');
+      print('   Images processed: $imagesProcessed');
+      print('   Unique disease-location combinations: ${diseaseLocationMap.length}');
 
       // Convert to list of statistics
       final statistics = diseaseLocationMap.values
@@ -336,7 +383,7 @@ class DiseaseAreaStatisticsService {
   /// Get unique list of diseases
   static Future<List<String>> getDiseases() async {
     final assessmentsSnapshot = 
-        await _firestore.collection('assessmentResults').get();
+        await _firestore.collection('assessment_results').get();
     final diseases = <String>{};
 
     for (var doc in assessmentsSnapshot.docs) {

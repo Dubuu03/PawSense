@@ -580,6 +580,108 @@ class _DiseaseAreaStatisticsScreenState extends State<DiseaseAreaStatisticsScree
                       ),
                     ],
                   ),
+                  
+                  const SizedBox(height: kSpacingMedium),
+
+                  // Second Row: Date Range Filter
+                  Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: startDate ?? DateTime.now(),
+                              firstDate: DateTime(2020),
+                              lastDate: DateTime.now(),
+                              helpText: 'Select Start Date',
+                            );
+                            if (picked != null) {
+                              setState(() => startDate = picked);
+                            }
+                          },
+                          child: InputDecorator(
+                            decoration: InputDecoration(
+                              labelText: 'Start Date',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              suffixIcon: startDate != null
+                                  ? IconButton(
+                                      icon: const Icon(Icons.clear, size: 18),
+                                      onPressed: () {
+                                        setState(() => startDate = null);
+                                      },
+                                    )
+                                  : const Icon(Icons.calendar_today),
+                            ),
+                            child: Text(
+                              startDate != null
+                                  ? DateFormat('MMM dd, yyyy').format(startDate!)
+                                  : 'Select start date',
+                              style: TextStyle(
+                                color: startDate != null ? Colors.black : Colors.grey,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: kSpacingMedium),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: endDate ?? DateTime.now(),
+                              firstDate: startDate ?? DateTime(2020),
+                              lastDate: DateTime.now(),
+                              helpText: 'Select End Date',
+                            );
+                            if (picked != null) {
+                              // Validate that end date is not before start date
+                              if (startDate != null && picked.isBefore(startDate!)) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('End date cannot be before start date'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                                return;
+                              }
+                              setState(() => endDate = picked);
+                            }
+                          },
+                          child: InputDecorator(
+                            decoration: InputDecoration(
+                              labelText: 'End Date',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              suffixIcon: endDate != null
+                                  ? IconButton(
+                                      icon: const Icon(Icons.clear, size: 18),
+                                      onPressed: () {
+                                        setState(() => endDate = null);
+                                      },
+                                    )
+                                  : const Icon(Icons.calendar_today),
+                            ),
+                            child: Text(
+                              endDate != null
+                                  ? DateFormat('MMM dd, yyyy').format(endDate!)
+                                  : 'Select end date',
+                              style: TextStyle(
+                                color: endDate != null ? Colors.black : Colors.grey,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Expanded(flex: 2, child: Container()), // Spacer to match 4-column layout
+                    ],
+                  ),
                 ],
               );
             },
@@ -595,6 +697,28 @@ class _DiseaseAreaStatisticsScreenState extends State<DiseaseAreaStatisticsScree
                 spacing: kSpacingSmall,
                 children: [
                   ElevatedButton.icon(
+                    onPressed: () {
+                      // Validate date range before applying
+                      if (startDate != null && endDate != null && endDate!.isBefore(startDate!)) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('End date cannot be before start date'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        return;
+                      }
+                      _loadData();
+                    },
+                    icon: const Icon(Icons.filter_list, size: 18),
+                    label: const Text('Apply Filters'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                  ),
+                  ElevatedButton.icon(
                     onPressed: _loadData,
                     icon: const Icon(Icons.refresh, size: 18),
                     label: const Text('Refresh'),
@@ -606,7 +730,7 @@ class _DiseaseAreaStatisticsScreenState extends State<DiseaseAreaStatisticsScree
                   ),
                   if (selectedRegion != null || selectedProvince != null || 
                       selectedMunicipality != null || selectedBarangay != null || 
-                      searchQuery.isNotEmpty)
+                      startDate != null || endDate != null || searchQuery.isNotEmpty)
                     OutlinedButton.icon(
                       onPressed: _clearFilters,
                       icon: const Icon(Icons.clear_all, size: 18),
@@ -622,7 +746,7 @@ class _DiseaseAreaStatisticsScreenState extends State<DiseaseAreaStatisticsScree
                 icon: const Icon(Icons.picture_as_pdf, size: 18),
                 label: const Text('Export PDF'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
+                  backgroundColor: Colors.green,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
@@ -665,15 +789,6 @@ class _DiseaseAreaStatisticsScreenState extends State<DiseaseAreaStatisticsScree
             uniqueLocations.toString(),
             Icons.location_on,
             Colors.blue,
-          ),
-        ),
-        const SizedBox(width: kSpacingMedium),
-        Expanded(
-          child: _buildSummaryCard(
-            'Data Points',
-            filteredStatistics.length.toString(),
-            Icons.analytics,
-            Colors.green,
           ),
         ),
       ],
