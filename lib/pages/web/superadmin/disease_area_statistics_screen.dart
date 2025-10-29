@@ -453,121 +453,136 @@ class _DiseaseAreaStatisticsScreenState extends State<DiseaseAreaStatisticsScree
 
           const SizedBox(height: kSpacingMedium),
 
-          // Filter Dropdowns
-          Wrap(
-            spacing: kSpacingMedium,
-            runSpacing: kSpacingMedium,
-            children: [
-              SizedBox(
-                width: 250,
-                child: DropdownButtonFormField<String>(
-                  value: selectedRegion,
-                  decoration: InputDecoration(
-                    labelText: 'Region',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          // Filter Dropdowns - Responsive Grid
+          LayoutBuilder(
+            builder: (context, constraints) {
+              return Column(
+                children: [
+                  // First Row: Region, Province, Municipality, Barangay
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: selectedRegion,
+                          decoration: InputDecoration(
+                            labelText: 'Region',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          ),
+                          items: [
+                            const DropdownMenuItem(value: null, child: Text('All Regions')),
+                            ...regions.map((r) => DropdownMenuItem(
+                              value: r['code'],
+                              child: Text(r['name']!, overflow: TextOverflow.ellipsis),
+                            )),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              selectedRegion = value;
+                              _loadProvinces(value);
+                            });
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: kSpacingMedium),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: selectedProvince,
+                          decoration: InputDecoration(
+                            labelText: 'Province',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          ),
+                          items: [
+                            const DropdownMenuItem(value: null, child: Text('All Provinces')),
+                            ...provinces.map((p) => DropdownMenuItem(
+                              value: p, 
+                              child: Text(p, overflow: TextOverflow.ellipsis),
+                            )),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              selectedProvince = value;
+                              if (value != null) {
+                                _loadMunicipalities(value);
+                              } else {
+                                municipalities = [];
+                                selectedMunicipality = null;
+                              }
+                            });
+                            _loadData();
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: kSpacingMedium),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: selectedMunicipality,
+                          decoration: InputDecoration(
+                            labelText: 'Municipality',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          ),
+                          items: [
+                            const DropdownMenuItem(value: null, child: Text('All Municipalities')),
+                            ...municipalities.map((m) => DropdownMenuItem(
+                              value: m, 
+                              child: Text(m, overflow: TextOverflow.ellipsis),
+                            )),
+                          ],
+                          onChanged: selectedProvince == null
+                              ? null
+                              : (value) {
+                                  setState(() {
+                                    selectedMunicipality = value;
+                                    if (value != null && selectedProvince != null) {
+                                      _loadBarangays(selectedProvince!, value);
+                                    } else {
+                                      barangays = [];
+                                      selectedBarangay = null;
+                                    }
+                                  });
+                                  _loadData();
+                                },
+                        ),
+                      ),
+                      const SizedBox(width: kSpacingMedium),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: selectedBarangay,
+                          decoration: InputDecoration(
+                            labelText: 'Barangay',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          ),
+                          items: [
+                            const DropdownMenuItem(value: null, child: Text('All Barangays')),
+                            ...barangays.map((b) => DropdownMenuItem(
+                              value: b, 
+                              child: Text(b, overflow: TextOverflow.ellipsis),
+                            )),
+                          ],
+                          onChanged: selectedMunicipality == null
+                              ? null
+                              : (value) {
+                                  setState(() => selectedBarangay = value);
+                                  _loadData();
+                                },
+                        ),
+                      ),
+                    ],
                   ),
-                  items: [
-                    const DropdownMenuItem(value: null, child: Text('All Regions')),
-                    ...regions.map((r) => DropdownMenuItem(
-                      value: r['code'],
-                      child: Text(r['name']!),
-                    )),
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      selectedRegion = value;
-                      _loadProvinces(value);
-                    });
-                  },
-                ),
-              ),
-              SizedBox(
-                width: 250,
-                child: DropdownButtonFormField<String>(
-                  value: selectedProvince,
-                  decoration: InputDecoration(
-                    labelText: 'Province',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  items: [
-                    const DropdownMenuItem(value: null, child: Text('All Provinces')),
-                    ...provinces.map((p) => DropdownMenuItem(value: p, child: Text(p))),
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      selectedProvince = value;
-                      if (value != null) {
-                        _loadMunicipalities(value);
-                      } else {
-                        municipalities = [];
-                        selectedMunicipality = null;
-                      }
-                    });
-                    _loadData();
-                  },
-                ),
-              ),
-              SizedBox(
-                width: 250,
-                child: DropdownButtonFormField<String>(
-                  value: selectedMunicipality,
-                  decoration: InputDecoration(
-                    labelText: 'Municipality',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  items: [
-                    const DropdownMenuItem(value: null, child: Text('All Municipalities')),
-                    ...municipalities.map((m) => DropdownMenuItem(value: m, child: Text(m))),
-                  ],
-                  onChanged: selectedProvince == null
-                      ? null
-                      : (value) {
-                          setState(() {
-                            selectedMunicipality = value;
-                            if (value != null && selectedProvince != null) {
-                              _loadBarangays(selectedProvince!, value);
-                            } else {
-                              barangays = [];
-                              selectedBarangay = null;
-                            }
-                          });
-                          _loadData();
-                        },
-                ),
-              ),
-              SizedBox(
-                width: 250,
-                child: DropdownButtonFormField<String>(
-                  value: selectedBarangay,
-                  decoration: InputDecoration(
-                    labelText: 'Barangay',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  items: [
-                    const DropdownMenuItem(value: null, child: Text('All Barangays')),
-                    ...barangays.map((b) => DropdownMenuItem(value: b, child: Text(b))),
-                  ],
-                  onChanged: selectedMunicipality == null
-                      ? null
-                      : (value) {
-                          setState(() => selectedBarangay = value);
-                          _loadData();
-                        },
-                ),
-              ),
-            ],
+                ],
+              );
+            },
           ),
 
           const SizedBox(height: kSpacingMedium),
