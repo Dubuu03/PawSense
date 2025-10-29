@@ -76,6 +76,7 @@ flutter:
     - assets/img/
     - assets/img/skin_diseases/
     - assets/models/
+    - assets/philippine_provinces_cities_municipalities_and_barangays_2019v2.json
     - .env
 
   fonts:

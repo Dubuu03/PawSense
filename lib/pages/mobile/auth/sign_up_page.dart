@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
 import '../../../core/services/auth/auth_service_mobile.dart';
 import '../../../core/models/system/legal_document_model.dart';
+import '../../../core/widgets/shared/address_selector_modal.dart';
 import 'legal_document_modal.dart';
 import '../../../core/utils/constants.dart';
 import '../../../core/utils/validators.dart';
@@ -534,16 +535,8 @@ class _SignUpPageState extends State<SignUpPage>
                       ),
                       SizedBox(height: 12),
 
-                      _buildCompactTextFormField(
-                        keyName: 'address',
-                        controller: _addressController,
-                        label: 'Address',
-                        maxLength: 200,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z0-9\s\-'.,#/]")),
-                          LengthLimitingTextInputFormatter(200),
-                        ],
-                      ),
+                      // Address selector button
+                      _buildAddressSelectorField(),
                       SizedBox(height: 12),
 
                       _buildCompactTextFormField(
@@ -761,6 +754,112 @@ class _SignUpPageState extends State<SignUpPage>
                   ),
                 ),
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAddressSelectorField() {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 6,
+            offset: Offset(0, 2),
+            spreadRadius: 1,
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: Material(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          onTap: () async {
+            final result = await showDialog<Map<String, String>>(
+              context: context,
+              barrierDismissible: true,
+              builder: (context) => const AddressSelectorModal(),
+            );
+
+            if (result != null && mounted) {
+              setState(() {
+                _addressController.text = result['formattedAddress'] ?? '';
+                _fieldErrors['address'] = null;
+              });
+            }
+          },
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: _fieldErrors['address'] != null ? AppColors.error : AppColors.border,
+                width: _fieldErrors['address'] != null ? 1.5 : 0.5,
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Address',
+                        style: kTextStyleSmall.copyWith(
+                          color: AppColors.textPrimary,
+                          fontSize: 14,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        _addressController.text.isEmpty
+                            ? 'Tap to select address'
+                            : _addressController.text,
+                        style: kTextStyleSmall.copyWith(
+                          color: _addressController.text.isEmpty
+                              ? AppColors.textSecondary.withOpacity(0.6)
+                              : AppColors.textPrimary,
+                          fontWeight: _addressController.text.isEmpty
+                              ? FontWeight.normal
+                              : FontWeight.w600,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (_fieldErrors['address'] != null) ...[
+                        SizedBox(height: 4),
+                        Text(
+                          _fieldErrors['address']!,
+                          style: kTextStyleSmall.copyWith(
+                            color: AppColors.error,
+                            fontSize: 12,
+                            height: 1.2,
+                          ),
+                          maxLines: 2,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.location_on,
+                  color: _fieldErrors['address'] != null 
+                      ? AppColors.error 
+                      : AppColors.primary,
+                  size: 24,
+                ),
+              ],
             ),
           ),
         ),

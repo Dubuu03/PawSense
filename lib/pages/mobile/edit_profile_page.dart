@@ -9,6 +9,7 @@ import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
 import 'package:pawsense/core/utils/constants.dart';
 import 'package:pawsense/core/utils/validators.dart';
+import 'package:pawsense/core/widgets/shared/address_selector_modal.dart';
 
 class EditProfilePage extends StatefulWidget {
   final UserModel user;
@@ -548,24 +549,8 @@ class _EditProfilePageState extends State<EditProfilePage>
                     
                     const SizedBox(height: 16),
                     
-                    _buildFormField(
-                      controller: _addressController,
-                      label: 'Address',
-                      icon: Icons.location_on_outlined,
-                      maxLines: 1,
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Address is required';
-                        }
-                        return null;
-                      },
-                      errorKey: 'address',
-                      maxLength: 200,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z0-9\s\-'.,#/]")),
-                        LengthLimitingTextInputFormatter(200),
-                      ],
-                    ),
+                    // Address selector
+                    _buildAddressSelectorField(),
                     
                     const SizedBox(height: 40),
                     
@@ -722,6 +707,126 @@ class _EditProfilePageState extends State<EditProfilePage>
       return (_currentUser ?? widget.user).username[0].toUpperCase();
     }
     return 'U';
+  }
+
+  Widget _buildAddressSelectorField() {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 6,
+            offset: Offset(0, 2),
+            spreadRadius: 1,
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: Material(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          onTap: () async {
+            final result = await showDialog<Map<String, String>>(
+              context: context,
+              barrierDismissible: true,
+              builder: (context) => const AddressSelectorModal(),
+            );
+
+            if (result != null && mounted) {
+              setState(() {
+                _addressController.text = result['formattedAddress'] ?? '';
+                _fieldErrors['address'] = null;
+              });
+            }
+          },
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: _fieldErrors['address'] != null ? AppColors.error : AppColors.border,
+                width: _fieldErrors['address'] != null ? 1.5 : 0.5,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.location_on_outlined,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Address',
+                        style: kTextStyleSmall.copyWith(
+                          color: AppColors.textPrimary,
+                          fontSize: 14,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        _addressController.text.isEmpty
+                            ? 'Tap to select address'
+                            : _addressController.text,
+                        style: kTextStyleSmall.copyWith(
+                          color: _addressController.text.isEmpty
+                              ? AppColors.textSecondary.withOpacity(0.6)
+                              : AppColors.textPrimary,
+                          fontWeight: _addressController.text.isEmpty
+                              ? FontWeight.normal
+                              : FontWeight.w600,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (_fieldErrors['address'] != null) ...[
+                        SizedBox(height: 4),
+                        Text(
+                          _fieldErrors['address']!,
+                          style: kTextStyleSmall.copyWith(
+                            color: AppColors.error,
+                            fontSize: 12,
+                            height: 1.2,
+                          ),
+                          maxLines: 2,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    _addressController.text.isEmpty ? 'Select' : 'Edit',
+                    style: kTextStyleSmall.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildFormField({
