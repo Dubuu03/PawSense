@@ -3,20 +3,20 @@ import 'package:pawsense/core/services/clinic/clinic_details_service.dart';
 
 /// Service for recommending clinics based on skin disease detection
 /// 
-/// Matches detected diseases with clinic specialties to provide
-/// personalized clinic recommendations to users
+/// Uses data-driven approach: analyzes actual appointment history to determine
+/// which clinics have experience treating specific diseases
 class ClinicRecommendationService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   
-  /// Get recommended clinics for a specific disease
+  /// Get recommended clinics for a specific disease based on appointment history
   /// 
-  /// Searches for clinics that have specialties matching the disease name
-  /// Returns clinics sorted by relevance (exact match first, then partial matches)
+  /// Analyzes actual appointments to find clinics that have treated this disease
+  /// Returns clinics sorted by relevance (experience count and success rate)
   static Future<List<Map<String, dynamic>>> getRecommendedClinicsForDisease(
     String diseaseName,
   ) async {
     try {
-      print('🔍 Searching for clinics specializing in: $diseaseName');
+      print('🔍 Analyzing appointment history for disease: $diseaseName');
       
       // Normalize disease name for better matching
       final normalizedDisease = _normalizeName(diseaseName);
@@ -31,25 +31,140 @@ class ClinicRecommendationService {
       
       print('📊 Found ${clinicsSnapshot.docs.length} active clinics');
       
-      // List to store recommended clinics with their match scores
-      final List<Map<String, dynamic>> recommendedClinics = [];
+      // Map to store clinic experience data
+      final Map<String, Map<String, dynamic>> clinicExperience = {};
       
+      // Initialize clinic data
       for (final clinicDoc in clinicsSnapshot.docs) {
         final clinicData = clinicDoc.data();
         final clinicId = clinicData['userId'] ?? clinicDoc.id;
         
-        // Get clinic details to check specialties
-        final clinicDetails = await ClinicDetailsService.getClinicDetails(clinicId);
+        clinicExperience[clinicId] = {
+          'clinicId': clinicId,
+          'totalCases': 0,
+          'completedCases': 0,
+          'matchScore': 0,
+        };
+      }
+      
+      // Analyze appointments for disease treatment history
+      // Only count COMPLETED appointments (validated by clinic)
+      final appointmentsSnapshot = await _firestore
+          .collection('appointments')
+          .where('status', isEqualTo: 'completed')
+          .get();
+      
+      print('📋 Analyzing ${appointmentsSnapshot.docs.length} completed & validated appointments...');
+      
+      for (final appointmentDoc in appointmentsSnapshot.docs) {
+        final appointmentData = appointmentDoc.data();
+        final clinicId = appointmentData['clinicId'] as String?;
+        final assessmentResultId = appointmentData['assessmentResultId'] as String?;
+        final status = appointmentData['status'] as String?;
+        final diagnosis = appointmentData['diagnosis'] as String?;
+        final completedAt = appointmentData['completedAt'];
         
-        if (clinicDetails != null && clinicDetails.specialties.isNotEmpty) {
-          // Calculate match score
-          final matchScore = _calculateMatchScore(
-            diseaseWords,
-            clinicDetails.specialties,
-          );
+        // Skip if not completed or missing required fields
+        if (clinicId == null || 
+            assessmentResultId == null || 
+            status != 'completed' ||
+            !clinicExperience.containsKey(clinicId)) {
+          continue;
+        }
+        
+        // Additional validation: Only count if clinic has added diagnosis/notes
+        // This ensures the appointment was properly validated by the clinic
+        if (diagnosis == null || diagnosis.isEmpty) {
+          continue; // Skip appointments without clinic validation
+        }
+        
+        // Ensure appointment has completedAt timestamp
+        if (completedAt == null) {
+          continue; // Skip if missing completion timestamp
+        }
+        
+        // Fetch assessment result to get detected diseases
+        try {
+          final assessmentDoc = await _firestore
+              .collection('assessment_results')
+              .doc(assessmentResultId)
+              .get();
           
-          if (matchScore > 0) {
-            print('   ✅ Match found: ${clinicDetails.clinicName} (score: $matchScore)');
+          if (assessmentDoc.exists) {
+            final assessmentData = assessmentDoc.data();
+            final detectionResults = assessmentData?['detectionResults'] as List?;
+            
+            if (detectionResults != null && detectionResults.isNotEmpty) {
+              // Check each detection result
+              for (final detection in detectionResults) {
+                final detections = detection['detections'] as List?;
+                
+                if (detections != null) {
+                  for (final det in detections) {
+                    final detectedDisease = det['label'] as String?;
+                    
+                    if (detectedDisease != null) {
+                      // Calculate match score for this detection
+                      final matchScore = _calculateDiseaseMatchScore(
+                        diseaseWords,
+                        detectedDisease,
+                      );
+                      
+                      if (matchScore > 0) {
+                        // This clinic has completed treatment for this disease!
+                        // Only count completed cases (validated by clinic)
+                        clinicExperience[clinicId]!['totalCases'] = 
+                            (clinicExperience[clinicId]!['totalCases'] as int) + 1;
+                        
+                        // Since we filter by completed status, all cases are completed
+                        clinicExperience[clinicId]!['completedCases'] = 
+                            (clinicExperience[clinicId]!['completedCases'] as int) + 1;
+                        
+                        // Update match score (use highest match found)
+                        if (matchScore > clinicExperience[clinicId]!['matchScore']) {
+                          clinicExperience[clinicId]!['matchScore'] = matchScore;
+                        }
+                        
+                        break; // Found a match, no need to check other detections in this result
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        } catch (e) {
+          // Skip this appointment if assessment data is unavailable
+          print('⚠️ Could not load assessment for appointment: $e');
+          continue;
+        }
+      }
+      
+      // Build recommended clinics list with experience data
+      final List<Map<String, dynamic>> recommendedClinics = [];
+      
+      for (final entry in clinicExperience.entries) {
+        final clinicId = entry.key;
+        final experience = entry.value;
+        final totalCases = experience['totalCases'] as int;
+        
+        // Only recommend clinics with actual experience treating this disease
+        if (totalCases > 0) {
+          // Get clinic details
+          final clinicDetails = await ClinicDetailsService.getClinicDetails(clinicId);
+          
+          if (clinicDetails != null) {
+            final completedCases = experience['completedCases'] as int;
+            final successRate = totalCases > 0 
+                ? (completedCases / totalCases * 100).round() 
+                : 0;
+            
+            // Calculate final score: base match score + experience bonus
+            final baseScore = experience['matchScore'] as int;
+            final experienceBonus = (totalCases * 10).clamp(0, 50); // Up to 50 bonus points
+            final finalScore = baseScore + experienceBonus;
+            
+            print('   ✅ ${clinicDetails.clinicName}: $totalCases cases ($completedCases completed) - Score: $finalScore');
             
             recommendedClinics.add({
               'id': clinicId,
@@ -58,20 +173,24 @@ class ClinicRecommendationService {
               'address': clinicDetails.address,
               'phone': clinicDetails.phone,
               'logoUrl': clinicDetails.logoUrl,
-              'specialties': clinicDetails.specialties,
-              'matchScore': matchScore,
-              'matchType': _getMatchType(matchScore),
+              'totalCases': totalCases,
+              'completedCases': completedCases,
+              'successRate': successRate,
+              'matchScore': finalScore,
+              'matchType': _getMatchType(baseScore, totalCases),
             });
           }
         }
       }
       
-      // Sort by match score (highest first)
-      recommendedClinics.sort((a, b) => 
-        (b['matchScore'] as int).compareTo(a['matchScore'] as int)
-      );
+      // Sort by final score (highest first), then by total cases
+      recommendedClinics.sort((a, b) {
+        final scoreCompare = (b['matchScore'] as int).compareTo(a['matchScore'] as int);
+        if (scoreCompare != 0) return scoreCompare;
+        return (b['totalCases'] as int).compareTo(a['totalCases'] as int);
+      });
       
-      print('🎯 Recommended ${recommendedClinics.length} clinics for $diseaseName');
+      print('🎯 Recommended ${recommendedClinics.length} clinics with experience treating $diseaseName');
       
       return recommendedClinics;
     } catch (e) {
@@ -133,83 +252,80 @@ class ClinicRecommendationService {
     }
   }
   
-  /// Calculate match score between disease and clinic specialties
+  /// Calculate match score between search disease and detected disease
   /// 
-  /// Scoring system:
+  /// Scoring system based on disease name similarity:
   /// - Exact match: 100 points
   /// - Contains full disease name: 75 points
   /// - Contains all disease words: 50 points
   /// - Contains some disease words: 25 points per word
-  static int _calculateMatchScore(
-    List<String> diseaseWords,
-    List<String> specialties,
+  static int _calculateDiseaseMatchScore(
+    List<String> searchDiseaseWords,
+    String detectedDisease,
   ) {
-    int maxScore = 0;
+    final normalizedDetected = _normalizeName(detectedDisease);
+    final detectedWords = normalizedDetected.split(' ');
+    final searchPhrase = searchDiseaseWords.join(' ');
     
-    for (final specialty in specialties) {
-      final normalizedSpecialty = _normalizeName(specialty);
-      final specialtyWords = normalizedSpecialty.split(' ');
+    // Check for exact match
+    if (normalizedDetected == searchPhrase) {
+      return 100;
+    }
+    
+    // Check if detected disease contains the full search phrase
+    if (normalizedDetected.contains(searchPhrase)) {
+      return 75;
+    }
+    
+    // Check if search phrase contains detected disease
+    if (searchPhrase.contains(normalizedDetected)) {
+      return 75;
+    }
+    
+    // Count matching words
+    int matchingWords = 0;
+    for (final searchWord in searchDiseaseWords) {
+      if (searchWord.length < 3) continue; // Skip short words like "in", "of"
       
-      // Check for exact match
-      if (normalizedSpecialty == diseaseWords.join(' ')) {
-        maxScore = maxScore > 100 ? maxScore : 100;
-        continue;
-      }
-      
-      // Check if specialty contains the full disease phrase
-      final diseasePhrase = diseaseWords.join(' ');
-      if (normalizedSpecialty.contains(diseasePhrase)) {
-        maxScore = maxScore > 75 ? maxScore : 75;
-        continue;
-      }
-      
-      // Check if disease phrase is contained in specialty
-      if (diseasePhrase.contains(normalizedSpecialty)) {
-        maxScore = maxScore > 70 ? maxScore : 70;
-        continue;
-      }
-      
-      // Count matching words
-      int matchingWords = 0;
-      for (final diseaseWord in diseaseWords) {
-        if (diseaseWord.length < 3) continue; // Skip short words like "in", "of"
-        
-        if (specialtyWords.contains(diseaseWord)) {
-          matchingWords++;
-        } else {
-          // Check for partial matches
-          for (final specialtyWord in specialtyWords) {
-            if (specialtyWord.contains(diseaseWord) || 
-                diseaseWord.contains(specialtyWord)) {
-              matchingWords++;
-              break;
-            }
+      if (detectedWords.contains(searchWord)) {
+        matchingWords++;
+      } else {
+        // Check for partial matches
+        for (final detectedWord in detectedWords) {
+          if (detectedWord.contains(searchWord) || 
+              searchWord.contains(detectedWord)) {
+            matchingWords++;
+            break;
           }
         }
       }
-      
-      // Calculate score based on word matches
-      if (matchingWords == diseaseWords.length && matchingWords > 0) {
-        // All disease words matched
-        final score = 50;
-        maxScore = maxScore > score ? maxScore : score;
-      } else if (matchingWords > 0) {
-        // Some words matched
-        final score = matchingWords * 25;
-        maxScore = maxScore > score ? maxScore : score;
-      }
     }
     
-    return maxScore;
+    // Calculate score based on word matches
+    if (matchingWords == searchDiseaseWords.length && matchingWords > 0) {
+      // All search words matched
+      return 50;
+    } else if (matchingWords > 0) {
+      // Some words matched
+      return matchingWords * 25;
+    }
+    
+    return 0;
   }
   
-  /// Get match type description based on score
-  static String _getMatchType(int score) {
-    if (score >= 100) return 'Exact Specialty Match';
-    if (score >= 75) return 'Primary Specialty';
-    if (score >= 50) return 'Related Specialty';
-    if (score >= 25) return 'General Practice';
-    return 'Available';
+  /// Get match type description based on score and experience
+  static String _getMatchType(int baseScore, int totalCases) {
+    if (totalCases >= 10) {
+      return 'Highly Experienced'; // Treated 10+ cases
+    } else if (totalCases >= 5) {
+      return 'Experienced'; // Treated 5-9 cases
+    } else if (totalCases >= 2) {
+      return 'Has Experience'; // Treated 2-4 cases
+    } else if (baseScore >= 75) {
+      return 'Similar Cases'; // Exact/close match with 1 case
+    } else {
+      return 'Related Cases'; // Partial match with 1 case
+    }
   }
   
   /// Normalize name for better matching
@@ -222,29 +338,77 @@ class ClinicRecommendationService {
         .trim();
   }
   
-  /// Check if a clinic specializes in a specific disease
-  static Future<bool> clinicSpecializesInDisease(
+  /// Check if a clinic has experience treating a specific disease
+  /// 
+  /// Checks appointment history to see if clinic has treated this disease before
+  static Future<bool> clinicHasExperienceWithDisease(
     String clinicId,
     String diseaseName,
   ) async {
     try {
-      final clinicDetails = await ClinicDetailsService.getClinicDetails(clinicId);
-      
-      if (clinicDetails == null || clinicDetails.specialties.isEmpty) {
-        return false;
-      }
-      
       final normalizedDisease = _normalizeName(diseaseName);
       final diseaseWords = normalizedDisease.split(' ');
       
-      final matchScore = _calculateMatchScore(
-        diseaseWords,
-        clinicDetails.specialties,
-      );
+      // Get completed appointments for this clinic (validated only)
+      final appointmentsSnapshot = await _firestore
+          .collection('appointments')
+          .where('clinicId', isEqualTo: clinicId)
+          .where('status', isEqualTo: 'completed')
+          .limit(50) // Check last 50 appointments for performance
+          .get();
       
-      return matchScore >= 50; // At least related specialty
+      for (final appointmentDoc in appointmentsSnapshot.docs) {
+        final appointmentData = appointmentDoc.data();
+        final assessmentResultId = appointmentData['assessmentResultId'] as String?;
+        final diagnosis = appointmentData['diagnosis'] as String?;
+        final completedAt = appointmentData['completedAt'];
+        
+        // Skip if missing required validation fields
+        if (assessmentResultId == null || 
+            diagnosis == null || 
+            diagnosis.isEmpty ||
+            completedAt == null) {
+          continue;
+        }
+        
+        // Check assessment result
+        final assessmentDoc = await _firestore
+            .collection('assessment_results')
+            .doc(assessmentResultId)
+            .get();
+        
+        if (assessmentDoc.exists) {
+          final detectionResults = assessmentDoc.data()?['detectionResults'] as List?;
+          
+          if (detectionResults != null) {
+            for (final detection in detectionResults) {
+              final detections = detection['detections'] as List?;
+              
+              if (detections != null) {
+                for (final det in detections) {
+                  final detectedDisease = det['label'] as String?;
+                  
+                  if (detectedDisease != null) {
+                    final matchScore = _calculateDiseaseMatchScore(
+                      diseaseWords,
+                      detectedDisease,
+                    );
+                    
+                    if (matchScore >= 50) {
+                      // Found a match!
+                      return true;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      return false; // No experience found
     } catch (e) {
-      print('❌ Error checking clinic specialty: $e');
+      print('❌ Error checking clinic experience: $e');
       return false;
     }
   }
