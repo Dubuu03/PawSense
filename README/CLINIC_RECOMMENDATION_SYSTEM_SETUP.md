@@ -30,7 +30,102 @@ The PawSense app now includes an intelligent clinic recommendation system that s
    - `AssessmentStepThree`: Shows recommended clinics after disease detection
    - `SkinDiseaseDetailPage`: Displays recommended clinics when viewing disease info
 
-## Manual Setup Required
+## Quick Setup for Immediate Testing
+
+### 🚀 Fast Track Setup (5-10 minutes)
+
+Follow these steps to test the feature right away:
+
+#### Step 1: Open Firebase Console
+```
+1. Go to: https://console.firebase.google.com
+2. Select your PawSense project
+3. Click "Firestore Database" in left sidebar
+```
+
+#### Step 2: Find a Clinic to Test With
+```
+1. In Firestore, navigate to: clinicDetails collection
+2. Click on any clinic document (look for one with a readable clinicName)
+3. You'll see the document fields
+```
+
+#### Step 3: Add Specialties Field
+```
+1. Click "+ Add field" button (at bottom of document)
+2. Fill in:
+   Field name: specialties
+   Field type: array
+   
+3. Click "Add array item" button
+4. Add these test values (one per item):
+   
+   Item 0: Flea Allergy Dermatitis
+   Item 1: Hot Spots
+   Item 2: Ringworm
+   Item 3: Mange
+   Item 4: General Dermatology
+   
+5. Click "Update" to save
+```
+
+#### Step 4: Verify Clinic Status
+Make sure the clinic is visible to users:
+```
+In the SAME clinic document, check:
+- Go to the 'clinics' collection (parent collection)
+- Find the clinic with matching userId/id
+- Verify these fields:
+  ✓ status: "approved"
+  ✓ isVisible: true
+  ✓ scheduleStatus: "completed"
+```
+
+#### Step 5: Test in App
+```
+Option A - Test via Assessment:
+1. Open app → Start Assessment
+2. Complete steps 1-2
+3. In Step 3 results, look for "Recommended Clinics" section
+4. Should show your test clinic if disease matches
+
+Option B - Test via Disease Library:
+1. Open app → Skin Disease Library
+2. Tap on "Flea Allergy Dermatitis" or "Hot Spots"
+3. Scroll down to see "Recommended Clinics"
+4. Your test clinic should appear
+```
+
+### ⚡ Even Faster: Copy-Paste This Template
+
+For testing, you can copy this exact structure:
+
+```json
+{
+  "specialties": [
+    "Flea Allergy Dermatitis",
+    "Hot Spots",
+    "Ringworm",
+    "Mange",
+    "Atopic Dermatitis",
+    "Pyoderma",
+    "Yeast Infections",
+    "General Dermatology"
+  ]
+}
+```
+
+**How to use:**
+1. Open clinic document in Firebase Console
+2. Click "Add field"
+3. Field name: `specialties`
+4. Type: `array`
+5. Paste each disease name as a separate array item
+6. Save
+
+---
+
+## Full Manual Setup
 
 ### Step 1: Add `specialties` Field to Clinic Documents
 

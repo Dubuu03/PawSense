@@ -1269,6 +1269,105 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     );
   }
 
+  // Save assessment and navigate to booking with preselected clinic
+  Future<void> _saveAssessmentAndNavigateToBooking(String clinicId, String clinicName) async {
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return Dialog(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: AppColors.primary),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Saving assessment...',
+                    style: kMobileTextStyleSubtitle.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+
+      // Get current user
+      final authService = AuthService();
+      final currentUser = authService.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Get user details
+      final userService = UserServices();
+      final userModel = await userService.getUserByUid(currentUser.uid);
+      if (userModel == null) {
+        throw Exception('User details not found');
+      }
+
+      // Create assessment result model and handle pet creation if needed
+      final assessmentResult = await _createAssessmentResult(userModel);
+      
+      // If this is a new pet, save it to Firebase first
+      await _handleNewPetCreation(userModel);
+      
+      // Save assessment result to Firebase and get the document ID
+      final assessmentService = AssessmentResultService();
+      final assessmentResultId = await assessmentService.saveAssessmentResult(assessmentResult);
+
+      print('✅ Assessment saved to Firebase with ID: $assessmentResultId');
+
+      // Close loading dialog
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+
+      // Invalidate assessment history cache since we just saved an assessment
+      await _invalidateAssessmentHistoryCache();
+      print('DEBUG: Assessment history cache invalidated after saving for appointment booking');
+
+      // Also invalidate appointment history cache as we're about to create an appointment
+      await _invalidateAppointmentHistoryCache();
+      print('DEBUG: Appointment history cache invalidated in preparation for booking');
+
+      // Navigate to book appointment page with preselected clinic and assessment result ID
+      if (mounted) {
+        context.push(
+          '/book-appointment',
+          extra: {
+            'clinicId': clinicId,
+            'clinicName': clinicName,
+            'assessmentResultId': assessmentResultId,
+          },
+        );
+      }
+
+    } catch (e) {
+      print('❌ Error saving assessment and booking appointment: $e');
+      
+      // Close loading dialog if still showing
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+      
+      // Show error toast
+      Fluttertoast.showToast(
+        msg: 'Failed to save assessment. Please try again.',
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+        backgroundColor: AppColors.error,
+        textColor: Colors.white,
+      );
+    }
+  }
+
   // Cache invalidation methods
   Future<void> _invalidateAssessmentHistoryCache() async {
     try {
@@ -2287,16 +2386,9 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     return RecommendedClinicsWidget(
       recommendedClinics: _recommendedClinics,
       detectedDisease: detectedDisease,
-      onClinicTap: (clinicId, clinicName) {
-        // Navigate to book appointment with preselected clinic
-        context.push(
-          '/book-appointment',
-          extra: {
-            'preselectedClinicId': clinicId,
-            'preselectedClinicName': clinicName,
-            'assessmentResultId': widget.assessmentData['assessmentResultId'],
-          },
-        );
+      onClinicTap: (clinicId, clinicName) async {
+        // Save assessment first before navigating
+        await _saveAssessmentAndNavigateToBooking(clinicId, clinicName);
       },
     );
   }
