@@ -13,7 +13,7 @@ class RoleManager {
         RouteInfo('/super-admin/user-management', 'User Management', Icons.people_outline),
         RouteInfo('/super-admin/pet-breeds', 'Pet Breeds', Icons.pets),
         RouteInfo('/super-admin/skin-diseases', 'Skin Diseases', Icons.medical_services),
-        RouteInfo('/super-admin/disease-statistics', 'Disease Statistics', Icons.bar_chart),
+        RouteInfo('/super-admin/disease-statistics', 'Area Statistics', Icons.bar_chart),
         RouteInfo('/super-admin/specializations', 'Specializations', Icons.category_outlined),
         RouteInfo('/super-admin/model-training', 'Model Training\nData', Icons.model_training),
         RouteInfo('/super-admin/system-settings', 'System Settings', Icons.settings_outlined),

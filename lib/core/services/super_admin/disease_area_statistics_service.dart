@@ -10,6 +10,7 @@ class DiseaseAreaStatistic {
   final String municipality;
   final String province;
   final String region;
+  final String? petType; // 'dog', 'cat', or null for mixed
   final DateTime? firstDetection;
   final DateTime? lastDetection;
 
@@ -20,6 +21,7 @@ class DiseaseAreaStatistic {
     required this.municipality,
     required this.province,
     required this.region,
+    this.petType,
     this.firstDetection,
     this.lastDetection,
   });
@@ -33,6 +35,7 @@ class DiseaseAreaStatistic {
         'municipality': municipality,
         'province': province,
         'region': region,
+        'petType': petType,
         'fullAddress': fullAddress,
         'firstDetection': firstDetection?.toIso8601String(),
         'lastDetection': lastDetection?.toIso8601String(),
@@ -47,11 +50,14 @@ class DiseaseAreaStatisticsService {
   /// Address format: "BARANGAY, CITY/MUNICIPALITY, PROVINCE, REGION"
   static Map<String, String> _extractAddressComponents(String address) {
     final parts = address.split(',').map((e) => e.trim()).toList();
+    
+    // Handle case where address might not have all 4 parts
+    // Provide defaults for missing parts
     return {
-      'barangay': parts.length > 0 ? parts[0] : '',
-      'municipality': parts.length > 1 ? parts[1] : '',
-      'province': parts.length > 2 ? parts[2] : '',
-      'region': parts.length > 3 ? parts[3] : '',
+      'barangay': parts.length > 0 && parts[0].isNotEmpty ? parts[0] : 'Unknown',
+      'municipality': parts.length > 1 && parts[1].isNotEmpty ? parts[1] : 'Unknown',
+      'province': parts.length > 2 && parts[2].isNotEmpty ? parts[2] : 'Unknown',
+      'region': parts.length > 3 && parts[3].isNotEmpty ? parts[3] : 'Unknown',
     };
   }
 
@@ -65,24 +71,31 @@ class DiseaseAreaStatisticsService {
   }) async {
     try {
       print('🔍 Fetching disease statistics by area...');
+      print('🔍 Filters - Province: $filterProvince, Municipality: $filterMunicipality, Barangay: $filterBarangay');
 
       // Get all users with addresses
       final usersSnapshot = await _firestore.collection('users').get();
+      print('📊 Total users in database: ${usersSnapshot.docs.length}');
 
       // Map user IDs to their addresses
       final userAddresses = <String, String>{};
+      int usersWithoutAddress = 0;
       for (var doc in usersSnapshot.docs) {
         final data = doc.data();
         final address = data['address'] as String?;
         if (address != null && address.isNotEmpty) {
           userAddresses[doc.id] = address;
+          print('✓ User ${doc.id}: $address');
+        } else {
+          usersWithoutAddress++;
         }
       }
 
       print('📍 Found ${userAddresses.length} users with addresses');
+      print('⚠️  Found $usersWithoutAddress users without addresses');
 
       // Get all assessment results
-      Query query = _firestore.collection('assessmentResults');
+      Query query = _firestore.collection('assessment_results');
 
       if (startDate != null) {
         query = query.where('createdAt', isGreaterThanOrEqualTo: startDate);
@@ -92,20 +105,38 @@ class DiseaseAreaStatisticsService {
       }
 
       final assessmentsSnapshot = await query.get();
-      print('📊 Found ${assessmentsSnapshot.docs.length} assessment results');
+      print('📊 Found ${assessmentsSnapshot.docs.length} assessment results in database');
 
       // Map to store disease counts by location
       // Key: "disease|barangay|municipality|province|region"
       final Map<String, _DiseaseLocationData> diseaseLocationMap = {};
+      int processedAssessments = 0;
+      int assessmentsWithoutAddress = 0;
+      int assessmentsWithoutDetections = 0;
+      int totalDetections = 0;
 
       for (var doc in assessmentsSnapshot.docs) {
         try {
           final data = doc.data() as Map<String, dynamic>?;
-          if (data == null) continue;
+          if (data == null) {
+            print('⚠️  Assessment ${doc.id} has no data');
+            continue;
+          }
+          
           final assessment = AssessmentResult.fromMap(data, doc.id);
           final userAddress = userAddresses[assessment.userId];
 
-          if (userAddress == null || userAddress.isEmpty) continue;
+          if (userAddress == null || userAddress.isEmpty) {
+            assessmentsWithoutAddress++;
+            print('⚠️  Assessment ${doc.id} - User ${assessment.userId} has no address');
+            continue;
+          }
+
+          if (assessment.detectionResults.isEmpty) {
+            assessmentsWithoutDetections++;
+            print('⚠️  Assessment ${doc.id} has no detection results');
+            continue;
+          }
 
           final addressComponents = _extractAddressComponents(userAddress);
           final barangay = addressComponents['barangay']!;
@@ -113,45 +144,71 @@ class DiseaseAreaStatisticsService {
           final province = addressComponents['province']!;
           final region = addressComponents['region']!;
 
+          print('📍 Processing assessment ${doc.id}: $barangay, $municipality, $province, $region');
+
           // Apply filters
           if (filterProvince != null && 
               province.toLowerCase() != filterProvince.toLowerCase()) {
+            print('   ⏭️  Skipped: Province filter mismatch');
             continue;
           }
           if (filterMunicipality != null && 
               municipality.toLowerCase() != filterMunicipality.toLowerCase()) {
+            print('   ⏭️  Skipped: Municipality filter mismatch');
             continue;
           }
           if (filterBarangay != null && 
               barangay.toLowerCase() != filterBarangay.toLowerCase()) {
+            print('   ⏭️  Skipped: Barangay filter mismatch');
             continue;
           }
 
-          // Extract all detections
+          // Find the highest confidence detection across all detection results
+          Detection? highestDetection;
+          double highestConfidence = 0.0;
+          
           for (var detectionResult in assessment.detectionResults) {
             for (var detection in detectionResult.detections) {
-              final disease = detection.label;
-
-              final key = '$disease|$barangay|$municipality|$province|$region';
-
-              if (diseaseLocationMap.containsKey(key)) {
-                diseaseLocationMap[key]!.increment(assessment.createdAt);
-              } else {
-                diseaseLocationMap[key] = _DiseaseLocationData(
-                  disease: disease,
-                  barangay: barangay,
-                  municipality: municipality,
-                  province: province,
-                  region: region,
-                  firstDate: assessment.createdAt,
-                );
+              totalDetections++;
+              if (detection.confidence > highestConfidence) {
+                highestConfidence = detection.confidence;
+                highestDetection = detection;
               }
             }
           }
+
+          // Only count the highest confidence detection per assessment
+          if (highestDetection != null) {
+            final disease = highestDetection.label;
+            final petType = assessment.petType.toLowerCase(); // 'dog' or 'cat'
+            final key = '$disease|$barangay|$municipality|$province|$region|$petType';
+
+            if (diseaseLocationMap.containsKey(key)) {
+              diseaseLocationMap[key]!.increment(assessment.createdAt);
+            } else {
+              diseaseLocationMap[key] = _DiseaseLocationData(
+                disease: disease,
+                barangay: barangay,
+                municipality: municipality,
+                province: province,
+                region: region,
+                petType: petType,
+                firstDate: assessment.createdAt,
+              );
+            }
+            print('   ✓ Counted highest confidence detection: $disease for $petType (${(highestConfidence * 100).toStringAsFixed(1)}%)');
+          }
+          processedAssessments++;
         } catch (e) {
-          print('⚠️ Error processing assessment ${doc.id}: $e');
+          print('❌ Error processing assessment ${doc.id}: $e');
         }
       }
+
+      print('📊 Summary:');
+      print('   - Processed assessments: $processedAssessments');
+      print('   - Assessments without address: $assessmentsWithoutAddress');
+      print('   - Assessments without detections: $assessmentsWithoutDetections');
+      print('   - Total detections found: $totalDetections');
 
       // Convert to list of statistics
       final statistics = diseaseLocationMap.values
@@ -162,6 +219,7 @@ class DiseaseAreaStatisticsService {
                 municipality: data.municipality,
                 province: data.province,
                 region: data.region,
+                petType: data.petType,
                 firstDetection: data.firstDate,
                 lastDetection: data.lastDate,
               ))
@@ -336,7 +394,7 @@ class DiseaseAreaStatisticsService {
   /// Get unique list of diseases
   static Future<List<String>> getDiseases() async {
     final assessmentsSnapshot = 
-        await _firestore.collection('assessmentResults').get();
+        await _firestore.collection('assessment_results').get();
     final diseases = <String>{};
 
     for (var doc in assessmentsSnapshot.docs) {
@@ -364,6 +422,7 @@ class _DiseaseLocationData {
   final String municipality;
   final String province;
   final String region;
+  final String? petType; // 'dog', 'cat', or null for mixed
   int count = 1;
   DateTime firstDate;
   DateTime? lastDate;
@@ -374,6 +433,7 @@ class _DiseaseLocationData {
     required this.municipality,
     required this.province,
     required this.region,
+    this.petType,
     required this.firstDate,
   }) {
     lastDate = firstDate;
