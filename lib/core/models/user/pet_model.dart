@@ -104,7 +104,7 @@ class Pet {
   // Get age in human-readable format
   String get ageString {
     if (age < 12) {
-      return '$age months';
+      return '$age ${age == 1 ? 'month' : 'months'}';
     } else {
       final years = age ~/ 12;
       final months = age % 12;

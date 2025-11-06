@@ -100,14 +100,14 @@ class RecommendedClinicsWidget extends StatelessWidget {
                         Row(
                           children: [
                             Icon(
-                              Icons.history,
+                              Icons.verified,
                               size: 13,
                               color: AppColors.textSecondary,
                             ),
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(
-                                'Based on treatment history for ${TextUtils.capitalizeWords(detectedDisease!)}',
+                                'Top 3 clinics based on treatment history & ratings for ${TextUtils.capitalizeWords(detectedDisease!)}',
                                 style: kMobileTextStyleLegend.copyWith(
                                   color: AppColors.textSecondary,
                                   fontSize: 12,
@@ -175,6 +175,8 @@ class RecommendedClinicsWidget extends StatelessWidget {
     final phone = clinic['phone'] ?? '';
     final logoUrl = clinic['logoUrl'];
     final totalCases = clinic['totalCases'] as int? ?? 0;
+    final averageRating = clinic['averageRating'] as double? ?? 0.0;
+    final totalRatings = clinic['totalRatings'] as int? ?? 0;
 
     return Container(
       decoration: BoxDecoration(
@@ -266,28 +268,56 @@ class RecommendedClinicsWidget extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Clinic name and badge in one row
+                      // Clinic name
+                      Text(
+                        TextUtils.capitalizeWords(clinicName),
+                        style: kMobileTextStyleSubtitle.copyWith(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                          height: 1.2,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      
+                      // Rating and cases badge row
                       Row(
                         children: [
-                          Expanded(
-                            child: Text(
-                              TextUtils.capitalizeWords(clinicName),
-                              style: kMobileTextStyleSubtitle.copyWith(
-                                color: AppColors.textPrimary,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                                height: 1.2,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                          // Rating display
+                          if (totalRatings > 0) ...[
+                            Icon(
+                              Icons.star,
+                              size: 13,
+                              color: Colors.amber[700],
                             ),
-                          ),
-                          if (totalCases > 0) ...[
+                            const SizedBox(width: 3),
+                            Text(
+                              averageRating.toStringAsFixed(1),
+                              style: kMobileTextStyleLegend.copyWith(
+                                color: AppColors.textPrimary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(width: 2),
+                            Text(
+                              '($totalRatings)',
+                              style: kMobileTextStyleLegend.copyWith(
+                                color: AppColors.textSecondary,
+                                fontSize: 10,
+                              ),
+                            ),
                             const SizedBox(width: 8),
+                          ],
+                          
+                          // Cases treated badge
+                          if (totalCases > 0) ...[
                             Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 6,
-                                vertical: 3,
+                                vertical: 2,
                               ),
                               decoration: BoxDecoration(
                                 color: AppColors.info.withOpacity(0.12),

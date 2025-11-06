@@ -159,12 +159,31 @@ class ClinicRecommendationService {
                 ? (completedCases / totalCases * 100).round() 
                 : 0;
             
-            // Calculate final score: base match score + experience bonus
-            final baseScore = experience['matchScore'] as int;
-            final experienceBonus = (totalCases * 10).clamp(0, 50); // Up to 50 bonus points
-            final finalScore = baseScore + experienceBonus;
+            // Fetch clinic rating data
+            double averageRating = 0.0;
+            int totalRatings = 0;
             
-            print('   ✅ ${clinicDetails.clinicName}: $totalCases cases ($completedCases completed) - Score: $finalScore');
+            try {
+              final clinicDoc = await _firestore.collection('clinics').doc(clinicId).get();
+              if (clinicDoc.exists) {
+                final clinicData = clinicDoc.data()!;
+                averageRating = (clinicData['averageRating'] ?? 0.0).toDouble();
+                totalRatings = (clinicData['totalRatings'] ?? 0) as int;
+              }
+            } catch (e) {
+              print('⚠️ Could not fetch rating for clinic $clinicId: $e');
+            }
+            
+            // Calculate final score with multiple criteria:
+            // 1. Base match score (disease name similarity)
+            // 2. Experience bonus (number of cases treated)
+            // 3. Rating bonus (clinic ratings from users)
+            final baseScore = experience['matchScore'] as int;
+            final experienceBonus = (totalCases * 10).clamp(0, 50); // Up to 50 points
+            final ratingBonus = (averageRating * 10).round(); // Up to 50 points (5.0 * 10)
+            final finalScore = baseScore + experienceBonus + ratingBonus;
+            
+            print('   ✅ ${clinicDetails.clinicName}: $totalCases cases, Rating: $averageRating ($totalRatings reviews) - Score: $finalScore');
             
             recommendedClinics.add({
               'id': clinicId,
@@ -176,6 +195,8 @@ class ClinicRecommendationService {
               'totalCases': totalCases,
               'completedCases': completedCases,
               'successRate': successRate,
+              'averageRating': averageRating,
+              'totalRatings': totalRatings,
               'matchScore': finalScore,
               'matchType': _getMatchType(baseScore, totalCases),
             });
@@ -183,16 +204,26 @@ class ClinicRecommendationService {
         }
       }
       
-      // Sort by final score (highest first), then by total cases
+      // Sort by multiple criteria:
+      // 1. Final score (includes match, experience, and rating)
+      // 2. Total cases (tie-breaker)
+      // 3. Average rating (secondary tie-breaker)
       recommendedClinics.sort((a, b) {
         final scoreCompare = (b['matchScore'] as int).compareTo(a['matchScore'] as int);
         if (scoreCompare != 0) return scoreCompare;
-        return (b['totalCases'] as int).compareTo(a['totalCases'] as int);
+        
+        final casesCompare = (b['totalCases'] as int).compareTo(a['totalCases'] as int);
+        if (casesCompare != 0) return casesCompare;
+        
+        return (b['averageRating'] as double).compareTo(a['averageRating'] as double);
       });
       
-      print('🎯 Recommended ${recommendedClinics.length} clinics with experience treating $diseaseName');
+      // Return only top 3 clinics
+      final topClinics = recommendedClinics.take(3).toList();
       
-      return recommendedClinics;
+      print('🎯 Recommended top ${topClinics.length} clinics (from ${recommendedClinics.length} total) with experience treating $diseaseName');
+      
+      return topClinics;
     } catch (e) {
       print('❌ Error getting recommended clinics: $e');
       return [];
@@ -237,15 +268,26 @@ class ClinicRecommendationService {
         }
       }
       
-      // Convert to list and sort by total match score
+      // Convert to list and sort by multiple criteria
       final recommendedClinics = clinicScores.values.toList();
-      recommendedClinics.sort((a, b) => 
-        (b['matchScore'] as int).compareTo(a['matchScore'] as int)
-      );
       
-      print('🎯 Recommended ${recommendedClinics.length} clinics for multiple diseases');
+      // Sort by score, cases, and rating
+      recommendedClinics.sort((a, b) {
+        final scoreCompare = (b['matchScore'] as int).compareTo(a['matchScore'] as int);
+        if (scoreCompare != 0) return scoreCompare;
+        
+        final casesCompare = (b['totalCases'] as int).compareTo(a['totalCases'] as int);
+        if (casesCompare != 0) return casesCompare;
+        
+        return ((b['averageRating'] ?? 0.0) as double).compareTo((a['averageRating'] ?? 0.0) as double);
+      });
       
-      return recommendedClinics;
+      // Return only top 3 clinics
+      final topClinics = recommendedClinics.take(3).toList();
+      
+      print('🎯 Recommended top ${topClinics.length} clinics (from ${recommendedClinics.length} total) for multiple diseases');
+      
+      return topClinics;
     } catch (e) {
       print('❌ Error getting recommended clinics for multiple diseases: $e');
       return [];
