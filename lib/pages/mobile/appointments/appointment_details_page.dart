@@ -10,6 +10,7 @@ import 'package:pawsense/core/services/clinic/clinic_list_service.dart';
 import 'package:pawsense/core/models/user/pet_model.dart';
 import 'package:pawsense/core/guards/auth_guard.dart';
 import 'package:pawsense/core/widgets/shared/rating/rate_clinic_modal.dart';
+import 'package:pawsense/core/widgets/mobile/appointments/edit_appointment_dialog.dart';
 
 class AppointmentDetailsPage extends StatefulWidget {
   final String appointmentId;
@@ -250,6 +251,12 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
               appointment.hasRated != true) ...[
             _buildRateClinicButton(appointment),
             const SizedBox(height: kMobileSizedBoxXLarge),
+          ],
+          
+          // Edit button (only for pending appointments)
+          if (appointment.status == AppointmentStatus.pending) ...[
+            _buildEditButton(appointment),
+            const SizedBox(height: kMobileSizedBoxMedium),
           ],
           
           // Cancel button (only for pending/confirmed appointments)
@@ -721,6 +728,31 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
     );
   }
 
+  Widget _buildEditButton(AppointmentBooking appointment) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: () => _showEditDialog(appointment),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: AppColors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(kMobileBorderRadiusButton),
+          ),
+        ),
+        icon: const Icon(Icons.edit),
+        label: const Text(
+          'Edit Appointment',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildRateClinicButton(AppointmentBooking appointment) {
     return SizedBox(
       width: double.infinity,
@@ -742,6 +774,19 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
             fontWeight: FontWeight.w600,
           ),
         ),
+      ),
+    );
+  }
+
+  void _showEditDialog(AppointmentBooking appointment) {
+    showDialog(
+      context: context,
+      builder: (context) => EditAppointmentDialog(
+        appointment: appointment,
+        onUpdated: () {
+          // Reload appointment details after update
+          _loadAppointmentDetails();
+        },
       ),
     );
   }

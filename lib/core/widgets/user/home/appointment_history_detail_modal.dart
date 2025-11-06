@@ -120,14 +120,6 @@ class _AppointmentHistoryDetailModalState extends State<AppointmentHistoryDetail
           ),
         ),
         centerTitle: true,
-        actions: [
-          if (_appointment != null && _appointment!.status == AppointmentStatus.pending)
-            IconButton(
-              icon: const Icon(Icons.edit, color: AppColors.primary),
-              onPressed: () => _showEditDialog(),
-              tooltip: 'Edit Appointment',
-            ),
-        ],
       ),
       body: _loading
           ? _buildLoadingState()
@@ -236,8 +228,10 @@ class _AppointmentHistoryDetailModalState extends State<AppointmentHistoryDetail
             const SizedBox(height: kMobileSizedBoxXLarge),
           ],
           
-          // Cancel button (only for pending appointments)
+          // Edit and Cancel buttons (only for pending appointments)
           if (appointment.status == AppointmentStatus.pending) ...[
+            _buildEditButton(appointment),
+            const SizedBox(height: kMobileSizedBoxMedium),
             _buildCancelButton(appointment),
             const SizedBox(height: kMobileSizedBoxXLarge),
           ],
@@ -674,6 +668,31 @@ class _AppointmentHistoryDetailModalState extends State<AppointmentHistoryDetail
           if (appointment.clinicNotes?.isNotEmpty ?? false)
             _buildInfoRow('Clinical Notes', appointment.clinicNotes!),
         ],
+      ),
+    );
+  }
+
+  Widget _buildEditButton(AppointmentBooking appointment) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: () => _showEditDialog(),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: AppColors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(kMobileBorderRadiusButton),
+          ),
+        ),
+        icon: const Icon(Icons.edit),
+        label: const Text(
+          'Edit Appointment',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }

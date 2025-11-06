@@ -4,7 +4,6 @@ import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
 import 'package:pawsense/core/models/clinic/appointment_booking_model.dart';
 import 'package:pawsense/core/services/mobile/appointment_booking_service.dart';
-import 'package:pawsense/core/widgets/mobile/appointments/edit_appointment_dialog.dart';
 import 'dart:async';
 
 class AppointmentHistoryDetailPage extends StatefulWidget {
@@ -109,14 +108,6 @@ class _AppointmentHistoryDetailPageState extends State<AppointmentHistoryDetailP
             fontWeight: FontWeight.w600,
           ),
         ),
-        actions: [
-          if (_appointment != null && _appointment!.status == AppointmentStatus.pending)
-            IconButton(
-              icon: const Icon(Icons.edit, color: AppColors.primary),
-              onPressed: () => _showEditDialog(),
-              tooltip: 'Edit Appointment',
-            ),
-        ],
       ),
       body: _loading
           ? const Center(
@@ -593,21 +584,6 @@ class _AppointmentHistoryDetailPageState extends State<AppointmentHistoryDetailP
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  void _showEditDialog() {
-    if (_appointment == null) return;
-    
-    showDialog(
-      context: context,
-      builder: (context) => EditAppointmentDialog(
-        appointment: _appointment!,
-        onUpdated: () {
-          // The stream will automatically update the UI
-          // No need to manually refresh as we're using real-time updates
-        },
       ),
     );
   }

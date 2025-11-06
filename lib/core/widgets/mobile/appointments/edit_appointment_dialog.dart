@@ -604,51 +604,14 @@ class _EditAppointmentDialogState extends State<EditAppointmentDialog> {
               return _userPets.map((pet) {
                 return Container(
                   alignment: Alignment.centerLeft,
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppColors.background,
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: pet.imageUrl != null && pet.imageUrl!.isNotEmpty
-                            ? ClipOval(
-                                child: Image.network(
-                                  pet.imageUrl!,
-                                  width: 32,
-                                  height: 32,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Icon(
-                                      Icons.pets,
-                                      size: 16,
-                                      color: AppColors.primary,
-                                    );
-                                  },
-                                ),
-                              )
-                            : Icon(
-                                Icons.pets,
-                                size: 16,
-                                color: AppColors.primary,
-                              ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          pet.petName,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w500,
-                            fontSize: 16,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    pet.petName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w500,
+                      fontSize: 16,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
                 );
               }).toList();
@@ -656,54 +619,14 @@ class _EditAppointmentDialogState extends State<EditAppointmentDialog> {
             items: _userPets.map((pet) {
               return DropdownMenuItem<String>(
                 value: pet.id,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppColors.background,
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: pet.imageUrl != null && pet.imageUrl!.isNotEmpty
-                            ? ClipOval(
-                                child: Image.network(
-                                  pet.imageUrl!,
-                                  width: 32,
-                                  height: 32,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Icon(
-                                      Icons.pets,
-                                      size: 16,
-                                      color: AppColors.primary,
-                                    );
-                                  },
-                                ),
-                              )
-                            : Icon(
-                                Icons.pets,
-                                size: 16,
-                                color: AppColors.primary,
-                              ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          pet.petName,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w500,
-                            fontSize: 16,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                      ),
-                    ],
+                child: Text(
+                  pet.petName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 16,
                   ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               );
             }).toList(),
