@@ -10,6 +10,7 @@ import 'package:pawsense/core/services/mobile/appointment_booking_service.dart';
 import 'package:pawsense/core/services/clinic/clinic_service.dart';
 import 'package:pawsense/core/services/user/pet_service.dart';
 import 'package:pawsense/core/widgets/shared/rating/rate_clinic_modal.dart';
+import 'package:pawsense/core/widgets/mobile/appointments/edit_appointment_dialog.dart';
 import 'package:pawsense/core/guards/auth_guard.dart';
 
 class AppointmentHistoryDetailModal extends StatefulWidget {
@@ -83,6 +84,10 @@ class _AppointmentHistoryDetailModalState extends State<AppointmentHistoryDetail
           _pet = pet;
           _loading = false;
         });
+        
+        // Debug log for appointment status
+        print('📋 Appointment loaded - Status: ${appointment.status}, ID: ${appointment.id}');
+        print('🔧 Edit button should ${appointment.status == AppointmentStatus.pending ? "SHOW" : "HIDE"} for this appointment');
       }
     } catch (e) {
       print('Error loading appointment data: $e');
@@ -115,6 +120,14 @@ class _AppointmentHistoryDetailModalState extends State<AppointmentHistoryDetail
           ),
         ),
         centerTitle: true,
+        actions: [
+          if (_appointment != null && _appointment!.status == AppointmentStatus.pending)
+            IconButton(
+              icon: const Icon(Icons.edit, color: AppColors.primary),
+              onPressed: () => _showEditDialog(),
+              tooltip: 'Edit Appointment',
+            ),
+        ],
       ),
       body: _loading
           ? _buildLoadingState()
@@ -777,6 +790,33 @@ class _AppointmentHistoryDetailModalState extends State<AppointmentHistoryDetail
         ),
       );
     }
+  }
+
+  void _showEditDialog() {
+    print('🔧 Edit dialog requested for appointment: ${_appointment?.id}');
+    
+    if (_appointment == null) {
+      print('❌ Cannot show edit dialog: appointment is null');
+      return;
+    }
+    
+    print('✅ Showing edit dialog for pending appointment');
+    
+    showDialog(
+      context: context,
+      builder: (context) => EditAppointmentDialog(
+        appointment: _appointment!,
+        onUpdated: () {
+          // Reload appointment data to reflect changes
+          _loadAppointmentData();
+          
+          // Call the parent callback if provided
+          if (widget.onAppointmentUpdated != null) {
+            widget.onAppointmentUpdated!();
+          }
+        },
+      ),
+    );
   }
 
   Widget _buildInfoRow(String label, String value) {

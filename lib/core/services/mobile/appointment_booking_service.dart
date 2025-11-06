@@ -519,6 +519,68 @@ class AppointmentBookingService {
     }
   }
 
+  /// Update user appointment details (only for pending appointments)
+  static Future<bool> updateUserAppointmentDetails(
+    String appointmentId, {
+    String? notes,
+    String? serviceName,
+    DateTime? appointmentDate,
+    String? appointmentTime,
+    AppointmentType? type,
+  }) async {
+    try {
+      // First verify the appointment is pending and belongs to the current user
+      final doc = await _firestore
+          .collection(_collection)
+          .doc(appointmentId)
+          .get();
+
+      if (!doc.exists) {
+        print('❌ Appointment not found: $appointmentId');
+        return false;
+      }
+
+      final data = doc.data()!;
+      final currentStatus = data['status'] as String;
+      final currentUserId = data['userId'] as String;
+      final currentUser = await AuthGuard.getCurrentUser();
+
+      // Verify user owns this appointment
+      if (currentUser == null || currentUser.uid != currentUserId) {
+        print('❌ User ${currentUser?.uid} does not own appointment $appointmentId');
+        return false;
+      }
+
+      // Verify appointment is pending (only pending appointments can be edited)
+      if (currentStatus != AppointmentStatus.pending.name) {
+        print('❌ Cannot edit appointment: status is $currentStatus (must be pending)');
+        return false;
+      }
+
+      // Build update data
+      final updateData = <String, dynamic>{
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      };
+
+      if (notes != null) updateData['notes'] = notes;
+      if (serviceName != null) updateData['serviceName'] = serviceName;
+      if (appointmentDate != null) updateData['appointmentDate'] = Timestamp.fromDate(appointmentDate);
+      if (appointmentTime != null) updateData['appointmentTime'] = appointmentTime;
+      if (type != null) updateData['type'] = type.name;
+
+      await _firestore
+          .collection(_collection)
+          .doc(appointmentId)
+          .update(updateData);
+
+      print('✅ Successfully updated appointment details for: $appointmentId');
+      return true;
+    } catch (e) {
+      print('❌ Error updating appointment details: $e');
+      return false;
+    }
+  }
+
   /// Get appointment by ID
   static Future<AppointmentBooking?> getAppointmentById(String appointmentId) async {
     try {
