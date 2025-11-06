@@ -6,6 +6,8 @@ import '../../../core/widgets/admin/dashboard/stats_cards_list.dart';
 import '../../../core/widgets/admin/dashboard/loading_stats_card.dart';
 import '../../../core/widgets/admin/dashboard/dashboard_header.dart';
 import '../../../core/widgets/admin/dashboard/common_diseases_chart.dart';
+import '../../../core/widgets/admin/dashboard/appointment_status_pie_chart.dart';
+import '../../../core/widgets/admin/dashboard/common_diseases_pie_chart.dart';
 import '../../../core/utils/app_colors.dart';
 import '../../../core/services/admin/dashboard_service.dart';
 import '../../../core/services/admin/admin_appointment_notification_integrator.dart';
@@ -30,6 +32,9 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   DashboardStats? _currentStats;
   List<RecentActivity> _recentActivities = [];
   List<DiseaseData> _diseaseData = [];
+  AppointmentStatusData? _appointmentStatusData;
+  DiseaseEvaluationData? _commonDiseaseData;
+  bool _isLoadingCharts = false;
   
   // Cache for stats by period
   final Map<String, DashboardStats> _statsCache = {};
@@ -37,6 +42,8 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   // Cache for activities and diseases
   List<RecentActivity>? _cachedActivities;
   List<DiseaseData>? _cachedDiseases;
+  AppointmentStatusData? _cachedAppointmentStatus;
+  DiseaseEvaluationData? _cachedCommonDiseases;
   
   // Firebase listener subscription
   StreamSubscription? _appointmentsListener;
@@ -60,7 +67,8 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     
     // Header appears immediately (no data needed)
     // Only load data if not already cached
-    if (_statsCache.isEmpty || _cachedActivities == null || _cachedDiseases == null) {
+    if (_statsCache.isEmpty || _cachedActivities == null || _cachedDiseases == null || 
+        _cachedAppointmentStatus == null || _cachedCommonDiseases == null) {
       _loadDashboardData();
     } else {
       // Data already cached, just restore it
@@ -69,6 +77,8 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
         _currentStats = _statsCache[selectedPeriod.toLowerCase()];
         _recentActivities = _cachedActivities ?? [];
         _diseaseData = _cachedDiseases ?? [];
+        _appointmentStatusData = _cachedAppointmentStatus;
+        _commonDiseaseData = _cachedCommonDiseases;
       });
       // Still set up listener for updates and initialize notifications
       _setupAppointmentsListenerIfNeeded();
@@ -263,6 +273,8 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
         _loadStats(),
         _loadRecentActivities(),
         _loadDiseaseData(),
+        _loadAppointmentStatusData(),
+        _loadCommonDiseaseData(),
       ]);
       
       AppLogger.success('Dashboard data loaded successfully');
@@ -339,6 +351,14 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     
     // Only refresh stats which change most frequently
     _loadStats();
+    
+    // Clear chart data cache when period changes or when appointments change
+    _cachedAppointmentStatus = null;
+    _cachedCommonDiseases = null;
+    
+    // Refresh chart data
+    _loadAppointmentStatusData();
+    _loadCommonDiseaseData();
     
     // Refresh activities less frequently (every other refresh)
     if (_recentActivities.isEmpty || DateTime.now().millisecondsSinceEpoch % 2 == 0) {
@@ -476,6 +496,88 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     }
   }
 
+  /// Load appointment status data for pie chart (with caching)
+  Future<void> _loadAppointmentStatusData() async {
+    if (_clinicId == null || !mounted) return;
+
+    final periodKey = selectedPeriod.toLowerCase();
+
+    // Check cache first
+    if (_cachedAppointmentStatus?.period == periodKey) {
+      print('Using cached appointment status data');
+      _safeSetState(() {
+        _appointmentStatusData = _cachedAppointmentStatus;
+      });
+      return;
+    }
+
+    try {
+      final statusCounts = await DashboardService.getAppointmentStatusCounts(
+        _clinicId!,
+        period: periodKey,
+      );
+
+      final statusData = AppointmentStatusData(
+        statusCounts: statusCounts,
+        period: periodKey,
+      );
+
+      _cachedAppointmentStatus = statusData;
+      
+      _safeSetState(() {
+        _appointmentStatusData = statusData;
+      });
+      
+      print('Appointment status data loaded and cached');
+    } catch (e) {
+      print('Error loading appointment status data: $e');
+    }
+  }
+
+  /// Load common disease data for pie chart (with caching)
+  Future<void> _loadCommonDiseaseData() async {
+    if (_clinicId == null || !mounted) return;
+
+    final periodKey = selectedPeriod.toLowerCase();
+
+    // Check cache first
+    if (_cachedCommonDiseases?.period == periodKey) {
+      print('Using cached common disease data');
+      _safeSetState(() {
+        _commonDiseaseData = _cachedCommonDiseases;
+      });
+      return;
+    }
+
+    try {
+      final diseases = await DashboardService.getCommonDiseases(
+        _clinicId!,
+        limit: 8, // Get more diseases for pie chart
+      );
+
+      // Convert to DiseaseEvaluationData format for pie chart
+      final diseaseMap = <String, int>{};
+      for (final disease in diseases) {
+        diseaseMap[disease.name] = disease.count;
+      }
+
+      final commonDiseaseData = DiseaseEvaluationData(
+        diseaseCounts: diseaseMap,
+        period: periodKey,
+      );
+
+      _cachedCommonDiseases = commonDiseaseData;
+      
+      _safeSetState(() {
+        _commonDiseaseData = commonDiseaseData;
+      });
+      
+      print('Common disease data loaded and cached');
+    } catch (e) {
+      print('Error loading common disease data: $e');
+    }
+  }
+
   /// Build loading skeleton for stats cards with static UI (title & icons)
   Widget _buildLoadingStatsCards() {
     // Static card configurations with titles and icons
@@ -577,6 +679,8 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
             _statsCache.clear();
             _cachedActivities = null;
             _cachedDiseases = null;
+            _cachedAppointmentStatus = null;
+            _cachedCommonDiseases = null;
             _clinicId = null;
             
             // Refresh clinic data and dashboard after setup completion
@@ -603,6 +707,12 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
                       selectedPeriod = period;
                     });
                     _loadStats(); // Reload stats when period changes
+                    
+                    // Clear cached chart data and reload for new period
+                    _cachedAppointmentStatus = null;
+                    _cachedCommonDiseases = null;
+                    _loadAppointmentStatusData();
+                    _loadCommonDiseaseData();
                   },
                 ),
                 SizedBox(height: 24),
@@ -625,22 +735,55 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
                           ),
                 SizedBox(height: 32),
                 
-                // Charts and activities section
+                // Charts and activities section - Updated layout
                 Expanded(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Column(
                     children: [
+                      // First row: Appointment Status and Common Diseases pie charts
                       Expanded(
                         flex: 1,
-                        child: CommonDiseasesChart(
-                          diseaseData: _diseaseData,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 1,
+                              child: AppointmentStatusPieChart(
+                                statusData: _appointmentStatusData,
+                                isLoading: _isLoadingCharts,
+                              ),
+                            ),
+                            SizedBox(width: 24),
+                            Expanded(
+                              flex: 1,
+                              child: CommonDiseasesPieChart(
+                                diseaseData: _commonDiseaseData,
+                                isLoading: _isLoadingCharts,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      SizedBox(width: 24),
+                      SizedBox(height: 24),
+                      // Second row: Common diseases (bar chart view) and recent activities
                       Expanded(
                         flex: 1,
-                        child: RecentActivityList(
-                          activities: _recentActivities,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 1,
+                              child: CommonDiseasesChart(
+                                diseaseData: _diseaseData,
+                              ),
+                            ),
+                            SizedBox(width: 24),
+                            Expanded(
+                              flex: 1,
+                              child: RecentActivityList(
+                                activities: _recentActivities,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],

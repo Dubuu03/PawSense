@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import 'package:pawsense/core/guards/auth_guard.dart';
 import 'package:pawsense/core/utils/app_logger.dart';
 
@@ -499,6 +500,189 @@ class DashboardService {
     }
   }
 
+  /// Get appointment status counts for pie chart
+  static Future<Map<String, int>> getAppointmentStatusCounts(
+    String clinicId, {
+    required String period,
+  }) async {
+    try {
+      final now = DateTime.now();
+      DateTime startDate;
+      DateTime endDate;
+
+      // Calculate date ranges based on period
+      switch (period.toLowerCase()) {
+        case 'daily':
+          startDate = DateTime(now.year, now.month, now.day, 0, 0, 0);
+          endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+          break;
+        case 'weekly':
+          final weekday = now.weekday;
+          final monday = now.subtract(Duration(days: weekday - 1));
+          startDate = DateTime(monday.year, monday.month, monday.day, 0, 0, 0);
+          final sunday = monday.add(Duration(days: 6));
+          endDate = DateTime(sunday.year, sunday.month, sunday.day, 23, 59, 59);
+          break;
+        case 'monthly':
+          startDate = DateTime(now.year, now.month, 1, 0, 0, 0);
+          final lastDayOfMonth = DateTime(now.year, now.month + 1, 0);
+          endDate = DateTime(lastDayOfMonth.year, lastDayOfMonth.month, lastDayOfMonth.day, 23, 59, 59);
+          break;
+        default:
+          startDate = DateTime(now.year, now.month, now.day, 0, 0, 0);
+          endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+      }
+
+      final query = await _firestore
+          .collection('appointments')
+          .where('clinicId', isEqualTo: clinicId)
+          .where('appointmentDate', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
+          .where('appointmentDate', isLessThanOrEqualTo: Timestamp.fromDate(endDate))
+          .get();
+
+      final statusCounts = <String, int>{
+        'pending': 0,
+        'confirmed': 0,
+        'completed': 0,
+        'cancelled': 0,
+        'follow_up': 0,
+      };
+
+      for (final doc in query.docs) {
+        final data = doc.data();
+        final status = data['status']?.toString().toLowerCase() ?? 'pending';
+        
+        if (statusCounts.containsKey(status)) {
+          statusCounts[status] = statusCounts[status]! + 1;
+        } else {
+          // Handle any unexpected status values
+          statusCounts['pending'] = statusCounts['pending']! + 1;
+        }
+      }
+
+      AppLogger.dashboard('Appointment status counts: $statusCounts');
+      return statusCounts;
+    } catch (e) {
+      AppLogger.error('Error getting appointment status counts', error: e, tag: 'DashboardService');
+      return {
+        'pending': 0,
+        'confirmed': 0,
+        'completed': 0,
+        'cancelled': 0,
+        'follow_up': 0,
+      };
+    }
+  }
+
+  /// Get disease evaluation counts for completed appointments
+  static Future<Map<String, int>> getDiseaseEvaluationCounts(
+    String clinicId, {
+    required String period,
+  }) async {
+    try {
+      final now = DateTime.now();
+      DateTime startDate;
+      DateTime endDate;
+
+      // Calculate date ranges based on period
+      switch (period.toLowerCase()) {
+        case 'daily':
+          startDate = DateTime(now.year, now.month, now.day, 0, 0, 0);
+          endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+          break;
+        case 'weekly':
+          final weekday = now.weekday;
+          final monday = now.subtract(Duration(days: weekday - 1));
+          startDate = DateTime(monday.year, monday.month, monday.day, 0, 0, 0);
+          final sunday = monday.add(Duration(days: 6));
+          endDate = DateTime(sunday.year, sunday.month, sunday.day, 23, 59, 59);
+          break;
+        case 'monthly':
+          startDate = DateTime(now.year, now.month, 1, 0, 0, 0);
+          final lastDayOfMonth = DateTime(now.year, now.month + 1, 0);
+          endDate = DateTime(lastDayOfMonth.year, lastDayOfMonth.month, lastDayOfMonth.day, 23, 59, 59);
+          break;
+        default:
+          startDate = DateTime(now.year, now.month, now.day, 0, 0, 0);
+          endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+      }
+
+      // Get completed appointments with assessment results
+      final appointmentsQuery = await _firestore
+          .collection('appointments')
+          .where('clinicId', isEqualTo: clinicId)
+          .where('status', isEqualTo: 'completed')
+          .where('appointmentDate', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
+          .where('appointmentDate', isLessThanOrEqualTo: Timestamp.fromDate(endDate))
+          .get();
+
+      final assessmentResultIds = <String>{};
+      for (final appointmentDoc in appointmentsQuery.docs) {
+        final appointmentData = appointmentDoc.data();
+        final assessmentResultId = appointmentData['assessmentResultId'] as String?;
+        
+        if (assessmentResultId != null && assessmentResultId.isNotEmpty) {
+          assessmentResultIds.add(assessmentResultId);
+        }
+      }
+
+      if (assessmentResultIds.isEmpty) {
+        return {};
+      }
+
+      // Batch fetch assessment results
+      final assessmentResultsMap = <String, Map<String, dynamic>>{};
+      final assessmentIdsList = assessmentResultIds.toList();
+      
+      for (var i = 0; i < assessmentIdsList.length; i += 10) {
+        final batch = assessmentIdsList.skip(i).take(10).toList();
+        if (batch.isEmpty) break;
+        
+        final assessmentsQuery = await _firestore
+            .collection('assessment_results')
+            .where(FieldPath.documentId, whereIn: batch)
+            .get();
+        
+        for (final assessmentDoc in assessmentsQuery.docs) {
+          if (assessmentDoc.exists) {
+            assessmentResultsMap[assessmentDoc.id] = assessmentDoc.data();
+          }
+        }
+      }
+
+      // Count diseases from assessment results
+      final diseaseMap = <String, int>{};
+      
+      for (final entry in assessmentResultsMap.entries) {
+        final assessmentData = entry.value;
+        final analysisResults = assessmentData['analysisResults'] as List?;
+        
+        if (analysisResults != null && analysisResults.isNotEmpty) {
+          for (final result in analysisResults) {
+            if (result is Map<String, dynamic>) {
+              final condition = result['condition'] as String?;
+              final percentage = result['percentage'] as num?;
+              
+              // Only count conditions with confidence > 50%
+              if (condition != null && 
+                  condition.isNotEmpty && 
+                  percentage != null && 
+                  percentage > 50) {
+                diseaseMap[condition] = (diseaseMap[condition] ?? 0) + 1;
+              }
+            }
+          }
+        }
+      }
+
+      AppLogger.dashboard('Disease evaluation counts: $diseaseMap');
+      return diseaseMap;
+    } catch (e) {
+      AppLogger.error('Error getting disease evaluation counts', error: e, tag: 'DashboardService');
+      return {};
+    }
+  }
+
   /// Get the current user's clinic ID
   static Future<String?> getCurrentUserClinicId() async {
     try {
@@ -584,4 +768,118 @@ class DiseaseData {
     required this.count,
     required this.percentage,
   });
+}
+
+/// Pie chart data model for appointment statuses
+class ChartDataPoint {
+  final String label;
+  final int value;
+  final Color color;
+
+  ChartDataPoint({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+}
+
+/// Appointment status data model
+class AppointmentStatusData {
+  final Map<String, int> statusCounts;
+  final int total;
+  final String period;
+
+  AppointmentStatusData({
+    required this.statusCounts,
+    required this.period,
+  }) : total = statusCounts.values.fold(0, (sum, count) => sum + count);
+
+  List<ChartDataPoint> toPieChartData() {
+    if (total == 0) return [];
+
+    final colors = {
+      'pending': Color(0xFFFF9800),     // Orange
+      'confirmed': Color(0xFF4CAF50),   // Green  
+      'completed': Color(0xFF2196F3),   // Blue
+      'cancelled': Color(0xFFF44336),   // Red
+      'follow_up': Color(0xFF9C27B0),   // Purple
+    };
+
+    return statusCounts.entries
+        .where((entry) => entry.value > 0)
+        .map((entry) => ChartDataPoint(
+              label: _formatStatusLabel(entry.key),
+              value: entry.value,
+              color: colors[entry.key] ?? Color(0xFF757575),
+            ))
+        .toList();
+  }
+
+  static String _formatStatusLabel(String status) {
+    switch (status) {
+      case 'pending':
+        return 'Pending';
+      case 'confirmed':
+        return 'Confirmed';
+      case 'completed':
+        return 'Completed';
+      case 'cancelled':
+        return 'Cancelled';
+      case 'follow_up':
+        return 'Follow Up';
+      default:
+        return status.toUpperCase();
+    }
+  }
+}
+
+/// Disease evaluation data model
+class DiseaseEvaluationData {
+  final Map<String, int> diseaseCounts;
+  final int total;
+  final String period;
+
+  DiseaseEvaluationData({
+    required this.diseaseCounts,
+    required this.period,
+  }) : total = diseaseCounts.values.fold(0, (sum, count) => sum + count);
+
+  List<ChartDataPoint> toPieChartData() {
+    if (total == 0) return [];
+
+    // Generate colors for diseases
+    final colors = [
+      Color(0xFF4CAF50), // Green
+      Color(0xFF2196F3), // Blue
+      Color(0xFFFF9800), // Orange
+      Color(0xFF9C27B0), // Purple
+      Color(0xFF00BCD4), // Cyan
+      Color(0xFFFFEB3B), // Yellow
+      Color(0xFFFF5722), // Deep Orange
+      Color(0xFF795548), // Brown
+      Color(0xFF607D8B), // Blue Grey
+      Color(0xFFE91E63), // Pink
+    ];
+
+    final sortedEntries = diseaseCounts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return sortedEntries
+        .asMap()
+        .entries
+        .map((entry) => ChartDataPoint(
+              label: _formatDiseaseLabel(entry.value.key),
+              value: entry.value.value,
+              color: colors[entry.key % colors.length],
+            ))
+        .toList();
+  }
+
+  static String _formatDiseaseLabel(String disease) {
+    // Format disease names for better display
+    return disease
+        .split('_')
+        .map((word) => word[0].toUpperCase() + word.substring(1).toLowerCase())
+        .join(' ');
+  }
 }
