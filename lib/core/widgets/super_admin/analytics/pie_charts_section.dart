@@ -37,10 +37,9 @@ class AnalyticsPieChartsSection extends StatelessWidget {
         const SizedBox(height: 16),
         LayoutBuilder(
           builder: (context, constraints) {
-            // Determine number of columns based on screen width
+            // Max 2 columns — keeps charts readable at any screen width
             int columns = 2;
             if (constraints.maxWidth < 800) columns = 1;
-            if (constraints.maxWidth > 1400) columns = 3;
 
             final charts = _buildCharts();
             
@@ -97,31 +96,14 @@ class AnalyticsPieChartsSection extends StatelessWidget {
       charts.add(_buildPetTypeChart());
     }
 
-    // Appointment Status Distribution and Diseases - Side by Side
+    // Appointment Status Distribution and Diseases - individual items (grid handles layout)
     final hasAppointments = appointmentStats != null && appointmentStats!.byStatus.isNotEmpty;
     final hasDiseases = topDiseases.isNotEmpty;
-    
-    if (hasAppointments && hasDiseases) {
-      charts.add(
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _buildAppointmentStatusChart(),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: DiseasesPieChart(
-                topDiseases: topDiseases,
-                isLoading: isLoading,
-              ),
-            ),
-          ],
-        ),
-      );
-    } else if (hasAppointments) {
+
+    if (hasAppointments) {
       charts.add(_buildAppointmentStatusChart());
-    } else if (hasDiseases) {
+    }
+    if (hasDiseases) {
       charts.add(DiseasesPieChart(
         topDiseases: topDiseases,
         isLoading: isLoading,
