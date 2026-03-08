@@ -41,7 +41,7 @@ flutter pub get
 
 # Step 4: Build Flutter web
 echo ">>> Building Flutter web (release)..."
-flutter build web --release --web-renderer canvaskit --no-tree-shake-icons
+flutter build web --release --no-tree-shake-icons
 
 # Step 5: Remove unnecessary large assets from web build
 # The ONNX model (99MB) is not used in the web admin pages
