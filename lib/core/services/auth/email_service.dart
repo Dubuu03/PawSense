@@ -6,9 +6,9 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 /// Service class for sending OTP emails
 /// Uses EmailJS service for sending emails without a backend
 class EmailService {
-  static const String _emailJSServiceId = 'service_pawsense';
-  static const String _emailJSTemplateId = 'template_hgo0lrs';
-  static const String _emailJSUrl = 'https://api.emailjs.com/api/v1.0/email/send';
+  static String get _emailJSServiceId => dotenv.env['EMAILJS_SERVICE_ID'] ?? '';
+  static String get _emailJSTemplateId => dotenv.env['EMAILJS_TEMPLATE_ID'] ?? '';
+  static String get _emailJSUrl => dotenv.env['EMAILJS_URL'] ?? 'https://api.emailjs.com/api/v1.0/email/send';
 
   /// Sends an OTP email for password reset
   Future<bool> sendPasswordResetOTP({
@@ -56,6 +56,11 @@ class EmailService {
       final publicKey = dotenv.env['EMAILJS_PUBLIC_KEY'];
       if (publicKey == null || publicKey.isEmpty) {
         debugPrint('❌ EmailJS public key not found in environment variables');
+        return false;
+      }
+
+      if (_emailJSServiceId.isEmpty || _emailJSTemplateId.isEmpty || _emailJSUrl.isEmpty) {
+        debugPrint('❌ EmailJS service ID, template ID, or URL not found in environment variables');
         return false;
       }
 

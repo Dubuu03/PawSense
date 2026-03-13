@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:image/image.dart' as img;
@@ -13,7 +15,15 @@ class PetDetectionService {
   PetDetectionService._internal();
 
   // API Configuration - Railway backend server
-  static const String baseUrl = 'https://pawsensebackend-production.up.railway.app';
+  static String get baseUrl {
+    final url = dotenv.env['RAILWAY_ENDPOINT'];
+    if (url == null || url.isEmpty) {
+      debugPrint('❌ RAILWAY_ENDPOINT not found in environment variables');
+      throw Exception('RAILWAY_ENDPOINT is not configured in .env');
+    }
+    return url.trim();
+  }
+
   static const int timeoutSeconds = 30;
   
   // Supported pet types for API endpoints
@@ -456,7 +466,14 @@ class PetAssessment {
 
 /// Configuration class for API settings
 class AppConfig {
-  static const String apiBaseUrl = 'https://pawsensebackend-production.up.railway.app';
+  static String get apiBaseUrl {
+    final url = dotenv.env['RAILWAY_ENDPOINT'];
+    if (url == null || url.isEmpty) {
+      throw Exception('RAILWAY_ENDPOINT is not configured in .env');
+    }
+    return url.trim();
+  }
+
   static const int maxImagesPerAssessment = 5;
   static const int maxImageSizeBytes = 10 * 1024 * 1024; // 10MB (10,485,760 bytes)
   static const List<String> supportedImageTypes = ['jpg', 'jpeg', 'png', 'bmp', 'tiff'];
