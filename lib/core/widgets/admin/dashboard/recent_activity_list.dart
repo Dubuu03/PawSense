@@ -84,25 +84,25 @@ class RecentActivityList extends StatelessWidget {
     final hasActivities = displayActivities.isNotEmpty;
 
     return Container(
-      padding: EdgeInsets.all(24),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.border.withOpacity(0.5),
+          color: AppColors.border.withValues(alpha: 0.5),
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 20,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 4),
             spreadRadius: 0,
           ),
           BoxShadow(
-            color: AppColors.primary.withOpacity(0.03),
+            color: AppColors.primary.withValues(alpha: 0.03),
             blurRadius: 40,
-            offset: Offset(0, 8),
+            offset: const Offset(0, 8),
             spreadRadius: 0,
           ),
         ],
@@ -114,19 +114,19 @@ class RecentActivityList extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: EdgeInsets.all(6),
+                padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: AppColors.info.withOpacity(0.1),
+                  color: AppColors.info.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.history,
                   size: 18,
                   color: AppColors.info,
                 ),
               ),
-              SizedBox(width: 10),
-              Text(
+              const SizedBox(width: 10),
+              const Text(
                 'Recent Activity',
                 style: TextStyle(
                   fontSize: 17,
@@ -137,10 +137,10 @@ class RecentActivityList extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(height: 24),
-          // Use Column instead of ListView since we're already in a ScrollView
+          const SizedBox(height: 24),
           hasActivities
               ? Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: displayActivities.asMap().entries.map((entry) {
                     return Padding(
                       padding: EdgeInsets.only(bottom: entry.key < displayActivities.length - 1 ? 20 : 0),
@@ -149,9 +149,9 @@ class RecentActivityList extends StatelessWidget {
                   }).toList(),
                 )
               : Container(
-                  padding: EdgeInsets.symmetric(vertical: 40),
+                  padding: const EdgeInsets.symmetric(vertical: 40),
                   alignment: Alignment.center,
-                  child: Text(
+                  child: const Text(
                     'No recent activity',
                     style: TextStyle(
                       color: AppColors.textSecondary,

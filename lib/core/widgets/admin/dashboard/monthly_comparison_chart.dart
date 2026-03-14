@@ -40,17 +40,21 @@ class MonthlyComparisonChart extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
               Icon(Icons.compare_arrows, color: AppColors.primary, size: 20),
               const SizedBox(width: 8),
-              const Text(
-                'Monthly Comparison',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+              const Expanded(
+                child: Text(
+                  'Monthly Comparison',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -86,10 +90,10 @@ class MonthlyComparisonChart extends StatelessWidget {
                   ),
                   titlesData: FlTitlesData(
                     show: true,
-                    rightTitles: AxisTitles(
+                    rightTitles: const AxisTitles(
                       sideTitles: SideTitles(showTitles: false),
                     ),
-                    topTitles: AxisTitles(
+                    topTitles: const AxisTitles(
                       sideTitles: SideTitles(showTitles: false),
                     ),
                     bottomTitles: AxisTitles(
@@ -242,6 +246,7 @@ class MonthlyComparisonChart extends StatelessWidget {
 
   Widget _buildLegendItem(String label, Color color) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           width: 16,
@@ -276,20 +281,24 @@ class MonthlyComparisonChart extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildChangeItem(
-            'Appointments',
-            appointmentChange,
-            appointmentChange >= 0,
+          Flexible(
+            child: _buildChangeItem(
+              'Appointments',
+              appointmentChange,
+              appointmentChange >= 0,
+            ),
           ),
           Container(
             width: 1,
             height: 30,
             color: AppColors.border.withValues(alpha: 0.3),
           ),
-          _buildChangeItem(
-            'Completion',
-            completionChange,
-            completionChange >= 0,
+          Flexible(
+            child: _buildChangeItem(
+              'Completion',
+              completionChange,
+              completionChange >= 0,
+            ),
           ),
         ],
       ),
@@ -298,6 +307,7 @@ class MonthlyComparisonChart extends StatelessWidget {
 
   Widget _buildChangeItem(String label, double change, bool isPositive) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Icon(
           isPositive ? Icons.trending_up : Icons.trending_down,
@@ -377,15 +387,18 @@ class MonthlyComparisonChart extends StatelessWidget {
 
   Widget _buildLoadingState() {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
       ),
-      child: const Center(
-        heightFactor: 8,
-        child: CircularProgressIndicator(),
+      child: const SizedBox(
+        height: 300,
+        child: Center(
+          child: CircularProgressIndicator(),
+        ),
       ),
     );
   }

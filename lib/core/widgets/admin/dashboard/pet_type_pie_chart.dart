@@ -48,6 +48,7 @@ class PetTypePieChart extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
@@ -57,16 +58,19 @@ class PetTypePieChart extends StatelessWidget {
                   color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: Icon(Icons.pets, color: AppColors.primary, size: 18),
+                child: const Icon(Icons.pets, color: AppColors.primary, size: 18),
               ),
               const SizedBox(width: 10),
-              const Text(
-                'Pet Type Distribution',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                  letterSpacing: 0.2,
+              const Expanded(
+                child: Text(
+                  'Pet Type Distribution',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                    letterSpacing: 0.2,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -74,23 +78,50 @@ class PetTypePieChart extends StatelessWidget {
           const SizedBox(height: 24),
           SizedBox(
             height: 250,
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: PieChart(
-                    PieChartData(
-                      sectionsSpace: 2,
-                      centerSpaceRadius: 60,
-                      sections: _buildPieChartSections(total, colors),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth < 360) {
+                  return Column(
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: PieChart(
+                          PieChartData(
+                            sectionsSpace: 2,
+                            centerSpaceRadius: 40,
+                            sections: _buildPieChartSections(total, colors),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Expanded(
+                        flex: 2,
+                        child: SingleChildScrollView(
+                          child: _buildLegend(total, colors),
+                        ),
+                      ),
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: PieChart(
+                        PieChartData(
+                          sectionsSpace: 2,
+                          centerSpaceRadius: 60,
+                          sections: _buildPieChartSections(total, colors),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: _buildLegend(total, colors),
-                ),
-              ],
+                    Expanded(
+                      flex: 2,
+                      child: _buildLegend(total, colors),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ],
