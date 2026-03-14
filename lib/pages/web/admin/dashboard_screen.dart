@@ -810,33 +810,29 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     required Widget secondChild,
     double spacing = 20,
   }) {
-    return SizedBox(
-      width: double.infinity,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final shouldStack = constraints.maxWidth < 1200;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const minTwoColumnWidth = 1280.0;
+        final shouldStack = constraints.maxWidth < minTwoColumnWidth;
+        final cardWidth = shouldStack
+            ? constraints.maxWidth
+            : (constraints.maxWidth - spacing) / 2;
 
-          if (shouldStack) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(width: double.infinity, child: firstChild),
-                SizedBox(height: spacing),
-                SizedBox(width: double.infinity, child: secondChild),
-              ],
-            );
-          }
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        return SizedBox(
+          width: double.infinity,
+          child: Wrap(
+            alignment: WrapAlignment.start,
+            runAlignment: WrapAlignment.start,
+            crossAxisAlignment: WrapCrossAlignment.start,
+            spacing: spacing,
+            runSpacing: spacing,
             children: [
-              Expanded(child: firstChild),
-              SizedBox(width: spacing),
-              Expanded(child: secondChild),
+              SizedBox(width: cardWidth, child: firstChild),
+              SizedBox(width: cardWidth, child: secondChild),
             ],
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -947,11 +943,15 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
                 ],
               ),
             ),
-            child: SingleChildScrollView(
-              padding: EdgeInsets.all(24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  padding: EdgeInsets.all(24.0),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                 // ✅ Header appears immediately (no data dependency)
                 DashboardHeader(
                   selectedPeriod: selectedPeriod,
@@ -1048,8 +1048,11 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
                 ),
                 
                 SizedBox(height: 40), // Bottom padding
-                ],
-              ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         );
