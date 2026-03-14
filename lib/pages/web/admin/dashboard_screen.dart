@@ -804,6 +804,38 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     );
   }
 
+  /// Build a responsive two-card row that stacks on smaller widths.
+  Widget _buildResponsiveDashboardRow({
+    required Widget firstChild,
+    required Widget secondChild,
+    double spacing = 20,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final shouldStack = constraints.maxWidth < 1200;
+
+        if (shouldStack) {
+          return Column(
+            children: [
+              firstChild,
+              SizedBox(height: spacing),
+              secondChild,
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: firstChild),
+            SizedBox(width: spacing),
+            Expanded(child: secondChild),
+          ],
+        );
+      },
+    );
+  }
+
   /// Convert dashboard stats to stats card format
   List<Map<String, dynamic>> _getStatsCards() {
     if (_currentStats == null) {
@@ -948,25 +980,15 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
                 SizedBox(height: 20),
                 
                 // First row: Appointment Status and Common Diseases pie charts
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      flex: 1,
-                      child: AppointmentStatusPieChart(
-                        statusData: _appointmentStatusData,
-                        isLoading: _isLoadingCharts,
-                      ),
-                    ),
-                    SizedBox(width: 20),
-                    Expanded(
-                      flex: 1,
-                      child: CommonDiseasesPieChart(
-                        diseaseData: _commonDiseaseData,
-                        isLoading: _isLoadingCharts,
-                      ),
-                    ),
-                  ],
+                _buildResponsiveDashboardRow(
+                  firstChild: AppointmentStatusPieChart(
+                    statusData: _appointmentStatusData,
+                    isLoading: _isLoadingCharts,
+                  ),
+                  secondChild: CommonDiseasesPieChart(
+                    diseaseData: _commonDiseaseData,
+                    isLoading: _isLoadingCharts,
+                  ),
                 ),
                 
                 SizedBox(height: 32),
@@ -976,25 +998,15 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
                 SizedBox(height: 20),
                 
                 // Second row: Pet Type Distribution and Appointment Trends
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      flex: 1,
-                      child: PetTypePieChart(
-                        petTypeDistribution: _petTypeDistribution,
-                        isLoading: _isLoadingNewCharts,
-                      ),
-                    ),
-                    SizedBox(width: 20),
-                    Expanded(
-                      flex: 1,
-                      child: AppointmentTrendsChart(
-                        trendData: _appointmentTrends,
-                        isLoading: _isLoadingNewCharts,
-                      ),
-                    ),
-                  ],
+                _buildResponsiveDashboardRow(
+                  firstChild: PetTypePieChart(
+                    petTypeDistribution: _petTypeDistribution,
+                    isLoading: _isLoadingNewCharts,
+                  ),
+                  secondChild: AppointmentTrendsChart(
+                    trendData: _appointmentTrends,
+                    isLoading: _isLoadingNewCharts,
+                  ),
                 ),
                 
                 SizedBox(height: 32),
@@ -1004,25 +1016,15 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
                 SizedBox(height: 20),
                 
                 // Third row: Monthly Comparison and Response Time
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      flex: 1,
-                      child: MonthlyComparisonChart(
-                        comparisonData: _monthlyComparison ?? MonthlyComparison.empty(),
-                        isLoading: _isLoadingNewCharts,
-                      ),
-                    ),
-                    SizedBox(width: 20),
-                    Expanded(
-                      flex: 1,
-                      child: ResponseTimeCard(
-                        responseData: _responseTimeData ?? ResponseTimeData.empty(),
-                        isLoading: _isLoadingNewCharts,
-                      ),
-                    ),
-                  ],
+                _buildResponsiveDashboardRow(
+                  firstChild: MonthlyComparisonChart(
+                    comparisonData: _monthlyComparison ?? MonthlyComparison.empty(),
+                    isLoading: _isLoadingNewCharts,
+                  ),
+                  secondChild: ResponseTimeCard(
+                    responseData: _responseTimeData ?? ResponseTimeData.empty(),
+                    isLoading: _isLoadingNewCharts,
+                  ),
                 ),
                 
                 SizedBox(height: 32),
@@ -1032,23 +1034,13 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
                 SizedBox(height: 20),
                 
                 // Fourth row: Common diseases (bar chart view) and recent activities
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      flex: 1,
-                      child: CommonDiseasesChart(
-                        diseaseData: _diseaseData,
-                      ),
-                    ),
-                    SizedBox(width: 20),
-                    Expanded(
-                      flex: 1,
-                      child: RecentActivityList(
-                        activities: _recentActivities,
-                      ),
-                    ),
-                  ],
+                _buildResponsiveDashboardRow(
+                  firstChild: CommonDiseasesChart(
+                    diseaseData: _diseaseData,
+                  ),
+                  secondChild: RecentActivityList(
+                    activities: _recentActivities,
+                  ),
                 ),
                 
                 SizedBox(height: 40), // Bottom padding
