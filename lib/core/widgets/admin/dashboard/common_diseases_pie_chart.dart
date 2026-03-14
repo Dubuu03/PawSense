@@ -143,7 +143,10 @@ class CommonDiseasesPieChart extends StatelessWidget {
                               const SizedBox(width: 24),
                               Expanded(
                                 flex: 2,
-                                child: _buildLegend(),
+                                child: SingleChildScrollView(
+                                  physics: const BouncingScrollPhysics(),
+                                  child: _buildLegend(),
+                                ),
                               ),
                             ],
                           );

@@ -117,7 +117,10 @@ class PetTypePieChart extends StatelessWidget {
                     ),
                     Expanded(
                       flex: 2,
-                      child: _buildLegend(total, colors),
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: _buildLegend(total, colors),
+                      ),
                     ),
                   ],
                 );
