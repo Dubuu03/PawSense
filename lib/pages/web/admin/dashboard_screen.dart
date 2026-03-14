@@ -31,8 +31,8 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAliveClientMixin {
   String selectedPeriod = 'Daily';
   String? _clinicId;
-  String? _userName; // User's display name
-  bool _isLoadingStats = false; // Loading state for stats only
+  String? _userName;
+  bool _isLoadingStats = false;
   DashboardStats? _currentStats;
   List<RecentActivity> _recentActivities = [];
   List<DiseaseData> _diseaseData = [];
@@ -71,25 +71,26 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   // Debouncing for appointment changes
   Timer? _refreshDebounceTimer;
   DateTime? _lastRefreshTime;
-  static const Duration _minRefreshInterval = Duration(seconds: 30); // Minimum 30s between refreshes
-  static const Duration _debounceDelay = Duration(seconds: 2); // 2s debounce delay
+  static const Duration _minRefreshInterval = Duration(seconds: 30);
+  static const Duration _debounceDelay = Duration(seconds: 2);
+
+  // Layout breakpoints
+  static const double _twoColumnBreakpoint = 900.0;
+  static const double _compactBreakpoint = 600.0;
 
   @override
-  bool get wantKeepAlive => true; // Keep state alive when navigating away
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
     super.initState();
     _restoreState();
     
-    // Header appears immediately (no data needed)
-    // Only load data if not already cached
     if (_statsCache.isEmpty || _cachedActivities == null || _cachedDiseases == null || 
         _cachedAppointmentStatus == null || _cachedCommonDiseases == null) {
       _loadDashboardData();
     } else {
-      // Data already cached, just restore it
-      print('📦 Dashboard data already cached - skipping load');
+      AppLogger.debug('Dashboard data already cached - skipping load');
       _safeSetState(() {
         _currentStats = _statsCache[selectedPeriod.toLowerCase()];
         _recentActivities = _cachedActivities ?? [];
@@ -97,26 +98,21 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
         _appointmentStatusData = _cachedAppointmentStatus;
         _commonDiseaseData = _cachedCommonDiseases;
       });
-      // Still set up listener for updates and initialize notifications
       _setupAppointmentsListenerIfNeeded();
-      // Initialize notifications after getting clinic ID
       _ensureNotificationIntegratorsInitialized();
     }
   }
   
   @override
   void dispose() {
-    // Try to save state, but don't fail if context is already deactivated
     try {
       if (mounted) {
         _saveState();
       }
     } catch (e) {
-      // Context might be deactivated during sign out - safe to ignore
       AppLogger.debug('Could not save state on dispose (widget deactivated): $e');
     }
     
-    // Cancel listener and debounce timer when widget is disposed
     _appointmentsListener?.cancel();
     _refreshDebounceTimer?.cancel();
     super.dispose();
@@ -126,23 +122,18 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   void _initializeNotificationIntegrators() {
     if (_clinicId == null || _notificationIntegratorsInitialized) return;
     
-    print('🔔 Initializing notification integrators for clinic: $_clinicId');
+    AppLogger.info('Initializing notification integrators for clinic: $_clinicId');
     
-    // Initialize notification service first with a small delay to ensure it's ready
     Future.delayed(const Duration(milliseconds: 500), () {
-      // Initialize appointment notification integrator (static method)
       AdminAppointmentNotificationIntegrator.initializeAppointmentListeners();
-      
-      // Initialize message notification integrator (static method)
       AdminMessageNotificationIntegrator.initializeMessageListeners();
-      
-      print('✅ Notification integrators initialized successfully');
+      AppLogger.info('Notification integrators initialized successfully');
     });
     
     _notificationIntegratorsInitialized = true;
   }
   
-  /// Ensure notification integrators are initialized (get clinic ID if needed)
+  /// Ensure notification integrators are initialized
   Future<void> _ensureNotificationIntegratorsInitialized() async {
     if (_notificationIntegratorsInitialized) return;
     
@@ -172,7 +163,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
         _safeSetState(() {
           selectedPeriod = savedPeriod;
         });
-        print('🔄 Restored dashboard state: period="$selectedPeriod"');
+        AppLogger.debug('Restored dashboard state: period="$selectedPeriod"');
       }
     } catch (e) {
       AppLogger.debug('Error restoring state: $e');
@@ -181,7 +172,6 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   
   /// Save current state to PageStorage
   void _saveState() {
-    // Guard against accessing deactivated context (e.g., during sign out)
     if (!mounted) {
       AppLogger.debug('Cannot save state - widget not mounted');
       return;
@@ -191,7 +181,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
       final storage = PageStorage.maybeOf(context);
       if (storage != null) {
         storage.writeState(context, selectedPeriod, identifier: 'selectedPeriod');
-        print('💾 Saved dashboard state: period="$selectedPeriod"');
+        AppLogger.debug('Saved dashboard state: period="$selectedPeriod"');
       } else {
         AppLogger.debug('PageStorage not available - skipping state save');
       }
@@ -202,15 +192,11 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
 
   /// Safe setState that prevents lifecycle crashes
   void _safeSetState(VoidCallback callback) {
-    // If the widget is already disposed, skip immediately.
     if (!mounted) {
       AppLogger.debug('Skipping setState - widget not mounted');
       return;
     }
 
-    // Schedule setState in a post-frame callback to avoid lifecycle races where
-    // the element becomes defunct between the `mounted` check and the actual
-    // setState call (this can happen during rapid navigator/pop sequences).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         AppLogger.debug('Skipping scheduled setState - widget disposed before frame');
@@ -221,7 +207,6 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
         setState(callback);
       } catch (e, st) {
         AppLogger.error('Error in setState: $e\n$st', tag: 'DashboardScreen');
-        // Swallow the error to avoid crashing the app UI thread.
       }
     });
   }
@@ -232,7 +217,6 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
       final user = await AuthGuard.getCurrentUser();
       if (user == null) return null;
 
-      // Build display name from firstName and lastName
       if (user.firstName != null && user.lastName != null) {
         return '${user.firstName} ${user.lastName}';
       } else if (user.firstName != null) {
@@ -248,38 +232,32 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     }
   }
 
-  /// Load dashboard data from Firebase (header already visible)
+  /// Load dashboard data from Firebase
   Future<void> _loadDashboardData() async {
     if (!mounted) return;
     
-    // Don't show full loading state - header is already visible
     _safeSetState(() {
-      _isLoadingStats = true; // Only show loading for stats section
+      _isLoadingStats = true;
     });
 
     try {
-      // Get the current user's clinic ID and name
       final clinicId = await DashboardService.getCurrentUserClinicId();
       final userName = await _getCurrentUserName();
       
-      print('🔍 Attempting to load dashboard data...');
-      print('   User name: $userName');
-      print('   Clinic ID: $clinicId');
+      AppLogger.info('Loading dashboard data - User: $userName, Clinic: $clinicId');
       
       if (clinicId == null) {
-        print('❌ ERROR: No clinic ID found for current user');
         AppLogger.error('No clinic ID found for current user', tag: 'DashboardScreen');
         _safeSetState(() {
           _isLoadingStats = false;
         });
         
-        // Show error message to user
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Unable to load clinic data. Please try logging in again.'),
+              content: const Text('Unable to load clinic data. Please try logging in again.'),
               backgroundColor: AppColors.error,
-              duration: Duration(seconds: 5),
+              duration: const Duration(seconds: 5),
             ),
           );
         }
@@ -288,21 +266,16 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
 
       _clinicId = clinicId;
       _userName = userName;
-      print('✅ Dashboard initialized - Clinic ID: $_clinicId, User: $_userName');
-      AppLogger.info('Clinic ID obtained: $_clinicId, User: $_userName');
+      AppLogger.info('Dashboard initialized - Clinic ID: $_clinicId, User: $_userName');
 
-      // Initialize notification integrators for real-time notifications
       _initializeNotificationIntegrators();
 
-      // Set up real-time listener for appointments (delayed to avoid build conflicts)
       Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted) {
           _setupAppointmentsListener();
         }
       });
 
-      // Fetch all dashboard data in parallel
-      AppLogger.info('Loading dashboard data...');
       await Future.wait([
         _loadStats(),
         _loadRecentActivities(),
@@ -322,7 +295,6 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   void _setupAppointmentsListener() {
     if (_clinicId == null) return;
     
-    // Don't set up multiple listeners
     if (_appointmentsListener != null) {
       AppLogger.info('Firebase listener already active');
       return;
@@ -330,13 +302,11 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     
     AppLogger.info('Setting up Firebase listener for clinic: $_clinicId');
     
-    // Listen to appointments collection for changes with debouncing
     _appointmentsListener = FirebaseFirestore.instance
         .collection('appointments')
         .where('clinicId', isEqualTo: _clinicId)
         .snapshots()
         .listen((snapshot) {
-      // Only process significant changes (not just read operations)
       final hasSignificantChanges = snapshot.docChanges.any((change) => 
         change.type == DocumentChangeType.added || 
         change.type == DocumentChangeType.modified ||
@@ -350,7 +320,6 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
       
       AppLogger.info('${snapshot.docChanges.length} appointment changes detected');
       
-      // Implement rate limiting - don't refresh more than once every 30 seconds
       final now = DateTime.now();
       if (_lastRefreshTime != null && 
           now.difference(_lastRefreshTime!) < _minRefreshInterval) {
@@ -358,51 +327,40 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
         return;
       }
       
-      // Cancel previous debounce timer
       _refreshDebounceTimer?.cancel();
       
-      // Set up debounced refresh
       _refreshDebounceTimer = Timer(_debounceDelay, () {
         if (mounted) {
           _lastRefreshTime = DateTime.now();
-          
-          // Clear only stats cache, keep activities and diseases longer
           _statsCache.clear();
-          
-          // Only refresh data if user is likely still viewing
           _debouncedDataRefresh();
         }
       });
     });
   }
   
-  /// Debounced data refresh that's less aggressive
+  /// Debounced data refresh
   void _debouncedDataRefresh() {
-    // Only refresh if widget is still mounted
     if (!mounted) {
       AppLogger.debug('Widget disposed, skipping refresh');
       return;
     }
     
-    // Only refresh stats which change most frequently
     _loadStats();
     
-    // Clear chart data cache when period changes or when appointments change
     _cachedAppointmentStatus = null;
     _cachedCommonDiseases = null;
     
-    // Refresh chart data
     _loadAppointmentStatusData();
     _loadCommonDiseaseData();
     
-    // Refresh activities less frequently (every other refresh)
     if (_recentActivities.isEmpty || DateTime.now().millisecondsSinceEpoch % 2 == 0) {
       _cachedActivities = null;
       _loadRecentActivities();
     }
   }
   
-  /// Set up listener only if clinic ID is available and listener doesn't exist
+  /// Set up listener only if clinic ID is available
   Future<void> _setupAppointmentsListenerIfNeeded() async {
     if (_clinicId == null) {
       final clinicId = await DashboardService.getCurrentUserClinicId();
@@ -412,22 +370,16 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     }
     _setupAppointmentsListener();
   }
-  
-
 
   /// Load statistics based on selected period (with caching)
   Future<void> _loadStats() async {
-    // Critical widget lifecycle protection
     if (_clinicId == null || !mounted) {
-      AppLogger.debug('Skipping _loadStats - widget disposed or invalid state (clinicId: $_clinicId, mounted: $mounted)');
+      AppLogger.debug('Skipping _loadStats - clinicId: $_clinicId, mounted: $mounted');
       return;
     }
 
     final periodKey = selectedPeriod.toLowerCase();
     
-    print('📊 Loading stats for clinic: $_clinicId, period: $periodKey');
-    
-    // Check cache first
     if (_statsCache.containsKey(periodKey)) {
       AppLogger.debug('Using cached stats for $periodKey');
       _safeSetState(() {
@@ -436,30 +388,23 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
       return;
     }
 
-    // Only show loading if widget is still active
     _safeSetState(() {
       _isLoadingStats = true;
     });
 
     try {
-      print('📡 Fetching dashboard stats from Firebase...');
       final stats = await DashboardService.getClinicDashboardStats(
         _clinicId!,
         period: periodKey,
       );
 
-      print('📊 Stats received: appointments=${stats.totalAppointments}, completed=${stats.completedConsultations}, patients=${stats.activePatients}');
-
-      // Check again after async operation - critical!
       if (!mounted) {
-        AppLogger.debug('Widget disposed during stats loading - skipping setState');
+        AppLogger.debug('Widget disposed during stats loading');
         return;
       }
 
-      // Store in cache
       _statsCache[periodKey] = stats;
       
-      // Final check before setState
       _safeSetState(() {
         _currentStats = stats;
         _isLoadingStats = false;
@@ -467,7 +412,6 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
       
       AppLogger.dashboard('Stats loaded and cached for $periodKey');
     } catch (e) {
-      print('❌ Error loading stats: $e');
       AppLogger.error('Error loading stats', error: e, tag: 'DashboardScreen');
       _safeSetState(() {
         _isLoadingStats = false;
@@ -479,9 +423,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   Future<void> _loadRecentActivities() async {
     if (_clinicId == null || !mounted) return;
 
-    // Check cache first
     if (_cachedActivities != null) {
-      print('Using cached activities');
       _safeSetState(() {
         _recentActivities = _cachedActivities!;
       });
@@ -499,10 +441,8 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
       _safeSetState(() {
         _recentActivities = activities;
       });
-      
-      print('Activities loaded and cached');
     } catch (e) {
-      print('Error loading recent activities: $e');
+      AppLogger.error('Error loading recent activities', error: e, tag: 'DashboardScreen');
     }
   }
 
@@ -510,9 +450,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   Future<void> _loadDiseaseData() async {
     if (_clinicId == null || !mounted) return;
 
-    // Check cache first
     if (_cachedDiseases != null) {
-      print('Using cached diseases');
       _safeSetState(() {
         _diseaseData = _cachedDiseases!;
       });
@@ -530,22 +468,18 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
       _safeSetState(() {
         _diseaseData = diseases;
       });
-      
-      print('Diseases loaded and cached');
     } catch (e) {
-      print('Error loading disease data: $e');
+      AppLogger.error('Error loading disease data', error: e, tag: 'DashboardScreen');
     }
   }
 
-  /// Load appointment status data for pie chart (with caching)
+  /// Load appointment status data (with caching)
   Future<void> _loadAppointmentStatusData() async {
     if (_clinicId == null || !mounted) return;
 
     final periodKey = selectedPeriod.toLowerCase();
 
-    // Check cache first
     if (_cachedAppointmentStatus?.period == periodKey) {
-      print('Using cached appointment status data');
       _safeSetState(() {
         _appointmentStatusData = _cachedAppointmentStatus;
       });
@@ -568,10 +502,8 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
       _safeSetState(() {
         _appointmentStatusData = statusData;
       });
-      
-      print('Appointment status data loaded and cached');
     } catch (e) {
-      print('Error loading appointment status data: $e');
+      AppLogger.error('Error loading appointment status data', error: e, tag: 'DashboardScreen');
     }
   }
 
@@ -581,9 +513,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
 
     final periodKey = selectedPeriod.toLowerCase();
 
-    // Check cache first
     if (_cachedCommonDiseases?.period == periodKey) {
-      print('Using cached common disease data');
       _safeSetState(() {
         _commonDiseaseData = _cachedCommonDiseases;
       });
@@ -593,10 +523,9 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     try {
       final diseases = await DashboardService.getCommonDiseases(
         _clinicId!,
-        limit: 8, // Get more diseases for pie chart
+        limit: 8,
       );
 
-      // Convert to DiseaseEvaluationData format for pie chart
       final diseaseMap = <String, int>{};
       for (final disease in diseases) {
         diseaseMap[disease.name] = disease.count;
@@ -612,10 +541,8 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
       _safeSetState(() {
         _commonDiseaseData = commonDiseaseData;
       });
-      
-      print('Common disease data loaded and cached');
     } catch (e) {
-      print('Error loading common disease data: $e');
+      AppLogger.error('Error loading common disease data', error: e, tag: 'DashboardScreen');
     }
   }
 
@@ -623,12 +550,10 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   Future<void> _loadNewAnalyticsData() async {
     if (_clinicId == null || !mounted) return;
 
-    // Check cache first
     if (_cachedPetTypeDistribution != null &&
         _cachedAppointmentTrends != null &&
         _cachedMonthlyComparison != null &&
         _cachedResponseTimeData != null) {
-      print('Using cached new analytics data');
       _safeSetState(() {
         _petTypeDistribution = _cachedPetTypeDistribution!;
         _appointmentTrends = _cachedAppointmentTrends!;
@@ -643,7 +568,6 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     });
 
     try {
-      // Load all new analytics data in parallel
       final results = await Future.wait([
         DashboardService.getPetTypeDistribution(_clinicId!),
         DashboardService.getAppointmentTrends(_clinicId!),
@@ -651,7 +575,6 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
         DashboardService.getResponseTimeData(_clinicId!),
       ]);
 
-      // Cache results
       _cachedPetTypeDistribution = results[0] as Map<String, int>;
       _cachedAppointmentTrends = results[1] as List<TrendDataPoint>;
       _cachedMonthlyComparison = results[2] as MonthlyComparison;
@@ -664,19 +587,16 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
         _responseTimeData = _cachedResponseTimeData;
         _isLoadingNewCharts = false;
       });
-
-      print('New analytics data loaded and cached');
     } catch (e) {
-      print('Error loading new analytics data: $e');
+      AppLogger.error('Error loading new analytics data', error: e, tag: 'DashboardScreen');
       _safeSetState(() {
         _isLoadingNewCharts = false;
       });
     }
   }
 
-  /// Build loading skeleton for stats cards with static UI (title & icons)
-  Widget _buildLoadingStatsCards() {
-    // Static card configurations with titles and icons
+  /// Build loading skeleton for stats cards
+  Widget _buildLoadingStatsCards(bool isCompact) {
     final loadingCards = [
       {
         'title': 'Total Appointments',
@@ -694,6 +614,21 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
         'iconColor': AppColors.info,
       },
     ];
+
+    if (isCompact) {
+      return Column(
+        children: loadingCards.map((card) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: LoadingStatsCard(
+              title: card['title'] as String,
+              icon: card['icon'] as IconData,
+              iconColor: card['iconColor'] as Color,
+            ),
+          );
+        }).toList(),
+      );
+    }
 
     return Row(
       children: List.generate(loadingCards.length, (index) {
@@ -715,27 +650,26 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   /// Build empty state when no data is available
   Widget _buildEmptyStatsState() {
     return Container(
-      height: 120,
-      padding: EdgeInsets.all(32),
+      padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.border, width: 1),
       ),
-      child: Center(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.info_outline,
-              size: 32,
-              color: AppColors.info,
-            ),
-            SizedBox(width: 16),
-            Column(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.info_outline,
+            size: 32,
+            color: AppColors.info,
+          ),
+          const SizedBox(width: 16),
+          Flexible(
+            child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+              children: const [
                 Text(
                   'No Dashboard Data Available',
                   style: TextStyle(
@@ -754,8 +688,8 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -765,9 +699,9 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     return Row(
       children: [
         Container(
-          padding: EdgeInsets.all(8),
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.1),
+            color: AppColors.primary.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(
@@ -776,17 +710,17 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
             color: AppColors.primary,
           ),
         ),
-        SizedBox(width: 12),
+        const SizedBox(width: 12),
         Text(
           title,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w700,
             color: AppColors.textPrimary,
             letterSpacing: 0.3,
           ),
         ),
-        SizedBox(width: 12),
+        const SizedBox(width: 12),
         Expanded(
           child: Container(
             height: 1,
@@ -794,7 +728,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
               gradient: LinearGradient(
                 colors: [
                   AppColors.border,
-                  AppColors.border.withOpacity(0),
+                  AppColors.border.withValues(alpha: 0),
                 ],
               ),
             ),
@@ -804,7 +738,8 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     );
   }
 
-  /// Build a responsive two-card row that stacks on smaller widths.
+  /// Build a responsive two-card row using IntrinsicHeight for equal heights.
+  /// Falls back to a stacked column layout on narrow screens.
   Widget _buildResponsiveDashboardRow({
     required Widget firstChild,
     required Widget secondChild,
@@ -812,23 +747,25 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   }) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        const minTwoColumnWidth = 1280.0;
-        final shouldStack = constraints.maxWidth < minTwoColumnWidth;
-        final cardWidth = shouldStack
-            ? constraints.maxWidth
-            : (constraints.maxWidth - spacing) / 2;
+        final shouldStack = constraints.maxWidth < _twoColumnBreakpoint;
 
-        return SizedBox(
-          width: double.infinity,
-          child: Wrap(
-            alignment: WrapAlignment.start,
-            runAlignment: WrapAlignment.start,
-            crossAxisAlignment: WrapCrossAlignment.start,
-            spacing: spacing,
-            runSpacing: spacing,
+        if (shouldStack) {
+          return Column(
             children: [
-              SizedBox(width: cardWidth, child: firstChild),
-              SizedBox(width: cardWidth, child: secondChild),
+              firstChild,
+              SizedBox(height: spacing),
+              secondChild,
+            ],
+          );
+        }
+
+        return IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: firstChild),
+              SizedBox(width: spacing),
+              Expanded(child: secondChild),
             ],
           ),
         );
@@ -849,7 +786,6 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
             ? 'week' 
             : 'month';
 
-    // Helper to format change text
     String formatChange(double change, int currentValue, String period) {
       if (currentValue == 0 && change == 0.0) {
         return 'No appointments yet';
@@ -860,7 +796,6 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
       return '${change >= 0 ? '+' : ''}${change.toStringAsFixed(1)}% from last $period';
     }
 
-    // Helper to determine change color
     Color getChangeColor(double change, int currentValue) {
       if (currentValue == 0 && change == 0.0) {
         return AppColors.textSecondary;
@@ -898,11 +833,10 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // Required by AutomaticKeepAliveClientMixin
+    super.build(context);
     
     final statsCards = _getStatsCards();
 
-    // Wrap dashboard with schedule setup check
     return FutureBuilder(
       future: AuthService().getUserClinic(),
       builder: (context, snapshot) {
@@ -913,21 +847,22 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
         return AdminDashboardWithSetupCheck(
           clinic: snapshot.data,
           onSetupCompleted: () {
-            print('🎉 Dashboard: Setup completed callback received');
-            // Clear all cached data and refresh everything
+            AppLogger.info('Dashboard: Setup completed callback received');
             _statsCache.clear();
             _cachedActivities = null;
             _cachedDiseases = null;
             _cachedAppointmentStatus = null;
             _cachedCommonDiseases = null;
+            _cachedPetTypeDistribution = null;
+            _cachedAppointmentTrends = null;
+            _cachedMonthlyComparison = null;
+            _cachedResponseTimeData = null;
             _clinicId = null;
             
-            // Refresh clinic data and dashboard after setup completion
             _safeSetState(() {
               _isLoadingStats = true;
             });
             
-            // Reload all data with a delay to ensure database updates are reflected
             Future.delayed(const Duration(milliseconds: 1000), () {
               _loadDashboardData();
             });
@@ -939,115 +874,111 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
                 end: Alignment.bottomRight,
                 colors: [
                   AppColors.background,
-                  AppColors.background.withOpacity(0.8),
+                  AppColors.background.withValues(alpha: 0.8),
                 ],
               ),
             ),
             child: LayoutBuilder(
               builder: (context, constraints) {
+                final isCompact = constraints.maxWidth < _compactBreakpoint;
+
                 return SingleChildScrollView(
-                  padding: EdgeInsets.all(24.0),
+                  padding: EdgeInsets.all(isCompact ? 16.0 : 24.0),
                   child: ConstrainedBox(
                     constraints: BoxConstraints(minWidth: constraints.maxWidth),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                // ✅ Header appears immediately (no data dependency)
-                DashboardHeader(
-                  selectedPeriod: selectedPeriod,
-                  userName: _userName,
-                  onPeriodChanged: (period) {
-                    _safeSetState(() {
-                      selectedPeriod = period;
-                    });
-                    _loadStats(); // Reload stats when period changes
-                    
-                    // Clear cached chart data and reload for new period
-                    _cachedAppointmentStatus = null;
-                    _cachedCommonDiseases = null;
-                    _loadAppointmentStatusData();
-                    _loadCommonDiseaseData();
-                  },
-                ),
-                SizedBox(height: 24),
-                
-                // Stats section with loading state
-                _isLoadingStats
-                    ? _buildLoadingStatsCards()
-                    : _currentStats != null
-                        ? StatsCards(statsList: statsCards)
-                        : _buildEmptyStatsState(),
-                SizedBox(height: 40),
-                
-                // Analytics Overview Section
-                _buildSectionHeader('Analytics Overview', Icons.analytics),
-                SizedBox(height: 20),
-                
-                // First row: Appointment Status and Common Diseases pie charts
-                _buildResponsiveDashboardRow(
-                  firstChild: AppointmentStatusPieChart(
-                    statusData: _appointmentStatusData,
-                    isLoading: _isLoadingCharts,
-                  ),
-                  secondChild: CommonDiseasesPieChart(
-                    diseaseData: _commonDiseaseData,
-                    isLoading: _isLoadingCharts,
-                  ),
-                ),
-                
-                SizedBox(height: 32),
-                
-                // Patient & Appointment Insights Section
-                _buildSectionHeader('Patient & Appointment Insights', Icons.pets),
-                SizedBox(height: 20),
-                
-                // Second row: Pet Type Distribution and Appointment Trends
-                _buildResponsiveDashboardRow(
-                  firstChild: PetTypePieChart(
-                    petTypeDistribution: _petTypeDistribution,
-                    isLoading: _isLoadingNewCharts,
-                  ),
-                  secondChild: AppointmentTrendsChart(
-                    trendData: _appointmentTrends,
-                    isLoading: _isLoadingNewCharts,
-                  ),
-                ),
-                
-                SizedBox(height: 32),
-                
-                // Performance Metrics Section
-                _buildSectionHeader('Performance Metrics', Icons.speed),
-                SizedBox(height: 20),
-                
-                // Third row: Monthly Comparison and Response Time
-                _buildResponsiveDashboardRow(
-                  firstChild: MonthlyComparisonChart(
-                    comparisonData: _monthlyComparison ?? MonthlyComparison.empty(),
-                    isLoading: _isLoadingNewCharts,
-                  ),
-                  secondChild: ResponseTimeCard(
-                    responseData: _responseTimeData ?? ResponseTimeData.empty(),
-                    isLoading: _isLoadingNewCharts,
-                  ),
-                ),
-                
-                SizedBox(height: 32),
-                
-                // Activity & Health Trends Section
-                _buildSectionHeader('Activity & Health Trends', Icons.show_chart),
-                SizedBox(height: 20),
-                
-                // Fourth row: Common diseases (bar chart view) and recent activities
-                _buildResponsiveDashboardRow(
-                  firstChild: CommonDiseasesChart(
-                    diseaseData: _diseaseData,
-                  ),
-                  secondChild: RecentActivityList(
-                    activities: _recentActivities,
-                  ),
-                ),
-                
-                SizedBox(height: 40), // Bottom padding
+                        // Header
+                        DashboardHeader(
+                          selectedPeriod: selectedPeriod,
+                          userName: _userName,
+                          onPeriodChanged: (period) {
+                            _safeSetState(() {
+                              selectedPeriod = period;
+                            });
+                            _loadStats();
+                            _cachedAppointmentStatus = null;
+                            _cachedCommonDiseases = null;
+                            _loadAppointmentStatusData();
+                            _loadCommonDiseaseData();
+                          },
+                        ),
+                        const SizedBox(height: 24),
+                        
+                        // Stats Cards — responsive row vs column
+                        _isLoadingStats
+                            ? _buildLoadingStatsCards(isCompact)
+                            : _currentStats != null
+                                ? _buildResponsiveStatsCards(statsCards, isCompact)
+                                : _buildEmptyStatsState(),
+                        const SizedBox(height: 40),
+                        
+                        // Analytics Overview Section
+                        _buildSectionHeader('Analytics Overview', Icons.analytics),
+                        const SizedBox(height: 20),
+                        
+                        _buildResponsiveDashboardRow(
+                          firstChild: AppointmentStatusPieChart(
+                            statusData: _appointmentStatusData,
+                            isLoading: _isLoadingCharts,
+                          ),
+                          secondChild: CommonDiseasesPieChart(
+                            diseaseData: _commonDiseaseData,
+                            isLoading: _isLoadingCharts,
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 32),
+                        
+                        // Patient & Appointment Insights Section
+                        _buildSectionHeader('Patient & Appointment Insights', Icons.pets),
+                        const SizedBox(height: 20),
+                        
+                        _buildResponsiveDashboardRow(
+                          firstChild: PetTypePieChart(
+                            petTypeDistribution: _petTypeDistribution,
+                            isLoading: _isLoadingNewCharts,
+                          ),
+                          secondChild: AppointmentTrendsChart(
+                            trendData: _appointmentTrends,
+                            isLoading: _isLoadingNewCharts,
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 32),
+                        
+                        // Performance Metrics Section
+                        _buildSectionHeader('Performance Metrics', Icons.speed),
+                        const SizedBox(height: 20),
+                        
+                        _buildResponsiveDashboardRow(
+                          firstChild: MonthlyComparisonChart(
+                            comparisonData: _monthlyComparison ?? MonthlyComparison.empty(),
+                            isLoading: _isLoadingNewCharts,
+                          ),
+                          secondChild: ResponseTimeCard(
+                            responseData: _responseTimeData ?? ResponseTimeData.empty(),
+                            isLoading: _isLoadingNewCharts,
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 32),
+                        
+                        // Activity & Health Trends Section
+                        _buildSectionHeader('Activity & Health Trends', Icons.show_chart),
+                        const SizedBox(height: 20),
+                        
+                        _buildResponsiveDashboardRow(
+                          firstChild: CommonDiseasesChart(
+                            diseaseData: _diseaseData,
+                          ),
+                          secondChild: RecentActivityList(
+                            activities: _recentActivities,
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 40),
                       ],
                     ),
                   ),
@@ -1058,5 +989,21 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
         );
       },
     );
+  }
+
+  /// Responsive stats cards — stacks vertically on compact screens
+  Widget _buildResponsiveStatsCards(List<Map<String, dynamic>> statsCards, bool isCompact) {
+    if (isCompact) {
+      return Column(
+        children: statsCards.map((stat) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: StatsCards(statsList: [stat]),
+          );
+        }).toList(),
+      );
+    }
+
+    return StatsCards(statsList: statsCards);
   }
 }
