@@ -19,6 +19,7 @@ class ResponseTimeCard extends StatelessWidget {
     }
 
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,

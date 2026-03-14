@@ -24,6 +24,7 @@ class MonthlyComparisonChart extends StatelessWidget {
     final horizontalInterval = chartMax / 5;
 
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,

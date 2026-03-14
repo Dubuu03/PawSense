@@ -810,29 +810,33 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     required Widget secondChild,
     double spacing = 20,
   }) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final shouldStack = constraints.maxWidth < 1200;
+    return SizedBox(
+      width: double.infinity,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final shouldStack = constraints.maxWidth < 1200;
 
-        if (shouldStack) {
-          return Column(
+          if (shouldStack) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(width: double.infinity, child: firstChild),
+                SizedBox(height: spacing),
+                SizedBox(width: double.infinity, child: secondChild),
+              ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              firstChild,
-              SizedBox(height: spacing),
-              secondChild,
+              Expanded(child: firstChild),
+              SizedBox(width: spacing),
+              Expanded(child: secondChild),
             ],
           );
-        }
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: firstChild),
-            SizedBox(width: spacing),
-            Expanded(child: secondChild),
-          ],
-        );
-      },
+        },
+      ),
     );
   }
 
