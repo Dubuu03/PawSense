@@ -738,8 +738,10 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     );
   }
 
-  /// Build a responsive two-card row using IntrinsicHeight for equal heights.
+  /// Build a responsive two-card row.
   /// Falls back to a stacked column layout on narrow screens.
+  /// Note: We intentionally avoid IntrinsicHeight because fl_chart widgets
+  /// do not report intrinsic dimensions, which breaks the layout.
   Widget _buildResponsiveDashboardRow({
     required Widget firstChild,
     required Widget secondChild,
@@ -759,15 +761,13 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
           );
         }
 
-        return IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: firstChild),
-              SizedBox(width: spacing),
-              Expanded(child: secondChild),
-            ],
-          ),
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: firstChild),
+            SizedBox(width: spacing),
+            Expanded(child: secondChild),
+          ],
         );
       },
     );

@@ -21,7 +21,8 @@ class MonthlyComparisonChart extends StatelessWidget {
 
     final hasChartData = _hasChartData();
     final chartMax = _getChartMaxValue();
-    final horizontalInterval = chartMax / 5;
+    // Ensure interval is at least 1 to avoid duplicate integer Y-axis labels
+    final horizontalInterval = (chartMax / 5).clamp(1.0, double.infinity);
 
     return Container(
       width: double.infinity,
@@ -136,6 +137,10 @@ class MonthlyComparisonChart extends StatelessWidget {
                         showTitles: true,
                         reservedSize: 40,
                         getTitlesWidget: (value, meta) {
+                          // Only show integer values to avoid duplicate labels
+                          if (value != value.roundToDouble()) {
+                            return const SizedBox.shrink();
+                          }
                           return Text(
                             value.toInt().toString(),
                             style: const TextStyle(
