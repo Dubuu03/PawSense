@@ -25,6 +25,7 @@ import 'package:pawsense/core/utils/data_cache.dart';
 import 'package:pawsense/core/guards/auth_guard.dart';
 import 'package:pawsense/core/services/clinic/clinic_recommendation_service.dart';
 import 'package:pawsense/core/widgets/user/clinic/recommended_clinics_widget.dart';
+import 'package:pawsense/core/services/ai/groq_orchestration_service.dart';
 
 class AssessmentStepThree extends StatefulWidget {
   final Map<String, dynamic> assessmentData;
@@ -56,6 +57,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
   List<Map<String, dynamic>> _recommendedClinics = []; // Store recommended clinics
   bool _isLoadingClinics = false;
   bool _disagreementFlag = false;
+  bool _isGeneratingAiRecommendation = false;
+  Map<String, dynamic>? _aiRecommendation;
   
   @override
   void initState() {
@@ -63,6 +66,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     _processDetectionResults();
     _fetchDiseaseInfo();
     _fetchRecommendedClinics();
+    _generateAiRecommendation();
   }
 
   void _showFullscreenImage(XFile photo, int index, List<Map<String, dynamic>> detectionsToShow) {
@@ -475,6 +479,130 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
 
     final delta = (topModel.value - topFused.value).abs();
     return delta >= 0.20;
+  }
+
+  bool get _hasRedFlags {
+    final intake = Map<String, dynamic>.from(
+      widget.assessmentData['clinicalIntake'] as Map? ?? <String, dynamic>{},
+    );
+    return intake['hasRedFlags'] == true;
+  }
+
+  List<Map<String, dynamic>> _buildFusedConditionPayload() {
+    return _analysisResults.take(5).map((result) {
+      return {
+        'condition': result.condition,
+        'score': _validateConfidence(result.percentage / 100),
+      };
+    }).toList();
+  }
+
+  Map<String, dynamic> _buildDiseaseContextPayload() {
+    final disease = _detectedDisease;
+    if (disease == null) {
+      return {
+        'name': _analysisResults.isNotEmpty ? _analysisResults.first.condition : '',
+        'severity': 'unknown',
+        'initialRemedies': <String, dynamic>{},
+      };
+    }
+
+    return {
+      'name': disease.name,
+      'severity': disease.severity,
+      'initialRemedies': disease.initialRemedies ?? <String, dynamic>{},
+      'description': disease.description,
+    };
+  }
+
+  Future<void> _generateAiRecommendation() async {
+    if (_isGeneratingAiRecommendation) return;
+
+    setState(() {
+      _isGeneratingAiRecommendation = true;
+    });
+
+    try {
+      final result = await GroqOrchestrationService.instance
+          .generateRecommendationNarrative(
+        fusedConditions: _buildFusedConditionPayload(),
+        diseaseContext: _buildDiseaseContextPayload(),
+        hasRedFlags: _hasRedFlags,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _aiRecommendation = result.content;
+      });
+
+      widget.onDataUpdate('recommendationSummary', result.content);
+      widget.onDataUpdate('recommendationTelemetry', {
+        'modelUsed': result.modelUsed,
+        'fallbackLevel': result.fallbackLevel.name,
+        'errorType': result.errorType.name,
+        'latencyMs': result.latencyMs,
+        'cacheHit': result.cacheHit,
+        'traceId': result.traceId,
+      });
+    } catch (e) {
+      debugPrint('AI recommendation generation failed, using database summary: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGeneratingAiRecommendation = false;
+        });
+      }
+    }
+  }
+
+  String _buildDatabaseSummary() {
+    if (_analysisResults.isEmpty) {
+      return 'No strong skin condition signal was detected from the uploaded images. Continue monitoring and consult a veterinarian if symptoms persist.';
+    }
+
+    final topCondition = _analysisResults.first.condition;
+    final topPercent = _analysisResults.first.percentage.toStringAsFixed(1);
+
+    if (_detectedDisease != null && _detectedDisease!.description.isNotEmpty) {
+      return 'Most likely finding: $topCondition ($topPercent%). ${_detectedDisease!.description}';
+    }
+
+    return 'Most likely finding: $topCondition ($topPercent%). This is a preliminary differential analysis and should be confirmed by a licensed veterinarian.';
+  }
+
+  String get _summaryText {
+    final aiSummary = _aiRecommendation?['summary']?.toString().trim();
+    if (aiSummary != null && aiSummary.isNotEmpty) {
+      return aiSummary;
+    }
+    return _buildDatabaseSummary();
+  }
+
+  String get _summarySourceLabel {
+    if (_aiRecommendation != null) {
+      return 'AI-assisted (grounded)';
+    }
+    return 'Database grounded';
+  }
+
+  List<String> _aiList(String key) {
+    final source = _aiRecommendation?[key];
+    if (source is! List) return <String>[];
+    return source.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
+  }
+
+  List<String> _dedupLimited(List<String> items, {int max = 6}) {
+    final seen = <String>{};
+    final output = <String>[];
+    for (final raw in items) {
+      final key = raw.toLowerCase();
+      if (seen.contains(key)) continue;
+      seen.add(key);
+      output.add(raw);
+      if (output.length >= max) break;
+    }
+    return output;
   }
   
   /// Calculate Intersection over Union (IoU) for two bounding boxes
@@ -1159,20 +1287,34 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     final triageTelemetry = Map<String, dynamic>.from(
       widget.assessmentData['triageTelemetry'] as Map? ?? <String, dynamic>{},
     );
+    final recommendationTelemetry = Map<String, dynamic>.from(
+      widget.assessmentData['recommendationTelemetry'] as Map? ??
+        <String, dynamic>{},
+    );
     final clinicalIntake = Map<String, dynamic>.from(
       widget.assessmentData['clinicalIntake'] as Map? ?? <String, dynamic>{},
     );
 
     final aiEnabled = triageTelemetry.isNotEmpty ||
-        widget.assessmentData['triagePrior'] != null;
+      recommendationTelemetry.isNotEmpty ||
+      widget.assessmentData['triagePrior'] != null ||
+      widget.assessmentData['recommendationSummary'] != null;
     final triageModelUsed = triageTelemetry['modelUsed']?.toString();
+    final recommendationModelUsed =
+      recommendationTelemetry['modelUsed']?.toString();
     final fallbackLevel =
-        triageTelemetry['fallbackLevel']?.toString() ?? 'none';
-    final aiErrorType = triageTelemetry['errorType']?.toString();
-    final generationLatencyMs =
-        (triageTelemetry['latencyMs'] as num?)?.toInt();
-    final cacheHit = triageTelemetry['cacheHit'] == true;
-    final traceId = triageTelemetry['traceId']?.toString();
+      recommendationTelemetry['fallbackLevel']?.toString() ??
+        triageTelemetry['fallbackLevel']?.toString() ??
+        'none';
+    final aiErrorType = recommendationTelemetry['errorType']?.toString() ??
+      triageTelemetry['errorType']?.toString();
+    final generationLatencyMs = (recommendationTelemetry['latencyMs'] as num?)
+        ?.toInt() ??
+      (triageTelemetry['latencyMs'] as num?)?.toInt();
+    final cacheHit = recommendationTelemetry['cacheHit'] == true ||
+      triageTelemetry['cacheHit'] == true;
+    final traceId = recommendationTelemetry['traceId']?.toString() ??
+      triageTelemetry['traceId']?.toString();
     final redFlagEscalation = clinicalIntake['hasRedFlags'] == true;
 
     return AssessmentResult(
@@ -1193,7 +1335,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       updatedAt: DateTime.now(),
       aiEnabled: aiEnabled,
       triageModelUsed: triageModelUsed,
-      recommendationModelUsed: null,
+      recommendationModelUsed: recommendationModelUsed,
       fallbackLevel: fallbackLevel,
       aiErrorType: aiErrorType,
       generationLatencyMs: generationLatencyMs,
@@ -1574,8 +1716,39 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                   ),
                 ),
                 const SizedBox(height: kSpacingSmall),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.primary.withOpacity(0.25)),
+                      ),
+                      child: Text(
+                        _summarySourceLabel,
+                        style: kMobileTextStyleLegend.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    if (_isGeneratingAiRecommendation) ...[
+                      const SizedBox(width: kSpacingSmall),
+                      const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: kSpacingSmall),
                 Text(
-                  'Based on the differential analysis of your pet\'s condition.',
+                  _summaryText,
                   style: kMobileTextStyleSubtitle.copyWith(
                     color: AppColors.textSecondary,
                   ),
@@ -1584,7 +1757,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
             ),
           ),
           const SizedBox(height: kSpacingMedium),
-          
+
          // Analysis Results with Pie Chart
           Container(
             padding: const EdgeInsets.all(kSpacingSmall),
@@ -2249,7 +2422,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
         severityIcon = Icons.error_rounded;
         break;
     }
-    
+
     // Get "When to Seek Help" information
     List<String> seekHelpActions = [];
     String? urgency;
@@ -2272,6 +2445,24 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       ];
       urgency = severity == 'high' ? 'immediate' : 'within_24_hours';
     }
+
+    if (_hasRedFlags) {
+      seekHelpActions.insert(0, 'Urgent signs were reported during pre-triage.');
+    }
+    if (_disagreementFlag) {
+      seekHelpActions.add(
+        'Assessment inputs are not fully aligned; seek veterinary confirmation sooner.',
+      );
+    }
+
+    // Merge AI watchlist/escalation as supplemental guidance.
+    final aiWatchlist = _aiList('watchlist');
+    final aiEscalation = _aiList('escalation_triggers');
+    seekHelpActions = _dedupLimited([
+      ...seekHelpActions,
+      ...aiWatchlist,
+      ...aiEscalation,
+    ], max: 7);
     
     return Column(
       children: [
@@ -2366,7 +2557,9 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                     const SizedBox(width: kSpacingSmall),
                     Expanded(
                       child: Text(
-                        'This severity level is based on the general nature of ${highestDetection.condition}, not on the visual appearance or extent of the condition in your pet.',
+                        _hasRedFlags
+                            ? 'Severity tag is based on the final detected condition. Red flags are included as additional caution.'
+                            : 'Severity is based on the condition profile of ${highestDetection.condition} and current assessment signals.',
                         style: kMobileTextStyleLegend.copyWith(
                           color: AppColors.textSecondary,
                           fontSize: 11,
@@ -2448,7 +2641,9 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
               ),
               const SizedBox(height: kSpacingMedium),
               Text(
-                'Consult a veterinarian if you observe:',
+                _hasRedFlags
+                    ? 'Please seek veterinary help promptly if you observe:'
+                    : 'Consult a veterinarian if you observe:',
                 style: kMobileTextStyleSubtitle.copyWith(
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.w600,
@@ -2568,7 +2763,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                   const SizedBox(width: kSpacingSmall),
                   Expanded(
                     child: Text(
-                      'Initial Remedies & Suggestions',
+                      'Immediate Care & Home Suggestions',
                       style: kMobileTextStyleTitle.copyWith(
                         color: AppColors.primary,
                       ),
@@ -2608,6 +2803,31 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                   : _buildPlaceholderRemedies(),
             ),
           ],
+          if (_hasRedFlags && _showRemedies)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(
+                kSpacingMedium,
+                0,
+                kSpacingMedium,
+                kSpacingMedium,
+              ),
+              color: AppColors.white,
+              child: Container(
+                padding: const EdgeInsets.all(kSpacingSmall),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(kBorderRadius),
+                  border: Border.all(color: AppColors.error.withOpacity(0.2)),
+                ),
+                child: Text(
+                  'Because urgent signs were reported, home care should only be temporary while arranging a veterinary visit.',
+                  style: kMobileTextStyleLegend.copyWith(
+                    color: AppColors.error,
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -2658,6 +2878,16 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
         isListFormat: true,
       ));
     }
+
+    final aiHomeCare = _dedupLimited(_aiList('home_care'), max: 4);
+    if (aiHomeCare.isNotEmpty) {
+      remedyWidgets.add(_buildRemedyItem(
+        Icons.auto_awesome,
+        'Personalized Tips',
+        aiHomeCare.join('\n• '),
+        isListFormat: true,
+      ));
+    }
     
     // Note: "When to Seek Help" is now displayed in the dedicated severity section above
     
@@ -2665,6 +2895,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
   }
   
   Widget _buildPlaceholderRemedies() {
+    final aiHomeCare = _dedupLimited(_aiList('home_care'), max: 4);
+
     return Column(
       children: [
         // Info banner
@@ -2706,6 +2938,14 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
           '• Track symptoms daily and note any changes\n• Take photos to monitor progression\n• Keep a log of your pet\'s behavior and appetite\n• Note if symptoms worsen or improve',
           isListFormat: true,
         ),
+
+        if (aiHomeCare.isNotEmpty)
+          _buildRemedyItem(
+            Icons.auto_awesome,
+            'Personalized Tips',
+            aiHomeCare.join('\n• '),
+            isListFormat: true,
+          ),
         
         // Note: "When to Seek Help" is now displayed in the dedicated severity section above
       ],
