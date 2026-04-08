@@ -5,6 +5,7 @@ import 'package:pawsense/core/utils/constants.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
 import 'package:pawsense/core/utils/breed_options.dart';
 import 'package:pawsense/core/widgets/user/assessment/assessment_step_one.dart';
+import 'package:pawsense/core/widgets/user/assessment/assessment_step_pretriage.dart';
 import 'package:pawsense/core/widgets/user/assessment/assessment_step_two.dart';
 import 'package:pawsense/core/widgets/user/assessment/assessment_step_three.dart';
 import 'package:pawsense/core/widgets/user/assessment/progress_indicator.dart';
@@ -29,6 +30,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
   
   // Global keys to access step widgets
   final GlobalKey<State<AssessmentStepOne>> _stepOneKey = GlobalKey<State<AssessmentStepOne>>();
+  final GlobalKey<State<AssessmentStepPreTriage>> _stepPreTriageKey = GlobalKey<State<AssessmentStepPreTriage>>();
   final GlobalKey<State<AssessmentStepTwo>> _stepTwoKey = GlobalKey<State<AssessmentStepTwo>>();
   final GlobalKey<State<AssessmentStepThree>> _stepThreeKey = GlobalKey<State<AssessmentStepThree>>();
   
@@ -53,6 +55,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
       'duration': '',
       'selectedPetType': widget.selectedPetType ?? 'Dog', // Use constructor parameter or default
       'petSelectionMode': 'existing', // Track if user is in 'existing' or 'new' pet mode
+      'clinicalIntake': <String, dynamic>{},
     };
     
     // Preload breeds for validation
@@ -129,7 +132,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
       // Simulate any processing time if needed
       await Future.delayed(const Duration(milliseconds: 300));
       
-      if (currentStep < 2) {
+      if (currentStep < 3) {
         setState(() {
           currentStep++;
         });
@@ -153,10 +156,14 @@ class _AssessmentPageState extends State<AssessmentPage> {
         debugPrint('📝 Step One validation result: $result');
         return result;
       case 1: // Step Two validation
+        bool result = _validatePreTriage();
+        debugPrint('📋 Pre-triage validation result: $result');
+        return result;
+      case 2: // Step Two validation
         bool result = _validateStepTwo();
         debugPrint('📸 Step Two validation result: $result');
         return result;
-      case 2: // Step Three validation
+      case 3: // Step Three validation
         bool result = _validateStepThree();
         debugPrint('📊 Step Three validation result: $result');
         return result;
@@ -378,6 +385,26 @@ class _AssessmentPageState extends State<AssessmentPage> {
     return true;
   }
 
+  bool _validatePreTriage() {
+    final intake = Map<String, dynamic>.from(
+      assessmentData['clinicalIntake'] as Map? ?? <String, dynamic>{},
+    );
+
+    final onsetDuration = intake['onsetDuration']?.toString().trim() ?? '';
+    final progression = intake['progression']?.toString().trim() ?? '';
+    final itchSeverity = intake['itchSeverity']?.toString().trim() ?? '';
+    final distributionAreas =
+        (intake['distributionAreas'] as List<dynamic>? ?? []).cast<dynamic>();
+    final lesionAppearance =
+        (intake['lesionAppearance'] as List<dynamic>? ?? []).cast<dynamic>();
+
+    return onsetDuration.isNotEmpty &&
+        progression.isNotEmpty &&
+        itchSeverity.isNotEmpty &&
+        distributionAreas.isNotEmpty &&
+        lesionAppearance.isNotEmpty;
+  }
+
   bool _validateStepThree() {
     // Add Step Three validation logic here
     // For now, return true - you can add specific validation later
@@ -451,6 +478,8 @@ class _AssessmentPageState extends State<AssessmentPage> {
         
         return 'Please complete all required fields';
       case 1:
+        return 'Please complete the clinical intake form to improve AI pre-triage accuracy';
+      case 2:
         final photos = assessmentData['photos'] as List<dynamic>?;
         if (photos == null || photos.isEmpty) {
           return 'Please upload or take at least one photo of the affected area';
@@ -466,7 +495,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
         }
 
         return 'Please complete Step 2 requirements';
-      case 2:
+      case 3:
         return 'Please complete Step 3 requirements';
       default:
         return 'Please complete all required fields';
@@ -530,7 +559,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
 
   void _previousStep() async {
     // Check if we're in step 2 and analysis is in progress
-    if (currentStep == 1) {
+    if (currentStep == 2) {
       final stepTwoState = _stepTwoKey.currentState;
       if (stepTwoState != null) {
         final stepTwoWidget = stepTwoState as dynamic;
@@ -661,13 +690,13 @@ class _AssessmentPageState extends State<AssessmentPage> {
             ),
             actions: [
               Tooltip(
-                message: currentStep < 2 ? 'Next Step' : 'Complete Assessment',
+                message: currentStep < 3 ? 'Next Step' : 'Complete Assessment',
                 waitDuration: const Duration(milliseconds: 500),
                 showDuration: const Duration(seconds: 2),
                 child: IconButton(
                   icon: Icon(Icons.check, color: AppColors.textPrimary),
                   onPressed: () {
-                    if (currentStep < 2) {
+                    if (currentStep < 3) {
                       _nextStep();
                     } else {
                       // Validate final step before completing
@@ -687,7 +716,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
                 padding: kMobilePaddingCard,
                 child: AssessmentProgressIndicator(
                   currentStep: currentStep,
-                  totalSteps: 3,
+                  totalSteps: 4,
                 ),
               ),
             ),
@@ -702,6 +731,13 @@ class _AssessmentPageState extends State<AssessmentPage> {
                 assessmentData: assessmentData,
                 onDataUpdate: _updateAssessmentData,
                 onNext: _nextStep,
+              ),
+              AssessmentStepPreTriage(
+                key: _stepPreTriageKey,
+                assessmentData: assessmentData,
+                onDataUpdate: _updateAssessmentData,
+                onNext: _nextStep,
+                onPrevious: _previousStep,
               ),
               AssessmentStepTwo(
                 key: _stepTwoKey,

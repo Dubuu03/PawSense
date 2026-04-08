@@ -55,6 +55,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
   bool _isLoadingDiseaseInfo = false;
   List<Map<String, dynamic>> _recommendedClinics = []; // Store recommended clinics
   bool _isLoadingClinics = false;
+  bool _disagreementFlag = false;
   
   @override
   void initState() {
@@ -364,9 +365,34 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       avgConfidences[condition] = confidences.reduce((a, b) => a + b) / confidences.length;
     });
     
-    // Sort by average confidence
-    final sortedConditions = avgConfidences.entries.toList();
+    // Fuse detector confidence with pre-triage priors when available.
+    final triagePriors = _extractTriagePriorMap();
+    final fusedScores = <String, double>{};
+
+    const double modelWeight = 0.78;
+    const double triageWeight = 0.22;
+    const double modelFloor = 0.12;
+    const double triageFloor = 0.08;
+
+    final allConditionKeys = <String>{
+      ...avgConfidences.keys,
+      ...triagePriors.keys,
+    };
+
+    for (final key in allConditionKeys) {
+      final modelScore = avgConfidences[key] ?? modelFloor;
+      final triageScore = triagePriors[key] ?? triageFloor;
+      fusedScores[key] =
+          (modelScore * modelWeight) + (triageScore * triageWeight);
+    }
+
+    final sortedConditions = fusedScores.entries.toList();
     sortedConditions.sort((a, b) => b.value.compareTo(a.value));
+
+    _disagreementFlag = _computeDisagreementFlag(
+      modelScores: avgConfidences,
+      fusedScores: fusedScores,
+    );
     
     // Define expanded color palette for diseases (support more than 3)
     final diseaseColorPalette = [
@@ -402,6 +428,53 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     for (final result in _analysisResults) {
       print('   • ${result.condition}: ${result.percentage.toStringAsFixed(1)}%');
     }
+
+    if (_disagreementFlag) {
+      print('⚠️ Triage/model disagreement detected in fused ranking');
+    }
+  }
+
+  Map<String, double> _extractTriagePriorMap() {
+    final triagePrior = widget.assessmentData['triagePrior'];
+    if (triagePrior is! Map<String, dynamic>) {
+      return <String, double>{};
+    }
+
+    final topConditions = triagePrior['top_conditions'];
+    if (topConditions is! List) {
+      return <String, double>{};
+    }
+
+    final priorMap = <String, double>{};
+    for (final item in topConditions) {
+      if (item is! Map) continue;
+      final rawCondition = item['condition']?.toString();
+      final rawScore = item['score'];
+      if (rawCondition == null || rawCondition.trim().isEmpty) continue;
+
+      final parsedScore = rawScore is num ? rawScore.toDouble() : 0.0;
+      final normalized = _normalizeConditionName(rawCondition);
+      priorMap[normalized] = _validateConfidence(parsedScore);
+    }
+
+    return priorMap;
+  }
+
+  bool _computeDisagreementFlag({
+    required Map<String, double> modelScores,
+    required Map<String, double> fusedScores,
+  }) {
+    if (modelScores.isEmpty || fusedScores.isEmpty) return false;
+
+    final topModel = modelScores.entries.reduce((a, b) => a.value >= b.value ? a : b);
+    final topFused = fusedScores.entries.reduce((a, b) => a.value >= b.value ? a : b);
+
+    if (topModel.key != topFused.key) {
+      return true;
+    }
+
+    final delta = (topModel.value - topFused.value).abs();
+    return delta >= 0.20;
   }
   
   /// Calculate Intersection over Union (IoU) for two bounding boxes
@@ -642,7 +715,13 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       
       // Save assessment result to Firebase
       final assessmentService = AssessmentResultService();
-      await assessmentService.saveAssessmentResult(assessmentResult);
+      final assessmentResultId =
+          await assessmentService.saveAssessmentResult(assessmentResult);
+      await _persistAiTelemetry(
+        assessmentService,
+        assessmentResultId,
+        assessmentResult,
+      );
 
       print('✅ Assessment saved to Firebase successfully');
     
@@ -1077,6 +1156,25 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       );
     }).toList();
 
+    final triageTelemetry = Map<String, dynamic>.from(
+      widget.assessmentData['triageTelemetry'] as Map? ?? <String, dynamic>{},
+    );
+    final clinicalIntake = Map<String, dynamic>.from(
+      widget.assessmentData['clinicalIntake'] as Map? ?? <String, dynamic>{},
+    );
+
+    final aiEnabled = triageTelemetry.isNotEmpty ||
+        widget.assessmentData['triagePrior'] != null;
+    final triageModelUsed = triageTelemetry['modelUsed']?.toString();
+    final fallbackLevel =
+        triageTelemetry['fallbackLevel']?.toString() ?? 'none';
+    final aiErrorType = triageTelemetry['errorType']?.toString();
+    final generationLatencyMs =
+        (triageTelemetry['latencyMs'] as num?)?.toInt();
+    final cacheHit = triageTelemetry['cacheHit'] == true;
+    final traceId = triageTelemetry['traceId']?.toString();
+    final redFlagEscalation = clinicalIntake['hasRedFlags'] == true;
+
     return AssessmentResult(
       userId: user.uid,
       petId: petId,
@@ -1093,6 +1191,38 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       analysisResults: analysisResultModels,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
+      aiEnabled: aiEnabled,
+      triageModelUsed: triageModelUsed,
+      recommendationModelUsed: null,
+      fallbackLevel: fallbackLevel,
+      aiErrorType: aiErrorType,
+      generationLatencyMs: generationLatencyMs,
+      tokenEstimate: null,
+      cacheHit: cacheHit,
+      disagreementFlag: _disagreementFlag,
+      redFlagEscalation: redFlagEscalation,
+      traceId: traceId,
+    );
+  }
+
+  Future<void> _persistAiTelemetry(
+    AssessmentResultService assessmentService,
+    String assessmentId,
+    AssessmentResult assessmentResult,
+  ) async {
+    await assessmentService.updateAiTelemetry(
+      assessmentId: assessmentId,
+      aiEnabled: assessmentResult.aiEnabled,
+      triageModelUsed: assessmentResult.triageModelUsed,
+      recommendationModelUsed: assessmentResult.recommendationModelUsed,
+      fallbackLevel: assessmentResult.fallbackLevel,
+      aiErrorType: assessmentResult.aiErrorType,
+      generationLatencyMs: assessmentResult.generationLatencyMs,
+      tokenEstimate: assessmentResult.tokenEstimate,
+      cacheHit: assessmentResult.cacheHit,
+      disagreementFlag: assessmentResult.disagreementFlag,
+      redFlagEscalation: assessmentResult.redFlagEscalation,
+      traceId: assessmentResult.traceId,
     );
   }
 
@@ -1206,6 +1336,11 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       // Save assessment result to Firebase and get the document ID
       final assessmentService = AssessmentResultService();
       final assessmentResultId = await assessmentService.saveAssessmentResult(assessmentResult);
+      await _persistAiTelemetry(
+        assessmentService,
+        assessmentResultId,
+        assessmentResult,
+      );
 
       print('✅ Assessment saved to Firebase with ID: $assessmentResultId');
 
@@ -1321,6 +1456,11 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       // Save assessment result to Firebase and get the document ID
       final assessmentService = AssessmentResultService();
       final assessmentResultId = await assessmentService.saveAssessmentResult(assessmentResult);
+      await _persistAiTelemetry(
+        assessmentService,
+        assessmentResultId,
+        assessmentResult,
+      );
 
       print('✅ Assessment saved to Firebase with ID: $assessmentResultId');
 

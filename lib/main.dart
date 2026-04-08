@@ -13,12 +13,16 @@ import 'package:pawsense/core/services/notifications/appointment_reminder_servic
 import 'package:pawsense/core/services/clinic/appointment_auto_cancellation_service.dart';
 import 'package:pawsense/core/services/auth/auth_recovery_service.dart';
 import 'package:pawsense/core/widgets/shared/global_notification_wrapper.dart';
+import 'package:pawsense/core/services/ai/groq_orchestration_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Load environment variables
   await dotenv.load(fileName: ".env");
+
+  // Validate AI configuration early so the app can safely use deterministic fallbacks.
+  GroqOrchestrationService.instance.validateConfiguration();
 
   // Initialize Firebase with proper options
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);

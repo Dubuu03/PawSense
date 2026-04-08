@@ -97,6 +97,42 @@ class AssessmentResultService {
     }
   }
 
+  // Update AI telemetry fields without overwriting the full assessment payload
+  Future<void> updateAiTelemetry({
+    required String assessmentId,
+    required bool aiEnabled,
+    String? triageModelUsed,
+    String? recommendationModelUsed,
+    String fallbackLevel = 'none',
+    String? aiErrorType,
+    int? generationLatencyMs,
+    int? tokenEstimate,
+    bool cacheHit = false,
+    bool disagreementFlag = false,
+    bool redFlagEscalation = false,
+    String? traceId,
+  }) async {
+    try {
+      await _firestore.collection(_collection).doc(assessmentId).update({
+        'aiEnabled': aiEnabled,
+        'triageModelUsed': triageModelUsed,
+        'recommendationModelUsed': recommendationModelUsed,
+        'fallbackLevel': fallbackLevel,
+        'aiErrorType': aiErrorType,
+        'generationLatencyMs': generationLatencyMs,
+        'tokenEstimate': tokenEstimate,
+        'cacheHit': cacheHit,
+        'disagreementFlag': disagreementFlag,
+        'redFlagEscalation': redFlagEscalation,
+        'traceId': traceId,
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      });
+    } catch (e) {
+      print('Error updating AI telemetry: $e');
+      rethrow;
+    }
+  }
+
   // Delete assessment result
   Future<void> deleteAssessmentResult(String id) async {
     try {

@@ -17,6 +17,17 @@ class AssessmentResult {
   final List<AnalysisResultData> analysisResults;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final bool aiEnabled;
+  final String? triageModelUsed;
+  final String? recommendationModelUsed;
+  final String fallbackLevel;
+  final String? aiErrorType;
+  final int? generationLatencyMs;
+  final int? tokenEstimate;
+  final bool cacheHit;
+  final bool disagreementFlag;
+  final bool redFlagEscalation;
+  final String? traceId;
 
   AssessmentResult({
     this.id,
@@ -35,6 +46,17 @@ class AssessmentResult {
     required this.analysisResults,
     required this.createdAt,
     required this.updatedAt,
+    this.aiEnabled = false,
+    this.triageModelUsed,
+    this.recommendationModelUsed,
+    this.fallbackLevel = 'none',
+    this.aiErrorType,
+    this.generationLatencyMs,
+    this.tokenEstimate,
+    this.cacheHit = false,
+    this.disagreementFlag = false,
+    this.redFlagEscalation = false,
+    this.traceId,
   });
 
   // Convert AssessmentResult to Map for Firestore
@@ -55,6 +77,17 @@ class AssessmentResult {
       'analysisResults': analysisResults.map((result) => result.toMap()).toList(),
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
+      'aiEnabled': aiEnabled,
+      'triageModelUsed': triageModelUsed,
+      'recommendationModelUsed': recommendationModelUsed,
+      'fallbackLevel': fallbackLevel,
+      'aiErrorType': aiErrorType,
+      'generationLatencyMs': generationLatencyMs,
+      'tokenEstimate': tokenEstimate,
+      'cacheHit': cacheHit,
+      'disagreementFlag': disagreementFlag,
+      'redFlagEscalation': redFlagEscalation,
+      'traceId': traceId,
     };
   }
 
@@ -85,6 +118,17 @@ class AssessmentResult {
       updatedAt: map['updatedAt'] != null 
           ? (map['updatedAt'] as Timestamp).toDate()
           : DateTime.now(),
+        aiEnabled: map['aiEnabled'] ?? false,
+        triageModelUsed: map['triageModelUsed'],
+        recommendationModelUsed: map['recommendationModelUsed'],
+        fallbackLevel: map['fallbackLevel'] ?? 'none',
+        aiErrorType: map['aiErrorType'],
+        generationLatencyMs: map['generationLatencyMs']?.toInt(),
+        tokenEstimate: map['tokenEstimate']?.toInt(),
+        cacheHit: map['cacheHit'] ?? false,
+        disagreementFlag: map['disagreementFlag'] ?? false,
+        redFlagEscalation: map['redFlagEscalation'] ?? false,
+        traceId: map['traceId'],
     );
   }
 
@@ -106,6 +150,17 @@ class AssessmentResult {
     List<AnalysisResultData>? analysisResults,
     DateTime? createdAt,
     DateTime? updatedAt,
+    bool? aiEnabled,
+    String? triageModelUsed,
+    String? recommendationModelUsed,
+    String? fallbackLevel,
+    String? aiErrorType,
+    int? generationLatencyMs,
+    int? tokenEstimate,
+    bool? cacheHit,
+    bool? disagreementFlag,
+    bool? redFlagEscalation,
+    String? traceId,
   }) {
     return AssessmentResult(
       id: id ?? this.id,
@@ -124,6 +179,18 @@ class AssessmentResult {
       analysisResults: analysisResults ?? this.analysisResults,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      aiEnabled: aiEnabled ?? this.aiEnabled,
+      triageModelUsed: triageModelUsed ?? this.triageModelUsed,
+      recommendationModelUsed:
+          recommendationModelUsed ?? this.recommendationModelUsed,
+      fallbackLevel: fallbackLevel ?? this.fallbackLevel,
+      aiErrorType: aiErrorType ?? this.aiErrorType,
+      generationLatencyMs: generationLatencyMs ?? this.generationLatencyMs,
+      tokenEstimate: tokenEstimate ?? this.tokenEstimate,
+      cacheHit: cacheHit ?? this.cacheHit,
+      disagreementFlag: disagreementFlag ?? this.disagreementFlag,
+      redFlagEscalation: redFlagEscalation ?? this.redFlagEscalation,
+      traceId: traceId ?? this.traceId,
     );
   }
 }

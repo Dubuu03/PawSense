@@ -14,7 +14,10 @@ class AssessmentProgressIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final stepLabels = ['General Information', 'Scan', 'Results'];
+    final stepLabels = totalSteps == 4
+        ? ['General Information', 'Clinical Intake', 'Scan', 'Results']
+        : ['General Information', 'Scan', 'Results'];
+    final safeIndex = currentStep.clamp(0, stepLabels.length - 1);
 
     return Column(
       children: [
@@ -28,7 +31,7 @@ class AssessmentProgressIndicator extends StatelessWidget {
             ),
             const Spacer(),
             Text(
-              stepLabels[currentStep],
+              stepLabels[safeIndex],
               style: kMobileTextStyleTitle.copyWith(
                 color: AppColors.textPrimary,
               ),
