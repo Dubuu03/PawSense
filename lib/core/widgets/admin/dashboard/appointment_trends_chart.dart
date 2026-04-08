@@ -23,7 +23,9 @@ class AppointmentTrendsChart extends StatelessWidget {
       return _buildEmptyState();
     }
 
-    final maxY = trendData.map((e) => e.value).reduce((a, b) => a > b ? a : b).toDouble();
+    final rawMaxY = trendData.map((e) => e.value).reduce((a, b) => a > b ? a : b).toDouble();
+    // Ensure maxY is at least 1 so the chart renders correctly even with all-zero data
+    final maxY = rawMaxY < 1 ? 5.0 : rawMaxY;
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -41,17 +43,21 @@ class AppointmentTrendsChart extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
               Icon(Icons.trending_up, color: AppColors.primary, size: 20),
               const SizedBox(width: 8),
-              const Text(
-                'Appointment Trends (Last 7 Days)',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+              const Expanded(
+                child: Text(
+                  'Appointment Trends (Last 7 Days)',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -64,7 +70,8 @@ class AppointmentTrendsChart extends StatelessWidget {
                 gridData: FlGridData(
                   show: true,
                   drawVerticalLine: false,
-                  horizontalInterval: maxY / 5,
+                  // Clamp interval to at least 1 to prevent duplicate integer labels
+                  horizontalInterval: (maxY / 5).clamp(1.0, double.infinity),
                   getDrawingHorizontalLine: (value) {
                     return FlLine(
                       color: AppColors.border.withValues(alpha: 0.3),
@@ -78,6 +85,10 @@ class AppointmentTrendsChart extends StatelessWidget {
                       showTitles: true,
                       reservedSize: 40,
                       getTitlesWidget: (value, meta) {
+                        // Only show integer values to avoid duplicate labels
+                        if (value != value.roundToDouble()) {
+                          return const SizedBox.shrink();
+                        }
                         return Text(
                           value.toInt().toString(),
                           style: const TextStyle(
@@ -133,7 +144,7 @@ class AppointmentTrendsChart extends StatelessWidget {
                 minX: 0,
                 maxX: (trendData.length - 1).toDouble(),
                 minY: 0,
-                maxY: maxY * 1.2, // Add 20% padding
+                maxY: maxY * 1.2,
                 lineBarsData: [
                   LineChartBarData(
                     spots: trendData.asMap().entries.map((entry) {

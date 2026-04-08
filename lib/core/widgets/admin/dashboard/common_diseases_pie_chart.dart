@@ -16,26 +16,25 @@ class CommonDiseasesPieChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 500,
-      padding: EdgeInsets.all(24),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.border.withOpacity(0.5),
+          color: AppColors.border.withValues(alpha: 0.5),
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 20,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 4),
             spreadRadius: 0,
           ),
           BoxShadow(
-            color: AppColors.primary.withOpacity(0.03),
+            color: AppColors.primary.withValues(alpha: 0.03),
             blurRadius: 40,
-            offset: Offset(0, 8),
+            offset: const Offset(0, 8),
             spreadRadius: 0,
           ),
         ],
@@ -46,19 +45,19 @@ class CommonDiseasesPieChart extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: EdgeInsets.all(6),
+                padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: AppColors.warning.withOpacity(0.1),
+                  color: AppColors.warning.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.medical_services,
                   size: 18,
                   color: AppColors.warning,
                 ),
               ),
-              SizedBox(width: 10),
-              Text(
+              const SizedBox(width: 10),
+              const Text(
                 'Common Diseases',
                 style: TextStyle(
                   fontSize: 17,
@@ -69,10 +68,11 @@ class CommonDiseasesPieChart extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(height: 24),
-          Expanded(
+          const SizedBox(height: 24),
+          SizedBox(
+            height: 280,
             child: isLoading
-                ? Center(
+                ? const Center(
                     child: CircularProgressIndicator(
                       color: AppColors.primary,
                     ),
@@ -81,7 +81,7 @@ class CommonDiseasesPieChart extends StatelessWidget {
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
+                          children: const [
                             Icon(
                               Icons.medical_services_outlined,
                               size: 48,
@@ -98,28 +98,59 @@ class CommonDiseasesPieChart extends StatelessWidget {
                           ],
                         ),
                       )
-                    : Row(
-                        children: [
-                          Expanded(
-                            flex: 3,
-                            child: AspectRatio(
-                              aspectRatio: 1,
-                              child: PieChart(
-                                PieChartData(
-                                  sections: _generatePieChartSections(),
-                                  centerSpaceRadius: 50,
-                                  sectionsSpace: 2,
-                                  startDegreeOffset: -90,
+                    : LayoutBuilder(
+                        builder: (context, constraints) {
+                          if (constraints.maxWidth < 360) {
+                            return Column(
+                              children: [
+                                Expanded(
+                                  flex: 3,
+                                  child: PieChart(
+                                    PieChartData(
+                                      sections: _generatePieChartSections(),
+                                      centerSpaceRadius: 40,
+                                      sectionsSpace: 2,
+                                      startDegreeOffset: -90,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Expanded(
+                                  flex: 2,
+                                  child: SingleChildScrollView(
+                                    child: _buildLegend(),
+                                  ),
+                                ),
+                              ],
+                            );
+                          }
+                          return Row(
+                            children: [
+                              Expanded(
+                                flex: 3,
+                                child: AspectRatio(
+                                  aspectRatio: 1,
+                                  child: PieChart(
+                                    PieChartData(
+                                      sections: _generatePieChartSections(),
+                                      centerSpaceRadius: 50,
+                                      sectionsSpace: 2,
+                                      startDegreeOffset: -90,
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
-                          ),
-                          SizedBox(width: 24),
-                          Expanded(
-                            flex: 2,
-                            child: _buildLegend(),
-                          ),
-                        ],
+                              const SizedBox(width: 24),
+                              Expanded(
+                                flex: 2,
+                                child: SingleChildScrollView(
+                                  physics: const BouncingScrollPhysics(),
+                                  child: _buildLegend(),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       ),
           ),
         ],
@@ -139,7 +170,7 @@ class CommonDiseasesPieChart extends StatelessWidget {
         value: data.value.toDouble(),
         title: percentage > 8 ? '${percentage.toStringAsFixed(0)}%' : '',
         radius: 70,
-        titleStyle: TextStyle(
+        titleStyle: const TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.bold,
           color: Colors.white,
@@ -156,66 +187,58 @@ class CommonDiseasesPieChart extends StatelessWidget {
   }
 
   Widget _buildLegend() {
-    if (diseaseData == null || diseaseData!.total == 0) return SizedBox.shrink();
+    if (diseaseData == null || diseaseData!.total == 0) return const SizedBox.shrink();
 
     final pieData = diseaseData!.toPieChartData();
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Flexible(
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: pieData.length,
-            itemBuilder: (context, index) {
-              final data = pieData[index];
-              final percentage = (data.value / diseaseData!.total * 100);
-              
-              return Padding(
-                padding: EdgeInsets.symmetric(vertical: 4),
-                child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: pieData.map((data) {
+        final percentage = (data.value / diseaseData!.total * 100);
+        
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            children: [
+              Container(
+                width: 16,
+                height: 16,
+                decoration: BoxDecoration(
+                  color: data.color,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 16,
-                      height: 16,
-                      decoration: BoxDecoration(
-                        color: data.color,
-                        shape: BoxShape.circle,
+                    Text(
+                      data.label,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textPrimary,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            data.label,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.textPrimary,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            '${data.value} (${percentage.toStringAsFixed(1)}%)',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
+                    Text(
+                      '${data.value} (${percentage.toStringAsFixed(1)}%)',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ],
                 ),
-              );
-            },
+              ),
+            ],
           ),
-        ),
-      ],
+        );
+      }).toList(),
     );
   }
 }
