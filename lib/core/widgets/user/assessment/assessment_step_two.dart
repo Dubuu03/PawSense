@@ -35,8 +35,6 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
   // bool _showPreparationTips = false; // Reserved for future use
   bool _serverConnected = false;
   bool _isGeneratingTriage = false;
-  Map<String, dynamic>? _triageOutput;
-  String? _triageError;
 
   // Expose analyzing state to parent
   bool get isAnalyzing => _isAnalyzing;
@@ -77,10 +75,7 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
       return;
     }
 
-    setState(() {
-      _isGeneratingTriage = true;
-      _triageError = null;
-    });
+    _isGeneratingTriage = true;
 
     try {
       final petType = widget.assessmentData['selectedPetType']?.toString() ?? 'Dog';
@@ -95,10 +90,6 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
 
       if (!mounted) return;
 
-      setState(() {
-        _triageOutput = result.content;
-      });
-
       widget.onDataUpdate('triagePrior', result.content);
       widget.onDataUpdate('triageTelemetry', {
         'modelUsed': result.modelUsed,
@@ -110,97 +101,10 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _triageError = e.toString();
-      });
+      debugPrint('Pre-triage generation failed in step two: $e');
     } finally {
-      if (mounted) {
-        setState(() {
-          _isGeneratingTriage = false;
-        });
-      }
+      _isGeneratingTriage = false;
     }
-  }
-
-  Widget _buildTriageBanner() {
-    final topConditions = (_triageOutput?['top_conditions'] as List<dynamic>? ?? [])
-        .take(3)
-        .map((e) => e is Map<String, dynamic> ? e : <String, dynamic>{})
-        .toList();
-    final confidenceBand = _triageOutput?['confidence_band']?.toString() ?? '';
-
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: kSpacingMedium),
-      padding: const EdgeInsets.all(kSpacingMedium),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEFF7FF),
-        borderRadius: BorderRadius.circular(kBorderRadius),
-        border: Border.all(color: AppColors.primary.withOpacity(0.25)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.psychology_alt_outlined, color: AppColors.primary, size: 20),
-              const SizedBox(width: kSpacingSmall),
-              Text(
-                'AI Pre-Triage Context',
-                style: kMobileTextStyleTitle.copyWith(
-                  color: AppColors.textPrimary,
-                  fontSize: 15,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: kSpacingSmall),
-          if (_isGeneratingTriage)
-            Row(
-              children: [
-                const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                const SizedBox(width: kSpacingSmall),
-                Text(
-                  'Generating triage priors from consultation form...',
-                  style: kMobileTextStyleSubtitle.copyWith(color: AppColors.textSecondary),
-                ),
-              ],
-            )
-          else if (_triageError != null)
-            Text(
-              'Triage service unavailable. Safe fallback priors will be used.',
-              style: kMobileTextStyleSubtitle.copyWith(color: AppColors.warning),
-            )
-          else if (topConditions.isNotEmpty) ...[
-            Text(
-              'Pre-scan confidence band: $confidenceBand',
-              style: kMobileTextStyleSubtitle.copyWith(color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: kSpacingSmall),
-            ...topConditions.map((condition) {
-              final name = condition['condition']?.toString() ?? 'condition';
-              final score = (condition['score'] as num?)?.toDouble();
-              final scoreLabel = score == null ? '' : ' ${(score * 100).toStringAsFixed(0)}%';
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Text(
-                  '• ${name.replaceAll('_', ' ')}$scoreLabel',
-                  style: kMobileTextStyleSubtitle.copyWith(color: AppColors.textPrimary),
-                ),
-              );
-            }),
-          ] else
-            Text(
-              'Triage priors will appear here once generated.',
-              style: kMobileTextStyleSubtitle.copyWith(color: AppColors.textSecondary),
-            ),
-        ],
-      ),
-    );
   }
 
   Future<void> _checkServerConnection() async {
@@ -608,8 +512,6 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildTriageBanner(),
-
           // Main Card Container with light purple background
           Container(
             padding: const EdgeInsets.all(kSpacingLarge),

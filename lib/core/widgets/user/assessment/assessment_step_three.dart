@@ -129,7 +129,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                                             detectionsToShow,
                                             strokeWidth: 4.0,
                                             showLabels: true,
-                                            showConfidence: true,
+                                            showConfidence: false,
                                             originalImageWidth: 640.0,
                                             originalImageHeight: 640.0,
                                             useRankColors: false, // Disable rank colors
@@ -2057,10 +2057,10 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     final urgencyDisplay = _formatUrgencyChipLabel(urgency, severity);
 
     if (_hasRedFlags) {
-      seekHelpActions.insert(0, 'Urgent signs were reported during pre-triage.');
+      seekHelpActions.insert(0, 'You selected possible urgent signs earlier.');
     }
     if (_disagreementFlag) {
-      seekHelpActions.add('Assessment inputs are not fully aligned; seek vet confirmation sooner.');
+      seekHelpActions.add('Results are not fully consistent, so it is safer to consult a vet sooner.');
     }
 
     seekHelpActions = _dedupLimited([
@@ -2136,7 +2136,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
           ),
           const SizedBox(height: kSpacingSmall),
           Text(
-            'Top finding: ${highestDetection.condition} (${highestDetection.percentage.toStringAsFixed(0)}%)',
+            'Top finding: ${highestDetection.condition} (${highestDetection.percentage.toStringAsFixed(1)}%)',
             style: kMobileTextStyleSubtitle.copyWith(color: AppColors.textSecondary),
           ),
           const SizedBox(height: kSpacingMedium),
@@ -2515,7 +2515,12 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                               final int detectionIndex = entry.key;
                               final detection = entry.value;
                               final String condition = detection['label'];
-                              final double confidence = detection['confidence'];
+                              final double? overallConfidence =
+                                _getOverallConditionPercentage(condition);
+                              final double fallbackConfidence =
+                                (detection['confidence'] as double? ?? 0.0) * 100;
+                              final double displayConfidence =
+                                overallConfidence ?? fallbackConfidence;
                               
                               // Get color based on disease type (same disease = same color across all images)
                               final detectionColor = _getColorForDisease(condition);
@@ -2561,7 +2566,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                                         ),
                                       ),
                                       child: Text(
-                                        '${(confidence * 100).toStringAsFixed(1)}%',
+                                        '${displayConfidence.toStringAsFixed(1)}%',
                                         style: kMobileTextStyleLegend.copyWith(
                                           color: detectionColor,
                                           fontWeight: FontWeight.w700,
@@ -2754,7 +2759,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
-                                '${highestDetection.percentage.toStringAsFixed(0)}%',
+                                '${highestDetection.percentage.toStringAsFixed(1)}%',
                                 style: kMobileTextStyleLegend.copyWith(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
@@ -3239,6 +3244,16 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       return 0.0;
     }
     return confidence.clamp(0.0, 1.0);
+  }
+
+  double? _getOverallConditionPercentage(String rawCondition) {
+    final formatted = _formatConditionName(rawCondition);
+    for (final result in _analysisResults) {
+      if (result.condition == formatted) {
+        return result.percentage;
+      }
+    }
+    return null;
   }
 }
 
