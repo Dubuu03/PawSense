@@ -391,18 +391,16 @@ class _AssessmentPageState extends State<AssessmentPage> {
     );
 
     final onsetDuration = intake['onsetDuration']?.toString().trim() ?? '';
-    final progression = intake['progression']?.toString().trim() ?? '';
-    final itchSeverity = intake['itchSeverity']?.toString().trim() ?? '';
     final distributionAreas =
         (intake['distributionAreas'] as List<dynamic>? ?? []).cast<dynamic>();
     final lesionAppearance =
         (intake['lesionAppearance'] as List<dynamic>? ?? []).cast<dynamic>();
 
-    return onsetDuration.isNotEmpty &&
-        progression.isNotEmpty &&
-        itchSeverity.isNotEmpty &&
-        distributionAreas.isNotEmpty &&
-        lesionAppearance.isNotEmpty;
+    // Owner-friendly validation: allow partial answers and uncertainty.
+    // Proceed when at least one useful signal is provided.
+    return onsetDuration.isNotEmpty ||
+      distributionAreas.isNotEmpty ||
+      lesionAppearance.isNotEmpty;
   }
 
   bool _validateStepThree() {
@@ -478,7 +476,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
         
         return 'Please complete all required fields';
       case 1:
-        return 'Please complete the clinical intake form to improve AI pre-triage accuracy';
+        return 'Please answer at least one quick health question before scanning';
       case 2:
         final photos = assessmentData['photos'] as List<dynamic>?;
         if (photos == null || photos.isEmpty) {

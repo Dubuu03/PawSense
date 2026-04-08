@@ -3,7 +3,6 @@ import 'package:pawsense/core/utils/app_colors.dart';
 import 'package:pawsense/core/utils/constants.dart';
 import 'package:pawsense/core/utils/constants_mobile.dart';
 
-
 class AssessmentStepPreTriage extends StatefulWidget {
   final Map<String, dynamic> assessmentData;
   final Function(String, dynamic) onDataUpdate;
@@ -24,14 +23,7 @@ class AssessmentStepPreTriage extends StatefulWidget {
 
 class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
   final _durationController = TextEditingController();
-  final _recentMedicationController = TextEditingController();
-
-  String _progression = 'stable';
-  String _itchSeverity = 'moderate';
-  String _appetiteChange = 'no_change';
-  bool _hasRecentGrooming = false;
-  bool _hasParasitePrevention = false;
-  bool _hasKnownAllergenExposure = false;
+  String _itchSeverity = 'not_sure';
 
   final Map<String, bool> _distribution = {
     'Face': false,
@@ -42,17 +34,7 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
     'Paws': false,
     'Tail': false,
     'Widespread': false,
-  };
-
-  final Map<String, bool> _lesionAppearance = {
-    'Redness': false,
-    'Hair loss': false,
-    'Crusting': false,
-    'Scales/flakes': false,
-    'Moist/oozing': false,
-    'Dark patches': false,
-    'Swelling': false,
-    'Wounds': false,
+    'Not sure': false,
   };
 
   final Map<String, bool> _redFlags = {
@@ -61,6 +43,7 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
     'Foul odor': false,
     'Low appetite': false,
     'Unusual weakness': false,
+    'Not sure': false,
   };
 
   @override
@@ -68,13 +51,11 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
     super.initState();
     _hydrateFromExistingData();
     _durationController.addListener(_pushData);
-    _recentMedicationController.addListener(_pushData);
   }
 
   @override
   void dispose() {
     _durationController.dispose();
-    _recentMedicationController.dispose();
     super.dispose();
   }
 
@@ -84,23 +65,11 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
     );
 
     _durationController.text = data['onsetDuration']?.toString() ?? '';
-    _recentMedicationController.text =
-        data['recentMedication']?.toString() ?? '';
-
-    _progression = data['progression']?.toString() ?? _progression;
     _itchSeverity = data['itchSeverity']?.toString() ?? _itchSeverity;
-    _appetiteChange = data['appetiteChange']?.toString() ?? _appetiteChange;
-    _hasRecentGrooming = data['recentGrooming'] == true;
-    _hasParasitePrevention = data['parasitePrevention'] == true;
-    _hasKnownAllergenExposure = data['allergenExposure'] == true;
 
     _restoreSelections(
       source: data['distributionAreas'],
       target: _distribution,
-    );
-    _restoreSelections(
-      source: data['lesionAppearance'],
-      target: _lesionAppearance,
     );
     _restoreSelections(
       source: data['redFlags'],
@@ -131,15 +100,15 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
   void _pushData() {
     widget.onDataUpdate('clinicalIntake', {
       'onsetDuration': _durationController.text.trim(),
-      'progression': _progression,
+      'progression': 'not_sure',
       'itchSeverity': _itchSeverity,
-      'appetiteChange': _appetiteChange,
+      'appetiteChange': 'not_sure',
       'distributionAreas': _selected(_distribution),
-      'lesionAppearance': _selected(_lesionAppearance),
-      'recentGrooming': _hasRecentGrooming,
-      'parasitePrevention': _hasParasitePrevention,
-      'allergenExposure': _hasKnownAllergenExposure,
-      'recentMedication': _recentMedicationController.text.trim(),
+      'lesionAppearance': <String>[],
+      'recentGrooming': false,
+      'parasitePrevention': false,
+      'allergenExposure': false,
+      'recentMedication': '',
       'redFlags': _selected(_redFlags),
       'hasRedFlags': _hasAnyRedFlag,
     });
@@ -190,7 +159,7 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Clinical Intake Form',
+            'Quick Health Questions',
             style: kMobileTextStyleTitle.copyWith(
               color: AppColors.textPrimary,
               fontSize: 20,
@@ -198,44 +167,46 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
           ),
           const SizedBox(height: kSpacingSmall),
           Text(
-            'This mirrors a veterinary consultation to improve AI triage accuracy before image scan.',
+            'Only a few important questions before scan. Choose Not sure anytime.',
             style: kMobileTextStyleSubtitle.copyWith(
               color: AppColors.textSecondary,
             ),
           ),
+          const SizedBox(height: kSpacingSmall),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(kSpacingSmall),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(kBorderRadius),
+              border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+            ),
+            child: Text(
+              'Tip: You can leave text fields blank and continue. Pick the closest answer when possible.',
+              style: kMobileTextStyleSubtitle.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
           const SizedBox(height: kSpacingLarge ),
 
-          _sectionTitle('Onset and progression'),
+          _sectionTitle('1) When did you first notice this? (optional)'),
           TextFormField(
             controller: _durationController,
             decoration: const InputDecoration(
-              labelText: 'How long has this been present?',
-              hintText: 'Example: 3 days, 2 weeks',
+              labelText: 'How long has this been happening?',
+              hintText: 'Example: today, 3 days, 2 weeks',
             ),
             onChanged: (_) => _pushData(),
           ),
           const SizedBox(height: kSpacingSmall),
-          DropdownButtonFormField<String>(
-            value: _progression,
-            decoration: const InputDecoration(labelText: 'Is it improving or worsening?'),
-            items: const [
-              DropdownMenuItem(value: 'improving', child: Text('Improving')),
-              DropdownMenuItem(value: 'stable', child: Text('Stable')),
-              DropdownMenuItem(value: 'worsening', child: Text('Worsening')),
-            ],
-            onChanged: (value) {
-              if (value == null) return;
-              setState(() => _progression = value);
-              _pushData();
-            },
-          ),
-          const SizedBox(height: kSpacingLarge),
 
-          _sectionTitle('Severity indicators'),
+          _sectionTitle('2) How itchy does your pet seem?'),
           DropdownButtonFormField<String>(
             value: _itchSeverity,
-            decoration: const InputDecoration(labelText: 'Itch severity'),
+            decoration: const InputDecoration(labelText: 'Itch level'),
             items: const [
+              DropdownMenuItem(value: 'not_sure', child: Text('Not sure')),
               DropdownMenuItem(value: 'mild', child: Text('Mild')),
               DropdownMenuItem(value: 'moderate', child: Text('Moderate')),
               DropdownMenuItem(value: 'severe', child: Text('Severe')),
@@ -246,75 +217,16 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
               _pushData();
             },
           ),
-          const SizedBox(height: kSpacingSmall),
-          DropdownButtonFormField<String>(
-            value: _appetiteChange,
-            decoration: const InputDecoration(labelText: 'Appetite/activity changes'),
-            items: const [
-              DropdownMenuItem(value: 'no_change', child: Text('No change')),
-              DropdownMenuItem(value: 'slightly_reduced', child: Text('Slightly reduced')),
-              DropdownMenuItem(value: 'significantly_reduced', child: Text('Significantly reduced')),
-            ],
-            onChanged: (value) {
-              if (value == null) return;
-              setState(() => _appetiteChange = value);
-              _pushData();
-            },
-          ),
           const SizedBox(height: kSpacingLarge),
 
-          _sectionTitle('Lesion distribution'),
+          _sectionTitle('3) Where do you see the skin issue?'),
           _choiceChips(
             values: _distribution,
             onChanged: (key, next) => _distribution[key] = next,
           ),
           const SizedBox(height: kSpacingLarge),
 
-          _sectionTitle('Skin appearance observed'),
-          _choiceChips(
-            values: _lesionAppearance,
-            onChanged: (key, next) => _lesionAppearance[key] = next,
-          ),
-          const SizedBox(height: kSpacingLarge),
-
-          _sectionTitle('History and exposure'),
-          SwitchListTile(
-            title: const Text('Recent grooming/shampoo change'),
-            value: _hasRecentGrooming,
-            activeColor: AppColors.primary,
-            onChanged: (value) {
-              setState(() => _hasRecentGrooming = value);
-              _pushData();
-            },
-          ),
-          SwitchListTile(
-            title: const Text('Current parasite prevention active'),
-            value: _hasParasitePrevention,
-            activeColor: AppColors.primary,
-            onChanged: (value) {
-              setState(() => _hasParasitePrevention = value);
-              _pushData();
-            },
-          ),
-          SwitchListTile(
-            title: const Text('Known recent allergen/environment exposure'),
-            value: _hasKnownAllergenExposure,
-            activeColor: AppColors.primary,
-            onChanged: (value) {
-              setState(() => _hasKnownAllergenExposure = value);
-              _pushData();
-            },
-          ),
-          TextFormField(
-            controller: _recentMedicationController,
-            decoration: const InputDecoration(
-              labelText: 'Recent medication or topical products (optional)',
-            ),
-            onChanged: (_) => _pushData(),
-          ),
-          const SizedBox(height: kSpacingLarge),
-
-          _sectionTitle('Urgent warning signs'),
+          _sectionTitle('4) Any urgent warning signs?'),
           _choiceChips(
             values: _redFlags,
             onChanged: (key, next) => _redFlags[key] = next,
@@ -330,7 +242,7 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
                 border: Border.all(color: AppColors.error.withOpacity(0.3)),
               ),
               child: Text(
-                'Potential red flags detected. The final recommendation will prioritize veterinary escalation guidance.',
+                'Possible urgent signs selected. The app will prioritize vet-visit advice for safety.',
                 style: kMobileTextStyleSubtitle.copyWith(color: AppColors.error),
               ),
             ),
