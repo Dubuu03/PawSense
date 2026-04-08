@@ -1896,16 +1896,12 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
           ),
           const SizedBox(height: kSpacingMedium),
           
-          // Severity Indicator & When to Seek Help
-          _buildSeverityAndSeekHelpSection(),
+          // Consolidated guidance panel (severity + seek help + remedies)
+          _buildClinicalGuidanceSection(),
           const SizedBox(height: kSpacingMedium),
           
           // Assessment Images Container
           _buildAssessmentImagesContainer(),
-          const SizedBox(height: kSpacingMedium),
-          
-          // Initial Remedies/Suggestions (Collapsible)
-          _buildRemediesSection(),
           const SizedBox(height: kSpacingMedium),
           
           // Recommended Clinics Section
@@ -1995,6 +1991,216 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClinicalGuidanceSection() {
+    if (_analysisResults.isEmpty ||
+        (_analysisResults.length == 1 &&
+            (_analysisResults.first.condition == 'No high-confidence detections' ||
+                _analysisResults.first.condition == 'No skin disease detected'))) {
+      return const SizedBox.shrink();
+    }
+
+    final highestDetection = _analysisResults.first;
+    final diseaseInfo = _detectedDisease;
+
+    String severity = 'moderate';
+    String severityDisplay = 'Moderate';
+    Color severityColor = const Color(0xFFFFA500);
+    IconData severityIcon = Icons.warning_amber_rounded;
+
+    if (diseaseInfo != null) {
+      severity = diseaseInfo.severity.toLowerCase();
+    }
+
+    switch (severity) {
+      case 'low':
+        severityDisplay = 'Low';
+        severityColor = const Color(0xFF34C759);
+        severityIcon = Icons.check_circle_rounded;
+        break;
+      case 'high':
+        severityDisplay = 'High';
+        severityColor = const Color(0xFFFF3B30);
+        severityIcon = Icons.error_rounded;
+        break;
+      default:
+        severityDisplay = 'Moderate';
+        severityColor = const Color(0xFFFFA500);
+        severityIcon = Icons.warning_amber_rounded;
+        break;
+    }
+
+    List<String> seekHelpActions = [];
+    String? urgency;
+
+    if (diseaseInfo?.initialRemedies != null &&
+        diseaseInfo!.initialRemedies!.containsKey('whenToSeekHelp')) {
+      final whenToSeekHelp =
+          diseaseInfo.initialRemedies!['whenToSeekHelp'] as Map<String, dynamic>;
+      seekHelpActions = List<String>.from(whenToSeekHelp['actions'] ?? []);
+      urgency = whenToSeekHelp['urgency'] as String?;
+    }
+
+    if (seekHelpActions.isEmpty) {
+      seekHelpActions = [
+        'Symptoms worsen or spread rapidly',
+        'Your pet shows signs of pain or distress',
+        'The affected area becomes infected',
+      ];
+      urgency = severity == 'high' ? 'immediate' : 'within_24_hours';
+    }
+
+    final urgencyDisplay = _formatUrgencyChipLabel(urgency, severity);
+
+    if (_hasRedFlags) {
+      seekHelpActions.insert(0, 'Urgent signs were reported during pre-triage.');
+    }
+    if (_disagreementFlag) {
+      seekHelpActions.add('Assessment inputs are not fully aligned; seek vet confirmation sooner.');
+    }
+
+    seekHelpActions = _dedupLimited([
+      ...seekHelpActions,
+      ..._aiList('watchlist'),
+      ..._aiList('escalation_triggers'),
+    ], max: 5);
+
+    final hasRemedies = _detectedDisease?.initialRemedies != null;
+    final remedies = _detectedDisease?.initialRemedies;
+
+    return Container(
+      padding: const EdgeInsets.all(kSpacingMedium),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(kBorderRadius),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Clinical Guidance',
+            style: kMobileTextStyleTitle.copyWith(color: AppColors.textPrimary),
+          ),
+          const SizedBox(height: kSpacingSmall),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: severityColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(severityIcon, color: severityColor, size: 14),
+                    const SizedBox(width: 6),
+                    Text(
+                      severityDisplay.toUpperCase(),
+                      style: kMobileTextStyleLegend.copyWith(
+                        color: severityColor,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: kSpacingSmall),
+              if (urgencyDisplay != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    urgencyDisplay,
+                    style: kMobileTextStyleLegend.copyWith(
+                      color: AppColors.error,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: kSpacingSmall),
+          Text(
+            'Top finding: ${highestDetection.condition} (${highestDetection.percentage.toStringAsFixed(0)}%)',
+            style: kMobileTextStyleSubtitle.copyWith(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: kSpacingMedium),
+          Text(
+            'When to seek veterinary help',
+            style: kMobileTextStyleSubtitle.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          ...seekHelpActions.map((action) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.only(top: 7),
+                      width: 5,
+                      height: 5,
+                      decoration: const BoxDecoration(
+                        color: AppColors.error,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: kSpacingSmall),
+                    Expanded(
+                      child: Text(
+                        action,
+                        style: kMobileTextStyleServiceSubtitle.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )),
+          const Divider(height: kSpacingLarge),
+          InkWell(
+            onTap: () => setState(() => _showRemedies = !_showRemedies),
+            child: Row(
+              children: [
+                Icon(Icons.healing, color: AppColors.primary, size: 18),
+                const SizedBox(width: kSpacingSmall),
+                Expanded(
+                  child: Text(
+                    'Immediate Care & Home Suggestions',
+                    style: kMobileTextStyleSubtitle.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Icon(
+                  _showRemedies ? Icons.expand_less : Icons.expand_more,
+                  color: AppColors.primary,
+                ),
+              ],
+            ),
+          ),
+          if (_showRemedies) ...[
+            const SizedBox(height: kSpacingSmall),
+            hasRemedies ? _buildDynamicRemedies(remedies!) : _buildPlaceholderRemedies(),
+          ],
         ],
       ),
     );
@@ -2379,6 +2585,29 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
         ],
       ),
     );
+  }
+
+  String? _formatUrgencyChipLabel(String? rawUrgency, String severity) {
+    if (rawUrgency == null || rawUrgency.trim().isEmpty) {
+      return null;
+    }
+
+    final normalized = rawUrgency.trim().toLowerCase();
+    if (normalized == severity.toLowerCase()) {
+      return null;
+    }
+
+    switch (normalized) {
+      case 'immediate':
+        return 'SEEK HELP: IMMEDIATE';
+      case 'within_24_hours':
+      case 'within 24 hours':
+        return 'SEEK HELP: WITHIN 24H';
+      case 'soon':
+        return 'SEEK HELP: SOON';
+      default:
+        return 'SEEK HELP: ${rawUrgency.replaceAll('_', ' ').toUpperCase()}';
+    }
   }
 
   Widget _buildSeverityAndSeekHelpSection() {

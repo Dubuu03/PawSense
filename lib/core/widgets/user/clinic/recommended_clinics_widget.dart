@@ -31,134 +31,83 @@ class RecommendedClinicsWidget extends StatelessWidget {
     }
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: kMobileMarginHorizontal),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withOpacity(0.12)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Enhanced Header Section
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.primary.withOpacity(0.08),
-                  AppColors.primary.withOpacity(0.02),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  Icons.local_hospital_rounded,
+                  color: AppColors.primary,
+                  size: 18,
+                ),
               ),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: AppColors.primary.withOpacity(0.1),
-                width: 1,
-              ),
-            ),
-            child: Row(
-              children: [
-                // Icon with gradient background
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        AppColors.primary,
-                        AppColors.primary.withOpacity(0.8),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Recommended Clinics',
+                      style: kMobileTextStyleTitle.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.verified_outlined,
-                    color: AppColors.white,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                    if (detectedDisease != null)
                       Text(
-                        'Recommended Clinics',
-                        style: kMobileTextStyleTitle.copyWith(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 17,
+                        'Based on treatment history for ${TextUtils.capitalizeWords(detectedDisease!)}',
+                        style: kMobileTextStyleLegend.copyWith(
+                          color: AppColors.textSecondary,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 3),
-                      if (detectedDisease != null)
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.verified,
-                              size: 13,
-                              color: AppColors.textSecondary,
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                'Top 3 clinics based on treatment history & ratings for ${TextUtils.capitalizeWords(detectedDisease!)}',
-                                style: kMobileTextStyleLegend.copyWith(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 12,
-                                  height: 1.3,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                    ],
-                  ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
-          
-          // Clinic cards with improved spacing
-          ...recommendedClinics.take(3).map((clinic) {
+          ...recommendedClinics.take(3).toList().asMap().entries.map((entry) {
+            final index = entry.key;
+            final clinic = entry.value;
             return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
+              padding: EdgeInsets.only(bottom: index == 2 ? 0 : 8),
               child: _buildClinicCard(context, clinic),
             );
           }).toList(),
-          
-          // Enhanced View all button
           if (recommendedClinics.length > 3 || onViewAllClinics != null) ...[
-            const SizedBox(height: 4),
-            Center(
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
               child: TextButton.icon(
                 onPressed: onViewAllClinics ?? () {
                   context.push('/clinics');
                 },
-                icon: const Icon(Icons.add_circle_outline, size: 18),
+                icon: const Icon(Icons.open_in_new_rounded, size: 16),
                 label: Text(
                   recommendedClinics.length > 3
                       ? 'View ${recommendedClinics.length - 3} more clinics'
                       : 'View all clinics',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
                 style: TextButton.styleFrom(
                   foregroundColor: AppColors.primary,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 ),
               ),
             ),
@@ -180,20 +129,9 @@ class RecommendedClinicsWidget extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.white,
+        color: AppColors.background,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.primary.withOpacity(0.12),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-            spreadRadius: 0,
-          ),
-        ],
+        border: Border.all(color: AppColors.border.withOpacity(0.6)),
       ),
       child: Material(
         color: Colors.transparent,
@@ -208,23 +146,16 @@ class RecommendedClinicsWidget extends StatelessWidget {
           },
           borderRadius: BorderRadius.circular(12),
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(11),
             child: Row(
               children: [
-                // Circular Clinic logo/avatar - more compact
                 Container(
-                  width: 50,
-                  height: 50,
+                  width: 42,
+                  height: 42,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: AppColors.white,
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withOpacity(0.12),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
+                    border: Border.all(color: AppColors.primary.withOpacity(0.15)),
                   ),
                   child: ClipOval(
                     child: logoUrl != null && logoUrl.isNotEmpty
@@ -235,8 +166,8 @@ class RecommendedClinicsWidget extends StatelessWidget {
                               child: Image.network(
                                 logoUrl,
                                 fit: BoxFit.cover,
-                                width: 44,
-                                height: 44,
+                                width: 36,
+                                height: 36,
                                 errorBuilder: (context, error, stackTrace) {
                                   return _buildDefaultLogo();
                                 },
@@ -262,30 +193,24 @@ class RecommendedClinicsWidget extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-                
-                // Clinic info
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Clinic name
                       Text(
                         TextUtils.capitalizeWords(clinicName),
                         style: kMobileTextStyleSubtitle.copyWith(
                           color: AppColors.textPrimary,
                           fontWeight: FontWeight.w700,
-                          fontSize: 15,
+                          fontSize: 14,
                           height: 1.2,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 4),
-                      
-                      // Rating and cases badge row
+                      const SizedBox(height: 3),
                       Row(
                         children: [
-                          // Rating display
                           if (totalRatings > 0) ...[
                             Icon(
                               Icons.star,
@@ -309,10 +234,8 @@ class RecommendedClinicsWidget extends StatelessWidget {
                                 fontSize: 10,
                               ),
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 6),
                           ],
-                          
-                          // Cases treated badge
                           if (totalCases > 0) ...[
                             Container(
                               padding: const EdgeInsets.symmetric(
@@ -320,7 +243,7 @@ class RecommendedClinicsWidget extends StatelessWidget {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: AppColors.info.withOpacity(0.12),
+                                color: AppColors.info.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Row(
@@ -346,9 +269,7 @@ class RecommendedClinicsWidget extends StatelessWidget {
                           ],
                         ],
                       ),
-                      const SizedBox(height: 6),
-                      
-                      // Address - compact
+                      const SizedBox(height: 4),
                       if (address.isNotEmpty) ...[
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -373,10 +294,8 @@ class RecommendedClinicsWidget extends StatelessWidget {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 3),
+                        const SizedBox(height: 2),
                       ],
-                      
-                      // Phone - compact
                       if (phone.isNotEmpty)
                         Row(
                           children: [
@@ -399,14 +318,11 @@ class RecommendedClinicsWidget extends StatelessWidget {
                     ],
                   ),
                 ),
-                
                 const SizedBox(width: 8),
-                
-                // Compact arrow icon
                 Icon(
                   Icons.chevron_right,
-                  size: 20,
-                  color: AppColors.primary.withOpacity(0.6),
+                  size: 18,
+                  color: AppColors.primary.withOpacity(0.55),
                 ),
               ],
             ),
