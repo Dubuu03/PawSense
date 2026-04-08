@@ -95,10 +95,25 @@ class GroqOrchestrationService {
   static const Duration _breakerCooldown = Duration(seconds: 60);
   static const int _breakerFailureThreshold = 5;
 
-  String get _apiKey => dotenv.env['GROQ_API_KEY']?.trim() ?? '';
+  String _readEnv(String key) {
+    final raw = dotenv.env[key] ?? '';
+    var value = raw.trim();
+    if (value.startsWith('"') && value.endsWith('"') && value.length >= 2) {
+      value = value.substring(1, value.length - 1).trim();
+    }
+    return value;
+  }
+
+  bool get _isEnabled {
+    final enabled = _readEnv('GROQ_ENABLED').toLowerCase();
+    if (enabled.isEmpty) return true;
+    return enabled == '1' || enabled == 'true' || enabled == 'yes';
+  }
+
+  String get _apiKey => _readEnv('GROQ_API_KEY');
 
   String get _baseUrl {
-    final configured = dotenv.env['GROQ_BASE_URL']?.trim();
+    final configured = _readEnv('GROQ_BASE_URL');
     if (configured != null && configured.isNotEmpty) {
       return configured;
     }
@@ -106,34 +121,47 @@ class GroqOrchestrationService {
   }
 
   String get _triagePrimaryModel =>
-      dotenv.env['GROQ_PRIMARY_MODEL_TRIAGE']?.trim() ??
+      _readEnv('GROQ_PRIMARY_MODEL_TRIAGE').isNotEmpty
+      ? _readEnv('GROQ_PRIMARY_MODEL_TRIAGE')
+      :
       'llama-3.1-8b-instant';
 
   String get _triageFallbackModel =>
-      dotenv.env['GROQ_FALLBACK_MODEL_TRIAGE']?.trim() ??
+      _readEnv('GROQ_FALLBACK_MODEL_TRIAGE').isNotEmpty
+      ? _readEnv('GROQ_FALLBACK_MODEL_TRIAGE')
+      :
       'llama3-70b-8192';
 
   String get _recommendationPrimaryModel =>
-      dotenv.env['GROQ_PRIMARY_MODEL_RECO']?.trim() ??
+      _readEnv('GROQ_PRIMARY_MODEL_RECO').isNotEmpty
+      ? _readEnv('GROQ_PRIMARY_MODEL_RECO')
+      :
       'llama-3.1-8b-instant';
 
   String get _recommendationFallbackModel =>
-      dotenv.env['GROQ_FALLBACK_MODEL_RECO']?.trim() ??
+      _readEnv('GROQ_FALLBACK_MODEL_RECO').isNotEmpty
+      ? _readEnv('GROQ_FALLBACK_MODEL_RECO')
+      :
       'llama3-70b-8192';
 
   int get _timeoutMs =>
-      int.tryParse(dotenv.env['GROQ_TIMEOUT_MS'] ?? '') ?? 9000;
+      int.tryParse(_readEnv('GROQ_TIMEOUT_MS')) ?? 9000;
 
   int get _maxRetries =>
-      int.tryParse(dotenv.env['GROQ_MAX_RETRIES'] ?? '') ?? 1;
+      int.tryParse(_readEnv('GROQ_MAX_RETRIES')) ?? 1;
 
   int get _dailyCallCap =>
-      int.tryParse(dotenv.env['GROQ_DAILY_CALL_CAP'] ?? '') ?? 2500;
+      int.tryParse(_readEnv('GROQ_DAILY_CALL_CAP')) ?? 2500;
 
-  bool get isConfigured => _apiKey.isNotEmpty;
+  bool get isConfigured => _isEnabled && _apiKey.isNotEmpty;
 
   void validateConfiguration() {
-    if (!isConfigured) {
+    if (!_isEnabled) {
+      debugPrint('ℹ️ GROQ integration is disabled via GROQ_ENABLED=false.');
+      return;
+    }
+
+    if (_apiKey.isEmpty) {
       debugPrint('⚠️ GROQ_API_KEY missing. AI features will use fallback mode.');
     }
   }
