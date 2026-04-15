@@ -24,440 +24,306 @@ class AssessmentStepPreTriage extends StatefulWidget {
 }
 
 class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
-  final _durationController = TextEditingController();
-  final _freeTextController = TextEditingController();
+  static const List<String> _knownLabels = <String>[
+    'dermatitis',
+    'fleas',
+    'fungal_infection',
+    'hotspot',
+    'mange',
+    'pyoderma',
+    'ringworm',
+    'ticks',
+    'unknown_abnormality',
+  ];
+
+  static const int _minTurnsForReadiness = 4;
+  static const List<String> _internalAssistantMarkers = <String>[
+    'ask one concise follow-up question',
+    'camera-detectable skin conditions',
+    'use plain language, ask only one question',
+    'avoid diagnosis claims',
+    'default_title',
+    'default_helper',
+    'free_text_followup',
+  ];
+
+  final TextEditingController _messageController = TextEditingController();
+  final ScrollController _chatScrollController = ScrollController();
   final GroqOrchestrationService _groqService =
       GroqOrchestrationService.instance;
 
-  String _itchSeverity = 'not_sure';
-  String _progression = 'not_sure';
-  String _parasitePreventionStatus = 'not_sure';
-  String _triggerContext = 'not_sure';
-  int _chatStep = 0;
+  final List<Map<String, String>> _conversation = <Map<String, String>>[];
+  final List<String> _questionTrace = <String>[];
+
+  String? _activeQuestion;
   bool _llmSaysDone = false;
   bool _isGeneratingNextQuestion = false;
   bool _isGeneratingStructuredPrior = false;
 
-  List<String> _questionOrder = [];
-  final Map<String, String> _llmQuestionTextById = {};
-  final Map<String, String> _llmHelperTextById = {};
-  final Map<String, String> _freeTextByQuestion = {};
-  String? _freeTextQuestionId;
-  Map<String, dynamic> _llmChatTelemetry = {};
-  Map<String, dynamic> _structuredSymptomPrior = {};
+  Map<String, dynamic> _llmChatTelemetry = <String, dynamic>{};
+  Map<String, dynamic> _structuredSymptomPrior = <String, dynamic>{};
 
-  bool _answeredRedFlags = false;
-  bool _answeredDistribution = false;
-  bool _answeredAppearance = false;
-  bool _answeredItch = false;
-  bool _answeredProgression = false;
-  bool _answeredParasitePrevention = false;
-  bool _answeredTriggerContext = false;
+  String _derivedOnsetDuration = '';
+  String _derivedItchSeverity = 'not_sure';
+  String _derivedProgression = 'not_sure';
+  String _derivedParasitePreventionStatus = 'not_sure';
+  String _derivedTriggerContext = 'not_sure';
+  List<String> _derivedDistributionAreas = <String>[];
+  List<String> _derivedLesionAppearance = <String>[];
+  List<String> _derivedRedFlags = <String>[];
 
-  final Map<String, bool> _distribution = {
-    'Face': false,
-    'Ears': false,
-    'Neck': false,
-    'Back': false,
-    'Belly': false,
-    'Paws': false,
-    'Tail': false,
-    'Widespread': false,
-    'Not sure': false,
-  };
+  int get _turnCount => _conversation.where((m) => m['role'] == 'user').length;
 
-  final Map<String, bool> _lesionAppearance = {
-    'Redness / rash': false,
-    'Hair loss patches': false,
-    'Scabs / crusts': false,
-    'Moist or oozing skin': false,
-    'Circular lesions': false,
-    'Flaky / dandruff-like': false,
-    'Tiny moving dots': false,
-    'Not sure': false,
-  };
+  bool get _hasAnyRedFlag => _derivedRedFlags.isNotEmpty;
 
-  final Map<String, bool> _redFlags = {
-    'Bleeding': false,
-    'Pus or discharge': false,
-    'Foul odor': false,
-    'Low appetite': false,
-    'Unusual weakness': false,
-    'Not sure': false,
-  };
+  bool get _hasStructuredSignal {
+    return _derivedDistributionAreas.isNotEmpty ||
+        _derivedLesionAppearance.isNotEmpty ||
+        _structuredPriorCandidateLabels().isNotEmpty;
+  }
+
+  bool get _isReadyForScan {
+    final enoughTurns = _turnCount >= _minTurnsForReadiness;
+    final llmDoneOrMaxTurns = _llmSaysDone || _turnCount >= 7;
+    return enoughTurns && llmDoneOrMaxTurns && _hasStructuredSignal;
+  }
 
   @override
   void initState() {
     super.initState();
     _hydrateFromExistingData();
-    _durationController.addListener(_pushData);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _initializeChatbot());
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _bootstrapConversation();
+      _pushData();
+    });
   }
 
   @override
   void dispose() {
-    _durationController.dispose();
-    _freeTextController.dispose();
+    _messageController.dispose();
+    _chatScrollController.dispose();
     super.dispose();
   }
 
   void _hydrateFromExistingData() {
-    final data = Map<String, dynamic>.from(
+    final intake = Map<String, dynamic>.from(
       widget.assessmentData['clinicalIntake'] as Map? ?? <String, dynamic>{},
     );
 
-    _durationController.text = data['onsetDuration']?.toString() ?? '';
-    _itchSeverity = data['itchSeverity']?.toString() ?? _itchSeverity;
-    _progression = data['progression']?.toString() ?? _progression;
-    _parasitePreventionStatus = data['parasitePreventionStatus']?.toString() ??
-        ((data['parasitePrevention'] == true) ? 'yes' : 'not_sure');
-    _triggerContext = data['triggerContext']?.toString() ?? _triggerContext;
+    _derivedOnsetDuration = intake['onsetDuration']?.toString().trim() ?? '';
+    _derivedItchSeverity =
+        _normalizeSeverity(intake['itchSeverity']?.toString() ?? 'not_sure');
+    _derivedProgression =
+        _normalizeProgression(intake['progression']?.toString() ?? 'not_sure');
+    _derivedParasitePreventionStatus = _normalizeParasiteStatus(
+      intake['parasitePreventionStatus']?.toString() ??
+          ((intake['parasitePrevention'] == true) ? 'yes' : 'not_sure'),
+    );
+    _derivedTriggerContext =
+        _normalizeTrigger(intake['triggerContext']?.toString() ?? 'not_sure');
 
-    _restoreSelections(
-      source: data['distributionAreas'],
-      target: _distribution,
-    );
-    _restoreSelections(
-      source: data['lesionAppearance'],
-      target: _lesionAppearance,
-    );
-    _restoreSelections(
-      source: data['redFlags'],
-      target: _redFlags,
+    _derivedDistributionAreas = _normalizeUniqueList(
+      (intake['distributionAreas'] as List<dynamic>? ?? <dynamic>[])
+          .map((e) => e.toString()),
     );
 
-    _answeredRedFlags = (data['redFlags'] as List?)?.isNotEmpty ?? false;
-    _answeredDistribution =
-        (data['distributionAreas'] as List?)?.isNotEmpty ?? false;
-    _answeredAppearance =
-        (data['lesionAppearance'] as List?)?.isNotEmpty ?? false;
-    _answeredItch = data.containsKey('itchSeverity');
-    _answeredProgression = data.containsKey('progression');
-    _answeredParasitePrevention =
-        data.containsKey('parasitePreventionStatus') ||
-            data.containsKey('parasitePrevention');
-    _answeredTriggerContext = data.containsKey('triggerContext');
+    _derivedLesionAppearance = _normalizeUniqueList(
+      (intake['lesionAppearance'] as List<dynamic>? ?? <dynamic>[])
+          .map((e) => e.toString()),
+    );
 
-    final savedStep = (data['funnelStep'] as num?)?.toInt() ?? 0;
-    _chatStep = savedStep;
+    _derivedRedFlags = _normalizeUniqueList(
+      (intake['redFlags'] as List<dynamic>? ?? <dynamic>[])
+          .map((e) => e.toString()),
+    );
 
-    final savedOrder = (data['dynamicQuestionFlow'] as List<dynamic>? ?? [])
+    _llmSaysDone = intake['llmQuestioningDone'] == true;
+    _activeQuestion = intake['activeQuestion']?.toString().trim();
+    if (_activeQuestion != null && _activeQuestion!.isEmpty) {
+      _activeQuestion = null;
+    }
+
+    _llmChatTelemetry = Map<String, dynamic>.from(
+      intake['llmChatTelemetry'] as Map? ?? <String, dynamic>{},
+    );
+
+    _structuredSymptomPrior = Map<String, dynamic>.from(
+      intake['structuredSymptomPrior'] as Map? ?? <String, dynamic>{},
+    );
+
+    final savedFlow = (intake['dynamicQuestionFlow'] as List<dynamic>? ?? [])
         .map((e) => e.toString())
         .where((e) => e.isNotEmpty)
         .toList();
-    _questionOrder = savedOrder.isNotEmpty ? savedOrder : <String>['red_flags'];
-
-    _llmSaysDone = data['llmQuestioningDone'] == true;
-
-    final savedQuestionText = Map<String, dynamic>.from(
-      data['llmQuestionTextById'] as Map? ?? <String, dynamic>{},
-    );
-    _llmQuestionTextById
+    _questionTrace
       ..clear()
-      ..addEntries(
-        savedQuestionText.entries
-            .map((e) => MapEntry(e.key, e.value.toString())),
+      ..addAll(savedFlow);
+
+    final historyRaw = intake['conversationHistory'];
+    if (historyRaw is List) {
+      for (final item in historyRaw) {
+        if (item is! Map) continue;
+        final role = item['role']?.toString().trim().toLowerCase() ?? '';
+        final text = item['text']?.toString().trim() ?? '';
+        if ((role == 'user' || role == 'assistant') && text.isNotEmpty) {
+          _conversation.add({'role': role, 'text': text});
+        }
+      }
+    }
+
+    if (_conversation.isEmpty) {
+      final legacyFreeText = Map<String, dynamic>.from(
+        intake['chatFreeTextAnswers'] as Map? ?? <String, dynamic>{},
       );
+      final entries = legacyFreeText.entries.toList()
+        ..sort((a, b) => a.key.compareTo(b.key));
+      for (final entry in entries) {
+        final text = entry.value.toString().trim();
+        if (text.isEmpty) continue;
+        _conversation.add({'role': 'user', 'text': text});
+      }
+    }
 
-    final savedHelperText = Map<String, dynamic>.from(
-      data['llmHelperTextById'] as Map? ?? <String, dynamic>{},
-    );
-    _llmHelperTextById
-      ..clear()
-      ..addEntries(
-        savedHelperText.entries.map((e) => MapEntry(e.key, e.value.toString())),
+    if (_structuredSymptomPrior.isNotEmpty) {
+      _applyStructuredPriorToDerivedIntake(_structuredSymptomPrior);
+    }
+  }
+
+  Future<void> _bootstrapConversation() async {
+    if (_conversation.isEmpty) {
+      _appendMessage(
+        role: 'assistant',
+        text:
+            'Hi! I will ask a few quick questions to understand your pet\'s skin concern before camera scanning.',
+        persist: false,
       );
+    }
 
-    final savedFreeText = Map<String, dynamic>.from(
-      data['chatFreeTextAnswers'] as Map? ?? <String, dynamic>{},
-    );
-    _freeTextByQuestion
-      ..clear()
-      ..addEntries(
-        savedFreeText.entries.map((e) => MapEntry(e.key, e.value.toString())),
-      );
-
-    _llmChatTelemetry = Map<String, dynamic>.from(
-      data['llmChatTelemetry'] as Map? ?? <String, dynamic>{},
-    );
-    _structuredSymptomPrior = Map<String, dynamic>.from(
-      data['structuredSymptomPrior'] as Map? ?? <String, dynamic>{},
-    );
-
-    _ensureStepInRange();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) => _pushData());
-  }
-
-  void _restoreSelections({
-    required dynamic source,
-    required Map<String, bool> target,
-  }) {
-    if (source is! List) return;
-    final selected = source.map((e) => e.toString()).toSet();
-    target.updateAll((key, _) => selected.contains(key));
-  }
-
-  List<String> _selected(Map<String, bool> source) {
-    return source.entries
-        .where((entry) => entry.value)
-        .map((entry) => entry.key)
-        .toList();
-  }
-
-  bool get _hasAnyRedFlag => _redFlags.values.any((v) => v);
-
-  bool get _needsProgressionQuestion {
-    final areas = _selected(_distribution);
-    final appearance = _selected(_lesionAppearance);
-    return _hasAnyRedFlag ||
-        areas.contains('Widespread') ||
-        appearance.contains('Moist or oozing skin') ||
-        appearance.contains('Scabs / crusts');
-  }
-
-  bool get _needsParasiteQuestion {
-    final areas = _selected(_distribution);
-    final appearance = _selected(_lesionAppearance);
-    return _itchSeverity == 'severe' ||
-        _itchSeverity == 'moderate' ||
-        appearance.contains('Tiny moving dots') ||
-        areas.contains('Back') ||
-        areas.contains('Tail');
-  }
-
-  bool get _needsTriggerQuestion {
-    final areas = _selected(_distribution);
-    final appearance = _selected(_lesionAppearance);
-    return areas.contains('Not sure') || appearance.contains('Not sure');
-  }
-
-  static const List<String> _allQuestionIds = <String>[
-    'red_flags',
-    'distribution',
-    'appearance',
-    'progression',
-    'trigger',
-    'itch',
-    'parasite',
-  ];
-
-  Future<void> _initializeChatbot() async {
-    if (_questionOrder.isEmpty) {
-      setState(() {
-        _questionOrder = <String>['red_flags'];
-      });
+    if (_isReadyForScan) {
+      _activeQuestion = null;
+      _llmSaysDone = true;
       _pushData();
       return;
     }
 
-    if (_chatStep >= _questionOrder.length && !_llmSaysDone) {
-      setState(() {
-        _chatStep = (_questionOrder.length - 1).clamp(0, 999).toInt();
-      });
+    if (_activeQuestion == null && !_isGeneratingNextQuestion) {
+      await _requestNextQuestion(isInitial: true);
     }
 
-    if (_llmSaysDone || !mounted) return;
+    _scrollToBottomSoon();
+  }
 
-    if (_chatStep == _questionOrder.length - 1 &&
-        _isQuestionAnswered(_questionOrder[_chatStep])) {
-      await _requestNextQuestion();
+  List<String> _normalizeUniqueList(Iterable<String> values) {
+    final seen = <String>{};
+    final output = <String>[];
+
+    for (final raw in values) {
+      final value = raw.trim();
+      if (value.isEmpty) continue;
+      final key = value.toLowerCase();
+      if (seen.contains(key)) continue;
+      seen.add(key);
+      output.add(value);
     }
+
+    return output;
   }
 
-  bool _hasCustomAnswer(String id) {
-    final value = _freeTextByQuestion[id]?.trim() ?? '';
-    return value.isNotEmpty;
-  }
-
-  void _markQuestionAnswered(String id) {
-    switch (id) {
-      case 'red_flags':
-        _answeredRedFlags = true;
-        break;
-      case 'distribution':
-        _answeredDistribution = true;
-        break;
-      case 'appearance':
-        _answeredAppearance = true;
-        break;
-      case 'itch':
-        _answeredItch = true;
-        break;
-      case 'progression':
-        _answeredProgression = true;
-        break;
-      case 'parasite':
-        _answeredParasitePrevention = true;
-        break;
-      case 'trigger':
-        _answeredTriggerContext = true;
-        break;
+  String _normalizeSeverity(String raw) {
+    final normalized = raw.trim().toLowerCase();
+    if (normalized == 'mild' ||
+        normalized == 'moderate' ||
+        normalized == 'severe') {
+      return normalized;
     }
+    return 'not_sure';
   }
 
-  bool _isQuestionAnswered(String id) {
-    if (_hasCustomAnswer(id)) return true;
-
-    switch (id) {
-      case 'red_flags':
-        return _answeredRedFlags;
-      case 'distribution':
-        return _answeredDistribution;
-      case 'appearance':
-        return _answeredAppearance;
-      case 'itch':
-        return _answeredItch;
-      case 'progression':
-        return _answeredProgression;
-      case 'parasite':
-        return _answeredParasitePrevention;
-      case 'trigger':
-        return _answeredTriggerContext;
+  String _normalizeProgression(String raw) {
+    final normalized = raw.trim().toLowerCase();
+    switch (normalized) {
+      case 'stable':
+      case 'about_the_same':
+      case 'about the same':
+        return 'stable';
+      case 'getting_worse':
+      case 'worse':
+      case 'worsening':
+        return 'getting_worse';
+      case 'improving':
+      case 'better':
+        return 'improving';
       default:
-        return false;
+        return 'not_sure';
     }
   }
 
-  bool _isQuestionEligible(String id) {
-    if (_isQuestionAnswered(id)) return false;
-    if (_questionOrder.contains(id)) return false;
-
-    if (id == 'progression' && !_needsProgressionQuestion) return false;
-    if (id == 'parasite' && !_needsParasiteQuestion) return false;
-    if (id == 'trigger' && !_needsTriggerQuestion) return false;
-
-    return true;
+  String _normalizeParasiteStatus(String raw) {
+    final normalized = raw.trim().toLowerCase();
+    if (normalized == 'yes') return 'yes';
+    if (normalized == 'no') return 'no';
+    return 'not_sure';
   }
 
-  List<String> _eligibleQuestionIds() {
-    return _allQuestionIds.where(_isQuestionEligible).toList();
-  }
-
-  int get _coreAnsweredCount {
-    var core = 0;
-    if (_isQuestionAnswered('red_flags')) core++;
-    if (_isQuestionAnswered('distribution')) core++;
-    if (_isQuestionAnswered('appearance')) core++;
-    if (_isQuestionAnswered('itch')) core++;
-    return core;
-  }
-
-  String _pickFallbackNextQuestion(List<String> eligible) {
-    const preferredOrder = <String>[
-      'distribution',
-      'appearance',
-      'progression',
-      'trigger',
-      'itch',
-      'parasite',
-    ];
-
-    for (final id in preferredOrder) {
-      if (eligible.contains(id)) return id;
+  String _normalizeTrigger(String raw) {
+    final normalized = raw.trim().toLowerCase();
+    switch (normalized) {
+      case 'recent_grooming':
+      case 'grooming':
+      case 'shampoo_change':
+        return 'recent_grooming';
+      case 'possible_allergen':
+      case 'allergen':
+      case 'allergy':
+        return 'possible_allergen';
+      case 'recent_medication':
+      case 'medication':
+        return 'recent_medication';
+      case 'none':
+      case 'no_clear_trigger':
+        return 'none';
+      default:
+        return 'not_sure';
     }
-    return eligible.first;
   }
 
-  Map<String, dynamic> _buildQuestionCatalog() {
-    return {
-      'red_flags': {
-        'default_title': 'Safety first: any warning signs?',
-        'default_helper': 'Choose any signs you noticed.',
-        'input_type': 'multi_select',
-        'allow_free_text': true,
-        'options': _redFlags.keys.toList(),
-      },
-      'distribution': {
-        'default_title': 'Where do you see the skin problem?',
-        'default_helper': 'Select all areas that apply.',
-        'input_type': 'multi_select',
-        'allow_free_text': true,
-        'options': _distribution.keys.toList(),
-      },
-      'appearance': {
-        'default_title': 'What does it look like?',
-        'default_helper': 'Pick the closest skin appearance.',
-        'input_type': 'multi_select',
-        'allow_free_text': true,
-        'options': _lesionAppearance.keys.toList(),
-      },
-      'progression': {
-        'default_title': 'How is it changing over time?',
-        'default_helper': 'Pick the closest trend.',
-        'input_type': 'single_select',
-        'allow_free_text': true,
-        'options': [
-          'Not sure',
-          'About the same',
-          'Getting worse quickly',
-          'Improving'
-        ],
-      },
-      'trigger': {
-        'default_title': 'Any likely trigger before symptoms started?',
-        'default_helper': 'This helps narrow likely causes.',
-        'input_type': 'single_select',
-        'allow_free_text': true,
-        'options': [
-          'Not sure',
-          'Recent grooming / shampoo change',
-          'Possible allergen exposure',
-          'Recent medication started',
-          'No clear trigger',
-        ],
-      },
-      'itch': {
-        'default_title': 'How itchy does your pet seem?',
-        'default_helper': 'Choose the closest level.',
-        'input_type': 'single_select',
-        'allow_free_text': true,
-        'options': ['Not sure', 'Mild', 'Moderate', 'Severe'],
-      },
-      'parasite': {
-        'default_title': 'Is your pet currently on parasite prevention?',
-        'default_helper': 'This can help with scan guidance.',
-        'input_type': 'single_select',
-        'allow_free_text': true,
-        'options': ['Not sure', 'Yes, regularly', 'No / overdue'],
-      },
-    };
-  }
-
-  Map<String, dynamic> _buildCurrentIntakeSnapshot({
-    List<String>? visionCandidates,
+  void _appendMessage({
+    required String role,
+    required String text,
+    bool persist = true,
+    bool notify = true,
   }) {
-    final candidates = visionCandidates ?? _computeVisionCandidates();
-    return {
-      'onsetDuration': _durationController.text.trim(),
-      'progression': _progression,
-      'itchSeverity': _itchSeverity,
-      'appetiteChange': 'not_sure',
-      'distributionAreas': _selected(_distribution),
-      'lesionAppearance': _selected(_lesionAppearance),
-      'recentGrooming': _triggerContext == 'recent_grooming',
-      'parasitePrevention': _parasitePreventionStatus == 'yes',
-      'parasitePreventionStatus': _parasitePreventionStatus,
-      'allergenExposure': _triggerContext == 'possible_allergen',
-      'recentMedication':
-          _triggerContext == 'recent_medication' ? 'reported_recently' : '',
-      'redFlags': _selected(_redFlags),
-      'hasRedFlags': _hasAnyRedFlag,
-      'triggerContext': _triggerContext,
-      'funnelStep': _chatStep,
-      'preTriageAnsweredCount': _answeredCount,
-      'preTriageRequiredCount': _requiredQuestionCount,
-      'preTriageReadyForScan': _isReadyForScan,
-      'dynamicQuestionFlow': _questionOrder,
-      'llmQuestionTextById': _llmQuestionTextById,
-      'llmHelperTextById': _llmHelperTextById,
-      'chatFreeTextAnswers': _freeTextByQuestion,
-      'llmQuestioningDone': _llmSaysDone,
-      'llmChatTelemetry': _llmChatTelemetry,
-      'structuredSymptomPrior': _structuredSymptomPrior,
-      'visionCandidateLabels': candidates,
-      'funnelSummary': _buildFunnelSummary(candidates),
-    };
+    var cleaned = text.trim();
+    if (role == 'assistant') {
+      cleaned = _sanitizeAssistantChatText(cleaned);
+    }
+    if (cleaned.isEmpty) return;
+
+    if (notify && mounted) {
+      setState(() {
+        _conversation.add({'role': role, 'text': cleaned});
+      });
+    } else {
+      _conversation.add({'role': role, 'text': cleaned});
+    }
+
+    if (persist) {
+      _pushData();
+    }
+
+    _scrollToBottomSoon();
+  }
+
+  void _scrollToBottomSoon() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_chatScrollController.hasClients) return;
+      _chatScrollController.animateTo(
+        _chatScrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+      );
+    });
   }
 
   Map<String, dynamic> _buildPetProfileSnapshot() {
@@ -474,18 +340,405 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
     };
   }
 
+  List<String> _structuredPriorCandidateLabels() {
+    final raw = _structuredSymptomPrior['triage_priors'];
+    if (raw is! List) return <String>[];
+
+    final scored = <MapEntry<String, double>>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final label = item['condition']?.toString().trim().toLowerCase() ?? '';
+      if (label.isEmpty) continue;
+      final score =
+          item['score'] is num ? (item['score'] as num).toDouble() : 0.0;
+      scored.add(MapEntry(label, score));
+    }
+
+    scored.sort((a, b) => b.value.compareTo(a.value));
+
+    final output = <String>[];
+    final seen = <String>{};
+    for (final entry in scored) {
+      final normalized = entry.key.replaceAll('-', '_').replaceAll(' ', '_');
+      if (!_knownLabels.contains(normalized) || seen.contains(normalized)) {
+        continue;
+      }
+      seen.add(normalized);
+      output.add(normalized);
+      if (output.length >= 5) break;
+    }
+
+    return output;
+  }
+
+  String _fallbackQuestionByTurn() {
+    if (_turnCount == 0) {
+      return 'What skin changes did you notice first?';
+    }
+    if (_turnCount == 1) {
+      return 'Where on your pet\'s body do you see it most?';
+    }
+    if (_turnCount == 2) {
+      return 'How has it changed over time, and how itchy does your pet seem?';
+    }
+    if (_turnCount == 3) {
+      return 'Any warning signs like discharge, bleeding, odor, or low energy?';
+    }
+    return 'Anything else important before we proceed to camera scan?';
+  }
+
+  bool _looksLikeInternalAssistantText(String text) {
+    final normalized = text.trim().toLowerCase();
+    if (normalized.isEmpty) return false;
+
+    for (final marker in _internalAssistantMarkers) {
+      if (normalized.contains(marker)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  String _buildVisibleAssistantPrompt({
+    required String rawQuestion,
+    required String rawHelper,
+  }) {
+    var question = rawQuestion.trim();
+    final helper = rawHelper.trim();
+
+    if (question.isEmpty || _looksLikeInternalAssistantText(question)) {
+      question = _fallbackQuestionByTurn();
+    }
+
+    if (helper.isNotEmpty && !_looksLikeInternalAssistantText(helper)) {
+      return '$question\n\n$helper';
+    }
+
+    return question;
+  }
+
+  String _sanitizeAssistantChatText(String text) {
+    final cleaned = text.trim();
+    if (cleaned.isEmpty || _looksLikeInternalAssistantText(cleaned)) {
+      return '';
+    }
+    return cleaned;
+  }
+
+  Map<String, dynamic> _buildQuestionCatalog() {
+    return {
+      'free_text_followup': {
+        'default_title':
+            'Ask one concise follow-up question to narrow camera-detectable skin conditions.',
+        'default_helper':
+            'Use plain language, ask only one question, and avoid diagnosis claims.',
+        'input_type': 'free_text',
+        'allow_free_text': true,
+        'options': <String>[],
+      },
+    };
+  }
+
+  Future<void> _requestNextQuestion({bool isInitial = false}) async {
+    if (_isGeneratingNextQuestion || _llmSaysDone) return;
+
+    setState(() => _isGeneratingNextQuestion = true);
+
+    try {
+      final petType =
+          widget.assessmentData['selectedPetType']?.toString() ?? 'Dog';
+      final intakeSnapshot = _buildCurrentIntakeSnapshot();
+
+      final result = await _groqService.generateGuidedChatQuestion(
+        petType: petType,
+        intakeData: intakeSnapshot,
+        askedQuestionIds: _questionTrace,
+        eligibleQuestionIds: const <String>['free_text_followup'],
+        questionCatalog: _buildQuestionCatalog(),
+      );
+
+      if (!mounted) return;
+
+      final content = Map<String, dynamic>.from(result.content);
+      final rawQuestion = content['question_text']?.toString().trim() ?? '';
+      final rawHelper = content['helper_text']?.toString().trim() ?? '';
+
+      final shouldFinish = !isInitial &&
+          content['should_finish'] == true &&
+          _turnCount >= _minTurnsForReadiness &&
+          _hasStructuredSignal;
+
+      final requestCount =
+          (_llmChatTelemetry['requestCount'] as num?)?.toInt() ?? 0;
+
+      setState(() {
+        _llmChatTelemetry = {
+          ..._llmChatTelemetry,
+          'requestCount': requestCount + 1,
+          'lastModelUsed': result.modelUsed,
+          'lastFallbackLevel': result.fallbackLevel.name,
+          'lastErrorType': result.errorType.name,
+          'lastLatencyMs': result.latencyMs,
+          'lastCacheHit': result.cacheHit,
+          'lastTraceId': result.traceId,
+          'isConfigured': _groqService.isConfigured,
+        };
+      });
+
+      if (shouldFinish) {
+        setState(() {
+          _llmSaysDone = true;
+          _activeQuestion = null;
+        });
+        _appendMessage(
+          role: 'assistant',
+          text:
+              'Thanks, I have enough details now. You can proceed to camera scan.',
+          persist: false,
+        );
+        _pushData();
+        return;
+      }
+
+      final prompt = _buildVisibleAssistantPrompt(
+        rawQuestion: rawQuestion,
+        rawHelper: rawHelper,
+      );
+
+      setState(() {
+        _activeQuestion = prompt;
+        _questionTrace.add(
+          content['next_question_id']?.toString() ??
+              'q_${DateTime.now().millisecondsSinceEpoch}',
+        );
+      });
+
+      _appendMessage(
+        role: 'assistant',
+        text: prompt,
+        persist: false,
+      );
+      _pushData();
+    } catch (_) {
+      if (!mounted) return;
+
+      final requestCount =
+          (_llmChatTelemetry['requestCount'] as num?)?.toInt() ?? 0;
+      setState(() {
+        _llmChatTelemetry = {
+          ..._llmChatTelemetry,
+          'requestCount': requestCount + 1,
+          'lastFallbackLevel': 'exception_fallback',
+          'lastErrorType': 'exception',
+          'isConfigured': _groqService.isConfigured,
+        };
+      });
+
+      final prompt = _fallbackQuestionByTurn();
+      setState(() {
+        _activeQuestion = prompt;
+        _questionTrace
+            .add('exception_fallback_${DateTime.now().millisecondsSinceEpoch}');
+      });
+
+      _appendMessage(
+        role: 'assistant',
+        text: prompt,
+        persist: false,
+      );
+      _pushData();
+    } finally {
+      if (mounted) {
+        setState(() => _isGeneratingNextQuestion = false);
+      }
+    }
+  }
+
+  List<String> _mapSymptomsToLesionAppearance(List<String> symptoms) {
+    final normalized = symptoms.map((s) => s.toLowerCase()).toList();
+    final output = <String>[];
+
+    void add(String label) {
+      if (!output.contains(label)) {
+        output.add(label);
+      }
+    }
+
+    for (final symptom in normalized) {
+      if (symptom.contains('red') || symptom.contains('rash')) {
+        add('Redness / rash');
+      }
+      if (symptom.contains('hair_loss') ||
+          symptom.contains('hair loss') ||
+          symptom.contains('alopecia')) {
+        add('Hair loss patches');
+      }
+      if (symptom.contains('crust') || symptom.contains('scab')) {
+        add('Scabs / crusts');
+      }
+      if (symptom.contains('discharge') ||
+          symptom.contains('ooz') ||
+          symptom.contains('moist')) {
+        add('Moist or oozing skin');
+      }
+      if (symptom.contains('ring') || symptom.contains('circular')) {
+        add('Circular lesions');
+      }
+      if (symptom.contains('flaky') || symptom.contains('dandruff')) {
+        add('Flaky / dandruff-like');
+      }
+      if (symptom.contains('flea') ||
+          symptom.contains('tick') ||
+          symptom.contains('mite') ||
+          symptom.contains('parasite')) {
+        add('Tiny moving dots');
+      }
+    }
+
+    return output;
+  }
+
+  String _mapBodyLocation(String raw) {
+    final normalized = raw.trim().toLowerCase().replaceAll('_', ' ');
+
+    if (normalized.contains('face') || normalized.contains('muzzle')) {
+      return 'Face';
+    }
+    if (normalized.contains('ear')) {
+      return 'Ears';
+    }
+    if (normalized.contains('neck')) {
+      return 'Neck';
+    }
+    if (normalized.contains('back') || normalized.contains('spine')) {
+      return 'Back';
+    }
+    if (normalized.contains('belly') || normalized.contains('abdomen')) {
+      return 'Belly';
+    }
+    if (normalized.contains('paw') || normalized.contains('foot')) {
+      return 'Paws';
+    }
+    if (normalized.contains('tail')) {
+      return 'Tail';
+    }
+    if (normalized.contains('widespread') ||
+        normalized.contains('general') ||
+        normalized.contains('multiple')) {
+      return 'Widespread';
+    }
+
+    return '';
+  }
+
+  void _inferDerivedSignalsFromConversation() {
+    final userText = _conversation
+        .where((m) => m['role'] == 'user')
+        .map((m) => m['text'] ?? '')
+        .join(' ')
+        .toLowerCase();
+
+    if (_derivedProgression == 'not_sure') {
+      if (userText.contains('worse') ||
+          userText.contains('spreading') ||
+          userText.contains('rapid')) {
+        _derivedProgression = 'getting_worse';
+      } else if (userText.contains('better') || userText.contains('improv')) {
+        _derivedProgression = 'improving';
+      } else if (userText.contains('same') || userText.contains('unchanged')) {
+        _derivedProgression = 'stable';
+      }
+    }
+
+    if (_derivedParasitePreventionStatus == 'not_sure') {
+      if (userText.contains('not on prevention') ||
+          userText.contains('overdue') ||
+          userText.contains('no prevention')) {
+        _derivedParasitePreventionStatus = 'no';
+      } else if (userText.contains('on prevention') ||
+          userText.contains('monthly prevention')) {
+        _derivedParasitePreventionStatus = 'yes';
+      }
+    }
+
+    if (_derivedTriggerContext == 'not_sure') {
+      if (userText.contains('shampoo') || userText.contains('groom')) {
+        _derivedTriggerContext = 'recent_grooming';
+      } else if (userText.contains('allergy') ||
+          userText.contains('allergen') ||
+          userText.contains('dust') ||
+          userText.contains('pollen')) {
+        _derivedTriggerContext = 'possible_allergen';
+      } else if (userText.contains('medication') ||
+          userText.contains('medicine')) {
+        _derivedTriggerContext = 'recent_medication';
+      }
+    }
+  }
+
+  void _applyStructuredPriorToDerivedIntake(Map<String, dynamic> prior) {
+    final bodyLocations =
+        (prior['body_locations'] as List<dynamic>? ?? <dynamic>[])
+            .map((e) => _mapBodyLocation(e.toString()))
+            .where((e) => e.isNotEmpty)
+            .toList();
+
+    final symptoms = (prior['symptoms'] as List<dynamic>? ?? <dynamic>[])
+        .map((e) => e.toString())
+        .toList();
+
+    final redFlags = (prior['red_flags'] as List<dynamic>? ?? <dynamic>[])
+        .map((e) => e.toString().trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+
+    final exposure =
+        (prior['exposure_factors'] as List<dynamic>? ?? <dynamic>[])
+            .map((e) => e.toString().toLowerCase())
+            .toList();
+
+    final duration = prior['duration']?.toString().trim() ?? '';
+    final severity =
+        _normalizeSeverity(prior['severity']?.toString() ?? 'not_sure');
+
+    setState(() {
+      if (duration.isNotEmpty) {
+        _derivedOnsetDuration = duration;
+      }
+
+      _derivedItchSeverity = severity;
+      _derivedDistributionAreas = _normalizeUniqueList(bodyLocations);
+      _derivedLesionAppearance =
+          _normalizeUniqueList(_mapSymptomsToLesionAppearance(symptoms));
+      _derivedRedFlags = _normalizeUniqueList(redFlags);
+
+      if (exposure.any((e) => e.contains('allergen'))) {
+        _derivedTriggerContext = 'possible_allergen';
+      } else if (exposure
+          .any((e) => e.contains('shampoo') || e.contains('groom'))) {
+        _derivedTriggerContext = 'recent_grooming';
+      } else if (exposure.any((e) => e.contains('medication'))) {
+        _derivedTriggerContext = 'recent_medication';
+      }
+
+      _inferDerivedSignalsFromConversation();
+    });
+  }
+
   Future<void> _refreshStructuredSymptomPrior() async {
     if (_isGeneratingStructuredPrior) return;
-    if (_answeredCount < 2) return;
+    if (_turnCount == 0) return;
 
     setState(() => _isGeneratingStructuredPrior = true);
 
     try {
       final intakeSnapshot = _buildCurrentIntakeSnapshot();
       final petProfile = _buildPetProfileSnapshot();
-      final candidates = (intakeSnapshot['visionCandidateLabels'] as List)
-          .map((e) => e.toString())
-          .toList();
+      final candidates =
+          (intakeSnapshot['visionCandidateLabels'] as List<dynamic>)
+              .map((e) => e.toString())
+              .toList();
 
       final result = await _groqService.generateStructuredSymptomPrior(
         petProfile: petProfile,
@@ -500,17 +753,24 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
         _structuredSymptomPrior = content;
       });
 
+      _applyStructuredPriorToDerivedIntake(content);
+
       final priorsRaw = content['triage_priors'];
       final topConditions = <Map<String, dynamic>>[];
+
       if (priorsRaw is List) {
         for (final item in priorsRaw) {
           if (item is! Map) continue;
-          final condition = item['condition']?.toString() ?? '';
-          if (condition.trim().isEmpty) continue;
-          final score =
-              (item['score'] is num) ? (item['score'] as num).toDouble() : 0.0;
+          final condition = item['condition']?.toString().trim() ?? '';
+          if (condition.isEmpty) continue;
+          final score = item['score'] is num
+              ? (item['score'] as num).toDouble().clamp(0.0, 1.0)
+              : 0.0;
           topConditions.add({
-            'condition': condition,
+            'condition': condition
+                .toLowerCase()
+                .replaceAll('-', '_')
+                .replaceAll(' ', '_'),
             'score': score,
           });
         }
@@ -537,11 +797,12 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
         'traceId': result.traceId,
         'source': 'pretriage_structured_prior',
         'cameraConditionCount': candidates.length,
-        'answeredCountAtGeneration': _answeredCount,
+        'answeredCountAtGeneration': _turnCount,
       });
+
       _pushData();
     } catch (_) {
-      // Keep the chat responsive when prior refresh fails.
+      // Keep chat responsive even if structured extraction fails.
     } finally {
       if (mounted) {
         setState(() => _isGeneratingStructuredPrior = false);
@@ -549,110 +810,79 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
     }
   }
 
-  void _ensureStepInRange() {
-    final maxStep = _questionOrder.length.clamp(0, 999);
-    if (_chatStep > maxStep) {
-      _chatStep = maxStep;
-    }
-    if (_chatStep < 0) {
-      _chatStep = 0;
-    }
-  }
-
-  int get _answeredCount {
-    return _questionOrder.where(_isQuestionAnswered).length;
-  }
-
-  int get _requiredQuestionCount {
-    if (_llmSaysDone) return _answeredCount;
-    return _questionOrder.length;
-  }
-
-  bool get _isReadyForScan => _llmSaysDone && _coreAnsweredCount >= 4;
-
   List<String> _computeVisionCandidates() {
-    const knownLabels = <String>{
-      'dermatitis',
-      'fleas',
-      'fungal_infection',
-      'hotspot',
-      'mange',
-      'pyoderma',
-      'ringworm',
-      'ticks',
-      'unknown_abnormality',
-    };
+    final fromPrior = _structuredPriorCandidateLabels();
+    if (fromPrior.isNotEmpty) {
+      return fromPrior;
+    }
 
     final scores = <String, int>{
-      for (final label in knownLabels) label: 1,
+      for (final label in _knownLabels) label: 1,
     };
-
-    final distribution = _selected(_distribution);
-    final appearance = _selected(_lesionAppearance);
 
     void boost(List<String> labels, [int by = 2]) {
       for (final label in labels) {
-        if (scores.containsKey(label)) {
-          scores[label] = (scores[label] ?? 0) + by;
-        }
+        if (!scores.containsKey(label)) continue;
+        scores[label] = (scores[label] ?? 0) + by;
       }
     }
 
-    if (_itchSeverity == 'severe') {
-      boost(['fleas', 'ticks', 'mange', 'dermatitis', 'hotspot']);
-    } else if (_itchSeverity == 'moderate') {
-      boost(['fleas', 'mange', 'dermatitis', 'fungal_infection'], 1);
+    if (_derivedItchSeverity == 'severe') {
+      boost(<String>['fleas', 'ticks', 'mange', 'dermatitis', 'hotspot']);
+    } else if (_derivedItchSeverity == 'moderate') {
+      boost(<String>['fleas', 'mange', 'dermatitis', 'fungal_infection'], 1);
     }
 
-    if (distribution.contains('Ears')) {
-      boost(['ticks', 'mange', 'ringworm'], 1);
+    if (_derivedDistributionAreas.contains('Ears')) {
+      boost(<String>['ticks', 'mange', 'ringworm'], 1);
     }
-    if (distribution.contains('Paws')) {
-      boost(['dermatitis', 'fungal_infection', 'pyoderma'], 1);
+    if (_derivedDistributionAreas.contains('Paws')) {
+      boost(<String>['dermatitis', 'fungal_infection', 'pyoderma'], 1);
     }
-    if (distribution.contains('Back') || distribution.contains('Tail')) {
-      boost(['fleas', 'ticks', 'hotspot'], 1);
+    if (_derivedDistributionAreas.contains('Back') ||
+        _derivedDistributionAreas.contains('Tail')) {
+      boost(<String>['fleas', 'ticks', 'hotspot'], 1);
     }
-    if (distribution.contains('Widespread')) {
-      boost(['mange', 'dermatitis', 'fungal_infection'], 1);
-    }
-
-    if (appearance.contains('Circular lesions')) {
-      boost(['ringworm', 'fungal_infection', 'mange']);
-    }
-    if (appearance.contains('Moist or oozing skin')) {
-      boost(['hotspot', 'pyoderma', 'dermatitis']);
-    }
-    if (appearance.contains('Scabs / crusts')) {
-      boost(['mange', 'pyoderma', 'dermatitis']);
-    }
-    if (appearance.contains('Flaky / dandruff-like')) {
-      boost(['dermatitis', 'fungal_infection', 'mange']);
-    }
-    if (appearance.contains('Tiny moving dots')) {
-      boost(['fleas', 'ticks', 'mange']);
-    }
-    if (appearance.contains('Redness / rash')) {
-      boost(['dermatitis', 'hotspot', 'pyoderma'], 1);
-    }
-    if (appearance.contains('Hair loss patches')) {
-      boost(['ringworm', 'mange', 'fungal_infection']);
+    if (_derivedDistributionAreas.contains('Widespread')) {
+      boost(<String>['mange', 'dermatitis', 'fungal_infection'], 1);
     }
 
-    if (_progression == 'getting_worse') {
-      boost(['hotspot', 'pyoderma', 'mange'], 1);
+    if (_derivedLesionAppearance.contains('Circular lesions')) {
+      boost(<String>['ringworm', 'fungal_infection', 'mange']);
+    }
+    if (_derivedLesionAppearance.contains('Moist or oozing skin')) {
+      boost(<String>['hotspot', 'pyoderma', 'dermatitis']);
+    }
+    if (_derivedLesionAppearance.contains('Scabs / crusts')) {
+      boost(<String>['mange', 'pyoderma', 'dermatitis']);
+    }
+    if (_derivedLesionAppearance.contains('Flaky / dandruff-like')) {
+      boost(<String>['dermatitis', 'fungal_infection', 'mange']);
+    }
+    if (_derivedLesionAppearance.contains('Tiny moving dots')) {
+      boost(<String>['fleas', 'ticks', 'mange']);
+    }
+    if (_derivedLesionAppearance.contains('Redness / rash')) {
+      boost(<String>['dermatitis', 'hotspot', 'pyoderma'], 1);
+    }
+    if (_derivedLesionAppearance.contains('Hair loss patches')) {
+      boost(<String>['ringworm', 'mange', 'fungal_infection']);
     }
 
-    if (_parasitePreventionStatus == 'no') {
-      boost(['fleas', 'ticks'], 2);
+    if (_derivedProgression == 'getting_worse') {
+      boost(<String>['hotspot', 'pyoderma', 'mange'], 1);
     }
 
-    if (_triggerContext == 'recent_grooming') {
-      boost(['dermatitis', 'hotspot'], 1);
-    } else if (_triggerContext == 'possible_allergen') {
-      boost(['dermatitis'], 2);
-    } else if (_triggerContext == 'recent_medication') {
-      boost(['dermatitis', 'unknown_abnormality'], 1);
+    if (_derivedParasitePreventionStatus == 'no') {
+      boost(<String>['fleas', 'ticks'], 2);
+    }
+
+    if (_derivedTriggerContext == 'recent_grooming') {
+      boost(<String>['dermatitis', 'hotspot'], 1);
+    } else if (_derivedTriggerContext == 'possible_allergen') {
+      boost(<String>['dermatitis'], 2);
+    } else if (_derivedTriggerContext == 'recent_medication') {
+      boost(<String>['dermatitis', 'unknown_abnormality'], 1);
     }
 
     final ranked = scores.entries.toList()
@@ -668,7 +898,8 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
         .toList();
 
     if (shortlisted.isEmpty) {
-      return knownLabels.toList()..sort();
+      final fallback = List<String>.from(_knownLabels)..sort();
+      return fallback;
     }
 
     return shortlisted;
@@ -676,891 +907,387 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
 
   String _buildFunnelSummary(List<String> candidates) {
     if (!_isReadyForScan) {
-      return 'Please answer the chat questions so camera scan results can be more accurate.';
+      return 'Keep chatting for a few more turns so we can improve scan guidance.';
     }
 
     if (candidates.isEmpty) {
-      return 'You are all set to scan. We will check all supported skin conditions.';
+      return 'You are all set. We will scan across all supported conditions.';
     }
 
-    return 'You are all set to scan. We will focus on the most likely visible skin conditions.';
+    return 'You are all set. Camera scan will prioritize likely visible conditions from this chat.';
   }
 
-  void _setChipSelection({
-    required Map<String, bool> source,
-    required String key,
-    required bool selected,
-    required VoidCallback markAnswered,
+  Map<String, dynamic> _buildCurrentIntakeSnapshot({
+    List<String>? visionCandidates,
   }) {
-    source[key] = selected;
+    final candidates = visionCandidates ?? _computeVisionCandidates();
 
-    if (key == 'Not sure' && selected) {
-      source.updateAll((otherKey, _) => otherKey == 'Not sure');
-    } else if (key != 'Not sure' && selected) {
-      source['Not sure'] = false;
+    final freeTextByTurn = <String, String>{};
+    var turnIndex = 0;
+    for (final message in _conversation) {
+      if (message['role'] != 'user') continue;
+      freeTextByTurn['turn_$turnIndex'] = message['text'] ?? '';
+      turnIndex += 1;
     }
 
-    markAnswered();
+    return {
+      'onsetDuration': _derivedOnsetDuration,
+      'progression': _derivedProgression,
+      'itchSeverity': _derivedItchSeverity,
+      'appetiteChange': 'not_sure',
+      'distributionAreas': _derivedDistributionAreas,
+      'lesionAppearance': _derivedLesionAppearance,
+      'recentGrooming': _derivedTriggerContext == 'recent_grooming',
+      'parasitePrevention': _derivedParasitePreventionStatus == 'yes',
+      'parasitePreventionStatus': _derivedParasitePreventionStatus,
+      'allergenExposure': _derivedTriggerContext == 'possible_allergen',
+      'recentMedication': _derivedTriggerContext == 'recent_medication'
+          ? 'reported_recently'
+          : '',
+      'redFlags': _derivedRedFlags,
+      'hasRedFlags': _hasAnyRedFlag,
+      'triggerContext': _derivedTriggerContext,
+      'funnelStep': _turnCount,
+      'preTriageAnsweredCount': _turnCount,
+      'preTriageRequiredCount': _minTurnsForReadiness,
+      'preTriageReadyForScan': _isReadyForScan,
+      'dynamicQuestionFlow': _questionTrace,
+      'llmQuestionTextById': <String, String>{},
+      'llmHelperTextById': <String, String>{},
+      'chatFreeTextAnswers': freeTextByTurn,
+      'llmQuestioningDone': _llmSaysDone,
+      'llmChatTelemetry': _llmChatTelemetry,
+      'structuredSymptomPrior': _structuredSymptomPrior,
+      'visionCandidateLabels': candidates,
+      'funnelSummary': _buildFunnelSummary(candidates),
+      'conversationHistory': _conversation,
+      'activeQuestion': _activeQuestion,
+      'chatMode': 'llm_open_text',
+    };
   }
 
-  void _syncFreeTextController(String questionId) {
-    if (_freeTextQuestionId == questionId) return;
-
-    _freeTextQuestionId = questionId;
-    final existing = _freeTextByQuestion[questionId] ?? '';
-    _freeTextController.text = existing;
-    _freeTextController.selection = TextSelection.fromPosition(
-      TextPosition(offset: _freeTextController.text.length),
-    );
+  void _pushData() {
+    widget.onDataUpdate('clinicalIntake', _buildCurrentIntakeSnapshot());
   }
 
-  Widget _freeTextComposer(String questionId) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: kSpacingSmall),
-        Text(
-          'Can\'t find the right option? Type your answer below.',
-          style: kMobileTextStyleSubtitle.copyWith(
-            color: AppColors.textSecondary,
-          ),
-        ),
-        const SizedBox(height: 6),
-        TextField(
-          controller: _freeTextController,
-          maxLines: 3,
-          minLines: 1,
-          decoration: const InputDecoration(
-            hintText: 'Type your answer in your own words',
-          ),
-          onChanged: (value) {
-            final normalized = value.trim();
-            if (normalized.isEmpty) {
-              _freeTextByQuestion.remove(questionId);
-            } else {
-              _freeTextByQuestion[questionId] = normalized;
-            }
-            _pushData();
-          },
-        ),
-        const SizedBox(height: 6),
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton.icon(
-            onPressed: () {
-              final normalized = _freeTextController.text.trim();
-              if (normalized.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Please type your answer first.'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-                return;
-              }
+  Future<void> _sendCurrentMessage() async {
+    if (_isGeneratingNextQuestion) return;
 
-              setState(() {
-                _freeTextByQuestion[questionId] = normalized;
-                _markQuestionAnswered(questionId);
-              });
-              _pushData();
-            },
-            icon: const Icon(Icons.chat_bubble_outline),
-            label: const Text('Use typed answer'),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _withFreeTextAnswer(String questionId, Widget input) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        input,
-        _freeTextComposer(questionId),
-      ],
-    );
-  }
-
-  bool _canContinueFromStep(int step) {
-    final flow = _questionOrder;
-    if (step < 0 || step >= flow.length) return true;
-    return _isQuestionAnswered(flow[step]);
-  }
-
-  Future<void> _advanceStep() async {
-    if (!_canContinueFromStep(_chatStep)) {
+    final text = _messageController.text.trim();
+    if (text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please answer the current question to continue.'),
+          content: Text('Please type your answer first.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
       return;
     }
 
-    if (_chatStep < _questionOrder.length - 1) {
-      await _refreshStructuredSymptomPrior();
+    _messageController.clear();
+
+    setState(() {
+      _activeQuestion = null;
+      _llmSaysDone = false;
+    });
+
+    _appendMessage(role: 'user', text: text, persist: false);
+
+    _pushData();
+
+    await _refreshStructuredSymptomPrior();
+
+    if (_isReadyForScan) {
       setState(() {
-        _chatStep = (_chatStep + 1).clamp(0, _questionOrder.length).toInt();
+        _llmSaysDone = true;
       });
+      _appendMessage(
+        role: 'assistant',
+        text:
+            'Great, I have enough information now. You can proceed to camera scan whenever ready.',
+        persist: false,
+      );
       _pushData();
       return;
     }
 
-    await _refreshStructuredSymptomPrior();
     await _requestNextQuestion();
   }
 
-  Future<void> _requestNextQuestion() async {
-    if (_isGeneratingNextQuestion || _llmSaysDone) return;
+  void _undoLastTurn() {
+    if (_conversation.isEmpty || _isGeneratingNextQuestion) return;
 
-    final eligible = _eligibleQuestionIds();
-    if (eligible.isEmpty) {
-      setState(() {
-        _llmSaysDone = true;
-        _chatStep = _questionOrder.length;
-      });
-      _pushData();
-      return;
-    }
-
-    setState(() => _isGeneratingNextQuestion = true);
-
-    try {
-      final intake = _buildCurrentIntakeSnapshot();
-      final petType =
-          widget.assessmentData['selectedPetType']?.toString() ?? 'Dog';
-
-      final result = await _groqService.generateGuidedChatQuestion(
-        petType: petType,
-        intakeData: intake,
-        askedQuestionIds: _questionOrder,
-        eligibleQuestionIds: eligible,
-        questionCatalog: _buildQuestionCatalog(),
-      );
-
-      if (!mounted) return;
-
-      final content = result.content;
-      final shouldFinish = content['should_finish'] == true;
-
-      setState(() {
-        final previousRequests =
-            (_llmChatTelemetry['requestCount'] as num?)?.toInt() ?? 0;
-        _llmChatTelemetry = {
-          ..._llmChatTelemetry,
-          'requestCount': previousRequests + 1,
-          'lastModelUsed': result.modelUsed,
-          'lastFallbackLevel': result.fallbackLevel.name,
-          'lastErrorType': result.errorType.name,
-          'lastLatencyMs': result.latencyMs,
-          'lastCacheHit': result.cacheHit,
-          'lastTraceId': result.traceId,
-          'isConfigured': _groqService.isConfigured,
-        };
-      });
-
-      if (shouldFinish && _coreAnsweredCount >= 4) {
-        setState(() {
-          _llmSaysDone = true;
-          _chatStep = _questionOrder.length;
-        });
-        _pushData();
-        return;
-      }
-
-      final suggestedId = content['next_question_id']?.toString() ?? '';
-      final nextId = eligible.contains(suggestedId)
-          ? suggestedId
-          : _pickFallbackNextQuestion(eligible);
-
-      final llmQuestionText = content['question_text']?.toString().trim() ?? '';
-      final llmHelperText = content['helper_text']?.toString().trim() ?? '';
-
-      setState(() {
-        _questionOrder.add(nextId);
-        if (llmQuestionText.isNotEmpty) {
-          _llmQuestionTextById[nextId] = llmQuestionText;
-        }
-        if (llmHelperText.isNotEmpty) {
-          _llmHelperTextById[nextId] = llmHelperText;
-        }
-        _chatStep = (_questionOrder.length - 1).clamp(0, 999).toInt();
-      });
-      _pushData();
-    } catch (_) {
-      if (!mounted) return;
-      final fallbackId = _pickFallbackNextQuestion(eligible);
-      setState(() {
-        final previousRequests =
-            (_llmChatTelemetry['requestCount'] as num?)?.toInt() ?? 0;
-        _llmChatTelemetry = {
-          ..._llmChatTelemetry,
-          'requestCount': previousRequests + 1,
-          'lastFallbackLevel': 'exception_fallback',
-          'lastErrorType': 'exception',
-          'isConfigured': _groqService.isConfigured,
-        };
-        _questionOrder.add(fallbackId);
-        _chatStep = (_questionOrder.length - 1).clamp(0, 999).toInt();
-      });
-      _pushData();
-    } finally {
-      if (mounted) {
-        setState(() => _isGeneratingNextQuestion = false);
-      }
-    }
-  }
-
-  void _goToPreviousQuestion() {
     setState(() {
-      _chatStep = (_chatStep - 1).clamp(0, _questionOrder.length).toInt();
+      // Remove trailing assistant prompt if present.
+      if (_conversation.isNotEmpty &&
+          _conversation.last['role'] == 'assistant') {
+        _conversation.removeLast();
+      }
+      // Remove last user message.
+      for (var i = _conversation.length - 1; i >= 0; i--) {
+        if (_conversation[i]['role'] == 'user') {
+          _conversation.removeAt(i);
+          break;
+        }
+      }
+
+      if (_questionTrace.isNotEmpty) {
+        _questionTrace.removeLast();
+      }
+
+      _activeQuestion = null;
       _llmSaysDone = false;
     });
+
     _pushData();
+
+    // Ask another follow-up if needed after undo.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_isReadyForScan && !_isGeneratingNextQuestion) {
+        _requestNextQuestion();
+      }
+    });
   }
 
-  void _pushData() {
-    _ensureStepInRange();
-    widget.onDataUpdate('clinicalIntake', _buildCurrentIntakeSnapshot());
-  }
+  Widget _chatBubble(Map<String, String> message) {
+    final isUser = message['role'] == 'user';
+    final rawText = message['text'] ?? '';
+    final text = isUser ? rawText : _sanitizeAssistantChatText(rawText);
 
-  Widget _sectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: kSpacingSmall),
-      child: Text(
-        title,
-        style: kMobileTextStyleTitle.copyWith(
-          color: AppColors.textPrimary,
-          fontSize: 16,
+    if (text.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: kSpacingSmall),
+        padding: const EdgeInsets.symmetric(
+          horizontal: kSpacingSmall,
+          vertical: 10,
+        ),
+        constraints: const BoxConstraints(maxWidth: 320),
+        decoration: BoxDecoration(
+          color: isUser
+              ? AppColors.primary.withValues(alpha: 0.14)
+              : AppColors.border.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(kBorderRadius),
+          border: Border.all(
+            color: isUser
+                ? AppColors.primary.withValues(alpha: 0.25)
+                : AppColors.border.withValues(alpha: 0.4),
+          ),
+        ),
+        child: Text(
+          text,
+          style: kMobileTextStyleSubtitle.copyWith(
+            color: AppColors.textPrimary,
+            height: 1.35,
+          ),
         ),
       ),
     );
   }
 
-  Widget _choiceChips({
-    required Map<String, bool> values,
-    required void Function(String key, bool next) onChanged,
-  }) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: values.entries.map((entry) {
-        return FilterChip(
-          selected: entry.value,
-          label: Text(entry.key),
-          selectedColor: AppColors.primary.withValues(alpha: 0.15),
-          checkmarkColor: AppColors.primary,
-          onSelected: (selected) {
-            setState(() {
-              onChanged(entry.key, selected);
-            });
-            _pushData();
-          },
-        );
-      }).toList(),
-    );
-  }
+  Widget _headerStatusChip() {
+    final ready = _isReadyForScan;
+    final color = ready ? AppColors.success : AppColors.warning;
+    final textColor = ready ? AppColors.success : AppColors.textPrimary;
+    final icon = ready ? Icons.check_circle_outline : Icons.hourglass_bottom;
+    final text = ready ? 'Ready' : 'Needs context';
 
-  Widget _candidateChip(String label) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
+        color: color.withValues(alpha: 0.22),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.65)),
       ),
-      child: Text(
-        label.replaceAll('_', ' '),
-        style: kMobileTextStyleSubtitle.copyWith(
-          color: AppColors.textPrimary,
-          fontWeight: FontWeight.w600,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: kMobileTextStyleLegend.copyWith(
+              color: textColor,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
-  }
-
-  String _answerPreview(String id) {
-    final customAnswer = _freeTextByQuestion[id]?.trim() ?? '';
-    if (customAnswer.isNotEmpty) {
-      return customAnswer;
-    }
-
-    switch (id) {
-      case 'red_flags':
-        final selected = _selected(_redFlags);
-        return selected.isEmpty ? 'No answer yet' : selected.join(', ');
-      case 'distribution':
-        final selected = _selected(_distribution);
-        return selected.isEmpty ? 'No answer yet' : selected.join(', ');
-      case 'appearance':
-        final selected = _selected(_lesionAppearance);
-        return selected.isEmpty ? 'No answer yet' : selected.join(', ');
-      case 'itch':
-        return _itchSeverity.replaceAll('_', ' ');
-      case 'progression':
-        return _progression.replaceAll('_', ' ');
-      case 'parasite':
-        return _parasitePreventionStatus.replaceAll('_', ' ');
-      case 'trigger':
-        return _triggerContext.replaceAll('_', ' ');
-      default:
-        return 'No answer yet';
-    }
-  }
-
-  Widget _botBubble(String text, {bool active = false}) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: kSpacingSmall),
-        padding: const EdgeInsets.all(kSpacingSmall),
-        decoration: BoxDecoration(
-          color: active
-              ? AppColors.primary.withValues(alpha: 0.12)
-              : AppColors.border.withValues(alpha: 0.6),
-          borderRadius: BorderRadius.circular(kBorderRadius),
-        ),
-        child: Text(
-          text,
-          style: kMobileTextStyleSubtitle.copyWith(
-            color: AppColors.textPrimary,
-            fontWeight: active ? FontWeight.w600 : FontWeight.w500,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _userBubble(String text) {
-    return Align(
-      alignment: Alignment.centerRight,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: kSpacingMedium),
-        padding: const EdgeInsets.all(kSpacingSmall),
-        decoration: BoxDecoration(
-          color: AppColors.primary.withValues(alpha: 0.14),
-          borderRadius: BorderRadius.circular(kBorderRadius),
-          border: Border.all(
-            color: AppColors.primary.withValues(alpha: 0.25),
-          ),
-        ),
-        child: Text(
-          text,
-          style: kMobileTextStyleSubtitle.copyWith(
-            color: AppColors.textPrimary,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _questionInput(String id) {
-    switch (id) {
-      case 'red_flags':
-        return _withFreeTextAnswer(
-          id,
-          _choiceChips(
-            values: _redFlags,
-            onChanged: (key, next) {
-              _freeTextByQuestion.remove(id);
-              _setChipSelection(
-                source: _redFlags,
-                key: key,
-                selected: next,
-                markAnswered: () => _answeredRedFlags = true,
-              );
-            },
-          ),
-        );
-      case 'distribution':
-        return _withFreeTextAnswer(
-          id,
-          _choiceChips(
-            values: _distribution,
-            onChanged: (key, next) {
-              _freeTextByQuestion.remove(id);
-              _setChipSelection(
-                source: _distribution,
-                key: key,
-                selected: next,
-                markAnswered: () => _answeredDistribution = true,
-              );
-            },
-          ),
-        );
-      case 'appearance':
-        return _withFreeTextAnswer(
-          id,
-          _choiceChips(
-            values: _lesionAppearance,
-            onChanged: (key, next) {
-              _freeTextByQuestion.remove(id);
-              _setChipSelection(
-                source: _lesionAppearance,
-                key: key,
-                selected: next,
-                markAnswered: () => _answeredAppearance = true,
-              );
-            },
-          ),
-        );
-      case 'itch':
-        return _withFreeTextAnswer(
-          id,
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              DropdownButtonFormField<String>(
-                initialValue: _itchSeverity,
-                decoration: const InputDecoration(labelText: 'Itch level'),
-                items: const [
-                  DropdownMenuItem(value: 'not_sure', child: Text('Not sure')),
-                  DropdownMenuItem(value: 'mild', child: Text('Mild')),
-                  DropdownMenuItem(value: 'moderate', child: Text('Moderate')),
-                  DropdownMenuItem(value: 'severe', child: Text('Severe')),
-                ],
-                onChanged: (value) {
-                  if (value == null) return;
-                  setState(() {
-                    _freeTextByQuestion.remove(id);
-                    _itchSeverity = value;
-                    _answeredItch = true;
-                  });
-                  _pushData();
-                },
-              ),
-              const SizedBox(height: kSpacingSmall),
-              _sectionTitle('Optional: when did this start?'),
-              TextFormField(
-                controller: _durationController,
-                decoration: const InputDecoration(
-                  labelText: 'Onset / duration',
-                  hintText: 'Example: today, 3 days, 2 weeks',
-                ),
-                onChanged: (_) => _pushData(),
-              ),
-            ],
-          ),
-        );
-      case 'progression':
-        return _withFreeTextAnswer(
-          id,
-          DropdownButtonFormField<String>(
-            initialValue: _progression,
-            decoration: const InputDecoration(
-              labelText: 'How is it changing over time?',
-            ),
-            items: const [
-              DropdownMenuItem(
-                value: 'not_sure',
-                child: Text('Not sure'),
-              ),
-              DropdownMenuItem(
-                value: 'stable',
-                child: Text('About the same'),
-              ),
-              DropdownMenuItem(
-                value: 'getting_worse',
-                child: Text('Getting worse quickly'),
-              ),
-              DropdownMenuItem(
-                value: 'improving',
-                child: Text('Improving'),
-              ),
-            ],
-            onChanged: (value) {
-              if (value == null) return;
-              setState(() {
-                _freeTextByQuestion.remove(id);
-                _progression = value;
-                _answeredProgression = true;
-              });
-              _pushData();
-            },
-          ),
-        );
-      case 'parasite':
-        return _withFreeTextAnswer(
-          id,
-          DropdownButtonFormField<String>(
-            initialValue: _parasitePreventionStatus,
-            decoration: const InputDecoration(
-              labelText: 'Is your pet currently on parasite prevention?',
-            ),
-            items: const [
-              DropdownMenuItem(value: 'not_sure', child: Text('Not sure')),
-              DropdownMenuItem(value: 'yes', child: Text('Yes, regularly')),
-              DropdownMenuItem(value: 'no', child: Text('No / overdue')),
-            ],
-            onChanged: (value) {
-              if (value == null) return;
-              setState(() {
-                _freeTextByQuestion.remove(id);
-                _parasitePreventionStatus = value;
-                _answeredParasitePrevention = true;
-              });
-              _pushData();
-            },
-          ),
-        );
-      case 'trigger':
-        return _withFreeTextAnswer(
-          id,
-          DropdownButtonFormField<String>(
-            initialValue: _triggerContext,
-            decoration: const InputDecoration(
-              labelText: 'Any likely trigger before symptoms started?',
-            ),
-            items: const [
-              DropdownMenuItem(value: 'not_sure', child: Text('Not sure')),
-              DropdownMenuItem(
-                value: 'recent_grooming',
-                child: Text('Recent grooming / shampoo change'),
-              ),
-              DropdownMenuItem(
-                value: 'possible_allergen',
-                child: Text('Possible allergen exposure'),
-              ),
-              DropdownMenuItem(
-                value: 'recent_medication',
-                child: Text('Recent medication started'),
-              ),
-              DropdownMenuItem(value: 'none', child: Text('No clear trigger')),
-            ],
-            onChanged: (value) {
-              if (value == null) return;
-              setState(() {
-                _freeTextByQuestion.remove(id);
-                _triggerContext = value;
-                _answeredTriggerContext = true;
-              });
-              _pushData();
-            },
-          ),
-        );
-      default:
-        return const SizedBox.shrink();
-    }
-  }
-
-  String _questionTitle(String id, int number) {
-    final llmTitle = _llmQuestionTextById[id];
-    if (llmTitle != null && llmTitle.trim().isNotEmpty) {
-      return '$number) ${llmTitle.trim()}';
-    }
-
-    switch (id) {
-      case 'red_flags':
-        return '$number) Safety first: any urgent warning signs?';
-      case 'distribution':
-        return '$number) Where is it located?';
-      case 'appearance':
-        return '$number) What does it look like?';
-      case 'itch':
-        return '$number) How intense is the itching?';
-      case 'progression':
-        return '$number) Is it getting worse quickly?';
-      case 'parasite':
-        return '$number) Parasite prevention check';
-      case 'trigger':
-        return '$number) Clarify likely trigger';
-      default:
-        return '$number) Follow-up question';
-    }
-  }
-
-  String _questionSubtitle(String id) {
-    final llmHelper = _llmHelperTextById[id];
-    if (llmHelper != null && llmHelper.trim().isNotEmpty) {
-      return llmHelper.trim();
-    }
-
-    switch (id) {
-      case 'red_flags':
-        return 'This decides whether we prioritize urgent vet advice.';
-      case 'distribution':
-        return 'Area/location helps narrow likely classes.';
-      case 'appearance':
-        return 'Visible traits help the camera focus on likely matches.';
-      case 'itch':
-        return 'Severity helps refine plausible detections.';
-      case 'progression':
-        return 'Shown because urgent/widespread or higher-risk signs were selected.';
-      case 'parasite':
-        return 'Shown because your answers suggest possible parasite-related causes.';
-      case 'trigger':
-        return 'Shown because some earlier answers were not specific enough.';
-      default:
-        return 'Answer to continue narrowing scan candidates.';
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    _ensureStepInRange();
-    final questionFlow = _questionOrder;
-    final isChatComplete = _isReadyForScan;
     final llmConfigured = _groqService.isConfigured;
-    final String? activeQuestionId =
-        (!isChatComplete && _chatStep < questionFlow.length)
-            ? questionFlow[_chatStep]
-            : null;
-    if (activeQuestionId != null) {
-      _syncFreeTextController(activeQuestionId);
-    }
-    final previousCount = _chatStep.clamp(0, questionFlow.length);
-    final answeredQuestionIds = questionFlow.take(previousCount);
-    final candidates = _computeVisionCandidates();
-    final completion = _requiredQuestionCount == 0
-        ? 0.0
-        : _answeredCount / _requiredQuestionCount;
-
-    return SingleChildScrollView(
+    return Padding(
       padding: const EdgeInsets.all(kSpacingMedium),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(kSpacingMedium),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.primary.withValues(alpha: 0.16),
-                  AppColors.info.withValues(alpha: 0.08),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(kBorderRadius),
-              border: Border.all(
-                color: AppColors.primary.withValues(alpha: 0.2),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.smart_toy_outlined,
-                      color: AppColors.primary,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Skin Check Chat',
-                      style: kMobileTextStyleTitle.copyWith(
-                        color: AppColors.textPrimary,
-                        fontSize: 20,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Answer a few short questions so we can guide the camera scan better.',
-                  style: kMobileTextStyleSubtitle.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: kSpacingSmall),
-          LinearProgressIndicator(
-            minHeight: 8,
-            value: completion,
-            borderRadius: BorderRadius.circular(100),
-            backgroundColor: AppColors.border.withValues(alpha: 0.4),
-            color: _isReadyForScan ? AppColors.success : AppColors.primary,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '$_answeredCount of $_requiredQuestionCount questions answered',
-            style: kMobileTextStyleSubtitle.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            llmConfigured
-                ? 'AI question mode: active${_llmChatTelemetry['lastModelUsed'] != null ? ' (${_llmChatTelemetry['lastModelUsed']})' : ''}'
-                : 'AI question mode: unavailable (using built-in fallback questions)',
-            style: kMobileTextStyleSubtitle.copyWith(
-              color: llmConfigured ? AppColors.success : AppColors.warning,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: kSpacingMedium),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(kSpacingSmall),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(kBorderRadius),
               border: Border.all(color: AppColors.border),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.black.withValues(alpha: 0.04),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
-                ),
-              ],
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                ...answeredQuestionIds.map((id) {
-                  final index = questionFlow.indexOf(id);
-                  return Column(
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.forum_outlined,
+                    color: AppColors.primary,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _botBubble(_questionTitle(id, index + 1)),
-                      _userBubble(_answerPreview(id)),
+                      Text(
+                        'Skin Check Chat',
+                        style: kMobileTextStyleTitle.copyWith(
+                          color: AppColors.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        '$_turnCount/$_minTurnsForReadiness turns • ${llmConfigured ? 'AI mode' : 'Fallback mode'}',
+                        style: kMobileTextStyleLegend.copyWith(
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ],
-                  );
-                }),
-                if (_isGeneratingNextQuestion) ...[
-                  _botBubble(
-                    'Thanks. Let me think of the best next question for you...',
-                    active: true,
                   ),
-                  const LinearProgressIndicator(minHeight: 3),
-                ] else if (!isChatComplete &&
-                    _chatStep < questionFlow.length) ...[
-                  _botBubble(
-                    _questionTitle(questionFlow[_chatStep], _chatStep + 1),
-                    active: true,
-                  ),
-                  Text(
-                    _questionSubtitle(questionFlow[_chatStep]),
-                    style: kMobileTextStyleSubtitle.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: kSpacingSmall),
-                  _questionInput(questionFlow[_chatStep]),
-                  const SizedBox(height: kSpacingSmall),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: FilledButton.icon(
-                      onPressed: _canContinueFromStep(_chatStep)
-                          ? () async => _advanceStep()
-                          : null,
-                      icon: const Icon(Icons.send),
-                      label: const Text('Send answer'),
-                    ),
-                  ),
-                ] else ...[
-                  _botBubble(
-                    'Thanks. I have enough details and can now narrow scan targets based on your answers.',
-                    active: true,
-                  ),
-                ],
+                ),
+                const SizedBox(width: 8),
+                _headerStatusChip(),
               ],
             ),
           ),
-          if (_chatStep > 0 && !isChatComplete)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed:
-                    _isGeneratingNextQuestion ? null : _goToPreviousQuestion,
-                icon: const Icon(Icons.arrow_back),
-                label: const Text('Edit previous answer'),
-              ),
-            ),
-          const SizedBox(height: kSpacingMedium),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(kSpacingSmall),
-            decoration: BoxDecoration(
-              color: _isReadyForScan
-                  ? AppColors.success.withValues(alpha: 0.08)
-                  : AppColors.warning.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(kBorderRadius),
-              border: Border.all(
-                color: _isReadyForScan
-                    ? AppColors.success.withValues(alpha: 0.35)
-                    : AppColors.warning.withValues(alpha: 0.35),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _isReadyForScan
-                      ? 'Ready for scan'
-                      : 'Need more answers before scan',
-                  style: kMobileTextStyleTitle.copyWith(
-                    color: AppColors.textPrimary,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  _buildFunnelSummary(candidates),
-                  style: kMobileTextStyleSubtitle.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: kSpacingSmall),
-                Text(
-                  'Narrowed camera-detectable candidates',
-                  style: kMobileTextStyleSubtitle.copyWith(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: candidates.map(_candidateChip).toList(),
-                ),
-                const SizedBox(height: kSpacingSmall),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: widget.onPrevious,
-                        icon: const Icon(Icons.arrow_back),
-                        label: const Text('Back'),
-                      ),
-                    ),
-                    const SizedBox(width: kSpacingSmall),
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: _isReadyForScan ? widget.onNext : null,
-                        icon: const Icon(Icons.camera_alt_outlined),
-                        label: const Text('Proceed to scan'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+          const SizedBox(height: 8),
+          Text(
+            _isReadyForScan
+                ? 'Ready for scan'
+                : '$_turnCount of $_minTurnsForReadiness guided turns completed',
+            style: kMobileTextStyleSubtitle.copyWith(
+              color: AppColors.textSecondary,
             ),
           ),
-          if (_hasAnyRedFlag) ...[
-            const SizedBox(height: kSpacingSmall),
-            Container(
+          const SizedBox(height: kSpacingSmall),
+          Expanded(
+            child: Container(
               width: double.infinity,
               padding: const EdgeInsets.all(kSpacingSmall),
               decoration: BoxDecoration(
-                color: AppColors.error.withValues(alpha: 0.08),
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(kBorderRadius),
-                border:
-                    Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                border: Border.all(color: AppColors.border),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.black.withValues(alpha: 0.04),
+                    blurRadius: 14,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
               ),
-              child: Text(
-                'Possible urgent signs selected. The app will prioritize vet-visit advice for safety.',
-                style:
-                    kMobileTextStyleSubtitle.copyWith(color: AppColors.error),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: ListView.builder(
+                      controller: _chatScrollController,
+                      itemCount: _conversation.length,
+                      itemBuilder: (context, index) {
+                        final message = _conversation[index];
+                        return _chatBubble(message);
+                      },
+                    ),
+                  ),
+                  if (_isGeneratingNextQuestion) ...[
+                    const SizedBox(height: 6),
+                    const LinearProgressIndicator(minHeight: 3),
+                  ],
+                  if (_hasAnyRedFlag) ...[
+                    const SizedBox(height: kSpacingSmall),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(kSpacingSmall),
+                      decoration: BoxDecoration(
+                        color: AppColors.error.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(kBorderRadius),
+                        border: Border.all(
+                          color: AppColors.error.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Text(
+                        'Potential urgent signs were mentioned. The app will prioritize safer escalation guidance.',
+                        style: kMobileTextStyleSubtitle.copyWith(
+                          color: AppColors.error,
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: kSpacingSmall),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _messageController,
+                          minLines: 1,
+                          maxLines: 4,
+                          textInputAction: TextInputAction.send,
+                          onSubmitted: (_) => _sendCurrentMessage(),
+                          decoration: const InputDecoration(
+                            hintText: 'Type your answer here...',
+                            labelText: 'Your message',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton(
+                        onPressed: _isGeneratingNextQuestion
+                            ? null
+                            : _sendCurrentMessage,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(52, 52),
+                          padding: const EdgeInsets.all(0),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: const Icon(Icons.send),
+                      ),
+                    ],
+                  ),
+                  if (_turnCount > 0 && !_isGeneratingNextQuestion)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: _undoLastTurn,
+                        icon: const Icon(Icons.undo),
+                        label: const Text('Undo last answer'),
+                      ),
+                    ),
+                ],
               ),
             ),
-          ],
+          ),
         ],
       ),
     );

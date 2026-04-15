@@ -170,6 +170,34 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
       derived.add('Head Shaking');
     }
 
+    final structuredPrior = Map<String, dynamic>.from(
+        intake['structuredSymptomPrior'] as Map? ?? <String, dynamic>{});
+    final structuredSymptoms =
+        (structuredPrior['symptoms'] as List<dynamic>? ?? <dynamic>[])
+            .map((e) => e.toString().toLowerCase())
+            .toList();
+
+    if (structuredSymptoms.any((s) =>
+        s.contains('itch') ||
+        s.contains('scratch') ||
+        s.contains('pruritus'))) {
+      derived.add('Scratching');
+      derived.add('Licking');
+    }
+
+    if (structuredSymptoms.any((s) =>
+        s.contains('flea') || s.contains('tick') || s.contains('mite'))) {
+      derived.add('Biting/Chewing');
+      derived.add('Scooting');
+    }
+
+    if (structuredSymptoms.any((s) =>
+        s.contains('hair_loss') ||
+        s.contains('alopecia') ||
+        s.contains('crust'))) {
+      derived.add('Rolling/Rubbing');
+    }
+
     return derived;
   }
 
