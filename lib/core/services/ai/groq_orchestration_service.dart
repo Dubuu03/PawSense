@@ -20,6 +20,7 @@ enum GroqErrorType {
   none,
   timeout,
   rateLimited,
+  modelUnavailable,
   server,
   network,
   badRequest,
@@ -84,6 +85,8 @@ class GroqOrchestrationService {
       const RuleBasedFallbackService();
 
   final Map<String, _ModelHealthState> _healthByModel = {};
+  final Map<String, DateTime> _rateLimitedUntilByModel = {};
+  final Map<String, DateTime> _unavailableUntilByModel = {};
   final Map<String, _CacheEntry> _triageCache = {};
   final Map<String, _CacheEntry> _recommendationCache = {};
 
@@ -128,7 +131,16 @@ class GroqOrchestrationService {
   String get _triageFallbackModel =>
       _readEnv('GROQ_FALLBACK_MODEL_TRIAGE').isNotEmpty
           ? _readEnv('GROQ_FALLBACK_MODEL_TRIAGE')
-          : 'llama3-70b-8192';
+          : 'llama-3.3-70b-versatile';
+
+  List<String> get _triageBackupModels => _parseModelList(
+        _readEnv('GROQ_BACKUP_MODELS_TRIAGE'),
+        fallback: const <String>[
+          'meta-llama/llama-4-scout-17b-16e-instruct',
+          'qwen/qwen3-32b',
+          'openai/gpt-oss-20b',
+        ],
+      );
 
   String get _recommendationPrimaryModel =>
       _readEnv('GROQ_PRIMARY_MODEL_RECO').isNotEmpty
@@ -138,14 +150,58 @@ class GroqOrchestrationService {
   String get _recommendationFallbackModel =>
       _readEnv('GROQ_FALLBACK_MODEL_RECO').isNotEmpty
           ? _readEnv('GROQ_FALLBACK_MODEL_RECO')
-          : 'llama3-70b-8192';
+          : 'llama-3.3-70b-versatile';
+
+  List<String> get _recommendationBackupModels => _parseModelList(
+        _readEnv('GROQ_BACKUP_MODELS_RECO'),
+        fallback: const <String>[
+          'meta-llama/llama-4-scout-17b-16e-instruct',
+          'openai/gpt-oss-20b',
+          'qwen/qwen3-32b',
+        ],
+      );
 
   int get _timeoutMs => int.tryParse(_readEnv('GROQ_TIMEOUT_MS')) ?? 9000;
 
   int get _maxRetries => int.tryParse(_readEnv('GROQ_MAX_RETRIES')) ?? 1;
 
+  int get _rateLimitCooldownMs =>
+      int.tryParse(_readEnv('GROQ_RATE_LIMIT_COOLDOWN_MS')) ?? 15000;
+
+  int get _modelUnavailableCooldownMin =>
+      int.tryParse(_readEnv('GROQ_MODEL_UNAVAILABLE_COOLDOWN_MIN')) ?? 360;
+
   int get _dailyCallCap =>
       int.tryParse(_readEnv('GROQ_DAILY_CALL_CAP')) ?? 2500;
+
+  List<String> _parseModelList(String raw,
+      {List<String> fallback = const <String>[]}) {
+    if (raw.trim().isEmpty) {
+      return fallback;
+    }
+
+    final output = <String>[];
+    final seen = <String>{};
+    for (final part in raw.split(',')) {
+      final model = part.trim();
+      if (model.isEmpty) continue;
+      if (seen.contains(model)) continue;
+      seen.add(model);
+      output.add(model);
+    }
+
+    return output.isEmpty ? fallback : output;
+  }
+
+  List<dynamic> _coerceDynamicList(dynamic raw) {
+    if (raw is List) {
+      return raw;
+    }
+    if (raw is Map) {
+      return raw.values.toList(growable: false);
+    }
+    return <dynamic>[];
+  }
 
   bool get isConfigured => _isEnabled && _apiKey.isNotEmpty;
 
@@ -220,6 +276,7 @@ class GroqOrchestrationService {
       traceId: traceId,
       primaryModel: _triagePrimaryModel,
       fallbackModel: _triageFallbackModel,
+      backupModels: _triageBackupModels,
       schemaValidator: _isValidTriageSchema,
       systemPrompt: _triageSystemPrompt,
       userPayload: payload,
@@ -325,6 +382,7 @@ class GroqOrchestrationService {
       traceId: traceId,
       primaryModel: _recommendationPrimaryModel,
       fallbackModel: _recommendationFallbackModel,
+      backupModels: _recommendationBackupModels,
       schemaValidator: _isValidRecommendationSchema,
       systemPrompt: _recommendationSystemPrompt,
       userPayload: payload,
@@ -354,16 +412,41 @@ class GroqOrchestrationService {
     required List<String> askedQuestionIds,
     required List<String> eligibleQuestionIds,
     required Map<String, dynamic> questionCatalog,
+    String preferredQuestionId = '',
   }) async {
     final traceId = _buildTraceId('chatq');
+    final latestUserAnswer = _extractLatestUserAnswer(intakeData);
+    final latestAnswerFocus = _extractLatestAnswerFocus(intakeData);
+    final recentConversationContext =
+        _extractRecentConversationContext(intakeData);
+    final lastAnsweredQuestionId = latestAnswerFocus['question_id'] ?? '';
+    final normalizedPreferredQuestionId = preferredQuestionId.trim();
+    var fallbackQuestionId =
+        eligibleQuestionIds.isNotEmpty ? eligibleQuestionIds.first : '';
+    if (normalizedPreferredQuestionId.isNotEmpty &&
+        eligibleQuestionIds.contains(normalizedPreferredQuestionId)) {
+      fallbackQuestionId = normalizedPreferredQuestionId;
+    }
+    if (fallbackQuestionId.isNotEmpty &&
+        eligibleQuestionIds.length > 1 &&
+        lastAnsweredQuestionId.isNotEmpty &&
+        normalizedPreferredQuestionId.isEmpty &&
+        fallbackQuestionId == lastAnsweredQuestionId) {
+      fallbackQuestionId = eligibleQuestionIds[1];
+    }
+    final fallbackPrompt = _buildGuidedQuestionFallback(
+      questionId: fallbackQuestionId,
+      questionCatalog: questionCatalog,
+      latestUserAnswer: latestUserAnswer,
+    );
 
     if (!isConfigured || !_consumeDailyQuota()) {
       return _fallbackResult(
         {
-          'next_question_id':
-              eligibleQuestionIds.isNotEmpty ? eligibleQuestionIds.first : '',
-          'question_text': 'Let me ask one more question.',
-          'helper_text': 'Please share the closest answer.',
+          'next_question_id': fallbackQuestionId,
+          'question_text': fallbackPrompt['question_text'],
+          'helper_text': fallbackPrompt['helper_text'],
+          'suggested_replies': fallbackPrompt['suggested_replies'],
           'should_finish': eligibleQuestionIds.isEmpty,
           'reason': 'deterministic_fallback',
         },
@@ -375,25 +458,36 @@ class GroqOrchestrationService {
     final payload = {
       'pet_type': petType,
       'intake': intakeData,
+      'latest_user_answer': latestUserAnswer,
+      'latest_answer_focus': latestAnswerFocus,
+      'recent_conversation_context': recentConversationContext,
       'asked_question_ids': askedQuestionIds,
       'eligible_question_ids': eligibleQuestionIds,
+      'preferred_question_id': normalizedPreferredQuestionId,
       'question_catalog': questionCatalog,
+      'response_mode': 'hybrid_free_text_and_suggested_replies',
+      'client_capabilities': {
+        'show_option_chips': true,
+        'prefer_open_text': true,
+        'allow_suggested_replies': true,
+      },
     };
 
     return _runWithChain(
       traceId: traceId,
       primaryModel: _triagePrimaryModel,
       fallbackModel: _triageFallbackModel,
+      backupModels: _triageBackupModels,
       schemaValidator: _isValidGuidedQuestionSchema,
       systemPrompt: _guidedQuestionSystemPrompt,
       userPayload: payload,
-      maxTokens: 280,
-      temperature: 0.2,
+      maxTokens: 340,
+      temperature: 0.35,
       fallbackFactory: () => {
-        'next_question_id':
-            eligibleQuestionIds.isNotEmpty ? eligibleQuestionIds.first : '',
-        'question_text': 'Let me ask one more question.',
-        'helper_text': 'Please share the closest answer.',
+        'next_question_id': fallbackQuestionId,
+        'question_text': fallbackPrompt['question_text'],
+        'helper_text': fallbackPrompt['helper_text'],
+        'suggested_replies': fallbackPrompt['suggested_replies'],
         'should_finish': eligibleQuestionIds.isEmpty,
         'reason': 'deterministic_fallback',
       },
@@ -435,6 +529,7 @@ class GroqOrchestrationService {
       traceId: traceId,
       primaryModel: _triagePrimaryModel,
       fallbackModel: _triageFallbackModel,
+      backupModels: _triageBackupModels,
       schemaValidator: _isValidStructuredSymptomPriorSchema,
       systemPrompt: _structuredSymptomPriorSystemPrompt,
       userPayload: payload,
@@ -448,6 +543,7 @@ class GroqOrchestrationService {
     required String traceId,
     required String primaryModel,
     required String fallbackModel,
+    required List<String> backupModels,
     required bool Function(Map<String, dynamic>) schemaValidator,
     required String systemPrompt,
     required Map<String, dynamic> userPayload,
@@ -457,19 +553,62 @@ class GroqOrchestrationService {
   }) async {
     final started = DateTime.now();
 
-    final chain = <_ChainNode>[
-      _ChainNode(model: primaryModel, level: GroqFallbackLevel.none),
-      if (_maxRetries > 0)
-        _ChainNode(model: primaryModel, level: GroqFallbackLevel.primaryRetry),
-      _ChainNode(model: fallbackModel, level: GroqFallbackLevel.fallbackModel),
-      if (_maxRetries > 0)
+    final modelOrder = <String>[];
+    final seenModels = <String>{};
+
+    void addModel(String model) {
+      final value = model.trim();
+      if (value.isEmpty || seenModels.contains(value)) {
+        return;
+      }
+      seenModels.add(value);
+      modelOrder.add(value);
+    }
+
+    addModel(primaryModel);
+    addModel(fallbackModel);
+    for (final model in backupModels) {
+      addModel(model);
+    }
+
+    final chain = <_ChainNode>[];
+    for (var i = 0; i < modelOrder.length; i++) {
+      final model = modelOrder[i];
+      chain.add(
         _ChainNode(
-            model: fallbackModel, level: GroqFallbackLevel.fallbackRetry),
-    ];
+          model: model,
+          level:
+              i == 0 ? GroqFallbackLevel.none : GroqFallbackLevel.fallbackModel,
+        ),
+      );
+
+      if (_maxRetries > 0) {
+        chain.add(
+          _ChainNode(
+            model: model,
+            level: i == 0
+                ? GroqFallbackLevel.primaryRetry
+                : GroqFallbackLevel.fallbackRetry,
+          ),
+        );
+      }
+    }
 
     GroqErrorType lastError = GroqErrorType.unknown;
+    final skipRetryForModel = <String>{};
 
     for (final node in chain) {
+      final isRetryNode = node.level == GroqFallbackLevel.primaryRetry ||
+          node.level == GroqFallbackLevel.fallbackRetry;
+
+      if (isRetryNode && skipRetryForModel.contains(node.model)) {
+        continue;
+      }
+
+      if (_isModelTemporarilyUnavailable(node.model)) {
+        continue;
+      }
+
       if (_isBreakerOpen(node.model)) {
         continue;
       }
@@ -506,8 +645,22 @@ class GroqOrchestrationService {
       }
 
       lastError = attemptResult.errorType;
+
+      _registerFailure(node.model);
+
+      if (lastError == GroqErrorType.rateLimited) {
+        _markModelRateLimited(node.model, attemptResult.retryAfter);
+        skipRetryForModel.add(node.model);
+      } else if (lastError == GroqErrorType.modelUnavailable) {
+        _markModelUnavailable(node.model);
+        skipRetryForModel.add(node.model);
+      }
+
       if (_isRetryable(lastError)) {
-        _registerFailure(node.model);
+        if (lastError == GroqErrorType.modelUnavailable) {
+          continue;
+        }
+
         final retryDelay = _computeBackoffDelay(
           level: node.level,
           retryAfter: attemptResult.retryAfter,
@@ -518,7 +671,6 @@ class GroqOrchestrationService {
         continue;
       }
 
-      _registerFailure(node.model);
       break;
     }
 
@@ -571,15 +723,18 @@ class GroqOrchestrationService {
 
       if (response.statusCode == 200) {
         final body = json.decode(response.body) as Map<String, dynamic>;
-        final choices = body['choices'] as List<dynamic>?;
-        if (choices == null || choices.isEmpty) {
+        final choices = _coerceDynamicList(body['choices']);
+        if (choices.isEmpty || choices.first is! Map) {
           return const _AttemptResult(
             success: false,
             errorType: GroqErrorType.invalidSchema,
           );
         }
 
-        final message = choices.first['message'] as Map<String, dynamic>?;
+        final firstChoice = Map<String, dynamic>.from(choices.first as Map);
+        final messageRaw = firstChoice['message'];
+        final message =
+            messageRaw is Map ? Map<String, dynamic>.from(messageRaw) : null;
         final rawContent = message?['content']?.toString() ?? '';
         final normalizedContent = _normalizeJsonContent(rawContent);
         final parsed = json.decode(normalizedContent) as Map<String, dynamic>;
@@ -597,6 +752,29 @@ class GroqOrchestrationService {
               ? Duration(seconds: retryAfterSeconds)
               : null,
         );
+      }
+
+      if (response.statusCode == 400 || response.statusCode == 404) {
+        final modelErrorCode = _extractErrorCode(response.body);
+        final modelErrorMessage = _extractErrorMessage(response.body);
+        final normalizedCode = modelErrorCode.toLowerCase();
+        final normalizedMessage = modelErrorMessage.toLowerCase();
+
+        final looksUnavailable =
+            normalizedCode.contains('model_decommissioned') ||
+                normalizedCode.contains('model_not_found') ||
+                normalizedCode.contains('model_unavailable') ||
+                normalizedMessage.contains('model_decommissioned') ||
+                normalizedMessage.contains('model not found') ||
+                normalizedMessage.contains('has been decommissioned') ||
+                normalizedMessage.contains('does not exist');
+
+        if (looksUnavailable) {
+          return const _AttemptResult(
+            success: false,
+            errorType: GroqErrorType.modelUnavailable,
+          );
+        }
       }
 
       if (response.statusCode == 408 || response.statusCode >= 500) {
@@ -636,6 +814,7 @@ class GroqOrchestrationService {
   bool _isRetryable(GroqErrorType type) {
     return type == GroqErrorType.timeout ||
         type == GroqErrorType.rateLimited ||
+        type == GroqErrorType.modelUnavailable ||
         type == GroqErrorType.server ||
         type == GroqErrorType.network;
   }
@@ -691,6 +870,44 @@ class GroqOrchestrationService {
     return false;
   }
 
+  bool _isModelTemporarilyUnavailable(String model) {
+    final now = DateTime.now();
+
+    final rateLimitUntil = _rateLimitedUntilByModel[model];
+    if (rateLimitUntil != null) {
+      if (now.isBefore(rateLimitUntil)) {
+        return true;
+      }
+      _rateLimitedUntilByModel.remove(model);
+    }
+
+    final unavailableUntil = _unavailableUntilByModel[model];
+    if (unavailableUntil != null) {
+      if (now.isBefore(unavailableUntil)) {
+        return true;
+      }
+      _unavailableUntilByModel.remove(model);
+    }
+
+    return false;
+  }
+
+  void _markModelRateLimited(String model, Duration? retryAfter) {
+    final fallbackDelay = Duration(milliseconds: _rateLimitCooldownMs);
+    final retryDelay = retryAfter ?? fallbackDelay;
+    final boundedRetry = retryDelay.inMilliseconds > 60000
+        ? const Duration(seconds: 60)
+        : retryDelay;
+
+    _rateLimitedUntilByModel[model] = DateTime.now().add(boundedRetry);
+  }
+
+  void _markModelUnavailable(String model) {
+    _unavailableUntilByModel[model] = DateTime.now().add(
+      Duration(minutes: _modelUnavailableCooldownMin),
+    );
+  }
+
   void _registerFailure(String model) {
     final state = _healthByModel.putIfAbsent(model, () => _ModelHealthState());
     state.registerFailure(_breakerFailureThreshold);
@@ -719,15 +936,38 @@ class GroqOrchestrationService {
   }
 
   bool _isValidGuidedQuestionSchema(Map<String, dynamic> payload) {
-    return payload.containsKey('next_question_id') &&
+    final hasRequiredKeys = payload.containsKey('next_question_id') &&
         payload.containsKey('question_text') &&
         payload.containsKey('helper_text') &&
         payload.containsKey('should_finish') &&
         payload.containsKey('reason');
+
+    if (!hasRequiredKeys) {
+      return false;
+    }
+
+    final suggestedReplies = payload['suggested_replies'];
+    if (suggestedReplies != null) {
+      if (suggestedReplies is! List) {
+        return false;
+      }
+
+      for (final item in suggestedReplies) {
+        if (item is! String) {
+          return false;
+        }
+      }
+    }
+
+    return payload['next_question_id'] is String &&
+        payload['question_text'] is String &&
+        payload['helper_text'] is String &&
+        payload['should_finish'] is bool &&
+        payload['reason'] is String;
   }
 
   bool _isValidStructuredSymptomPriorSchema(Map<String, dynamic> payload) {
-    return payload.containsKey('symptoms') &&
+    final hasRequiredKeys = payload.containsKey('symptoms') &&
         payload.containsKey('body_locations') &&
         payload.containsKey('duration') &&
         payload.containsKey('severity') &&
@@ -735,6 +975,133 @@ class GroqOrchestrationService {
         payload.containsKey('red_flags') &&
         payload.containsKey('triage_priors') &&
         payload.containsKey('summary');
+
+    if (!hasRequiredKeys) {
+      return false;
+    }
+
+    if (payload['symptoms'] is! List ||
+        payload['body_locations'] is! List ||
+        payload['exposure_factors'] is! List ||
+        payload['red_flags'] is! List ||
+        payload['triage_priors'] is! List ||
+        payload['duration'] is! String ||
+        payload['severity'] is! String ||
+        payload['summary'] is! String) {
+      return false;
+    }
+
+    final triagePriors = payload['triage_priors'] as List;
+    for (final item in triagePriors) {
+      if (item is! Map) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  Map<String, String> _extractLatestAnswerFocus(
+      Map<String, dynamic> intakeData) {
+    final questionId =
+        intakeData['lastAnsweredQuestionId']?.toString().trim() ?? '';
+    final questionText =
+        intakeData['lastAnsweredQuestion']?.toString().trim() ?? '';
+
+    if (questionId.isEmpty && questionText.isEmpty) {
+      return <String, String>{};
+    }
+
+    return {
+      if (questionId.isNotEmpty) 'question_id': questionId,
+      if (questionText.isNotEmpty) 'question_text': questionText,
+    };
+  }
+
+  String _extractLatestUserAnswer(Map<String, dynamic> intakeData) {
+    final history = intakeData['conversationHistory'];
+    if (history is List) {
+      for (var i = history.length - 1; i >= 0; i--) {
+        final item = history[i];
+        if (item is! Map) continue;
+
+        final role = item['role']?.toString().trim().toLowerCase() ?? '';
+        if (role != 'user') continue;
+
+        final text = item['text']?.toString().trim() ?? '';
+        if (text.isNotEmpty) return text;
+      }
+    }
+
+    return '';
+  }
+
+  List<Map<String, String>> _extractRecentConversationContext(
+      Map<String, dynamic> intakeData) {
+    final history = intakeData['conversationHistory'];
+    if (history is! List || history.isEmpty) {
+      return <Map<String, String>>[];
+    }
+
+    final output = <Map<String, String>>[];
+    for (final item in history.reversed) {
+      if (item is! Map) continue;
+
+      final role = item['role']?.toString().trim().toLowerCase() ?? '';
+      final text = item['text']?.toString().trim() ?? '';
+      if ((role != 'assistant' && role != 'user') || text.isEmpty) {
+        continue;
+      }
+
+      output.add({'role': role, 'text': text});
+      if (output.length >= 6) break;
+    }
+
+    return output.reversed.toList(growable: false);
+  }
+
+  Map<String, dynamic> _buildGuidedQuestionFallback({
+    required String questionId,
+    required Map<String, dynamic> questionCatalog,
+    required String latestUserAnswer,
+  }) {
+    final normalizedQuestionId = questionId.trim();
+    final entry = Map<String, dynamic>.from(
+      questionCatalog[normalizedQuestionId] as Map? ?? <String, dynamic>{},
+    );
+
+    final focus = entry['intent_focus']?.toString().trim();
+    final intentFocus =
+        (focus != null && focus.isNotEmpty) ? focus : 'the skin concern';
+
+    final quickOptions = _coerceDynamicList(entry['quick_options'])
+        .map((e) => e.toString().trim())
+        .where((e) => e.isNotEmpty)
+      .take(4)
+        .toList(growable: false);
+
+    final stems = latestUserAnswer.trim().isNotEmpty
+        ? <String>[
+            'Thanks. Could you share one more detail about $intentFocus?',
+            'Based on what you shared, what else can you tell me about $intentFocus?',
+            'To narrow this down, can you clarify $intentFocus a bit more?',
+          ]
+        : <String>[
+            'Could you share a detail about $intentFocus?',
+            'Can you tell me more about $intentFocus?',
+            'What can you share about $intentFocus?',
+          ];
+
+    final questionText = stems[Random().nextInt(stems.length)];
+    final helperText = quickOptions.isNotEmpty
+        ? 'If useful, you can mention ${quickOptions.join(', ')}.'
+        : 'Any specific detail you can share helps.';
+
+    return {
+      'question_text': questionText,
+      'helper_text': helperText,
+      'suggested_replies': quickOptions,
+    };
   }
 
   Map<String, dynamic> _deterministicStructuredSymptomPrior({
@@ -742,14 +1109,13 @@ class GroqOrchestrationService {
     required Map<String, dynamic> intakeData,
     required List<String> cameraDetectableConditions,
   }) {
-    final appearance = (intakeData['lesionAppearance'] as List<dynamic>? ?? [])
+    final appearance = _coerceDynamicList(intakeData['lesionAppearance'])
         .map((e) => e.toString())
         .toList();
-    final distribution =
-        (intakeData['distributionAreas'] as List<dynamic>? ?? [])
-            .map((e) => e.toString())
-            .toList();
-    final redFlags = (intakeData['redFlags'] as List<dynamic>? ?? [])
+    final distribution = _coerceDynamicList(intakeData['distributionAreas'])
+        .map((e) => e.toString())
+        .toList();
+    final redFlags = _coerceDynamicList(intakeData['redFlags'])
         .map((e) => e.toString())
         .toList();
 
@@ -822,6 +1188,38 @@ class GroqOrchestrationService {
       content = content.replaceAll('```json', '').replaceAll('```', '').trim();
     }
     return content;
+  }
+
+  String _extractErrorCode(String rawBody) {
+    try {
+      final parsed = json.decode(rawBody);
+      if (parsed is! Map) return '';
+
+      final error = parsed['error'];
+      if (error is Map) {
+        return error['code']?.toString().trim() ?? '';
+      }
+
+      return parsed['code']?.toString().trim() ?? '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  String _extractErrorMessage(String rawBody) {
+    try {
+      final parsed = json.decode(rawBody);
+      if (parsed is! Map) return rawBody;
+
+      final error = parsed['error'];
+      if (error is Map) {
+        return error['message']?.toString().trim() ?? rawBody;
+      }
+
+      return parsed['message']?.toString().trim() ?? rawBody;
+    } catch (_) {
+      return rawBody;
+    }
   }
 
   String _buildTraceId(String prefix) {
@@ -957,9 +1355,26 @@ class GroqOrchestrationService {
       'You are a pet skin chat assistant. Return JSON only. '
       'Decide the single best NEXT question to ask based on prior answers. '
       'Only choose next_question_id from eligible_question_ids. '
+      'If preferred_question_id is provided, prioritize it unless latest_user_answer clearly points to another unresolved eligible field. '
+      'Do not follow a fixed question order. '
       'If there is enough information to guide camera scanning, set should_finish=true and next_question_id="". '
+      'Ground every question strictly in provided intake and conversation history. '
+      'Use latest_user_answer and recent_conversation_context as primary grounding context for the next follow-up. '
+      'Use latest_answer_focus.question_id and latest_answer_focus.question_text to continue naturally from the immediately previous question, not to restart intake. '
+      'For dynamic_followup, ask the most useful unresolved question inferred from context instead of templates. '
+      'If latest_user_answer already covers one detail, ask a different unresolved detail. '
+      'Do not ask the same detail again if latest_user_answer already contains that detail unless user contradicted themselves. '
+      'Prefer an open-ended follow-up question. '
+      'Optionally include suggested_replies as a short list (2 to 6 items) to help quick tap answers, but do not depend on them. '
+      'Question_text must be a contextual follow-up to what the owner just said, not a template copy. '
+      'Do not invent symptoms, timelines, body locations, diagnoses, treatments, or risk claims. '
+      'Avoid repeating a question intent that was already asked; prefer unresolved fields. '
+      'Avoid repeating the exact same question wording from earlier turns unless the user explicitly asked for clarification. '
+      'Avoid formulaic sentence starters and vary phrasing naturally between turns. '
+      'Keep question_text concise and owner-friendly. '
       'Use simple, owner-friendly language. '
-      'Required keys: next_question_id, question_text, helper_text, should_finish, reason.';
+      'Required keys: next_question_id, question_text, helper_text, should_finish, reason. '
+      'Optional key: suggested_replies (array of short strings).';
 
   String get _structuredSymptomPriorSystemPrompt =>
       'You are a veterinary intake structuring assistant. Return JSON only. '

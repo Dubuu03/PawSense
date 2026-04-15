@@ -39,6 +39,16 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
   // Expose analyzing state to parent
   bool get isAnalyzing => _isAnalyzing;
 
+  List<dynamic> _coerceDynamicList(dynamic raw) {
+    if (raw is List) {
+      return raw;
+    }
+    if (raw is Map) {
+      return raw.values.toList(growable: false);
+    }
+    return <dynamic>[];
+  }
+
   @override
   void initState() {
     super.initState();
@@ -79,11 +89,10 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
       return;
     }
 
-    final selectedSymptoms =
-        (widget.assessmentData['symptoms'] as List<dynamic>? ?? [])
-            .map((e) => e.toString())
-            .where((e) => e.trim().isNotEmpty)
-            .toList();
+    final selectedSymptoms = _coerceDynamicList(widget.assessmentData['symptoms'])
+      .map((e) => e.toString())
+      .where((e) => e.trim().isNotEmpty)
+      .toList();
     final intake = Map<String, dynamic>.from(
       widget.assessmentData['clinicalIntake'] as Map? ?? <String, dynamic>{},
     );
@@ -94,10 +103,10 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
     }.toList();
 
     final cameraDetectableConditions =
-        (intake['visionCandidateLabels'] as List<dynamic>? ?? <dynamic>[])
-            .map((e) => e.toString().trim())
-            .where((e) => e.isNotEmpty)
-            .toList();
+      _coerceDynamicList(intake['visionCandidateLabels'])
+        .map((e) => e.toString().trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
 
     if (symptoms.isEmpty || intake.isEmpty) {
       return;
@@ -149,10 +158,9 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
       derived.add('Licking');
     }
 
-    final appearance =
-        (intake['lesionAppearance'] as List<dynamic>? ?? <dynamic>[])
-            .map((e) => e.toString())
-            .toSet();
+    final appearance = _coerceDynamicList(intake['lesionAppearance'])
+      .map((e) => e.toString())
+      .toSet();
     if (appearance.contains('Tiny moving dots')) {
       derived.add('Biting/Chewing');
       derived.add('Scooting');
@@ -162,20 +170,18 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
       derived.add('Rolling/Rubbing');
     }
 
-    final distribution =
-        (intake['distributionAreas'] as List<dynamic>? ?? <dynamic>[])
-            .map((e) => e.toString())
-            .toSet();
+    final distribution = _coerceDynamicList(intake['distributionAreas'])
+      .map((e) => e.toString())
+      .toSet();
     if (distribution.contains('Ears')) {
       derived.add('Head Shaking');
     }
 
     final structuredPrior = Map<String, dynamic>.from(
         intake['structuredSymptomPrior'] as Map? ?? <String, dynamic>{});
-    final structuredSymptoms =
-        (structuredPrior['symptoms'] as List<dynamic>? ?? <dynamic>[])
-            .map((e) => e.toString().toLowerCase())
-            .toList();
+    final structuredSymptoms = _coerceDynamicList(structuredPrior['symptoms'])
+      .map((e) => e.toString().toLowerCase())
+      .toList();
 
     if (structuredSymptoms.any((s) =>
         s.contains('itch') ||

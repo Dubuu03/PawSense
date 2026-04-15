@@ -63,6 +63,16 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
   bool _isGeneratingAiRecommendation = false;
   Map<String, dynamic>? _aiRecommendation;
 
+  List<dynamic> _coerceDynamicList(dynamic raw) {
+    if (raw is List) {
+      return raw;
+    }
+    if (raw is Map) {
+      return raw.values.toList(growable: false);
+    }
+    return <dynamic>[];
+  }
+
   @override
   void initState() {
     super.initState();
@@ -284,7 +294,9 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
         0.25; // 25% minimum confidence (lowered to include more detections)
     const double IOU_THRESHOLD =
         0.5; // Intersection over Union threshold for duplicate detection
-    // Show ALL unique detections in graph (no limit)
+    const double DISPLAY_PERCENT_THRESHOLD =
+      10.0; // Show only conditions >= 10%
+    const int MAX_DISPLAY_RESULTS = 3; // Cap chart/legend entries to top 3
 
     // Collect all detections with their image indices for deduplication
     final List<Map<String, dynamic>> allDetectionsWithContext = [];
@@ -445,19 +457,32 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       const Color(0xFF00C7BE), // Teal
     ];
 
-    // Convert to AnalysisResult objects - INCLUDE ALL DETECTIONS
-    // Assign colors based on the order they appear in sortedConditions
-    _analysisResults = sortedConditions.asMap().entries.map((entry) {
+    final allRankedResults = sortedConditions
+        .map((entry) => AnalysisResult(
+              condition: _formatConditionName(entry.key),
+              percentage: _validateConfidence(entry.value) * 100,
+              color: AppColors.textSecondary,
+            ))
+        .toList(growable: false);
+
+    final thresholded = allRankedResults
+        .where((result) => result.percentage >= DISPLAY_PERCENT_THRESHOLD)
+        .toList(growable: false);
+
+    final displayResults = thresholded.isNotEmpty
+        ? thresholded.take(MAX_DISPLAY_RESULTS).toList(growable: false)
+        : allRankedResults.take(MAX_DISPLAY_RESULTS).toList(growable: false);
+
+    _analysisResults = displayResults.asMap().entries.map((entry) {
       final index = entry.key;
-      final condition = entry.value.key;
-      final confidence = entry.value.value;
+      final result = entry.value;
 
       return AnalysisResult(
-        condition: _formatConditionName(condition),
-        percentage: _validateConfidence(confidence) * 100,
+        condition: result.condition,
+        percentage: result.percentage,
         color: diseaseColorPalette[index % diseaseColorPalette.length],
       );
-    }).toList();
+    }).toList(growable: false);
 
     print(
         '📊 Processed ${_analysisResults.length} unique skin disease detections:');
@@ -502,10 +527,10 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     required Map<String, dynamic> intake,
   }) {
     final normalized = _normalizeConditionName(conditionKey);
-    final areas = (intake['distributionAreas'] as List<dynamic>? ?? [])
+    final areas = _coerceDynamicList(intake['distributionAreas'])
         .map((e) => e.toString())
         .toSet();
-    final appearance = (intake['lesionAppearance'] as List<dynamic>? ?? [])
+    final appearance = _coerceDynamicList(intake['lesionAppearance'])
         .map((e) => e.toString())
         .toSet();
     final itch = intake['itchSeverity']?.toString() ?? 'not_sure';
@@ -663,7 +688,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
 
   String get _summarySourceLabel {
     if (_aiRecommendation != null) {
-      return 'AI-assisted (grounded)';
+      return 'AI-assisted';
     }
     return 'Database grounded';
   }
@@ -2140,30 +2165,12 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     final diseaseInfo = _detectedDisease;
 
     String severity = 'moderate';
-    String severityDisplay = 'Moderate';
-    Color severityColor = const Color(0xFFFFA500);
-    IconData severityIcon = Icons.warning_amber_rounded;
 
     if (diseaseInfo != null) {
       severity = diseaseInfo.severity.toLowerCase();
     }
-
-    switch (severity) {
-      case 'low':
-        severityDisplay = 'Low';
-        severityColor = const Color(0xFF34C759);
-        severityIcon = Icons.check_circle_rounded;
-        break;
-      case 'high':
-        severityDisplay = 'High';
-        severityColor = const Color(0xFFFF3B30);
-        severityIcon = Icons.error_rounded;
-        break;
-      default:
-        severityDisplay = 'Moderate';
-        severityColor = const Color(0xFFFFA500);
-        severityIcon = Icons.warning_amber_rounded;
-        break;
+    if (severity != 'low' && severity != 'moderate' && severity != 'high') {
+      severity = 'moderate';
     }
 
     List<String> seekHelpActions = [];
@@ -2226,49 +2233,21 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
             style: kMobileTextStyleTitle.copyWith(color: AppColors.textPrimary),
           ),
           const SizedBox(height: kSpacingSmall),
-          Row(
-            children: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: severityColor.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(severityIcon, color: severityColor, size: 14),
-                    const SizedBox(width: 6),
-                    Text(
-                      severityDisplay.toUpperCase(),
-                      style: kMobileTextStyleLegend.copyWith(
-                        color: severityColor,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
+          if (urgencyDisplay != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: AppColors.error.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                urgencyDisplay,
+                style: kMobileTextStyleLegend.copyWith(
+                  color: AppColors.error,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(width: kSpacingSmall),
-              if (urgencyDisplay != null)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: AppColors.error.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    urgencyDisplay,
-                    style: kMobileTextStyleLegend.copyWith(
-                      color: AppColors.error,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-            ],
-          ),
+            ),
           const SizedBox(height: kSpacingSmall),
           Text(
             'Top finding: ${highestDetection.condition} (${highestDetection.percentage.toStringAsFixed(1)}%)',

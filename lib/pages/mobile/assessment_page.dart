@@ -26,6 +26,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
   int currentStep = 0;
   late PageController _pageController;
   bool _isLoading = false;
+  bool _isStepTransitioning = false;
   String? _previousRoute;
 
   // Global keys to access step widgets
@@ -71,6 +72,16 @@ class _AssessmentPageState extends State<AssessmentPage> {
   Future<void> _loadBreeds() async {
     final petType = assessmentData['selectedPetType']?.toString() ?? 'Dog';
     _cachedBreeds = await BreedOptions.getBreedsForPetType(petType);
+  }
+
+  List<dynamic> _coerceDynamicList(dynamic raw) {
+    if (raw is List) {
+      return raw;
+    }
+    if (raw is Map) {
+      return raw.values.toList(growable: false);
+    }
+    return <dynamic>[];
   }
 
   @override
@@ -120,6 +131,8 @@ class _AssessmentPageState extends State<AssessmentPage> {
   }
 
   void _nextStep() async {
+    if (_isStepTransitioning) return;
+
     debugPrint('🚀 _nextStep called. Current step: $currentStep');
 
     // Validate current step before proceeding
@@ -140,15 +153,17 @@ class _AssessmentPageState extends State<AssessmentPage> {
       await Future.delayed(const Duration(milliseconds: 300));
 
       if (currentStep < 3) {
+        _isStepTransitioning = true;
         setState(() {
           currentStep++;
         });
-        _pageController.nextPage(
+        await _pageController.nextPage(
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
         );
       }
     } finally {
+      _isStepTransitioning = false;
       // Always hide loading
       _hideLoading();
     }
@@ -263,9 +278,12 @@ class _AssessmentPageState extends State<AssessmentPage> {
 
   /// Validates behaviors/symptoms selection
   bool _validateBehaviors() {
-    final symptoms = assessmentData['symptoms'] as List<String>?;
+    final symptoms = _coerceDynamicList(assessmentData['symptoms'])
+        .map((e) => e.toString().trim())
+        .where((e) => e.isNotEmpty)
+        .toList(growable: false);
     debugPrint('🏃 Validating behaviors: $symptoms');
-    bool isValid = symptoms != null && symptoms.isNotEmpty;
+    bool isValid = symptoms.isNotEmpty;
     debugPrint('🏃 Behaviors validation result: $isValid');
     return isValid;
   }
@@ -380,8 +398,8 @@ class _AssessmentPageState extends State<AssessmentPage> {
 
   bool _validateStepTwo() {
     // Check if at least one photo is uploaded
-    final photos = assessmentData['photos'] as List<dynamic>?;
-    if (photos == null || photos.isEmpty) {
+    final photos = _coerceDynamicList(assessmentData['photos']);
+    if (photos.isEmpty) {
       return false;
     }
 
@@ -407,10 +425,8 @@ class _AssessmentPageState extends State<AssessmentPage> {
     }
 
     final onsetDuration = intake['onsetDuration']?.toString().trim() ?? '';
-    final distributionAreas =
-        (intake['distributionAreas'] as List<dynamic>? ?? []).cast<dynamic>();
-    final lesionAppearance =
-        (intake['lesionAppearance'] as List<dynamic>? ?? []).cast<dynamic>();
+    final distributionAreas = _coerceDynamicList(intake['distributionAreas']);
+    final lesionAppearance = _coerceDynamicList(intake['lesionAppearance']);
 
     // Owner-friendly validation: allow partial answers and uncertainty.
     // Proceed when at least one useful signal is provided.
@@ -494,8 +510,8 @@ class _AssessmentPageState extends State<AssessmentPage> {
       case 1:
         return 'Please finish the guided chat questions before starting the scan';
       case 2:
-        final photos = assessmentData['photos'] as List<dynamic>?;
-        if (photos == null || photos.isEmpty) {
+        final photos = _coerceDynamicList(assessmentData['photos']);
+        if (photos.isEmpty) {
           return 'Please upload or take at least one photo of the affected area';
         }
 
@@ -572,6 +588,8 @@ class _AssessmentPageState extends State<AssessmentPage> {
   }
 
   void _previousStep() async {
+    if (_isStepTransitioning) return;
+
     // Check if we're in step 2 and analysis is in progress
     if (currentStep == 2) {
       final stepTwoState = _stepTwoKey.currentState;
@@ -588,13 +606,18 @@ class _AssessmentPageState extends State<AssessmentPage> {
     }
 
     if (currentStep > 0) {
+      _isStepTransitioning = true;
       setState(() {
         currentStep--;
       });
-      _pageController.previousPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
+      try {
+        await _pageController.previousPage(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      } finally {
+        _isStepTransitioning = false;
+      }
     }
   }
 

@@ -42,9 +42,7 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
     'camera-detectable skin conditions',
     'use plain language, ask only one question',
     'avoid diagnosis claims',
-    'default_title',
-    'default_helper',
-    'free_text_followup',
+    'dynamic_followup',
   ];
 
   final TextEditingController _messageController = TextEditingController();
@@ -56,12 +54,18 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
   final List<String> _questionTrace = <String>[];
 
   String? _activeQuestion;
+  String? _activeQuestionId;
+  List<String> _activeQuickOptions = <String>[];
   bool _llmSaysDone = false;
   bool _isGeneratingNextQuestion = false;
   bool _isGeneratingStructuredPrior = false;
+  bool _isDisposed = false;
 
   Map<String, dynamic> _llmChatTelemetry = <String, dynamic>{};
   Map<String, dynamic> _structuredSymptomPrior = <String, dynamic>{};
+  String _lastAnsweredQuestionId = '';
+  String _lastAnsweredQuestion = '';
+  int _chatSessionSeed = 0;
 
   String _derivedOnsetDuration = '';
   String _derivedItchSeverity = 'not_sure';
@@ -94,13 +98,16 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
     _hydrateFromExistingData();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || _isDisposed) return;
       await _bootstrapConversation();
+      if (!mounted || _isDisposed) return;
       _pushData();
     });
   }
 
   @override
   void dispose() {
+    _isDisposed = true;
     _messageController.dispose();
     _chatScrollController.dispose();
     super.dispose();
@@ -124,25 +131,38 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
         _normalizeTrigger(intake['triggerContext']?.toString() ?? 'not_sure');
 
     _derivedDistributionAreas = _normalizeUniqueList(
-      (intake['distributionAreas'] as List<dynamic>? ?? <dynamic>[])
+      _coerceDynamicList(intake['distributionAreas'])
           .map((e) => e.toString()),
     );
 
     _derivedLesionAppearance = _normalizeUniqueList(
-      (intake['lesionAppearance'] as List<dynamic>? ?? <dynamic>[])
+      _coerceDynamicList(intake['lesionAppearance'])
           .map((e) => e.toString()),
     );
 
     _derivedRedFlags = _normalizeUniqueList(
-      (intake['redFlags'] as List<dynamic>? ?? <dynamic>[])
+      _coerceDynamicList(intake['redFlags'])
           .map((e) => e.toString()),
     );
 
     _llmSaysDone = intake['llmQuestioningDone'] == true;
     _activeQuestion = intake['activeQuestion']?.toString().trim();
+    _activeQuestionId = intake['activeQuestionId']?.toString().trim();
+    if (_activeQuestionId != null && _activeQuestionId!.isEmpty) {
+      _activeQuestionId = null;
+    }
     if (_activeQuestion != null && _activeQuestion!.isEmpty) {
       _activeQuestion = null;
     }
+
+    if (_activeQuestion == null) {
+      _activeQuestionId = null;
+      _activeQuickOptions = <String>[];
+    }
+
+    _activeQuickOptions = _normalizeQuickOptions(
+      _coerceDynamicList(intake['activeQuickOptions']),
+    );
 
     _llmChatTelemetry = Map<String, dynamic>.from(
       intake['llmChatTelemetry'] as Map? ?? <String, dynamic>{},
@@ -152,7 +172,18 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
       intake['structuredSymptomPrior'] as Map? ?? <String, dynamic>{},
     );
 
-    final savedFlow = (intake['dynamicQuestionFlow'] as List<dynamic>? ?? [])
+    _lastAnsweredQuestionId =
+        intake['lastAnsweredQuestionId']?.toString().trim() ?? '';
+    _lastAnsweredQuestion =
+        intake['lastAnsweredQuestion']?.toString().trim() ?? '';
+
+    final persistedSeed =
+      int.tryParse(intake['chatSessionSeed']?.toString() ?? '');
+    _chatSessionSeed = (persistedSeed != null && persistedSeed > 0)
+      ? persistedSeed
+      : DateTime.now().millisecondsSinceEpoch;
+
+    final savedFlow = _coerceDynamicList(intake['dynamicQuestionFlow'])
         .map((e) => e.toString())
         .where((e) => e.isNotEmpty)
         .toList();
@@ -202,6 +233,7 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
 
     if (_isReadyForScan) {
       _activeQuestion = null;
+      _activeQuestionId = null;
       _llmSaysDone = true;
       _pushData();
       return;
@@ -212,6 +244,16 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
     }
 
     _scrollToBottomSoon();
+  }
+
+  List<dynamic> _coerceDynamicList(dynamic raw) {
+    if (raw is List) {
+      return raw;
+    }
+    if (raw is Map) {
+      return raw.values.toList(growable: false);
+    }
+    return <dynamic>[];
   }
 
   List<String> _normalizeUniqueList(Iterable<String> values) {
@@ -225,6 +267,26 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
       if (seen.contains(key)) continue;
       seen.add(key);
       output.add(value);
+    }
+
+    return output;
+  }
+
+  List<String> _normalizeQuickOptions(
+    Iterable<dynamic> values, {
+    int maxCount = 6,
+  }) {
+    final seen = <String>{};
+    final output = <String>[];
+
+    for (final raw in values) {
+      final value = raw.toString().trim();
+      if (value.isEmpty) continue;
+      final key = value.toLowerCase();
+      if (seen.contains(key)) continue;
+      seen.add(key);
+      output.add(value);
+      if (output.length >= maxCount) break;
     }
 
     return output;
@@ -308,7 +370,7 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
       _conversation.add({'role': role, 'text': cleaned});
     }
 
-    if (persist) {
+    if (persist && mounted && !_isDisposed) {
       _pushData();
     }
 
@@ -317,12 +379,20 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
 
   void _scrollToBottomSoon() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _isDisposed) return;
       if (!_chatScrollController.hasClients) return;
-      _chatScrollController.animateTo(
-        _chatScrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOut,
-      );
+      final position = _chatScrollController.position;
+      if (!position.hasContentDimensions) return;
+
+      try {
+        _chatScrollController.animateTo(
+          position.maxScrollExtent,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+        );
+      } catch (_) {
+        // Ignore transient detach errors during page transitions.
+      }
     });
   }
 
@@ -371,20 +441,18 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
     return output;
   }
 
-  String _fallbackQuestionByTurn() {
-    if (_turnCount == 0) {
-      return 'What skin changes did you notice first?';
-    }
-    if (_turnCount == 1) {
-      return 'Where on your pet\'s body do you see it most?';
-    }
-    if (_turnCount == 2) {
-      return 'How has it changed over time, and how itchy does your pet seem?';
-    }
-    if (_turnCount == 3) {
-      return 'Any warning signs like discharge, bleeding, odor, or low energy?';
-    }
-    return 'Anything else important before we proceed to camera scan?';
+  String _fallbackQuestionByTurn({
+    String questionId = 'dynamic_followup',
+    Map<String, dynamic>? questionCatalog,
+  }) {
+    final catalog = questionCatalog ?? _buildQuestionCatalog();
+    final normalizedQuestionId =
+      questionId.trim().isEmpty ? 'dynamic_followup' : questionId.trim();
+
+    return _buildAdaptivePromptForIntent(
+      questionId: normalizedQuestionId,
+      questionCatalog: catalog,
+    );
   }
 
   bool _looksLikeInternalAssistantText(String text) {
@@ -403,12 +471,19 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
   String _buildVisibleAssistantPrompt({
     required String rawQuestion,
     required String rawHelper,
+    String questionId = 'dynamic_followup',
+    Map<String, dynamic>? questionCatalog,
   }) {
     var question = rawQuestion.trim();
     final helper = rawHelper.trim();
+    final normalizedQuestionId =
+      questionId.trim().isEmpty ? 'dynamic_followup' : questionId.trim();
 
     if (question.isEmpty || _looksLikeInternalAssistantText(question)) {
-      question = _fallbackQuestionByTurn();
+      return _fallbackQuestionByTurn(
+        questionId: normalizedQuestionId,
+        questionCatalog: questionCatalog,
+      );
     }
 
     if (helper.isNotEmpty && !_looksLikeInternalAssistantText(helper)) {
@@ -426,18 +501,423 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
     return cleaned;
   }
 
+  String _normalizeQuestionKey(String text) {
+    final firstLine = text.split('\n').first.trim().toLowerCase();
+    if (firstLine.isEmpty) return '';
+
+    return firstLine
+        .replaceAll(RegExp(r'[^a-z0-9 ]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  bool _isDuplicateAssistantQuestion(String prompt) {
+    final candidate = _normalizeQuestionKey(prompt);
+    if (candidate.isEmpty) return false;
+
+    var inspected = 0;
+    for (var i = _conversation.length - 1; i >= 0; i--) {
+      final message = _conversation[i];
+      if (message['role'] != 'assistant') continue;
+
+      final prior = _normalizeQuestionKey(message['text'] ?? '');
+      if (prior == candidate) {
+        return true;
+      }
+
+      inspected += 1;
+      if (inspected >= 3) {
+        break;
+      }
+    }
+
+    return false;
+  }
+
+  int _stableHash(String value) {
+    var hash = 0;
+    for (final unit in value.codeUnits) {
+      hash = ((hash * 31) + unit) & 0x7fffffff;
+    }
+    return hash;
+  }
+
+  int _sessionVariantIndex({required String key, required int size}) {
+    if (size <= 1) return 0;
+
+    final latestAnswer = _latestUserAnswerText();
+    final basis =
+        '$_chatSessionSeed|$_turnCount|$_lastAnsweredQuestionId|$latestAnswer|$key';
+    return _stableHash(basis) % size;
+  }
+
+  String _intentFocusForQuestionId({
+    required String questionId,
+    required Map<String, dynamic> questionCatalog,
+  }) {
+    final entry = Map<String, dynamic>.from(
+      questionCatalog[questionId] as Map? ?? <String, dynamic>{},
+    );
+    final focus = entry['intent_focus']?.toString().trim();
+    if (focus != null && focus.isNotEmpty) {
+      return focus;
+    }
+
+    return 'the current skin concern';
+  }
+
+  String _buildAdaptivePromptForIntent({
+    required String questionId,
+    required Map<String, dynamic> questionCatalog,
+  }) {
+    final focus = _intentFocusForQuestionId(
+      questionId: questionId,
+      questionCatalog: questionCatalog,
+    );
+    final latestAnswer = _latestUserAnswerText();
+
+    final rawOptions = _coerceDynamicList(
+      (questionCatalog[questionId] as Map?)?['quick_options'],
+    );
+    final quickOptions = rawOptions
+        .map((e) => e.toString().trim())
+        .where((e) => e.isNotEmpty)
+        .take(3)
+        .toList(growable: false);
+
+    final stems = latestAnswer.isNotEmpty
+        ? <String>[
+            'Thanks. Could you share one more detail about $focus?',
+            'Based on what you shared, what else can you tell me about $focus?',
+            'To narrow this down, can you clarify $focus a bit more?',
+          ]
+        : <String>[
+            'Could you share a detail about $focus?',
+            'Can you tell me more about $focus?',
+            'What can you share about $focus?',
+          ];
+
+    final stemIndex = _sessionVariantIndex(
+      key: '$questionId|$focus|$latestAnswer|adaptive_prompt',
+      size: stems.length,
+    );
+
+    final question = stems[stemIndex];
+    if (quickOptions.isEmpty) {
+      return question;
+    }
+
+    final helper = 'If useful, you can mention ${quickOptions.join(', ')}.';
+    return '$question\n\n$helper';
+  }
+
+  String _pickAlternativeQuestionId({
+    required List<String> eligibleQuestionIds,
+    required String currentQuestionId,
+  }) {
+    if (eligibleQuestionIds.isEmpty) {
+      return currentQuestionId;
+    }
+
+    for (final id in eligibleQuestionIds) {
+      if (id == currentQuestionId) continue;
+      if (id == _lastAnsweredQuestionId) continue;
+      if (_questionTrace.isNotEmpty && id == _questionTrace.last) continue;
+      return id;
+    }
+
+    for (final id in eligibleQuestionIds) {
+      if (id != currentQuestionId) return id;
+    }
+
+    return currentQuestionId;
+  }
+
+  String _latestUserAnswerText() {
+    for (var i = _conversation.length - 1; i >= 0; i--) {
+      final item = _conversation[i];
+      if (item['role'] != 'user') continue;
+
+      final text = item['text']?.trim() ?? '';
+      if (text.isNotEmpty) return text.toLowerCase();
+    }
+
+    return '';
+  }
+
+  bool _containsAnyKeyword(String source, List<String> keywords) {
+    for (final keyword in keywords) {
+      if (source.contains(keyword)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  String _normalizeAnswerValue(String text) {
+    return text
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9 ]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  void _applyDirectAnswerSignals({
+    required String questionId,
+    required String answerText,
+  }) {
+    if (questionId.trim().isEmpty || answerText.trim().isEmpty) {
+      return;
+    }
+
+    final normalized = _normalizeAnswerValue(answerText);
+    if (normalized.isEmpty) {
+      return;
+    }
+
+    switch (questionId) {
+      case 'distribution_areas':
+        final inferred = <String>[];
+        if (_containsAnyKeyword(normalized, <String>['face', 'muzzle'])) {
+          inferred.add('Face');
+        }
+        if (_containsAnyKeyword(normalized, <String>['ear', 'ears'])) {
+          inferred.add('Ears');
+        }
+        if (_containsAnyKeyword(normalized, <String>['neck'])) {
+          inferred.add('Neck');
+        }
+        if (_containsAnyKeyword(normalized, <String>['back', 'spine'])) {
+          inferred.add('Back');
+        }
+        if (_containsAnyKeyword(
+            normalized, <String>['belly', 'abdomen', 'stomach'])) {
+          inferred.add('Belly');
+        }
+        if (_containsAnyKeyword(normalized, <String>['paw', 'paws', 'foot'])) {
+          inferred.add('Paws');
+        }
+        if (_containsAnyKeyword(normalized, <String>['tail'])) {
+          inferred.add('Tail');
+        }
+        if (_containsAnyKeyword(normalized,
+            <String>['widespread', 'all over', 'whole body', 'everywhere'])) {
+          inferred.add('Widespread');
+        }
+        if (inferred.isNotEmpty) {
+          _derivedDistributionAreas = _normalizeUniqueList(
+            <String>[..._derivedDistributionAreas, ...inferred],
+          );
+        }
+        break;
+      case 'lesion_appearance':
+        final inferred = <String>[];
+        if (_containsAnyKeyword(
+            normalized, <String>['red', 'rash', 'inflamed'])) {
+          inferred.add('Redness / rash');
+        }
+        if (_containsAnyKeyword(
+            normalized, <String>['hair loss', 'bald', 'alopecia'])) {
+          inferred.add('Hair loss patches');
+        }
+        if (_containsAnyKeyword(
+            normalized, <String>['scab', 'scabs', 'crust'])) {
+          inferred.add('Scabs / crusts');
+        }
+        if (_containsAnyKeyword(
+            normalized, <String>['moist', 'ooz', 'discharge', 'wet'])) {
+          inferred.add('Moist or oozing skin');
+        }
+        if (_containsAnyKeyword(normalized, <String>['ring', 'circular'])) {
+          inferred.add('Circular lesions');
+        }
+        if (_containsAnyKeyword(
+            normalized, <String>['flaky', 'dandruff', 'scaly'])) {
+          inferred.add('Flaky / dandruff-like');
+        }
+        if (_containsAnyKeyword(
+            normalized, <String>['tiny moving dots', 'flea', 'tick', 'mite'])) {
+          inferred.add('Tiny moving dots');
+        }
+        if (inferred.isNotEmpty) {
+          _derivedLesionAppearance = _normalizeUniqueList(
+            <String>[..._derivedLesionAppearance, ...inferred],
+          );
+        }
+        break;
+      case 'itch_severity':
+        if (_containsAnyKeyword(
+            normalized, <String>['severe', 'very itchy', 'extremely itchy'])) {
+          _derivedItchSeverity = 'severe';
+        } else if (_containsAnyKeyword(normalized, <String>['moderate'])) {
+          _derivedItchSeverity = 'moderate';
+        } else if (_containsAnyKeyword(
+            normalized, <String>['mild', 'slight', 'not itchy', 'no itch'])) {
+          _derivedItchSeverity = 'mild';
+        } else if (_containsAnyKeyword(
+            normalized, <String>['not sure', 'unsure'])) {
+          _derivedItchSeverity = 'not_sure';
+        }
+        break;
+      case 'progression':
+        if (_containsAnyKeyword(
+            normalized, <String>['worse', 'spreading', 'rapid'])) {
+          _derivedProgression = 'getting_worse';
+        } else if (_containsAnyKeyword(
+            normalized, <String>['improving', 'better'])) {
+          _derivedProgression = 'improving';
+        } else if (_containsAnyKeyword(
+            normalized, <String>['same', 'stable', 'unchanged'])) {
+          _derivedProgression = 'stable';
+        } else if (_containsAnyKeyword(
+            normalized, <String>['not sure', 'unsure'])) {
+          _derivedProgression = 'not_sure';
+        }
+        break;
+      case 'onset_duration':
+        final raw = answerText.trim();
+        if (_containsAnyKeyword(normalized, <String>['today'])) {
+          _derivedOnsetDuration = 'today';
+        } else if (_containsAnyKeyword(
+            normalized, <String>['1 to 3 days', '1 3 days', 'few days'])) {
+          _derivedOnsetDuration = '1 to 3 days';
+        } else if (_containsAnyKeyword(
+            normalized, <String>['about a week', 'one week', 'week'])) {
+          _derivedOnsetDuration = 'about a week';
+        } else if (_containsAnyKeyword(
+            normalized, <String>['more than a week', 'weeks', 'month'])) {
+          _derivedOnsetDuration = 'more than a week';
+        } else if (_containsAnyKeyword(
+            normalized, <String>['not sure', 'unsure'])) {
+          _derivedOnsetDuration = '';
+        } else if (raw.isNotEmpty) {
+          _derivedOnsetDuration = raw;
+        }
+        break;
+      case 'parasite_prevention':
+        if (_containsAnyKeyword(normalized, <String>['not sure', 'unsure'])) {
+          _derivedParasitePreventionStatus = 'not_sure';
+        } else if (_containsAnyKeyword(normalized, <String>['yes'])) {
+          _derivedParasitePreventionStatus = 'yes';
+        } else if (_containsAnyKeyword(normalized, <String>['no'])) {
+          _derivedParasitePreventionStatus = 'no';
+        }
+        break;
+      case 'trigger_context':
+        if (_containsAnyKeyword(normalized, <String>['not sure', 'unsure'])) {
+          _derivedTriggerContext = 'not_sure';
+        } else if (_containsAnyKeyword(
+            normalized, <String>['groom', 'shampoo'])) {
+          _derivedTriggerContext = 'recent_grooming';
+        } else if (_containsAnyKeyword(
+            normalized, <String>['allergen', 'allergy', 'pollen', 'dust'])) {
+          _derivedTriggerContext = 'possible_allergen';
+        } else if (_containsAnyKeyword(
+            normalized, <String>['medication', 'medicine'])) {
+          _derivedTriggerContext = 'recent_medication';
+        } else if (_containsAnyKeyword(
+            normalized, <String>['no clear trigger', 'none', 'no trigger'])) {
+          _derivedTriggerContext = 'none';
+        }
+        break;
+      case 'red_flags_check':
+        final hasWarningSignal = _containsAnyKeyword(normalized, <String>[
+          'yes',
+          'warning sign',
+          'warning signs',
+          'bleed',
+          'discharge',
+          'odor',
+          'low energy',
+          'weak',
+          'letharg',
+        ]);
+        final explicitlyNoWarningSignal =
+            _containsAnyKeyword(normalized, <String>[
+          'no warning sign',
+          'no warning signs',
+          'no red flag',
+          'none',
+        ]);
+
+        if (hasWarningSignal) {
+          _derivedRedFlags = _normalizeUniqueList(
+            <String>[..._derivedRedFlags, 'reported_warning_signs'],
+          );
+        } else if (explicitlyNoWarningSignal) {
+          _derivedRedFlags = <String>[];
+        }
+        break;
+    }
+  }
+
+  List<String> _buildEligibleQuestionIds() {
+    _inferDerivedSignalsFromConversation();
+
+    if (_isReadyForScan) {
+      return const <String>[];
+    }
+
+    if (_turnCount == 0) {
+      return const <String>['opening_context'];
+    }
+
+    return const <String>['dynamic_followup'];
+  }
+
   Map<String, dynamic> _buildQuestionCatalog() {
     return {
-      'free_text_followup': {
-        'default_title':
-            'Ask one concise follow-up question to narrow camera-detectable skin conditions.',
-        'default_helper':
-            'Use plain language, ask only one question, and avoid diagnosis claims.',
+      'opening_context': {
+        'intent_focus': 'what you noticed first about the skin change',
         'input_type': 'free_text',
         'allow_free_text': true,
-        'options': <String>[],
+        'quick_options': <String>[
+          'Itching or scratching',
+          'Redness or rash',
+          'Hair loss patch',
+          'Scab or crust',
+          'Moist skin or discharge',
+          'Not sure',
+        ],
+      },
+      'dynamic_followup': {
+        'intent_focus':
+            'the single most useful missing detail based on latest user answer and chat history',
+        'input_type': 'free_text',
+        'allow_free_text': true,
+        'quick_options': <String>['Not sure'],
       },
     };
+  }
+
+  List<String> _suggestedRepliesForNextQuestion({
+    required Map<String, dynamic> content,
+    required String questionId,
+    required Map<String, dynamic> questionCatalog,
+  }) {
+    final llmCandidates = <dynamic>[
+      ..._coerceDynamicList(content['suggested_replies']),
+      ..._coerceDynamicList(content['quick_options']),
+      ..._coerceDynamicList(content['answer_options']),
+    ];
+
+    final llmOptions = _normalizeQuickOptions(
+      llmCandidates,
+      maxCount: 6,
+    );
+    if (llmOptions.isNotEmpty) {
+      return llmOptions;
+    }
+
+    final catalogEntry = Map<String, dynamic>.from(
+      questionCatalog[questionId] as Map? ?? <String, dynamic>{},
+    );
+
+    return _normalizeQuickOptions(
+      _coerceDynamicList(catalogEntry['quick_options']),
+      maxCount: 4,
+    );
   }
 
   Future<void> _requestNextQuestion({bool isInitial = false}) async {
@@ -449,13 +929,55 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
       final petType =
           widget.assessmentData['selectedPetType']?.toString() ?? 'Dog';
       final intakeSnapshot = _buildCurrentIntakeSnapshot();
+      final questionCatalog = _buildQuestionCatalog();
+      final eligibleQuestionIds = _buildEligibleQuestionIds();
+      var plannedQuestionId = eligibleQuestionIds.isNotEmpty
+          ? eligibleQuestionIds.first
+          : 'dynamic_followup';
+
+      if (plannedQuestionId == 'opening_context' && _turnCount == 0) {
+        final openingPrompt =
+            'What did you notice first about your pet\'s skin issue?';
+        final openingOptions = _normalizeQuickOptions(
+          _coerceDynamicList(
+            (questionCatalog['opening_context'] as Map?)?['quick_options'],
+          ),
+          maxCount: 6,
+        );
+
+        setState(() {
+          _activeQuestion = openingPrompt;
+          _activeQuestionId = 'opening_context';
+          _activeQuickOptions = openingOptions;
+          if (_questionTrace.isEmpty || _questionTrace.last != 'opening_context') {
+            _questionTrace.add('opening_context');
+          }
+        });
+
+        _appendMessage(
+          role: 'assistant',
+          text: openingPrompt,
+          persist: false,
+        );
+        _pushData();
+        return;
+      }
+
+      if (eligibleQuestionIds.length > 1 &&
+          plannedQuestionId == _lastAnsweredQuestionId) {
+        plannedQuestionId = _pickAlternativeQuestionId(
+          eligibleQuestionIds: eligibleQuestionIds,
+          currentQuestionId: plannedQuestionId,
+        );
+      }
 
       final result = await _groqService.generateGuidedChatQuestion(
         petType: petType,
         intakeData: intakeSnapshot,
         askedQuestionIds: _questionTrace,
-        eligibleQuestionIds: const <String>['free_text_followup'],
-        questionCatalog: _buildQuestionCatalog(),
+        eligibleQuestionIds: eligibleQuestionIds,
+        questionCatalog: questionCatalog,
+        preferredQuestionId: plannedQuestionId,
       );
 
       if (!mounted) return;
@@ -463,11 +985,37 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
       final content = Map<String, dynamic>.from(result.content);
       final rawQuestion = content['question_text']?.toString().trim() ?? '';
       final rawHelper = content['helper_text']?.toString().trim() ?? '';
+      final llmQuestionId =
+          content['next_question_id']?.toString().trim() ?? '';
+      var resolvedQuestionId = plannedQuestionId.trim();
+      if (resolvedQuestionId.isEmpty) {
+        resolvedQuestionId = 'dynamic_followup';
+      }
+
+      if (llmQuestionId.isNotEmpty &&
+          eligibleQuestionIds.contains(llmQuestionId) &&
+          llmQuestionId != _lastAnsweredQuestionId) {
+        resolvedQuestionId = llmQuestionId;
+      }
+
+      if (eligibleQuestionIds.length > 1 &&
+          resolvedQuestionId == _lastAnsweredQuestionId) {
+        resolvedQuestionId = _pickAlternativeQuestionId(
+          eligibleQuestionIds: eligibleQuestionIds,
+          currentQuestionId: resolvedQuestionId,
+        );
+      }
 
       final shouldFinish = !isInitial &&
           content['should_finish'] == true &&
           _turnCount >= _minTurnsForReadiness &&
           _hasStructuredSignal;
+
+      final suggestedReplies = _suggestedRepliesForNextQuestion(
+        content: content,
+        questionId: resolvedQuestionId,
+        questionCatalog: questionCatalog,
+      );
 
       final requestCount =
           (_llmChatTelemetry['requestCount'] as num?)?.toInt() ?? 0;
@@ -476,6 +1024,9 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
         _llmChatTelemetry = {
           ..._llmChatTelemetry,
           'requestCount': requestCount + 1,
+          'plannedQuestionId': plannedQuestionId,
+          'llmSuggestedQuestionId': llmQuestionId,
+          'eligibleQuestionIds': eligibleQuestionIds,
           'lastModelUsed': result.modelUsed,
           'lastFallbackLevel': result.fallbackLevel.name,
           'lastErrorType': result.errorType.name,
@@ -490,6 +1041,8 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
         setState(() {
           _llmSaysDone = true;
           _activeQuestion = null;
+          _activeQuestionId = null;
+          _activeQuickOptions = <String>[];
         });
         _appendMessage(
           role: 'assistant',
@@ -504,19 +1057,54 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
       final prompt = _buildVisibleAssistantPrompt(
         rawQuestion: rawQuestion,
         rawHelper: rawHelper,
+        questionId: resolvedQuestionId,
+        questionCatalog: questionCatalog,
       );
 
-      setState(() {
-        _activeQuestion = prompt;
-        _questionTrace.add(
-          content['next_question_id']?.toString() ??
-              'q_${DateTime.now().millisecondsSinceEpoch}',
+      var finalPrompt = prompt;
+      if (_isDuplicateAssistantQuestion(finalPrompt)) {
+        if (eligibleQuestionIds.length > 1) {
+          resolvedQuestionId = _pickAlternativeQuestionId(
+            eligibleQuestionIds: eligibleQuestionIds,
+            currentQuestionId: resolvedQuestionId,
+          );
+        }
+
+        finalPrompt = _buildAdaptivePromptForIntent(
+          questionId: resolvedQuestionId,
+          questionCatalog: questionCatalog,
         );
+      }
+
+      if (_isDuplicateAssistantQuestion(finalPrompt)) {
+        resolvedQuestionId = 'dynamic_followup';
+        finalPrompt = _buildAdaptivePromptForIntent(
+          questionId: resolvedQuestionId,
+          questionCatalog: questionCatalog,
+        );
+      }
+
+      if (_isDuplicateAssistantQuestion(finalPrompt)) {
+        finalPrompt = _buildAdaptivePromptForIntent(
+          questionId: resolvedQuestionId,
+          questionCatalog: questionCatalog,
+        );
+      }
+
+      setState(() {
+        _activeQuestion = finalPrompt;
+        _activeQuestionId = resolvedQuestionId;
+        _activeQuickOptions = suggestedReplies;
+        final traceId =
+            resolvedQuestionId.isNotEmpty ? resolvedQuestionId : 'dynamic_followup';
+        if (_questionTrace.isEmpty || _questionTrace.last != traceId) {
+          _questionTrace.add(traceId);
+        }
       });
 
       _appendMessage(
         role: 'assistant',
-        text: prompt,
+        text: finalPrompt,
         persist: false,
       );
       _pushData();
@@ -535,9 +1123,23 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
         };
       });
 
-      final prompt = _fallbackQuestionByTurn();
+      final questionCatalog = _buildQuestionCatalog();
+      final fallbackCandidates = _buildEligibleQuestionIds();
+      final fallbackQuestionId =
+          fallbackCandidates.isNotEmpty ? fallbackCandidates.first : 'dynamic_followup';
+      final prompt = _buildAdaptivePromptForIntent(
+        questionId: fallbackQuestionId,
+        questionCatalog: questionCatalog,
+      );
+      final fallbackReplies = _suggestedRepliesForNextQuestion(
+        content: const <String, dynamic>{},
+        questionId: fallbackQuestionId,
+        questionCatalog: questionCatalog,
+      );
       setState(() {
         _activeQuestion = prompt;
+        _activeQuestionId = fallbackQuestionId;
+        _activeQuickOptions = fallbackReplies;
         _questionTrace
             .add('exception_fallback_${DateTime.now().millisecondsSinceEpoch}');
       });
@@ -639,6 +1241,102 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
         .join(' ')
         .toLowerCase();
 
+    bool hasAny(Iterable<String> keywords) {
+      for (final keyword in keywords) {
+        if (userText.contains(keyword)) return true;
+      }
+      return false;
+    }
+
+    if (_derivedOnsetDuration.trim().isEmpty) {
+      if (hasAny(<String>['today', 'this morning', 'just started'])) {
+        _derivedOnsetDuration = 'today';
+      } else if (hasAny(<String>['yesterday', '1 day', 'one day'])) {
+        _derivedOnsetDuration = '1 day';
+      } else if (hasAny(<String>['2 day', '3 day', 'few days'])) {
+        _derivedOnsetDuration = '1 to 3 days';
+      } else if (hasAny(<String>['week', '7 days'])) {
+        _derivedOnsetDuration = 'about a week';
+      } else if (hasAny(<String>['month', 'weeks', 'long time'])) {
+        _derivedOnsetDuration = 'more than a week';
+      }
+    }
+
+    if (_derivedItchSeverity == 'not_sure') {
+      if (hasAny(<String>[
+        'very itchy',
+        'extremely itchy',
+        'constantly scratching',
+        'keeps scratching',
+        'all day scratching',
+      ])) {
+        _derivedItchSeverity = 'severe';
+      } else if (hasAny(<String>[
+        'slightly itchy',
+        'a little itchy',
+        'mild itch',
+      ])) {
+        _derivedItchSeverity = 'mild';
+      } else if (hasAny(<String>[
+        'itchy',
+        'scratching',
+        'itching',
+      ])) {
+        _derivedItchSeverity = 'moderate';
+      }
+    }
+
+    if (_derivedDistributionAreas.isEmpty) {
+      final inferredAreas = <String>[];
+      if (hasAny(<String>['face', 'muzzle'])) inferredAreas.add('Face');
+      if (hasAny(<String>['ear', 'ears'])) inferredAreas.add('Ears');
+      if (hasAny(<String>['neck'])) inferredAreas.add('Neck');
+      if (hasAny(<String>['back', 'spine'])) inferredAreas.add('Back');
+      if (hasAny(<String>['belly', 'abdomen', 'stomach'])) {
+        inferredAreas.add('Belly');
+      }
+      if (hasAny(<String>['paw', 'paws', 'foot', 'feet'])) {
+        inferredAreas.add('Paws');
+      }
+      if (hasAny(<String>['tail'])) inferredAreas.add('Tail');
+      if (hasAny(<String>['all over', 'everywhere', 'whole body'])) {
+        inferredAreas.add('Widespread');
+      }
+
+      if (inferredAreas.isNotEmpty) {
+        _derivedDistributionAreas = _normalizeUniqueList(inferredAreas);
+      }
+    }
+
+    if (_derivedLesionAppearance.isEmpty) {
+      final inferredAppearance = <String>[];
+      if (hasAny(<String>['red', 'rash', 'inflamed'])) {
+        inferredAppearance.add('Redness / rash');
+      }
+      if (hasAny(<String>['hair loss', 'bald', 'alopecia'])) {
+        inferredAppearance.add('Hair loss patches');
+      }
+      if (hasAny(<String>['scab', 'scabs', 'crust', 'crusty'])) {
+        inferredAppearance.add('Scabs / crusts');
+      }
+      if (hasAny(<String>['ooz', 'discharge', 'wet', 'moist'])) {
+        inferredAppearance.add('Moist or oozing skin');
+      }
+      if (hasAny(<String>['ring', 'circular', 'circle'])) {
+        inferredAppearance.add('Circular lesions');
+      }
+      if (hasAny(<String>['flaky', 'dandruff', 'scaly'])) {
+        inferredAppearance.add('Flaky / dandruff-like');
+      }
+      if (hasAny(<String>['flea', 'tick', 'mites', 'moving dots'])) {
+        inferredAppearance.add('Tiny moving dots');
+      }
+
+      if (inferredAppearance.isNotEmpty) {
+        _derivedLesionAppearance = _normalizeUniqueList(inferredAppearance);
+      }
+    }
+
     if (_derivedProgression == 'not_sure') {
       if (userText.contains('worse') ||
           userText.contains('spreading') ||
@@ -678,25 +1376,23 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
   }
 
   void _applyStructuredPriorToDerivedIntake(Map<String, dynamic> prior) {
-    final bodyLocations =
-        (prior['body_locations'] as List<dynamic>? ?? <dynamic>[])
-            .map((e) => _mapBodyLocation(e.toString()))
-            .where((e) => e.isNotEmpty)
-            .toList();
+    final bodyLocations = _coerceDynamicList(prior['body_locations'])
+      .map((e) => _mapBodyLocation(e.toString()))
+      .where((e) => e.isNotEmpty)
+      .toList();
 
-    final symptoms = (prior['symptoms'] as List<dynamic>? ?? <dynamic>[])
+    final symptoms = _coerceDynamicList(prior['symptoms'])
         .map((e) => e.toString())
         .toList();
 
-    final redFlags = (prior['red_flags'] as List<dynamic>? ?? <dynamic>[])
+    final redFlags = _coerceDynamicList(prior['red_flags'])
         .map((e) => e.toString().trim())
         .where((e) => e.isNotEmpty)
         .toList();
 
-    final exposure =
-        (prior['exposure_factors'] as List<dynamic>? ?? <dynamic>[])
-            .map((e) => e.toString().toLowerCase())
-            .toList();
+    final exposure = _coerceDynamicList(prior['exposure_factors'])
+      .map((e) => e.toString().toLowerCase())
+      .toList();
 
     final duration = prior['duration']?.toString().trim() ?? '';
     final severity =
@@ -735,10 +1431,9 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
     try {
       final intakeSnapshot = _buildCurrentIntakeSnapshot();
       final petProfile = _buildPetProfileSnapshot();
-      final candidates =
-          (intakeSnapshot['visionCandidateLabels'] as List<dynamic>)
-              .map((e) => e.toString())
-              .toList();
+      final candidates = _coerceDynamicList(
+        intakeSnapshot['visionCandidateLabels'],
+      ).map((e) => e.toString()).toList();
 
       final result = await _groqService.generateStructuredSymptomPrior(
         petProfile: petProfile,
@@ -958,22 +1653,31 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
       'llmQuestioningDone': _llmSaysDone,
       'llmChatTelemetry': _llmChatTelemetry,
       'structuredSymptomPrior': _structuredSymptomPrior,
+      'lastAnsweredQuestionId': _lastAnsweredQuestionId,
+      'lastAnsweredQuestion': _lastAnsweredQuestion,
+      'chatSessionSeed': _chatSessionSeed,
       'visionCandidateLabels': candidates,
       'funnelSummary': _buildFunnelSummary(candidates),
       'conversationHistory': _conversation,
       'activeQuestion': _activeQuestion,
+      'activeQuestionId': _activeQuestionId,
+      'activeQuickOptions': _activeQuickOptions,
       'chatMode': 'llm_open_text',
     };
   }
 
   void _pushData() {
+    if (!mounted || _isDisposed) return;
     widget.onDataUpdate('clinicalIntake', _buildCurrentIntakeSnapshot());
   }
 
-  Future<void> _sendCurrentMessage() async {
+  Future<void> _sendCurrentMessage({String? prefilledText}) async {
     if (_isGeneratingNextQuestion) return;
 
-    final text = _messageController.text.trim();
+    final answeredQuestionId = _activeQuestionId?.trim() ?? '';
+    final answeredQuestionText = _activeQuestion?.trim() ?? '';
+
+    final text = (prefilledText ?? _messageController.text).trim();
     if (text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -988,10 +1692,22 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
 
     setState(() {
       _activeQuestion = null;
+      _activeQuestionId = null;
+      _activeQuickOptions = <String>[];
       _llmSaysDone = false;
+      _lastAnsweredQuestionId = answeredQuestionId;
+      _lastAnsweredQuestion = answeredQuestionText;
+      _applyDirectAnswerSignals(
+        questionId: answeredQuestionId,
+        answerText: text,
+      );
     });
 
     _appendMessage(role: 'user', text: text, persist: false);
+
+    setState(() {
+      _inferDerivedSignalsFromConversation();
+    });
 
     _pushData();
 
@@ -1036,6 +1752,8 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
       }
 
       _activeQuestion = null;
+      _activeQuestionId = null;
+      _activeQuickOptions = <String>[];
       _llmSaysDone = false;
     });
 
@@ -1043,10 +1761,65 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
 
     // Ask another follow-up if needed after undo.
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _isDisposed) return;
       if (!_isReadyForScan && !_isGeneratingNextQuestion) {
         _requestNextQuestion();
       }
     });
+  }
+
+  List<String> _quickReplyOptionsForActiveQuestion() {
+    if (_activeQuestion == null || _activeQuestion!.trim().isEmpty) {
+      return const <String>[];
+    }
+
+    return _activeQuickOptions;
+  }
+
+  Future<void> _sendQuickReplyOption(String option) async {
+    final text = option.trim();
+    if (text.isEmpty || _isGeneratingNextQuestion) {
+      return;
+    }
+
+    await _sendCurrentMessage(prefilledText: text);
+  }
+
+  Widget _assistantBubbleContent(String text) {
+    final baseStyle = kMobileTextStyleSubtitle.copyWith(
+      color: AppColors.textPrimary,
+      height: 1.35,
+    );
+
+    final segments = text
+        .split(RegExp(r'\n\s*\n'))
+        .map((segment) => segment.trim())
+        .where((segment) => segment.isNotEmpty)
+        .toList();
+
+    if (segments.length <= 1) {
+      return Text(text, style: baseStyle);
+    }
+
+    final question = segments.first;
+    final helper = segments.skip(1).join('\n\n');
+
+    return RichText(
+      text: TextSpan(
+        style: baseStyle,
+        children: [
+          TextSpan(
+            text: question,
+            style: baseStyle.copyWith(fontWeight: FontWeight.w800),
+          ),
+          if (helper.isNotEmpty)
+            TextSpan(
+              text: '\n\n$helper',
+              style: baseStyle.copyWith(fontWeight: FontWeight.w500),
+            ),
+        ],
+      ),
+    );
   }
 
   Widget _chatBubble(Map<String, String> message) {
@@ -1078,13 +1851,15 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
                 : AppColors.border.withValues(alpha: 0.4),
           ),
         ),
-        child: Text(
-          text,
-          style: kMobileTextStyleSubtitle.copyWith(
-            color: AppColors.textPrimary,
-            height: 1.35,
-          ),
-        ),
+        child: isUser
+            ? Text(
+                text,
+                style: kMobileTextStyleSubtitle.copyWith(
+                  color: AppColors.textPrimary,
+                  height: 1.35,
+                ),
+              )
+            : _assistantBubbleContent(text),
       ),
     );
   }
@@ -1123,6 +1898,9 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
   @override
   Widget build(BuildContext context) {
     final llmConfigured = _groqService.isConfigured;
+    final displayTurnCount =
+        _isReadyForScan ? _minTurnsForReadiness : _turnCount;
+    final quickReplyOptions = _quickReplyOptionsForActiveQuestion();
     return Padding(
       padding: const EdgeInsets.all(kSpacingMedium),
       child: Column(
@@ -1166,7 +1944,7 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
                       ),
                       const SizedBox(height: 1),
                       Text(
-                        '$_turnCount/$_minTurnsForReadiness turns • ${llmConfigured ? 'AI mode' : 'Fallback mode'}',
+                        '$displayTurnCount/$_minTurnsForReadiness turns • ${llmConfigured ? 'AI mode' : 'Fallback mode'}',
                         style: kMobileTextStyleLegend.copyWith(
                           color: AppColors.textSecondary,
                           fontWeight: FontWeight.w600,
@@ -1206,85 +1984,206 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
                   ),
                 ],
               ),
-              child: Column(
-                children: [
-                  Expanded(
-                    child: ListView.builder(
-                      controller: _chatScrollController,
-                      itemCount: _conversation.length,
-                      itemBuilder: (context, index) {
-                        final message = _conversation[index];
-                        return _chatBubble(message);
-                      },
-                    ),
-                  ),
-                  if (_isGeneratingNextQuestion) ...[
-                    const SizedBox(height: 6),
-                    const LinearProgressIndicator(minHeight: 3),
-                  ],
-                  if (_hasAnyRedFlag) ...[
-                    const SizedBox(height: kSpacingSmall),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(kSpacingSmall),
-                      decoration: BoxDecoration(
-                        color: AppColors.error.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(kBorderRadius),
-                        border: Border.all(
-                          color: AppColors.error.withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Text(
-                        'Potential urgent signs were mentioned. The app will prioritize safer escalation guidance.',
-                        style: kMobileTextStyleSubtitle.copyWith(
-                          color: AppColors.error,
-                        ),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: kSpacingSmall),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final composerMaxHeight =
+                      (constraints.maxHeight * 0.48).clamp(140.0, 320.0);
+
+                  return Column(
                     children: [
                       Expanded(
-                        child: TextField(
-                          controller: _messageController,
-                          minLines: 1,
-                          maxLines: 4,
-                          textInputAction: TextInputAction.send,
-                          onSubmitted: (_) => _sendCurrentMessage(),
-                          decoration: const InputDecoration(
-                            hintText: 'Type your answer here...',
-                            labelText: 'Your message',
-                          ),
+                        child: ListView.builder(
+                          controller: _chatScrollController,
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
+                          itemCount: _conversation.length,
+                          itemBuilder: (context, index) {
+                            final message = _conversation[index];
+                            return _chatBubble(message);
+                          },
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      FilledButton(
-                        onPressed: _isGeneratingNextQuestion
-                            ? null
-                            : _sendCurrentMessage,
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size(52, 52),
-                          padding: const EdgeInsets.all(0),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                      const SizedBox(height: kSpacingSmall),
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: composerMaxHeight,
+                        ),
+                        child: SingleChildScrollView(
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (_isGeneratingNextQuestion)
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary.withValues(
+                                        alpha: 0.08,
+                                      ),
+                                      borderRadius: BorderRadius.circular(999),
+                                      border: Border.all(
+                                        color: AppColors.primary.withValues(
+                                          alpha: 0.22,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const SizedBox(
+                                          width: 14,
+                                          height: 14,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'AI is thinking...',
+                                          style: kMobileTextStyleLegend.copyWith(
+                                            color: AppColors.primary,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              if (_hasAnyRedFlag) ...[
+                                const SizedBox(height: kSpacingSmall),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(kSpacingSmall),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.error.withValues(
+                                      alpha: 0.08,
+                                    ),
+                                    borderRadius:
+                                        BorderRadius.circular(kBorderRadius),
+                                    border: Border.all(
+                                      color: AppColors.error.withValues(
+                                        alpha: 0.3,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Potential urgent signs were mentioned. The app will prioritize safer escalation guidance.',
+                                    style: kMobileTextStyleSubtitle.copyWith(
+                                      color: AppColors.error,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              if (_activeQuestion != null &&
+                                  !_isGeneratingNextQuestion)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      'Tip: type your answer or tap a quick option. "Not sure" is okay.',
+                                      style: kMobileTextStyleLegend.copyWith(
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              if (_activeQuestion != null &&
+                                  !_isGeneratingNextQuestion &&
+                                  quickReplyOptions.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: quickReplyOptions
+                                          .map(
+                                            (option) => ActionChip(
+                                              onPressed: _isGeneratingNextQuestion
+                                                  ? null
+                                                  : () => _sendQuickReplyOption(
+                                                        option,
+                                                      ),
+                                              backgroundColor:
+                                                  AppColors.primary.withValues(
+                                                alpha: 0.08,
+                                              ),
+                                              side: BorderSide(
+                                                color: AppColors.primary
+                                                    .withValues(alpha: 0.3),
+                                              ),
+                                              label: Text(
+                                                option,
+                                                style:
+                                                    kMobileTextStyleLegend.copyWith(
+                                                  color: AppColors.primary,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                            ),
+                                          )
+                                          .toList(growable: false),
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(height: kSpacingSmall),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _messageController,
+                                      minLines: 1,
+                                      maxLines: 4,
+                                      textInputAction: TextInputAction.send,
+                                      onSubmitted: (_) => _sendCurrentMessage(),
+                                      decoration: const InputDecoration(
+                                        hintText: 'Type your answer here...',
+                                        labelText: 'Your message',
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  FilledButton(
+                                    onPressed: _isGeneratingNextQuestion
+                                        ? null
+                                        : _sendCurrentMessage,
+                                    style: FilledButton.styleFrom(
+                                      minimumSize: const Size(52, 52),
+                                      padding: const EdgeInsets.all(0),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(14),
+                                      ),
+                                    ),
+                                    child: const Icon(Icons.send),
+                                  ),
+                                ],
+                              ),
+                              if (_turnCount > 0 && !_isGeneratingNextQuestion)
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: TextButton.icon(
+                                    onPressed: _undoLastTurn,
+                                    icon: const Icon(Icons.undo),
+                                    label: const Text('Undo last answer'),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
-                        child: const Icon(Icons.send),
                       ),
                     ],
-                  ),
-                  if (_turnCount > 0 && !_isGeneratingNextQuestion)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        onPressed: _undoLastTurn,
-                        icon: const Icon(Icons.undo),
-                        label: const Text('Undo last answer'),
-                      ),
-                    ),
-                ],
+                  );
+                },
               ),
             ),
           ),
