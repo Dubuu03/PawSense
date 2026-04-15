@@ -50,16 +50,19 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
   bool _isCompletingAssessment = false;
   bool _showRemedies = false;
   late List<AnalysisResult> _analysisResults;
-  Set<int> _previewingImages = {}; // Track which images are showing bounding boxes
-  Set<int> _fullscreenBoundingBoxes = {}; // Track bounding boxes in fullscreen mode
+  Set<int> _previewingImages =
+      {}; // Track which images are showing bounding boxes
+  Set<int> _fullscreenBoundingBoxes =
+      {}; // Track bounding boxes in fullscreen mode
   SkinDiseaseModel? _detectedDisease; // Store the fetched disease info
   bool _isLoadingDiseaseInfo = false;
-  List<Map<String, dynamic>> _recommendedClinics = []; // Store recommended clinics
+  List<Map<String, dynamic>> _recommendedClinics =
+      []; // Store recommended clinics
   bool _isLoadingClinics = false;
   bool _disagreementFlag = false;
   bool _isGeneratingAiRecommendation = false;
   Map<String, dynamic>? _aiRecommendation;
-  
+
   @override
   void initState() {
     super.initState();
@@ -69,18 +72,20 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     _generateAiRecommendation();
   }
 
-  void _showFullscreenImage(XFile photo, int index, List<Map<String, dynamic>> detectionsToShow) {
+  void _showFullscreenImage(
+      XFile photo, int index, List<Map<String, dynamic>> detectionsToShow) {
     // Set bounding boxes to show by default in fullscreen
     _fullscreenBoundingBoxes.add(index);
-    
+
     showDialog(
       context: context,
       barrierColor: Colors.black87,
       builder: (BuildContext context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            final bool showingBoundingBoxes = _fullscreenBoundingBoxes.contains(index);
-            
+            final bool showingBoundingBoxes =
+                _fullscreenBoundingBoxes.contains(index);
+
             return Dialog.fullscreen(
               child: GestureDetector(
                 onTap: () => Navigator.of(context).pop(),
@@ -96,7 +101,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                           minScale: 0.5,
                           maxScale: 4.0,
                           child: GestureDetector(
-                            onTap: () {}, // Prevent dialog close when tapping image
+                            onTap:
+                                () {}, // Prevent dialog close when tapping image
                             child: Stack(
                               children: [
                                 Image.file(
@@ -115,15 +121,17 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                                     );
                                   },
                                 ),
-                                
+
                                 // Bounding boxes overlay (only when toggled on)
-                                if (showingBoundingBoxes && detectionsToShow.isNotEmpty)
+                                if (showingBoundingBoxes &&
+                                    detectionsToShow.isNotEmpty)
                                   Positioned.fill(
                                     child: LayoutBuilder(
                                       builder: (context, constraints) {
                                         // Build disease color map for consistent coloring
-                                        final diseaseColorMap = _buildDiseaseColorMap();
-                                        
+                                        final diseaseColorMap =
+                                            _buildDiseaseColorMap();
+
                                         return CustomPaint(
                                           painter: BoundingBoxPainter(
                                             detectionsToShow,
@@ -132,8 +140,10 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                                             showConfidence: false,
                                             originalImageWidth: 640.0,
                                             originalImageHeight: 640.0,
-                                            useRankColors: false, // Disable rank colors
-                                            diseaseColorMap: diseaseColorMap, // Use disease-based colors
+                                            useRankColors:
+                                                false, // Disable rank colors
+                                            diseaseColorMap:
+                                                diseaseColorMap, // Use disease-based colors
                                           ),
                                         );
                                       },
@@ -144,7 +154,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                           ),
                         ),
                       ),
-                      
+
                       // Top controls
                       Positioned(
                         top: MediaQuery.of(context).padding.top + 16,
@@ -168,7 +178,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                                 ),
                               ),
                             ),
-                            
+
                             // Image info
                             Container(
                               padding: const EdgeInsets.symmetric(
@@ -190,7 +200,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                           ],
                         ),
                       ),
-                      
+
                       // Bottom controls for bounding box toggle
                       if (detectionsToShow.isNotEmpty)
                         Positioned(
@@ -201,7 +211,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                             child: GestureDetector(
                               onTap: () {
                                 setDialogState(() {
-                                  if (_fullscreenBoundingBoxes.contains(index)) {
+                                  if (_fullscreenBoundingBoxes
+                                      .contains(index)) {
                                     _fullscreenBoundingBoxes.remove(index);
                                   } else {
                                     _fullscreenBoundingBoxes.add(index);
@@ -214,13 +225,13 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                                   vertical: 12,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: showingBoundingBoxes 
-                                      ? AppColors.primary 
+                                  color: showingBoundingBoxes
+                                      ? AppColors.primary
                                       : Colors.black54,
                                   borderRadius: BorderRadius.circular(25),
                                   border: Border.all(
-                                    color: showingBoundingBoxes 
-                                        ? AppColors.primary 
+                                    color: showingBoundingBoxes
+                                        ? AppColors.primary
                                         : Colors.white.withOpacity(0.3),
                                     width: 2,
                                   ),
@@ -229,16 +240,16 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Icon(
-                                      showingBoundingBoxes 
-                                          ? Icons.visibility 
+                                      showingBoundingBoxes
+                                          ? Icons.visibility
                                           : Icons.visibility_off,
                                       color: Colors.white,
                                       size: 20,
                                     ),
                                     const SizedBox(width: 8),
                                     Text(
-                                      showingBoundingBoxes 
-                                          ? 'Hide Detection' 
+                                      showingBoundingBoxes
+                                          ? 'Hide Detection'
                                           : 'Show Detection',
                                       style: const TextStyle(
                                         color: Colors.white,
@@ -264,23 +275,30 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
   }
 
   void _processDetectionResults() {
-    final detectionResults = widget.assessmentData['detectionResults'] as List<Map<String, dynamic>>? ?? [];
-    
+    final detectionResults = widget.assessmentData['detectionResults']
+            as List<Map<String, dynamic>>? ??
+        [];
+
     // Configuration
-    const double CONFIDENCE_THRESHOLD = 0.25; // 25% minimum confidence (lowered to include more detections)
-    const double IOU_THRESHOLD = 0.5; // Intersection over Union threshold for duplicate detection
+    const double CONFIDENCE_THRESHOLD =
+        0.25; // 25% minimum confidence (lowered to include more detections)
+    const double IOU_THRESHOLD =
+        0.5; // Intersection over Union threshold for duplicate detection
     // Show ALL unique detections in graph (no limit)
-    
+
     // Collect all detections with their image indices for deduplication
     final List<Map<String, dynamic>> allDetectionsWithContext = [];
-    
-    for (int imageIndex = 0; imageIndex < detectionResults.length; imageIndex++) {
+
+    for (int imageIndex = 0;
+        imageIndex < detectionResults.length;
+        imageIndex++) {
       final result = detectionResults[imageIndex];
-      final detections = result['detections'] as List<Map<String, dynamic>>? ?? [];
-      
+      final detections =
+          result['detections'] as List<Map<String, dynamic>>? ?? [];
+
       for (final detection in detections) {
         final confidence = detection['confidence'] as double? ?? 0.0;
-        
+
         // Apply confidence threshold
         if (confidence >= CONFIDENCE_THRESHOLD) {
           allDetectionsWithContext.add({
@@ -293,7 +311,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
         }
       }
     }
-    
+
     if (allDetectionsWithContext.isEmpty) {
       // No detections meet the threshold
       _analysisResults = [
@@ -305,36 +323,38 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       ];
       return;
     }
-    
+
     // Sort all detections by confidence
-    allDetectionsWithContext.sort((a, b) => 
-      (b['confidence'] as double).compareTo(a['confidence'] as double)
-    );
-    
+    allDetectionsWithContext.sort((a, b) =>
+        (b['confidence'] as double).compareTo(a['confidence'] as double));
+
     // Remove duplicates ONLY within the same image (same condition at similar location)
     // Keep all detections from different images or different locations
     final List<Map<String, dynamic>> uniqueDetections = [];
-    
+
     for (final detection in allDetectionsWithContext) {
       bool isDuplicate = false;
       final label = detection['label'] as String;
       final imageIndex = detection['imageIndex'] as int;
       final box = detection['box'] as List?;
-      
+
       for (final existing in uniqueDetections) {
         final existingLabel = existing['label'] as String;
         final existingImageIndex = existing['imageIndex'] as int;
         final existingBox = existing['box'] as List?;
-        
+
         // Only check for duplicates within the SAME image
         if (label == existingLabel && imageIndex == existingImageIndex) {
           // Check if bounding boxes overlap significantly
-          if (box != null && existingBox != null && box.length >= 4 && existingBox.length >= 4) {
+          if (box != null &&
+              existingBox != null &&
+              box.length >= 4 &&
+              existingBox.length >= 4) {
             final iou = _calculateIOU(
               [box[0], box[1], box[2], box[3]],
               [existingBox[0], existingBox[1], existingBox[2], existingBox[3]],
             );
-            
+
             if (iou > IOU_THRESHOLD) {
               isDuplicate = true;
               break;
@@ -342,39 +362,44 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
           }
         }
       }
-      
+
       if (!isDuplicate) {
         uniqueDetections.add(detection);
       }
-      
+
       // NO LIMIT - collect all unique detections for the graph
     }
-    
+
     // Aggregate detections by condition for statistics
     // Now includes all instances of each disease across all images
     final Map<String, List<double>> conditionConfidences = {};
     for (final detection in uniqueDetections) {
       final label = detection['label'] as String;
       final confidence = detection['confidence'] as double;
-      
+
       if (!conditionConfidences.containsKey(label)) {
         conditionConfidences[label] = [];
       }
       conditionConfidences[label]!.add(confidence);
     }
-    
+
     // Calculate average confidence for each condition
     final Map<String, double> avgConfidences = {};
     conditionConfidences.forEach((condition, confidences) {
-      avgConfidences[condition] = confidences.reduce((a, b) => a + b) / confidences.length;
+      avgConfidences[condition] =
+          confidences.reduce((a, b) => a + b) / confidences.length;
     });
-    
+
     // Fuse detector confidence with pre-triage priors when available.
     final triagePriors = _extractTriagePriorMap();
     final fusedScores = <String, double>{};
+    final intake = Map<String, dynamic>.from(
+      widget.assessmentData['clinicalIntake'] as Map? ?? <String, dynamic>{},
+    );
 
-    const double modelWeight = 0.78;
-    const double triageWeight = 0.22;
+    const double modelWeight = 0.70;
+    const double triageWeight = 0.20;
+    const double ruleWeight = 0.10;
     const double modelFloor = 0.12;
     const double triageFloor = 0.08;
 
@@ -386,8 +411,14 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     for (final key in allConditionKeys) {
       final modelScore = avgConfidences[key] ?? modelFloor;
       final triageScore = triagePriors[key] ?? triageFloor;
-      fusedScores[key] =
-          (modelScore * modelWeight) + (triageScore * triageWeight);
+      final ruleModifier = _computeRuleModifier(
+        conditionKey: key,
+        intake: intake,
+      );
+      fusedScores[key] = ((modelScore * modelWeight) +
+              (triageScore * triageWeight) +
+              (ruleModifier * ruleWeight))
+          .clamp(0.0, 1.0);
     }
 
     final sortedConditions = fusedScores.entries.toList();
@@ -397,7 +428,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       modelScores: avgConfidences,
       fusedScores: fusedScores,
     );
-    
+
     // Define expanded color palette for diseases (support more than 3)
     final diseaseColorPalette = [
       const Color(0xFFFF9500), // Orange
@@ -413,24 +444,26 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       const Color(0xFFFFCC00), // Yellow
       const Color(0xFF00C7BE), // Teal
     ];
-    
+
     // Convert to AnalysisResult objects - INCLUDE ALL DETECTIONS
     // Assign colors based on the order they appear in sortedConditions
     _analysisResults = sortedConditions.asMap().entries.map((entry) {
       final index = entry.key;
       final condition = entry.value.key;
       final confidence = entry.value.value;
-      
+
       return AnalysisResult(
         condition: _formatConditionName(condition),
         percentage: _validateConfidence(confidence) * 100,
         color: diseaseColorPalette[index % diseaseColorPalette.length],
       );
     }).toList();
-    
-    print('📊 Processed ${_analysisResults.length} unique skin disease detections:');
+
+    print(
+        '📊 Processed ${_analysisResults.length} unique skin disease detections:');
     for (final result in _analysisResults) {
-      print('   • ${result.condition}: ${result.percentage.toStringAsFixed(1)}%');
+      print(
+          '   • ${result.condition}: ${result.percentage.toStringAsFixed(1)}%');
     }
 
     if (_disagreementFlag) {
@@ -464,14 +497,61 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     return priorMap;
   }
 
+  double _computeRuleModifier({
+    required String conditionKey,
+    required Map<String, dynamic> intake,
+  }) {
+    final normalized = _normalizeConditionName(conditionKey);
+    final areas = (intake['distributionAreas'] as List<dynamic>? ?? [])
+        .map((e) => e.toString())
+        .toSet();
+    final appearance = (intake['lesionAppearance'] as List<dynamic>? ?? [])
+        .map((e) => e.toString())
+        .toSet();
+    final itch = intake['itchSeverity']?.toString() ?? 'not_sure';
+    final trigger = intake['triggerContext']?.toString() ?? 'not_sure';
+
+    var modifier = 0.0;
+
+    if ((normalized == 'fleas' || normalized == 'ticks') &&
+        (areas.contains('Back') || areas.contains('Tail'))) {
+      modifier += 0.18;
+    }
+
+    if (normalized == 'ringworm' && appearance.contains('Circular lesions')) {
+      modifier += 0.2;
+    }
+
+    if ((normalized == 'hotspot' || normalized == 'pyoderma') &&
+        appearance.contains('Moist or oozing skin')) {
+      modifier += 0.2;
+    }
+
+    if (normalized == 'mange' && appearance.contains('Scabs / crusts')) {
+      modifier += 0.18;
+    }
+
+    if (normalized == 'dermatitis' && trigger == 'possible_allergen') {
+      modifier += 0.2;
+    }
+
+    if ((normalized == 'fleas' || normalized == 'ticks') && itch == 'severe') {
+      modifier += 0.12;
+    }
+
+    return modifier.clamp(-0.25, 0.25);
+  }
+
   bool _computeDisagreementFlag({
     required Map<String, double> modelScores,
     required Map<String, double> fusedScores,
   }) {
     if (modelScores.isEmpty || fusedScores.isEmpty) return false;
 
-    final topModel = modelScores.entries.reduce((a, b) => a.value >= b.value ? a : b);
-    final topFused = fusedScores.entries.reduce((a, b) => a.value >= b.value ? a : b);
+    final topModel =
+        modelScores.entries.reduce((a, b) => a.value >= b.value ? a : b);
+    final topFused =
+        fusedScores.entries.reduce((a, b) => a.value >= b.value ? a : b);
 
     if (topModel.key != topFused.key) {
       return true;
@@ -501,7 +581,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     final disease = _detectedDisease;
     if (disease == null) {
       return {
-        'name': _analysisResults.isNotEmpty ? _analysisResults.first.condition : '',
+        'name':
+            _analysisResults.isNotEmpty ? _analysisResults.first.condition : '',
         'severity': 'unknown',
         'initialRemedies': <String, dynamic>{},
       };
@@ -546,7 +627,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
         'traceId': result.traceId,
       });
     } catch (e) {
-      debugPrint('AI recommendation generation failed, using database summary: $e');
+      debugPrint(
+          'AI recommendation generation failed, using database summary: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -589,7 +671,10 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
   List<String> _aiList(String key) {
     final source = _aiRecommendation?[key];
     if (source is! List) return <String>[];
-    return source.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
+    return source
+        .map((e) => e.toString().trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
   }
 
   List<String> _dedupLimited(List<String> items, {int max = 6}) {
@@ -604,7 +689,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     }
     return output;
   }
-  
+
   /// Calculate Intersection over Union (IoU) for two bounding boxes
   /// Format: [x1, y1, x2, y2]
   double _calculateIOU(List<dynamic> box1, List<dynamic> box2) {
@@ -613,33 +698,33 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       final y1_1 = box1[1].toDouble();
       final x2_1 = box1[2].toDouble();
       final y2_1 = box1[3].toDouble();
-      
+
       final x1_2 = box2[0].toDouble();
       final y1_2 = box2[1].toDouble();
       final x2_2 = box2[2].toDouble();
       final y2_2 = box2[3].toDouble();
-      
+
       // Calculate intersection area
       final xLeft = x1_1 > x1_2 ? x1_1 : x1_2;
       final yTop = y1_1 > y1_2 ? y1_1 : y1_2;
       final xRight = x2_1 < x2_2 ? x2_1 : x2_2;
       final yBottom = y2_1 < y2_2 ? y2_1 : y2_2;
-      
+
       if (xRight < xLeft || yBottom < yTop) {
         return 0.0; // No intersection
       }
-      
+
       final intersectionArea = (xRight - xLeft) * (yBottom - yTop);
-      
+
       // Calculate union area
       final box1Area = (x2_1 - x1_1) * (y2_1 - y1_1);
       final box2Area = (x2_2 - x1_2) * (y2_2 - y1_2);
       final unionArea = box1Area + box2Area - intersectionArea;
-      
+
       if (unionArea <= 0) {
         return 0.0;
       }
-      
+
       return intersectionArea / unionArea;
     } catch (e) {
       print('Error calculating IOU: $e');
@@ -655,14 +740,14 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
   /// Same disease always gets the same color
   Color _getColorForDisease(String diseaseLabel) {
     final formattedLabel = _formatConditionName(diseaseLabel);
-    
+
     // Find the disease in analysis results to get its assigned color
     for (final result in _analysisResults) {
       if (result.condition == formattedLabel) {
         return result.color;
       }
     }
-    
+
     // Fallback to a default color if not found in analysis results
     return const Color(0xFF9E9E9E); // Gray
   }
@@ -670,12 +755,12 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
   /// Build disease color map for consistent coloring across all images
   Map<String, Color> _buildDiseaseColorMap() {
     final Map<String, Color> colorMap = {};
-    
+
     for (final result in _analysisResults) {
       // Map both formatted and original labels to handle variations
       colorMap[result.condition] = result.color;
     }
-    
+
     return colorMap;
   }
 
@@ -684,70 +769,71 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     if (_analysisResults.isEmpty) {
       return;
     }
-    
+
     setState(() {
       _isLoadingDiseaseInfo = true;
     });
-    
+
     try {
       // Get the highest confidence condition
       final highestConfidenceCondition = _analysisResults.first.condition;
       print('🔍 Searching for disease info for: "$highestConfidenceCondition"');
-      
+
       // Search for the disease in the database
       final diseaseService = SkinDiseaseService();
       final allDiseases = await diseaseService.getAllDiseases();
       print('📚 Total diseases in database: ${allDiseases.length}');
-      
+
       // Normalize the detected condition for better matching
-      final normalizedCondition = _normalizeConditionName(highestConfidenceCondition);
+      final normalizedCondition =
+          _normalizeConditionName(highestConfidenceCondition);
       print('🔄 Normalized condition: "$normalizedCondition"');
-      
+
       // Try to match by name (case-insensitive, fuzzy matching)
       SkinDiseaseModel? matchedDisease;
-      
+
       for (var disease in allDiseases) {
         final diseaseName = disease.name.toLowerCase();
         final normalizedDiseaseName = _normalizeConditionName(disease.name);
-        
+
         // 1. Exact normalized match
         if (normalizedDiseaseName == normalizedCondition) {
           matchedDisease = disease;
           print('✅ Found exact normalized match: "${disease.name}"');
           break;
         }
-        
+
         // 2. Direct contains match
-        if (diseaseName.contains(normalizedCondition) || 
+        if (diseaseName.contains(normalizedCondition) ||
             normalizedCondition.contains(normalizedDiseaseName)) {
           matchedDisease = disease;
           print('✅ Found contains match: "${disease.name}"');
           break;
         }
-        
+
         // 3. Word-based matching (check if key words match)
         final conditionWords = normalizedCondition.split(' ');
         final diseaseWords = normalizedDiseaseName.split(' ');
-        
+
         // If main word(s) match (e.g., "flea" matches "flea allergy dermatitis")
-        bool hasCommonWords = conditionWords.any((word) => 
-          diseaseWords.any((diseaseWord) => 
-            diseaseWord.contains(word) || word.contains(diseaseWord)
-          )
-        );
-        
+        bool hasCommonWords = conditionWords.any((word) => diseaseWords.any(
+            (diseaseWord) =>
+                diseaseWord.contains(word) || word.contains(diseaseWord)));
+
         if (hasCommonWords && conditionWords.first.length > 3) {
           matchedDisease = disease;
           print('✅ Found word-based match: "${disease.name}"');
           break;
         }
       }
-      
+
       if (matchedDisease == null) {
-        print('❌ No matching disease found in database for: "$highestConfidenceCondition"');
-        print('💡 Available diseases: ${allDiseases.map((d) => d.name).join(", ")}');
+        print(
+            '❌ No matching disease found in database for: "$highestConfidenceCondition"');
+        print(
+            '💡 Available diseases: ${allDiseases.map((d) => d.name).join(", ")}');
       }
-      
+
       if (mounted) {
         setState(() {
           _detectedDisease = matchedDisease;
@@ -763,50 +849,53 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       }
     }
   }
-  
+
   /// Normalize condition names for better matching
   /// Converts AI detection labels to searchable format
   String _normalizeConditionName(String name) {
     return name
         .toLowerCase()
-        .replaceAll('_', ' ')  // feline_acne -> feline acne
-        .replaceAll('-', ' ')  // hot-spot -> hot spot
+        .replaceAll('_', ' ') // feline_acne -> feline acne
+        .replaceAll('-', ' ') // hot-spot -> hot spot
         .trim();
   }
 
   /// Fetch recommended clinics based on detected diseases
   Future<void> _fetchRecommendedClinics() async {
-    if (_analysisResults.isEmpty || 
-        (_analysisResults.length == 1 && 
-         (_analysisResults.first.condition == 'No high-confidence detections' ||
-          _analysisResults.first.condition == 'No skin disease detected'))) {
+    if (_analysisResults.isEmpty ||
+        (_analysisResults.length == 1 &&
+            (_analysisResults.first.condition ==
+                    'No high-confidence detections' ||
+                _analysisResults.first.condition ==
+                    'No skin disease detected'))) {
       return;
     }
-    
+
     setState(() {
       _isLoadingClinics = true;
     });
-    
+
     try {
       // Get all detected disease names
-      final diseaseNames = _analysisResults
-          .map((result) => result.condition)
-          .toList();
-      
+      final diseaseNames =
+          _analysisResults.map((result) => result.condition).toList();
+
       print('🔍 Fetching recommended clinics for: ${diseaseNames.join(", ")}');
-      
+
       // Fetch recommended clinics
       final recommendedClinics = diseaseNames.length == 1
-          ? await ClinicRecommendationService.getRecommendedClinicsForDisease(diseaseNames.first)
-          : await ClinicRecommendationService.getRecommendedClinicsForMultipleDiseases(diseaseNames);
-      
+          ? await ClinicRecommendationService.getRecommendedClinicsForDisease(
+              diseaseNames.first)
+          : await ClinicRecommendationService
+              .getRecommendedClinicsForMultipleDiseases(diseaseNames);
+
       if (mounted) {
         setState(() {
           _recommendedClinics = recommendedClinics;
           _isLoadingClinics = false;
         });
       }
-      
+
       print('✅ Found ${recommendedClinics.length} recommended clinics');
     } catch (e) {
       print('❌ Error fetching recommended clinics: $e');
@@ -837,10 +926,10 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
 
       // Create assessment result model and handle pet creation if needed
       final assessmentResult = await _createAssessmentResult(userModel);
-      
+
       // If this is a new pet, save it to Firebase first
       await _handleNewPetCreation(userModel);
-      
+
       // Save assessment result to Firebase
       final assessmentService = AssessmentResultService();
       final assessmentResultId =
@@ -852,11 +941,9 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       );
 
       print('✅ Assessment saved to Firebase successfully');
-    
-
     } catch (e) {
       print('❌ Error saving assessment: $e');
-      
+
       // Show error toast
       Fluttertoast.showToast(
         msg: 'Failed to save assessment. Please try again.',
@@ -871,11 +958,11 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
   // Complete assessment (save and navigate)
   Future<void> _completeAssessment() async {
     if (_isCompletingAssessment) return; // Prevent multiple taps
-    
+
     setState(() {
       _isCompletingAssessment = true;
     });
-    
+
     try {
       // Show loading dialog
       showDialog(
@@ -907,10 +994,10 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       // Save assessment first
       await saveAssessment();
       print('DEBUG: Assessment saved successfully, waiting for propagation...');
-      
+
       // Small delay to ensure Firebase write has propagated
       await Future.delayed(const Duration(milliseconds: 500));
-      
+
       // Invalidate assessment history cache to ensure fresh data
       await _invalidateAssessmentHistoryCache();
       print('DEBUG: Assessment history cache invalidated');
@@ -919,21 +1006,22 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       if (mounted) {
         Navigator.of(context).pop();
       }
-      
+
       // Navigate to home with history tab and force refresh with timestamp
       if (mounted) {
         final timestamp = DateTime.now().millisecondsSinceEpoch;
         context.go('/home?tab=history&refresh=assessment&t=$timestamp');
-        print('DEBUG: Navigation completed to /home?tab=history&refresh=assessment&t=$timestamp');
+        print(
+            'DEBUG: Navigation completed to /home?tab=history&refresh=assessment&t=$timestamp');
       }
     } catch (e) {
       print('Error completing assessment: $e');
-      
+
       // Close loading dialog if still showing
       if (mounted) {
         Navigator.of(context).pop();
       }
-      
+
       // Show error message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -955,9 +1043,9 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
 
   Future<void> _generatePDF() async {
     if (_isGeneratingPDF) return; // Prevent multiple taps
-    
+
     setState(() => _isGeneratingPDF = true);
-    
+
     try {
       // Show loading dialog
       showDialog(
@@ -1001,7 +1089,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
 
       // Create assessment result model for PDF generation only
       final assessmentResult = await _createAssessmentResult(userModel);
-      
+
       // Generate PDF (without saving to Firebase)
       final pdfBytes = await PDFGenerationService.generateAssessmentPDF(
         user: userModel,
@@ -1009,8 +1097,10 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       );
 
       // Save PDF to device
-      final fileName = 'PawSense_Assessment_${assessmentResult.petName}_${DateTime.now().millisecondsSinceEpoch}';
-      final filePath = await PDFGenerationService.savePDFToDevice(pdfBytes, fileName);
+      final fileName =
+          'PawSense_Assessment_${assessmentResult.petName}_${DateTime.now().millisecondsSinceEpoch}';
+      final filePath =
+          await PDFGenerationService.savePDFToDevice(pdfBytes, fileName);
 
       // Close loading dialog
       if (mounted) {
@@ -1054,17 +1144,16 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
           duration: const Duration(seconds: 3),
         ),
       );
-
     } catch (e) {
       // Close loading dialog if still showing
       if (mounted) {
         Navigator.of(context).pop();
       }
-      
+
       setState(() => _isGeneratingPDF = false);
-      
+
       print('Error generating PDF: $e');
-      
+
       // Show error dialog
       if (mounted) {
         _showDialog(
@@ -1112,18 +1201,21 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
 
   Future<void> _handleNewPetCreation(UserModel user) async {
     final selectedPetId = widget.assessmentData['selectedPet'] as String?;
-    final newPetData = widget.assessmentData['newPetData'] != null 
+    final newPetData = widget.assessmentData['newPetData'] != null
         ? Map<String, dynamic>.from(widget.assessmentData['newPetData'] as Map)
         : <String, dynamic>{};
-    
+
     // Check if this is a new pet that needs to be saved
-    if ((selectedPetId == null || selectedPetId.isEmpty) && newPetData.isNotEmpty) {
+    if ((selectedPetId == null || selectedPetId.isEmpty) &&
+        newPetData.isNotEmpty) {
       final petName = newPetData['name']?.toString() ?? '';
-      final petType = widget.assessmentData['selectedPetType']?.toString() ?? 'Dog';
+      final petType =
+          widget.assessmentData['selectedPetType']?.toString() ?? 'Dog';
       final petBreed = newPetData['breed']?.toString() ?? '';
       final petAge = int.tryParse(newPetData['age']?.toString() ?? '0') ?? 0;
-      final petWeight = double.tryParse(newPetData['weight']?.toString() ?? '0.0') ?? 0.0;
-      
+      final petWeight =
+          double.tryParse(newPetData['weight']?.toString() ?? '0.0') ?? 0.0;
+
       if (petName.isNotEmpty && petBreed.isNotEmpty) {
         try {
           final newPet = Pet(
@@ -1136,7 +1228,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
             createdAt: DateTime.now(),
             updatedAt: DateTime.now(),
           );
-          
+
           final petId = await PetService.addPet(newPet);
           if (petId != null) {
             // Update the assessment data with the new pet ID
@@ -1153,14 +1245,16 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
 
   Future<AssessmentResult> _createAssessmentResult(UserModel user) async {
     final selectedPetId = widget.assessmentData['selectedPet'] as String?;
-    final newPetData = widget.assessmentData['newPetData'] != null 
+    final newPetData = widget.assessmentData['newPetData'] != null
         ? Map<String, dynamic>.from(widget.assessmentData['newPetData'] as Map)
         : <String, dynamic>{};
     final photos = widget.assessmentData['photos'] as List<XFile>? ?? [];
     final symptoms = widget.assessmentData['symptoms'] as List<String>? ?? [];
     final notes = widget.assessmentData['notes'] as String? ?? '';
     final duration = widget.assessmentData['duration'] as String? ?? '';
-    final detectionResults = widget.assessmentData['detectionResults'] as List<Map<String, dynamic>>? ?? [];
+    final detectionResults = widget.assessmentData['detectionResults']
+            as List<Map<String, dynamic>>? ??
+        [];
 
     // Determine pet details
     String petId, petName, petType, petBreed;
@@ -1171,7 +1265,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       // Use existing pet data - fetch the pet from the service
       try {
         final selectedPet = await PetService.getPetById(selectedPetId);
-        
+
         if (selectedPet != null) {
           petId = selectedPet.id ?? selectedPetId;
           petName = selectedPet.petName;
@@ -1195,26 +1289,30 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       }
     } else {
       // Use new pet data - check if pet was created and get its ID
-      final updatedSelectedPetId = widget.assessmentData['selectedPet'] as String?;
-      if (updatedSelectedPetId != null && updatedSelectedPetId.isNotEmpty && !updatedSelectedPetId.startsWith('new_pet_')) {
+      final updatedSelectedPetId =
+          widget.assessmentData['selectedPet'] as String?;
+      if (updatedSelectedPetId != null &&
+          updatedSelectedPetId.isNotEmpty &&
+          !updatedSelectedPetId.startsWith('new_pet_')) {
         // Pet was successfully created, use its ID
         petId = updatedSelectedPetId;
       } else {
         // Fallback to generated ID
         petId = 'new_pet_${DateTime.now().millisecondsSinceEpoch}';
       }
-      
+
       petName = newPetData['name']?.toString() ?? '';
       petType = widget.assessmentData['selectedPetType']?.toString() ?? 'Dog';
       petBreed = newPetData['breed']?.toString() ?? '';
       petAge = int.tryParse(newPetData['age']?.toString() ?? '0') ?? 0;
-      petWeight = double.tryParse(newPetData['weight']?.toString() ?? '0.0') ?? 0.0;
+      petWeight =
+          double.tryParse(newPetData['weight']?.toString() ?? '0.0') ?? 0.0;
     }
 
     // Upload photos to Cloudinary and get URLs
     final imageUrls = <String>[];
     final cloudinaryService = CloudinaryService();
-    
+
     print('📤 Uploading ${photos.length} photos to Cloudinary...');
     for (int i = 0; i < photos.length; i++) {
       try {
@@ -1236,7 +1334,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     final detectionResultModels = <DetectionResult>[];
     for (int i = 0; i < detectionResults.length; i++) {
       final result = detectionResults[i];
-      final detections = (result['detections'] as List<dynamic>? ?? []).map((detection) {
+      final detections =
+          (result['detections'] as List<dynamic>? ?? []).map((detection) {
         // Extract bounding box from YOLO detection format
         List<double>? boundingBox;
         if (detection['box'] != null) {
@@ -1249,16 +1348,18 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
               box[2].toDouble(), // x2
               box[3].toDouble(), // y2
             ];
-            print('✅ Extracted bounding box for ${detection['label']}: $boundingBox');
+            print(
+                '✅ Extracted bounding box for ${detection['label']}: $boundingBox');
           }
         } else if (detection['boundingBox'] != null) {
           // Fallback for legacy format
           boundingBox = List<double>.from(detection['boundingBox']);
           print('✅ Using legacy bounding box format: $boundingBox');
         } else {
-          print('⚠️ No bounding box found for detection: ${detection['label']}');
+          print(
+              '⚠️ No bounding box found for detection: ${detection['label']}');
         }
-        
+
         return Detection(
           label: detection['label'] ?? '',
           confidence: detection['confidence']?.toDouble() ?? 0.0,
@@ -1267,8 +1368,9 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       }).toList();
 
       // Use the Cloudinary URL if available, fallback to original
-      final imageUrl = i < imageUrls.length ? imageUrls[i] : (result['imageUrl'] ?? '');
-      
+      final imageUrl =
+          i < imageUrls.length ? imageUrls[i] : (result['imageUrl'] ?? '');
+
       detectionResultModels.add(DetectionResult(
         imageUrl: imageUrl,
         detections: detections,
@@ -1279,7 +1381,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     final analysisResultModels = _analysisResults.map((result) {
       return AnalysisResultData(
         condition: result.condition,
-        percentage: _validateConfidence(result.percentage / 100) * 100, // Ensure valid percentage
+        percentage: _validateConfidence(result.percentage / 100) *
+            100, // Ensure valid percentage
         colorHex: '#${result.color.value.toRadixString(16).substring(2)}',
       );
     }).toList();
@@ -1289,32 +1392,39 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     );
     final recommendationTelemetry = Map<String, dynamic>.from(
       widget.assessmentData['recommendationTelemetry'] as Map? ??
-        <String, dynamic>{},
+          <String, dynamic>{},
     );
     final clinicalIntake = Map<String, dynamic>.from(
       widget.assessmentData['clinicalIntake'] as Map? ?? <String, dynamic>{},
     );
+    final triagePriorPayload = Map<String, dynamic>.from(
+      widget.assessmentData['triagePrior'] as Map? ?? <String, dynamic>{},
+    );
+    final recommendationPayload = Map<String, dynamic>.from(
+      widget.assessmentData['recommendationSummary'] as Map? ??
+          <String, dynamic>{},
+    );
 
     final aiEnabled = triageTelemetry.isNotEmpty ||
-      recommendationTelemetry.isNotEmpty ||
-      widget.assessmentData['triagePrior'] != null ||
-      widget.assessmentData['recommendationSummary'] != null;
+        recommendationTelemetry.isNotEmpty ||
+        triagePriorPayload.isNotEmpty ||
+        recommendationPayload.isNotEmpty;
     final triageModelUsed = triageTelemetry['modelUsed']?.toString();
     final recommendationModelUsed =
-      recommendationTelemetry['modelUsed']?.toString();
+        recommendationTelemetry['modelUsed']?.toString();
     final fallbackLevel =
-      recommendationTelemetry['fallbackLevel']?.toString() ??
-        triageTelemetry['fallbackLevel']?.toString() ??
-        'none';
+        recommendationTelemetry['fallbackLevel']?.toString() ??
+            triageTelemetry['fallbackLevel']?.toString() ??
+            'none';
     final aiErrorType = recommendationTelemetry['errorType']?.toString() ??
-      triageTelemetry['errorType']?.toString();
-    final generationLatencyMs = (recommendationTelemetry['latencyMs'] as num?)
-        ?.toInt() ??
-      (triageTelemetry['latencyMs'] as num?)?.toInt();
+        triageTelemetry['errorType']?.toString();
+    final generationLatencyMs =
+        (recommendationTelemetry['latencyMs'] as num?)?.toInt() ??
+            (triageTelemetry['latencyMs'] as num?)?.toInt();
     final cacheHit = recommendationTelemetry['cacheHit'] == true ||
-      triageTelemetry['cacheHit'] == true;
+        triageTelemetry['cacheHit'] == true;
     final traceId = recommendationTelemetry['traceId']?.toString() ??
-      triageTelemetry['traceId']?.toString();
+        triageTelemetry['traceId']?.toString();
     final redFlagEscalation = clinicalIntake['hasRedFlags'] == true;
 
     return AssessmentResult(
@@ -1344,6 +1454,14 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       disagreementFlag: _disagreementFlag,
       redFlagEscalation: redFlagEscalation,
       traceId: traceId,
+      clinicalIntakeSnapshot: clinicalIntake.isEmpty ? null : clinicalIntake,
+      triagePriorPayload:
+          triagePriorPayload.isEmpty ? null : triagePriorPayload,
+      triageTelemetryPayload: triageTelemetry.isEmpty ? null : triageTelemetry,
+      recommendationPayload:
+          recommendationPayload.isEmpty ? null : recommendationPayload,
+      recommendationTelemetryPayload:
+          recommendationTelemetry.isEmpty ? null : recommendationTelemetry,
     );
   }
 
@@ -1368,7 +1486,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     );
   }
 
-  void _showPDFGeneratedDialog(String filePath, List<int> pdfBytes, String fileName) {
+  void _showPDFGeneratedDialog(
+      String filePath, List<int> pdfBytes, String fileName) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -1387,7 +1506,6 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
               const Text('Assessment report has been generated successfully!'),
               const SizedBox(height: 8),
               const Text('• PDF report generated'),
-
             ],
           ),
           actions: [
@@ -1400,7 +1518,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                 Navigator.of(context).pop();
                 try {
                   await PDFGenerationService.previewPDF(
-                    Uint8List.fromList(pdfBytes), 
+                    Uint8List.fromList(pdfBytes),
                     fileName,
                   );
                 } catch (e) {
@@ -1424,8 +1542,6 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       },
     );
   }
-
-
 
   void _bookAppointment() async {
     try {
@@ -1471,13 +1587,14 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
 
       // Create assessment result model and handle pet creation if needed
       final assessmentResult = await _createAssessmentResult(userModel);
-      
+
       // If this is a new pet, save it to Firebase first
       await _handleNewPetCreation(userModel);
-      
+
       // Save assessment result to Firebase and get the document ID
       final assessmentService = AssessmentResultService();
-      final assessmentResultId = await assessmentService.saveAssessmentResult(assessmentResult);
+      final assessmentResultId =
+          await assessmentService.saveAssessmentResult(assessmentResult);
       await _persistAiTelemetry(
         assessmentService,
         assessmentResultId,
@@ -1493,25 +1610,27 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
 
       // Invalidate assessment history cache since we just saved an assessment
       await _invalidateAssessmentHistoryCache();
-      print('DEBUG: Assessment history cache invalidated after saving for appointment booking');
+      print(
+          'DEBUG: Assessment history cache invalidated after saving for appointment booking');
 
       // Also invalidate appointment history cache as we're about to create an appointment
       await _invalidateAppointmentHistoryCache();
-      print('DEBUG: Appointment history cache invalidated in preparation for booking');
+      print(
+          'DEBUG: Appointment history cache invalidated in preparation for booking');
 
       // Navigate to book appointment page with assessment result ID
       if (mounted) {
-        context.go('/book-appointment?assessment_result_id=$assessmentResultId&skip_service=true');
+        context.go(
+            '/book-appointment?assessment_result_id=$assessmentResultId&skip_service=true');
       }
-
     } catch (e) {
       print('❌ Error saving assessment and booking appointment: $e');
-      
+
       // Close loading dialog if still showing
       if (mounted) {
         Navigator.of(context).pop();
       }
-      
+
       // Show error dialog
       if (mounted) {
         _showDialog(
@@ -1524,7 +1643,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     }
   }
 
-  void _showDialog(String title, String content, String buttonText, VoidCallback onPressed) {
+  void _showDialog(
+      String title, String content, String buttonText, VoidCallback onPressed) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -1547,7 +1667,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
   }
 
   // Save assessment and navigate to booking with preselected clinic
-  Future<void> _saveAssessmentAndNavigateToBooking(String clinicId, String clinicName) async {
+  Future<void> _saveAssessmentAndNavigateToBooking(
+      String clinicId, String clinicName) async {
     try {
       // Show loading dialog
       showDialog(
@@ -1591,13 +1712,14 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
 
       // Create assessment result model and handle pet creation if needed
       final assessmentResult = await _createAssessmentResult(userModel);
-      
+
       // If this is a new pet, save it to Firebase first
       await _handleNewPetCreation(userModel);
-      
+
       // Save assessment result to Firebase and get the document ID
       final assessmentService = AssessmentResultService();
-      final assessmentResultId = await assessmentService.saveAssessmentResult(assessmentResult);
+      final assessmentResultId =
+          await assessmentService.saveAssessmentResult(assessmentResult);
       await _persistAiTelemetry(
         assessmentService,
         assessmentResultId,
@@ -1613,11 +1735,13 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
 
       // Invalidate assessment history cache since we just saved an assessment
       await _invalidateAssessmentHistoryCache();
-      print('DEBUG: Assessment history cache invalidated after saving for appointment booking');
+      print(
+          'DEBUG: Assessment history cache invalidated after saving for appointment booking');
 
       // Also invalidate appointment history cache as we're about to create an appointment
       await _invalidateAppointmentHistoryCache();
-      print('DEBUG: Appointment history cache invalidated in preparation for booking');
+      print(
+          'DEBUG: Appointment history cache invalidated in preparation for booking');
 
       // Navigate to book appointment page with preselected clinic and assessment result ID
       if (mounted) {
@@ -1630,15 +1754,14 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
           },
         );
       }
-
     } catch (e) {
       print('❌ Error saving assessment and booking appointment: $e');
-      
+
       // Close loading dialog if still showing
       if (mounted) {
         Navigator.of(context).pop();
       }
-      
+
       // Show error toast
       Fluttertoast.showToast(
         msg: 'Failed to save assessment. Please try again.',
@@ -1656,12 +1779,13 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       final user = await AuthGuard.getCurrentUser();
       if (user != null) {
         final cache = DataCache();
-        
+
         // Invalidate assessment results cache
         final assessmentCacheKey = CacheKeys.userAssessments(user.uid);
         cache.invalidate(assessmentCacheKey);
-        
-        print('DEBUG: Assessment history cache invalidated for user: ${user.uid}');
+
+        print(
+            'DEBUG: Assessment history cache invalidated for user: ${user.uid}');
       }
     } catch (e) {
       print('DEBUG: Error invalidating assessment history cache: $e');
@@ -1673,12 +1797,13 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       final user = await AuthGuard.getCurrentUser();
       if (user != null) {
         final cache = DataCache();
-        
+
         // Invalidate appointment history cache using the same pattern as home_page.dart
         final appointmentCacheKey = 'user_appointments_${user.uid}';
         cache.invalidate(appointmentCacheKey);
-        
-        print('DEBUG: Appointment history cache invalidated for user: ${user.uid}');
+
+        print(
+            'DEBUG: Appointment history cache invalidated for user: ${user.uid}');
       }
     } catch (e) {
       print('DEBUG: Error invalidating appointment history cache: $e');
@@ -1726,7 +1851,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                       decoration: BoxDecoration(
                         color: AppColors.primary.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.primary.withOpacity(0.25)),
+                        border: Border.all(
+                            color: AppColors.primary.withOpacity(0.25)),
                       ),
                       child: Text(
                         _summarySourceLabel,
@@ -1758,7 +1884,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
           ),
           const SizedBox(height: kSpacingMedium),
 
-         // Analysis Results with Pie Chart
+          // Analysis Results with Pie Chart
           Container(
             padding: const EdgeInsets.all(kSpacingSmall),
             decoration: BoxDecoration(
@@ -1785,7 +1911,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                   ),
                 ),
                 const SizedBox(height: kSpacingSmall),
-                
+
                 // Pie Chart
                 SizedBox(
                   height: 150,
@@ -1804,7 +1930,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                                         return PieChartSectionData(
                                           color: result.color,
                                           value: result.percentage,
-                                          title: '', // Remove title from pie section for single result
+                                          title:
+                                              '', // Remove title from pie section for single result
                                           radius: 60,
                                         );
                                       }).toList(),
@@ -1833,8 +1960,10 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                                     return PieChartSectionData(
                                       color: result.color,
                                       value: result.percentage,
-                                      title: '${result.percentage.toStringAsFixed(1)}%',
-                                      titleStyle: kMobileTextStyleLegend.copyWith(
+                                      title:
+                                          '${result.percentage.toStringAsFixed(1)}%',
+                                      titleStyle:
+                                          kMobileTextStyleLegend.copyWith(
                                         color: AppColors.white,
                                         fontWeight: FontWeight.w600,
                                       ),
@@ -1855,7 +1984,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: _analysisResults.map((result) {
                             return Padding(
-                              padding: const EdgeInsets.only(bottom: kSpacingSmall),
+                              padding:
+                                  const EdgeInsets.only(bottom: kSpacingSmall),
                               child: Row(
                                 children: [
                                   Container(
@@ -1895,22 +2025,22 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
             ),
           ),
           const SizedBox(height: kSpacingMedium),
-          
+
           // Consolidated guidance panel (severity + seek help + remedies)
           _buildClinicalGuidanceSection(),
           const SizedBox(height: kSpacingMedium),
-          
+
           // Assessment Images Container
           _buildAssessmentImagesContainer(),
           const SizedBox(height: kSpacingMedium),
-          
+
           // Recommended Clinics Section
           if (_recommendedClinics.isNotEmpty || _isLoadingClinics)
             _buildRecommendedClinicsSection(),
-          
+
           if (_recommendedClinics.isNotEmpty || _isLoadingClinics)
             const SizedBox(height: kSpacingMedium),
-          
+
           // Action Buttons
           Column(
             children: [
@@ -1956,7 +2086,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
             ],
           ),
           const SizedBox(height: kSpacingMedium),
-          
+
           // Disclaimer
           Container(
             padding: const EdgeInsets.all(kSpacingMedium),
@@ -1999,8 +2129,10 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
   Widget _buildClinicalGuidanceSection() {
     if (_analysisResults.isEmpty ||
         (_analysisResults.length == 1 &&
-            (_analysisResults.first.condition == 'No high-confidence detections' ||
-                _analysisResults.first.condition == 'No skin disease detected'))) {
+            (_analysisResults.first.condition ==
+                    'No high-confidence detections' ||
+                _analysisResults.first.condition ==
+                    'No skin disease detected'))) {
       return const SizedBox.shrink();
     }
 
@@ -2039,8 +2171,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
 
     if (diseaseInfo?.initialRemedies != null &&
         diseaseInfo!.initialRemedies!.containsKey('whenToSeekHelp')) {
-      final whenToSeekHelp =
-          diseaseInfo.initialRemedies!['whenToSeekHelp'] as Map<String, dynamic>;
+      final whenToSeekHelp = diseaseInfo.initialRemedies!['whenToSeekHelp']
+          as Map<String, dynamic>;
       seekHelpActions = List<String>.from(whenToSeekHelp['actions'] ?? []);
       urgency = whenToSeekHelp['urgency'] as String?;
     }
@@ -2060,7 +2192,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       seekHelpActions.insert(0, 'You selected possible urgent signs earlier.');
     }
     if (_disagreementFlag) {
-      seekHelpActions.add('Results are not fully consistent, so it is safer to consult a vet sooner.');
+      seekHelpActions.add(
+          'Results are not fully consistent, so it is safer to consult a vet sooner.');
     }
 
     seekHelpActions = _dedupLimited([
@@ -2096,7 +2229,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: severityColor.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(16),
@@ -2119,7 +2253,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
               const SizedBox(width: kSpacingSmall),
               if (urgencyDisplay != null)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
                     color: AppColors.error.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(16),
@@ -2137,7 +2272,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
           const SizedBox(height: kSpacingSmall),
           Text(
             'Top finding: ${highestDetection.condition} (${highestDetection.percentage.toStringAsFixed(1)}%)',
-            style: kMobileTextStyleSubtitle.copyWith(color: AppColors.textSecondary),
+            style: kMobileTextStyleSubtitle.copyWith(
+                color: AppColors.textSecondary),
           ),
           const SizedBox(height: kSpacingMedium),
           Text(
@@ -2199,7 +2335,9 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
           ),
           if (_showRemedies) ...[
             const SizedBox(height: kSpacingSmall),
-            hasRemedies ? _buildDynamicRemedies(remedies!) : _buildPlaceholderRemedies(),
+            hasRemedies
+                ? _buildDynamicRemedies(remedies!)
+                : _buildPlaceholderRemedies(),
           ],
         ],
       ),
@@ -2208,7 +2346,9 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
 
   Widget _buildAssessmentImagesContainer() {
     final photos = widget.assessmentData['photos'] as List<XFile>? ?? [];
-    final detectionResults = widget.assessmentData['detectionResults'] as List<Map<String, dynamic>>? ?? [];
+    final detectionResults = widget.assessmentData['detectionResults']
+            as List<Map<String, dynamic>>? ??
+        [];
 
     if (photos.isEmpty) {
       return Container();
@@ -2259,60 +2399,70 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
             ),
           ),
           const SizedBox(height: kSpacingMedium),
-          
+
           // Display each analyzed image with highest confidence detection only
           ...List.generate(photos.length, (index) {
             final photo = photos[index];
             final hasDetection = index < detectionResults.length;
-            final allDetections = hasDetection 
-                ? detectionResults[index]['detections'] as List<Map<String, dynamic>>? ?? []
+            final allDetections = hasDetection
+                ? detectionResults[index]['detections']
+                        as List<Map<String, dynamic>>? ??
+                    []
                 : <Map<String, dynamic>>[];
 
             // Get top 3 UNIQUE detections for this image (filtered for duplicates and threshold)
             const double CONFIDENCE_THRESHOLD = 0.0; // 50% minimum confidence
             const double IOU_THRESHOLD = 0.5; // For duplicate detection
             const int MAX_DETECTIONS_PER_IMAGE = 3;
-            
+
             List<Map<String, dynamic>> detectionsToShow = [];
             Set<String> seenDiseases = {}; // Track unique disease names
-            
+
             if (allDetections.isNotEmpty) {
               // Sort by confidence descending
-              final sortedDetections = List<Map<String, dynamic>>.from(allDetections);
-              sortedDetections.sort((a, b) => 
-                (b['confidence'] as double).compareTo(a['confidence'] as double)
-              );
-              
+              final sortedDetections =
+                  List<Map<String, dynamic>>.from(allDetections);
+              sortedDetections.sort((a, b) => (b['confidence'] as double)
+                  .compareTo(a['confidence'] as double));
+
               // Filter duplicates and apply threshold
               for (final detection in sortedDetections) {
                 final confidence = detection['confidence'] as double? ?? 0.0;
-                
+
                 // Skip if below threshold
                 if (confidence < CONFIDENCE_THRESHOLD) continue;
-                
+
                 final label = detection['label'] as String;
                 final formattedLabel = _formatConditionName(label);
-                
+
                 // Skip if we've already seen this disease
                 if (seenDiseases.contains(formattedLabel)) {
                   continue;
                 }
-                
+
                 bool isDuplicate = false;
                 final box = detection['box'] as List?;
-                
+
                 // Check for duplicates (same disease at overlapping location)
                 for (final existing in detectionsToShow) {
                   final existingLabel = existing['label'] as String;
                   final existingBox = existing['box'] as List?;
-                  
+
                   if (label == existingLabel) {
-                    if (box != null && existingBox != null && box.length >= 4 && existingBox.length >= 4) {
+                    if (box != null &&
+                        existingBox != null &&
+                        box.length >= 4 &&
+                        existingBox.length >= 4) {
                       final iou = _calculateIOU(
                         [box[0], box[1], box[2], box[3]],
-                        [existingBox[0], existingBox[1], existingBox[2], existingBox[3]],
+                        [
+                          existingBox[0],
+                          existingBox[1],
+                          existingBox[2],
+                          existingBox[3]
+                        ],
                       );
-                      
+
                       if (iou > IOU_THRESHOLD) {
                         isDuplicate = true;
                         break;
@@ -2320,11 +2470,11 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                     }
                   }
                 }
-                
+
                 if (!isDuplicate) {
                   detectionsToShow.add(detection);
                   seenDiseases.add(formattedLabel); // Mark this disease as seen
-                  
+
                   if (detectionsToShow.length >= MAX_DETECTIONS_PER_IMAGE) {
                     break;
                   }
@@ -2376,7 +2526,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                                       const SizedBox(height: kSpacingSmall),
                                       Text(
                                         'Image ${index + 1}',
-                                        style: kMobileTextStyleSubtitle.copyWith(
+                                        style:
+                                            kMobileTextStyleSubtitle.copyWith(
                                           color: AppColors.textSecondary,
                                         ),
                                       ),
@@ -2387,7 +2538,6 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                             ),
                           ),
 
-                          
                           // Fullscreen indicator overlay
                           Positioned(
                             top: 8,
@@ -2425,7 +2575,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                         ],
                       ),
                     ),
-                    
+
                     // Detection details
                     Container(
                       padding: const EdgeInsets.all(kSpacingMedium),
@@ -2449,12 +2599,12 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                                     vertical: 4,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: _previewingImages.contains(index) 
+                                    color: _previewingImages.contains(index)
                                         ? AppColors.primary.withOpacity(0.1)
                                         : AppColors.success.withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(12),
                                     border: Border.all(
-                                      color: _previewingImages.contains(index) 
+                                      color: _previewingImages.contains(index)
                                           ? AppColors.primary.withOpacity(0.3)
                                           : AppColors.success.withOpacity(0.3),
                                     ),
@@ -2463,23 +2613,24 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Icon(
-                                        _previewingImages.contains(index) 
-                                            ? Icons.visibility 
+                                        _previewingImages.contains(index)
+                                            ? Icons.visibility
                                             : Icons.remove_red_eye_outlined,
                                         size: 12,
-                                        color: _previewingImages.contains(index) 
+                                        color: _previewingImages.contains(index)
                                             ? AppColors.primary
                                             : AppColors.success,
                                       ),
                                       const SizedBox(width: 4),
                                       Text(
-                                        _previewingImages.contains(index) 
+                                        _previewingImages.contains(index)
                                             ? '${detectionsToShow.length} Detection${detectionsToShow.length > 1 ? 's' : ''}'
                                             : '${detectionsToShow.length} Detection${detectionsToShow.length > 1 ? 's' : ''} Available',
                                         style: kMobileTextStyleLegend.copyWith(
-                                          color: _previewingImages.contains(index) 
-                                              ? AppColors.primary
-                                              : AppColors.success,
+                                          color:
+                                              _previewingImages.contains(index)
+                                                  ? AppColors.primary
+                                                  : AppColors.success,
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
@@ -2493,9 +2644,12 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                                     vertical: 4,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: AppColors.textSecondary.withOpacity(0.1),
+                                    color: AppColors.textSecondary
+                                        .withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: AppColors.textSecondary.withOpacity(0.3)),
+                                    border: Border.all(
+                                        color: AppColors.textSecondary
+                                            .withOpacity(0.3)),
                                   ),
                                   child: Text(
                                     'No detections',
@@ -2508,7 +2662,6 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                               ],
                             ],
                           ),
-                          
                           if (detectionsToShow.isNotEmpty) ...[
                             const SizedBox(height: kSpacingSmall),
                             ...detectionsToShow.asMap().entries.map((entry) {
@@ -2516,15 +2669,17 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                               final detection = entry.value;
                               final String condition = detection['label'];
                               final double? overallConfidence =
-                                _getOverallConditionPercentage(condition);
+                                  _getOverallConditionPercentage(condition);
                               final double fallbackConfidence =
-                                (detection['confidence'] as double? ?? 0.0) * 100;
+                                  (detection['confidence'] as double? ?? 0.0) *
+                                      100;
                               final double displayConfidence =
-                                overallConfidence ?? fallbackConfidence;
-                              
+                                  overallConfidence ?? fallbackConfidence;
+
                               // Get color based on disease type (same disease = same color across all images)
-                              final detectionColor = _getColorForDisease(condition);
-                              
+                              final detectionColor =
+                                  _getColorForDisease(condition);
+
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 4),
                                 child: Row(
@@ -2536,7 +2691,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                                         color: detectionColor,
                                         shape: BoxShape.circle,
                                         border: Border.all(
-                                          color: detectionColor.withOpacity(0.3),
+                                          color:
+                                              detectionColor.withOpacity(0.3),
                                           width: 2,
                                         ),
                                       ),
@@ -2547,8 +2703,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                                         _formatConditionName(condition),
                                         style: kMobileTextStyleLegend.copyWith(
                                           color: AppColors.textPrimary,
-                                          fontWeight: detectionIndex == 0 
-                                              ? FontWeight.w600 
+                                          fontWeight: detectionIndex == 0
+                                              ? FontWeight.w600
                                               : FontWeight.w500,
                                         ),
                                       ),
@@ -2562,7 +2718,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                                         color: detectionColor.withOpacity(0.1),
                                         borderRadius: BorderRadius.circular(8),
                                         border: Border.all(
-                                          color: detectionColor.withOpacity(0.3),
+                                          color:
+                                              detectionColor.withOpacity(0.3),
                                         ),
                                       ),
                                       child: Text(
@@ -2617,27 +2774,29 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
 
   Widget _buildSeverityAndSeekHelpSection() {
     // Don't show if no skin diseases were detected
-    if (_analysisResults.isEmpty || 
-        (_analysisResults.length == 1 && 
-         (_analysisResults.first.condition == 'No high-confidence detections' ||
-          _analysisResults.first.condition == 'No skin disease detected'))) {
+    if (_analysisResults.isEmpty ||
+        (_analysisResults.length == 1 &&
+            (_analysisResults.first.condition ==
+                    'No high-confidence detections' ||
+                _analysisResults.first.condition ==
+                    'No skin disease detected'))) {
       return const SizedBox.shrink();
     }
 
     // Get the highest confidence detection
     final highestDetection = _analysisResults.first;
     final diseaseInfo = _detectedDisease;
-    
+
     // Determine severity (default to moderate if not found)
     String severity = 'moderate';
     String severityDisplay = 'Moderate';
     Color severityColor = const Color(0xFFFFA500); // Orange
     IconData severityIcon = Icons.warning_amber_rounded;
-    
+
     if (diseaseInfo != null) {
       severity = diseaseInfo.severity.toLowerCase();
     }
-    
+
     // Set display properties based on severity
     switch (severity) {
       case 'low':
@@ -2660,14 +2819,15 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     // Get "When to Seek Help" information
     List<String> seekHelpActions = [];
     String? urgency;
-    
-    if (diseaseInfo?.initialRemedies != null && 
+
+    if (diseaseInfo?.initialRemedies != null &&
         diseaseInfo!.initialRemedies!.containsKey('whenToSeekHelp')) {
-      final whenToSeekHelp = diseaseInfo.initialRemedies!['whenToSeekHelp'] as Map<String, dynamic>;
+      final whenToSeekHelp = diseaseInfo.initialRemedies!['whenToSeekHelp']
+          as Map<String, dynamic>;
       seekHelpActions = List<String>.from(whenToSeekHelp['actions'] ?? []);
       urgency = whenToSeekHelp['urgency'] as String?;
     }
-    
+
     // Fallback to generic advice if no specific info available
     if (seekHelpActions.isEmpty) {
       seekHelpActions = [
@@ -2681,7 +2841,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     }
 
     if (_hasRedFlags) {
-      seekHelpActions.insert(0, 'Urgent signs were reported during pre-triage.');
+      seekHelpActions.insert(
+          0, 'Urgent signs were reported during pre-triage.');
     }
     if (_disagreementFlag) {
       seekHelpActions.add(
@@ -2697,7 +2858,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       ...aiWatchlist,
       ...aiEscalation,
     ], max: 7);
-    
+
     return Column(
       children: [
         // Severity Indicator Card
@@ -2807,16 +2968,17 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
             ],
           ),
         ),
-        
+
         const SizedBox(height: kSpacingMedium),
-        
+
         // When to Seek Help Card
         Container(
           padding: const EdgeInsets.all(kSpacingMedium),
           decoration: BoxDecoration(
             color: AppColors.error.withOpacity(0.05),
             borderRadius: BorderRadius.circular(kBorderRadius),
-            border: Border.all(color: AppColors.error.withOpacity(0.3), width: 1.5),
+            border:
+                Border.all(color: AppColors.error.withOpacity(0.3), width: 1.5),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2948,9 +3110,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
     }
 
     // Get the highest confidence disease for display
-    final detectedDisease = _analysisResults.isNotEmpty 
-        ? _analysisResults.first.condition 
-        : null;
+    final detectedDisease =
+        _analysisResults.isNotEmpty ? _analysisResults.first.condition : null;
 
     return RecommendedClinicsWidget(
       recommendedClinics: _recommendedClinics,
@@ -2964,17 +3125,19 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
 
   Widget _buildRemediesSection() {
     // Don't show remedies if no skin diseases were detected
-    if (_analysisResults.isEmpty || 
-        (_analysisResults.length == 1 && 
-         (_analysisResults.first.condition == 'No high-confidence detections' ||
-          _analysisResults.first.condition == 'No skin disease detected'))) {
+    if (_analysisResults.isEmpty ||
+        (_analysisResults.length == 1 &&
+            (_analysisResults.first.condition ==
+                    'No high-confidence detections' ||
+                _analysisResults.first.condition ==
+                    'No skin disease detected'))) {
       return const SizedBox.shrink();
     }
-    
+
     // Check if we have disease info with remedies
     final hasRemedies = _detectedDisease?.initialRemedies != null;
     final remedies = _detectedDisease?.initialRemedies;
-    
+
     return Container(
       decoration: BoxDecoration(
         color: AppColors.primary.withOpacity(0.1),
@@ -3009,7 +3172,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
                       height: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(AppColors.primary),
                       ),
                     )
                   else
@@ -3066,10 +3230,10 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
       ),
     );
   }
-  
+
   Widget _buildDynamicRemedies(Map<String, dynamic> remedies) {
     final List<Widget> remedyWidgets = [];
-    
+
     // Immediate Care
     if (remedies.containsKey('immediateCare')) {
       final immediateCare = remedies['immediateCare'] as Map<String, dynamic>;
@@ -3081,18 +3245,19 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
         isListFormat: true,
       ));
     }
-    
+
     // Topical Treatment / Environmental Disinfection
     if (remedies.containsKey('topicalTreatment')) {
-      final topicalTreatment = remedies['topicalTreatment'] as Map<String, dynamic>;
+      final topicalTreatment =
+          remedies['topicalTreatment'] as Map<String, dynamic>;
       final actions = List<String>.from(topicalTreatment['actions'] ?? []);
       final note = topicalTreatment['note'] as String?;
-      
+
       String content = actions.join('\n• ');
       if (note != null && note.isNotEmpty) {
         content += '\n\n⚠️ Note: $note';
       }
-      
+
       remedyWidgets.add(_buildRemedyItem(
         Icons.medication,
         topicalTreatment['title'] ?? 'Treatment',
@@ -3100,7 +3265,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
         isListFormat: true,
       ));
     }
-    
+
     // Monitoring
     if (remedies.containsKey('monitoring')) {
       final monitoring = remedies['monitoring'] as Map<String, dynamic>;
@@ -3122,12 +3287,12 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
         isListFormat: true,
       ));
     }
-    
+
     // Note: "When to Seek Help" is now displayed in the dedicated severity section above
-    
+
     return Column(children: remedyWidgets);
   }
-  
+
   Widget _buildPlaceholderRemedies() {
     final aiHomeCare = _dedupLimited(_aiList('home_care'), max: 4);
 
@@ -3158,7 +3323,7 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
             ],
           ),
         ),
-        
+
         // Generic remedies
         _buildRemedyItem(
           Icons.local_hospital,
@@ -3180,15 +3345,15 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
             aiHomeCare.join('\n• '),
             isListFormat: true,
           ),
-        
+
         // Note: "When to Seek Help" is now displayed in the dedicated severity section above
       ],
     );
   }
 
   Widget _buildRemedyItem(
-    IconData icon, 
-    String title, 
+    IconData icon,
+    String title,
     String description, {
     bool isListFormat = false,
     bool isWarning = false,
@@ -3201,7 +3366,8 @@ class _AssessmentStepThreeState extends State<AssessmentStepThree> {
           Container(
             padding: const EdgeInsets.all(kSpacingSmall),
             decoration: BoxDecoration(
-              color: (isWarning ? AppColors.error : AppColors.primary).withOpacity(0.1),
+              color: (isWarning ? AppColors.error : AppColors.primary)
+                  .withOpacity(0.1),
               borderRadius: BorderRadius.circular(kBorderRadius),
             ),
             child: Icon(

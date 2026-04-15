@@ -28,6 +28,11 @@ class AssessmentResult {
   final bool disagreementFlag;
   final bool redFlagEscalation;
   final String? traceId;
+  final Map<String, dynamic>? clinicalIntakeSnapshot;
+  final Map<String, dynamic>? triagePriorPayload;
+  final Map<String, dynamic>? triageTelemetryPayload;
+  final Map<String, dynamic>? recommendationPayload;
+  final Map<String, dynamic>? recommendationTelemetryPayload;
 
   AssessmentResult({
     this.id,
@@ -57,6 +62,11 @@ class AssessmentResult {
     this.disagreementFlag = false,
     this.redFlagEscalation = false,
     this.traceId,
+    this.clinicalIntakeSnapshot,
+    this.triagePriorPayload,
+    this.triageTelemetryPayload,
+    this.recommendationPayload,
+    this.recommendationTelemetryPayload,
   });
 
   // Convert AssessmentResult to Map for Firestore
@@ -73,8 +83,10 @@ class AssessmentResult {
       'imageUrls': imageUrls,
       'notes': notes,
       'duration': duration,
-      'detectionResults': detectionResults.map((result) => result.toMap()).toList(),
-      'analysisResults': analysisResults.map((result) => result.toMap()).toList(),
+      'detectionResults':
+          detectionResults.map((result) => result.toMap()).toList(),
+      'analysisResults':
+          analysisResults.map((result) => result.toMap()).toList(),
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
       'aiEnabled': aiEnabled,
@@ -88,11 +100,17 @@ class AssessmentResult {
       'disagreementFlag': disagreementFlag,
       'redFlagEscalation': redFlagEscalation,
       'traceId': traceId,
+      'clinicalIntakeSnapshot': clinicalIntakeSnapshot,
+      'triagePriorPayload': triagePriorPayload,
+      'triageTelemetryPayload': triageTelemetryPayload,
+      'recommendationPayload': recommendationPayload,
+      'recommendationTelemetryPayload': recommendationTelemetryPayload,
     };
   }
 
   // Create AssessmentResult from Firestore document
-  factory AssessmentResult.fromMap(Map<String, dynamic> map, String documentId) {
+  factory AssessmentResult.fromMap(
+      Map<String, dynamic> map, String documentId) {
     return AssessmentResult(
       id: documentId,
       userId: map['userId'] ?? '',
@@ -112,23 +130,40 @@ class AssessmentResult {
       analysisResults: (map['analysisResults'] as List<dynamic>? ?? [])
           .map((result) => AnalysisResultData.fromMap(result))
           .toList(),
-      createdAt: map['createdAt'] != null 
+      createdAt: map['createdAt'] != null
           ? (map['createdAt'] as Timestamp).toDate()
           : DateTime.now(),
-      updatedAt: map['updatedAt'] != null 
+      updatedAt: map['updatedAt'] != null
           ? (map['updatedAt'] as Timestamp).toDate()
           : DateTime.now(),
-        aiEnabled: map['aiEnabled'] ?? false,
-        triageModelUsed: map['triageModelUsed'],
-        recommendationModelUsed: map['recommendationModelUsed'],
-        fallbackLevel: map['fallbackLevel'] ?? 'none',
-        aiErrorType: map['aiErrorType'],
-        generationLatencyMs: map['generationLatencyMs']?.toInt(),
-        tokenEstimate: map['tokenEstimate']?.toInt(),
-        cacheHit: map['cacheHit'] ?? false,
-        disagreementFlag: map['disagreementFlag'] ?? false,
-        redFlagEscalation: map['redFlagEscalation'] ?? false,
-        traceId: map['traceId'],
+      aiEnabled: map['aiEnabled'] ?? false,
+      triageModelUsed: map['triageModelUsed'],
+      recommendationModelUsed: map['recommendationModelUsed'],
+      fallbackLevel: map['fallbackLevel'] ?? 'none',
+      aiErrorType: map['aiErrorType'],
+      generationLatencyMs: map['generationLatencyMs']?.toInt(),
+      tokenEstimate: map['tokenEstimate']?.toInt(),
+      cacheHit: map['cacheHit'] ?? false,
+      disagreementFlag: map['disagreementFlag'] ?? false,
+      redFlagEscalation: map['redFlagEscalation'] ?? false,
+      traceId: map['traceId'],
+      clinicalIntakeSnapshot: map['clinicalIntakeSnapshot'] is Map
+          ? Map<String, dynamic>.from(map['clinicalIntakeSnapshot'] as Map)
+          : null,
+      triagePriorPayload: map['triagePriorPayload'] is Map
+          ? Map<String, dynamic>.from(map['triagePriorPayload'] as Map)
+          : null,
+      triageTelemetryPayload: map['triageTelemetryPayload'] is Map
+          ? Map<String, dynamic>.from(map['triageTelemetryPayload'] as Map)
+          : null,
+      recommendationPayload: map['recommendationPayload'] is Map
+          ? Map<String, dynamic>.from(map['recommendationPayload'] as Map)
+          : null,
+      recommendationTelemetryPayload:
+          map['recommendationTelemetryPayload'] is Map
+              ? Map<String, dynamic>.from(
+                  map['recommendationTelemetryPayload'] as Map)
+              : null,
     );
   }
 
@@ -161,6 +196,11 @@ class AssessmentResult {
     bool? disagreementFlag,
     bool? redFlagEscalation,
     String? traceId,
+    Map<String, dynamic>? clinicalIntakeSnapshot,
+    Map<String, dynamic>? triagePriorPayload,
+    Map<String, dynamic>? triageTelemetryPayload,
+    Map<String, dynamic>? recommendationPayload,
+    Map<String, dynamic>? recommendationTelemetryPayload,
   }) {
     return AssessmentResult(
       id: id ?? this.id,
@@ -191,6 +231,15 @@ class AssessmentResult {
       disagreementFlag: disagreementFlag ?? this.disagreementFlag,
       redFlagEscalation: redFlagEscalation ?? this.redFlagEscalation,
       traceId: traceId ?? this.traceId,
+      clinicalIntakeSnapshot:
+          clinicalIntakeSnapshot ?? this.clinicalIntakeSnapshot,
+      triagePriorPayload: triagePriorPayload ?? this.triagePriorPayload,
+      triageTelemetryPayload:
+          triageTelemetryPayload ?? this.triageTelemetryPayload,
+      recommendationPayload:
+          recommendationPayload ?? this.recommendationPayload,
+      recommendationTelemetryPayload:
+          recommendationTelemetryPayload ?? this.recommendationTelemetryPayload,
     );
   }
 }
@@ -244,7 +293,7 @@ class Detection {
     return Detection(
       label: map['label'] ?? '',
       confidence: map['confidence']?.toDouble() ?? 0.0,
-      boundingBox: map['boundingBox'] != null 
+      boundingBox: map['boundingBox'] != null
           ? List<double>.from(map['boundingBox'])
           : null,
     );

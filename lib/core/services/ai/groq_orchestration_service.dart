@@ -114,7 +114,7 @@ class GroqOrchestrationService {
 
   String get _baseUrl {
     final configured = _readEnv('GROQ_BASE_URL');
-    if (configured != null && configured.isNotEmpty) {
+    if (configured.isNotEmpty) {
       return configured;
     }
     return 'https://api.groq.com/openai/v1';
@@ -122,33 +122,27 @@ class GroqOrchestrationService {
 
   String get _triagePrimaryModel =>
       _readEnv('GROQ_PRIMARY_MODEL_TRIAGE').isNotEmpty
-      ? _readEnv('GROQ_PRIMARY_MODEL_TRIAGE')
-      :
-      'llama-3.1-8b-instant';
+          ? _readEnv('GROQ_PRIMARY_MODEL_TRIAGE')
+          : 'llama-3.1-8b-instant';
 
   String get _triageFallbackModel =>
       _readEnv('GROQ_FALLBACK_MODEL_TRIAGE').isNotEmpty
-      ? _readEnv('GROQ_FALLBACK_MODEL_TRIAGE')
-      :
-      'llama3-70b-8192';
+          ? _readEnv('GROQ_FALLBACK_MODEL_TRIAGE')
+          : 'llama3-70b-8192';
 
   String get _recommendationPrimaryModel =>
       _readEnv('GROQ_PRIMARY_MODEL_RECO').isNotEmpty
-      ? _readEnv('GROQ_PRIMARY_MODEL_RECO')
-      :
-      'llama-3.1-8b-instant';
+          ? _readEnv('GROQ_PRIMARY_MODEL_RECO')
+          : 'llama-3.1-8b-instant';
 
   String get _recommendationFallbackModel =>
       _readEnv('GROQ_FALLBACK_MODEL_RECO').isNotEmpty
-      ? _readEnv('GROQ_FALLBACK_MODEL_RECO')
-      :
-      'llama3-70b-8192';
+          ? _readEnv('GROQ_FALLBACK_MODEL_RECO')
+          : 'llama3-70b-8192';
 
-  int get _timeoutMs =>
-      int.tryParse(_readEnv('GROQ_TIMEOUT_MS')) ?? 9000;
+  int get _timeoutMs => int.tryParse(_readEnv('GROQ_TIMEOUT_MS')) ?? 9000;
 
-  int get _maxRetries =>
-      int.tryParse(_readEnv('GROQ_MAX_RETRIES')) ?? 1;
+  int get _maxRetries => int.tryParse(_readEnv('GROQ_MAX_RETRIES')) ?? 1;
 
   int get _dailyCallCap =>
       int.tryParse(_readEnv('GROQ_DAILY_CALL_CAP')) ?? 2500;
@@ -162,7 +156,8 @@ class GroqOrchestrationService {
     }
 
     if (_apiKey.isEmpty) {
-      debugPrint('⚠️ GROQ_API_KEY missing. AI features will use fallback mode.');
+      debugPrint(
+          '⚠️ GROQ_API_KEY missing. AI features will use fallback mode.');
     }
   }
 
@@ -171,14 +166,21 @@ class GroqOrchestrationService {
     required List<String> symptoms,
     required Map<String, dynamic> intakeData,
     bool hasRedFlags = false,
+    List<String>? cameraDetectableConditions,
   }) async {
     final traceId = _buildTraceId('triage');
-    final cacheKey = _buildTriageCacheKey(petType, symptoms, intakeData, hasRedFlags);
+    final allowedConditions =
+        _normalizedAllowedConditionSet(cameraDetectableConditions);
+    final cacheKey = _buildTriageCacheKey(
+        petType, symptoms, intakeData, hasRedFlags, allowedConditions);
     final cached = _triageCache[cacheKey];
     if (cached != null && !cached.isExpired) {
       return GroqGenerationResult(
         success: true,
-        content: cached.payload,
+        content: _constrainTriageToAllowedConditions(
+          payload: cached.payload,
+          allowedConditions: allowedConditions,
+        ),
         modelUsed: cached.modelUsed,
         fallbackLevel: cached.fallbackLevel,
         latencyMs: 0,
@@ -193,9 +195,13 @@ class GroqOrchestrationService {
         petType: petType,
         symptoms: symptoms,
         hasRedFlags: hasRedFlags,
+        allowedConditions: allowedConditions.toList(),
       );
       return _fallbackResult(
-        fallback,
+        _constrainTriageToAllowedConditions(
+          payload: fallback,
+          allowedConditions: allowedConditions,
+        ),
         traceId,
         GroqErrorType.unknown,
       );
@@ -206,6 +212,8 @@ class GroqOrchestrationService {
       'symptoms': symptoms,
       'intake': intakeData,
       'red_flags': hasRedFlags,
+      if (allowedConditions.isNotEmpty)
+        'camera_detectable_conditions': allowedConditions.toList(),
     };
 
     final result = await _runWithChain(
@@ -221,19 +229,36 @@ class GroqOrchestrationService {
         petType: petType,
         symptoms: symptoms,
         hasRedFlags: hasRedFlags,
+        allowedConditions: allowedConditions.toList(),
       ),
     );
 
-    if (result.success) {
+    final constrainedContent = _constrainTriageToAllowedConditions(
+      payload: result.content,
+      allowedConditions: allowedConditions,
+    );
+
+    final constrainedResult = GroqGenerationResult(
+      success: result.success,
+      content: constrainedContent,
+      modelUsed: result.modelUsed,
+      fallbackLevel: result.fallbackLevel,
+      latencyMs: result.latencyMs,
+      errorType: result.errorType,
+      cacheHit: result.cacheHit,
+      traceId: result.traceId,
+    );
+
+    if (constrainedResult.success) {
       _triageCache[cacheKey] = _CacheEntry(
-        payload: result.content,
+        payload: constrainedResult.content,
         expiresAt: DateTime.now().add(_triageCacheTtl),
-        modelUsed: result.modelUsed,
-        fallbackLevel: result.fallbackLevel,
+        modelUsed: constrainedResult.modelUsed,
+        fallbackLevel: constrainedResult.fallbackLevel,
       );
     }
 
-    return result;
+    return constrainedResult;
   }
 
   Future<GroqGenerationResult> generateRecommendationNarrative({
@@ -323,6 +348,102 @@ class GroqOrchestrationService {
     return result;
   }
 
+  Future<GroqGenerationResult> generateGuidedChatQuestion({
+    required String petType,
+    required Map<String, dynamic> intakeData,
+    required List<String> askedQuestionIds,
+    required List<String> eligibleQuestionIds,
+    required Map<String, dynamic> questionCatalog,
+  }) async {
+    final traceId = _buildTraceId('chatq');
+
+    if (!isConfigured || !_consumeDailyQuota()) {
+      return _fallbackResult(
+        {
+          'next_question_id':
+              eligibleQuestionIds.isNotEmpty ? eligibleQuestionIds.first : '',
+          'question_text': 'Let me ask one more question.',
+          'helper_text': 'Please share the closest answer.',
+          'should_finish': eligibleQuestionIds.isEmpty,
+          'reason': 'deterministic_fallback',
+        },
+        traceId,
+        GroqErrorType.unknown,
+      );
+    }
+
+    final payload = {
+      'pet_type': petType,
+      'intake': intakeData,
+      'asked_question_ids': askedQuestionIds,
+      'eligible_question_ids': eligibleQuestionIds,
+      'question_catalog': questionCatalog,
+    };
+
+    return _runWithChain(
+      traceId: traceId,
+      primaryModel: _triagePrimaryModel,
+      fallbackModel: _triageFallbackModel,
+      schemaValidator: _isValidGuidedQuestionSchema,
+      systemPrompt: _guidedQuestionSystemPrompt,
+      userPayload: payload,
+      maxTokens: 280,
+      temperature: 0.2,
+      fallbackFactory: () => {
+        'next_question_id':
+            eligibleQuestionIds.isNotEmpty ? eligibleQuestionIds.first : '',
+        'question_text': 'Let me ask one more question.',
+        'helper_text': 'Please share the closest answer.',
+        'should_finish': eligibleQuestionIds.isEmpty,
+        'reason': 'deterministic_fallback',
+      },
+    );
+  }
+
+  Future<GroqGenerationResult> generateStructuredSymptomPrior({
+    required Map<String, dynamic> petProfile,
+    required Map<String, dynamic> intakeData,
+    required List<String> cameraDetectableConditions,
+  }) async {
+    final traceId = _buildTraceId('symprior');
+
+    final fallbackPayload = _deterministicStructuredSymptomPrior(
+      petProfile: petProfile,
+      intakeData: intakeData,
+      cameraDetectableConditions: cameraDetectableConditions,
+    );
+
+    if (!isConfigured || !_consumeDailyQuota()) {
+      return _fallbackResult(
+        fallbackPayload,
+        traceId,
+        GroqErrorType.unknown,
+      );
+    }
+
+    final payload = {
+      'pet_profile': petProfile,
+      'intake': intakeData,
+      'camera_detectable_conditions': cameraDetectableConditions,
+      'constraints': {
+        'no_diagnosis_claims': true,
+        'ranking_only': true,
+      },
+    };
+
+    return _runWithChain(
+      traceId: traceId,
+      primaryModel: _triagePrimaryModel,
+      fallbackModel: _triageFallbackModel,
+      schemaValidator: _isValidStructuredSymptomPriorSchema,
+      systemPrompt: _structuredSymptomPriorSystemPrompt,
+      userPayload: payload,
+      maxTokens: 700,
+      temperature: 0.2,
+      fallbackFactory: () => fallbackPayload,
+    );
+  }
+
   Future<GroqGenerationResult> _runWithChain({
     required String traceId,
     required String primaryModel,
@@ -342,7 +463,8 @@ class GroqOrchestrationService {
         _ChainNode(model: primaryModel, level: GroqFallbackLevel.primaryRetry),
       _ChainNode(model: fallbackModel, level: GroqFallbackLevel.fallbackModel),
       if (_maxRetries > 0)
-        _ChainNode(model: fallbackModel, level: GroqFallbackLevel.fallbackRetry),
+        _ChainNode(
+            model: fallbackModel, level: GroqFallbackLevel.fallbackRetry),
     ];
 
     GroqErrorType lastError = GroqErrorType.unknown;
@@ -503,9 +625,11 @@ class GroqOrchestrationService {
         errorType: GroqErrorType.badRequest,
       );
     } on TimeoutException {
-      return const _AttemptResult(success: false, errorType: GroqErrorType.timeout);
+      return const _AttemptResult(
+          success: false, errorType: GroqErrorType.timeout);
     } catch (_) {
-      return const _AttemptResult(success: false, errorType: GroqErrorType.network);
+      return const _AttemptResult(
+          success: false, errorType: GroqErrorType.network);
     }
   }
 
@@ -594,6 +718,92 @@ class GroqOrchestrationService {
         payload.containsKey('confidence_note');
   }
 
+  bool _isValidGuidedQuestionSchema(Map<String, dynamic> payload) {
+    return payload.containsKey('next_question_id') &&
+        payload.containsKey('question_text') &&
+        payload.containsKey('helper_text') &&
+        payload.containsKey('should_finish') &&
+        payload.containsKey('reason');
+  }
+
+  bool _isValidStructuredSymptomPriorSchema(Map<String, dynamic> payload) {
+    return payload.containsKey('symptoms') &&
+        payload.containsKey('body_locations') &&
+        payload.containsKey('duration') &&
+        payload.containsKey('severity') &&
+        payload.containsKey('exposure_factors') &&
+        payload.containsKey('red_flags') &&
+        payload.containsKey('triage_priors') &&
+        payload.containsKey('summary');
+  }
+
+  Map<String, dynamic> _deterministicStructuredSymptomPrior({
+    required Map<String, dynamic> petProfile,
+    required Map<String, dynamic> intakeData,
+    required List<String> cameraDetectableConditions,
+  }) {
+    final appearance = (intakeData['lesionAppearance'] as List<dynamic>? ?? [])
+        .map((e) => e.toString())
+        .toList();
+    final distribution =
+        (intakeData['distributionAreas'] as List<dynamic>? ?? [])
+            .map((e) => e.toString())
+            .toList();
+    final redFlags = (intakeData['redFlags'] as List<dynamic>? ?? [])
+        .map((e) => e.toString())
+        .toList();
+
+    final symptoms = <String>[];
+    if ((intakeData['itchSeverity']?.toString() ?? 'not_sure') != 'not_sure') {
+      symptoms.add('itching');
+    }
+    if (appearance.contains('Hair loss patches')) symptoms.add('hair_loss');
+    if (appearance.contains('Redness / rash')) symptoms.add('redness');
+    if (appearance.contains('Scabs / crusts')) symptoms.add('crusting');
+    if (appearance.contains('Moist or oozing skin')) symptoms.add('discharge');
+    if (redFlags.any((f) => f.toLowerCase().contains('odor'))) {
+      symptoms.add('odor');
+    }
+
+    final exposure = <String>[];
+    final trigger = intakeData['triggerContext']?.toString() ?? 'not_sure';
+    if (trigger == 'possible_allergen') exposure.add('possible_allergen');
+    if (trigger == 'recent_grooming') exposure.add('recent_shampoo_change');
+    if (trigger == 'recent_medication')
+      exposure.add('recent_medication_change');
+
+    final candidates = cameraDetectableConditions.isNotEmpty
+        ? cameraDetectableConditions
+        : <String>['dermatitis', 'mange', 'fungal_infection'];
+
+    final priors = <Map<String, dynamic>>[];
+    final scoreStep = candidates.length <= 1 ? 0.0 : 0.12;
+    var score = 0.34;
+    for (final condition in candidates.take(5)) {
+      priors.add({
+        'condition': condition,
+        'score': score.clamp(0.08, 0.95),
+      });
+      score -= scoreStep;
+    }
+
+    return {
+      'pet_profile': petProfile,
+      'symptoms': symptoms.toSet().toList(),
+      'body_locations': distribution
+          .map((e) => e.toLowerCase().replaceAll(' ', '_'))
+          .toSet()
+          .toList(),
+      'duration': intakeData['onsetDuration']?.toString() ?? '',
+      'severity': intakeData['itchSeverity']?.toString() ?? 'not_sure',
+      'exposure_factors': exposure,
+      'red_flags': redFlags,
+      'triage_priors': priors,
+      'summary':
+          'Symptom-informed condition ranking only. This is not a diagnosis.',
+    };
+  }
+
   bool _passesSafetySanitizer(Map<String, dynamic> payload) {
     final encoded = json.encode(payload).toLowerCase();
     const bannedPhrases = [
@@ -609,10 +819,7 @@ class GroqOrchestrationService {
   String _normalizeJsonContent(String raw) {
     var content = raw.trim();
     if (content.startsWith('```')) {
-      content = content
-          .replaceAll('```json', '')
-          .replaceAll('```', '')
-          .trim();
+      content = content.replaceAll('```json', '').replaceAll('```', '').trim();
     }
     return content;
   }
@@ -627,10 +834,88 @@ class GroqOrchestrationService {
     List<String> symptoms,
     Map<String, dynamic> intake,
     bool redFlags,
+    Set<String> allowedConditions,
   ) {
-    final symptomKey = symptoms.map((e) => e.trim().toLowerCase()).toList()..sort();
+    final symptomKey = symptoms.map((e) => e.trim().toLowerCase()).toList()
+      ..sort();
     final intakeKey = json.encode(intake);
-    return 'triage:${petType.toLowerCase()}:${symptomKey.join('|')}:$intakeKey:$redFlags';
+    final allowed = allowedConditions.toList()..sort();
+    return 'triage:${petType.toLowerCase()}:${symptomKey.join('|')}:$intakeKey:$redFlags:${allowed.join(',')}';
+  }
+
+  Set<String> _normalizedAllowedConditionSet(List<String>? allowedConditions) {
+    return (allowedConditions ?? const <String>[])
+        .map(_normalizeConditionLabel)
+        .where((value) => value.isNotEmpty)
+        .toSet();
+  }
+
+  String _normalizeConditionLabel(String raw) {
+    final normalized =
+        raw.trim().toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
+
+    const aliases = <String, String>{
+      'allergic_dermatitis': 'dermatitis',
+      'mange_or_mites': 'mange',
+      'bacterial_infection': 'pyoderma',
+    };
+
+    return aliases[normalized] ?? normalized;
+  }
+
+  Map<String, dynamic> _constrainTriageToAllowedConditions({
+    required Map<String, dynamic> payload,
+    required Set<String> allowedConditions,
+  }) {
+    if (allowedConditions.isEmpty) {
+      return payload;
+    }
+
+    final topConditionsRaw = payload['top_conditions'];
+    if (topConditionsRaw is! List) {
+      return payload;
+    }
+
+    final constrained = <Map<String, dynamic>>[];
+    final seen = <String>{};
+
+    for (final item in topConditionsRaw) {
+      if (item is! Map) continue;
+      final conditionRaw = item['condition']?.toString() ?? '';
+      final normalized = _normalizeConditionLabel(conditionRaw);
+      if (!allowedConditions.contains(normalized) ||
+          seen.contains(normalized)) {
+        continue;
+      }
+
+      final scoreValue = item['score'];
+      final score =
+          scoreValue is num ? scoreValue.toDouble().clamp(0.0, 1.0) : null;
+      constrained.add({
+        'condition': normalized,
+        if (score != null) 'score': score,
+        'source': item['source']?.toString() ?? 'llm',
+      });
+      seen.add(normalized);
+    }
+
+    if (constrained.isEmpty) {
+      final defaults = allowedConditions.toList()..sort();
+      var score = 0.34;
+      for (final condition in defaults.take(3)) {
+        constrained.add({
+          'condition': condition,
+          'score': score.clamp(0.08, 0.95),
+          'source': 'allowed_fallback',
+        });
+        score -= 0.08;
+      }
+    }
+
+    return {
+      ...payload,
+      'top_conditions': constrained.take(5).toList(),
+    };
   }
 
   String _buildRecommendationCacheKey(
@@ -667,6 +952,22 @@ class GroqOrchestrationService {
       'You are a veterinary care assistant. Return JSON only. '
       'Use only provided context. No diagnosis claims. No unsupported treatment claims. '
       'Required keys: summary, home_care, watchlist, escalation_triggers, confidence_note.';
+
+  String get _guidedQuestionSystemPrompt =>
+      'You are a pet skin chat assistant. Return JSON only. '
+      'Decide the single best NEXT question to ask based on prior answers. '
+      'Only choose next_question_id from eligible_question_ids. '
+      'If there is enough information to guide camera scanning, set should_finish=true and next_question_id="". '
+      'Use simple, owner-friendly language. '
+      'Required keys: next_question_id, question_text, helper_text, should_finish, reason.';
+
+  String get _structuredSymptomPriorSystemPrompt =>
+      'You are a veterinary intake structuring assistant. Return JSON only. '
+      'Convert owner answers into a structured symptom profile and symptom-informed condition ranking. '
+      'Do not diagnose and do not claim certainty. '
+      'Only include condition names from camera_detectable_conditions in triage_priors. '
+      'triage_priors must be a ranked list of up to 5 items with keys: condition, score (0..1). '
+      'Required keys: symptoms, body_locations, duration, severity, exposure_factors, red_flags, triage_priors, summary.';
 }
 
 class _ChainNode {

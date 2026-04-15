@@ -12,7 +12,7 @@ import 'package:pawsense/core/widgets/user/assessment/progress_indicator.dart';
 
 class AssessmentPage extends StatefulWidget {
   final String? selectedPetType;
-  
+
   const AssessmentPage({
     super.key,
     this.selectedPetType,
@@ -27,16 +27,20 @@ class _AssessmentPageState extends State<AssessmentPage> {
   late PageController _pageController;
   bool _isLoading = false;
   String? _previousRoute;
-  
+
   // Global keys to access step widgets
-  final GlobalKey<State<AssessmentStepOne>> _stepOneKey = GlobalKey<State<AssessmentStepOne>>();
-  final GlobalKey<State<AssessmentStepPreTriage>> _stepPreTriageKey = GlobalKey<State<AssessmentStepPreTriage>>();
-  final GlobalKey<State<AssessmentStepTwo>> _stepTwoKey = GlobalKey<State<AssessmentStepTwo>>();
-  final GlobalKey<State<AssessmentStepThree>> _stepThreeKey = GlobalKey<State<AssessmentStepThree>>();
-  
+  final GlobalKey<State<AssessmentStepOne>> _stepOneKey =
+      GlobalKey<State<AssessmentStepOne>>();
+  final GlobalKey<State<AssessmentStepPreTriage>> _stepPreTriageKey =
+      GlobalKey<State<AssessmentStepPreTriage>>();
+  final GlobalKey<State<AssessmentStepTwo>> _stepTwoKey =
+      GlobalKey<State<AssessmentStepTwo>>();
+  final GlobalKey<State<AssessmentStepThree>> _stepThreeKey =
+      GlobalKey<State<AssessmentStepThree>>();
+
   // Data to be passed between steps
   late Map<String, dynamic> assessmentData;
-  
+
   // Cached breeds for validation
   List<String> _cachedBreeds = [];
 
@@ -44,7 +48,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
   void initState() {
     super.initState();
     _pageController = PageController();
-    
+
     // Initialize assessment data with proper types
     assessmentData = <String, dynamic>{
       'selectedPet': null,
@@ -53,15 +57,17 @@ class _AssessmentPageState extends State<AssessmentPage> {
       'photos': <dynamic>[],
       'notes': '',
       'duration': '',
-      'selectedPetType': widget.selectedPetType ?? 'Dog', // Use constructor parameter or default
-      'petSelectionMode': 'existing', // Track if user is in 'existing' or 'new' pet mode
+      'selectedPetType': widget.selectedPetType ??
+          'Dog', // Use constructor parameter or default
+      'petSelectionMode':
+          'existing', // Track if user is in 'existing' or 'new' pet mode
       'clinicalIntake': <String, dynamic>{},
     };
-    
+
     // Preload breeds for validation
     _loadBreeds();
   }
-  
+
   Future<void> _loadBreeds() async {
     final petType = assessmentData['selectedPetType']?.toString() ?? 'Dog';
     _cachedBreeds = await BreedOptions.getBreedsForPetType(petType);
@@ -70,20 +76,20 @@ class _AssessmentPageState extends State<AssessmentPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    
+
     // Capture the previous route information from query parameters
     final routerState = GoRouterState.of(context);
     final uri = routerState.uri;
-    
+
     // Check if the 'from' parameter is provided in the URL
     if (uri.queryParameters.containsKey('from')) {
       _previousRoute = uri.queryParameters['from'];
     }
-    
+
     // Get the extra data from GoRouter if not already set from constructor
     if (assessmentData['selectedPetType'] == null) {
       final extra = routerState.extra as Map<String, dynamic>?;
-      
+
       if (extra != null && extra['selectedPetType'] != null) {
         setState(() {
           assessmentData['selectedPetType'] = extra['selectedPetType'];
@@ -115,7 +121,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
 
   void _nextStep() async {
     debugPrint('🚀 _nextStep called. Current step: $currentStep');
-    
+
     // Validate current step before proceeding
     if (!_validateCurrentStep()) {
       debugPrint('❌ Validation failed for step: $currentStep');
@@ -123,15 +129,16 @@ class _AssessmentPageState extends State<AssessmentPage> {
       return;
     }
 
-    debugPrint('✅ Validation passed for step: $currentStep, proceeding to next step');
-    
+    debugPrint(
+        '✅ Validation passed for step: $currentStep, proceeding to next step');
+
     // Show loading for step transition
     _showLoading();
-    
+
     try {
       // Simulate any processing time if needed
       await Future.delayed(const Duration(milliseconds: 300));
-      
+
       if (currentStep < 3) {
         setState(() {
           currentStep++;
@@ -149,7 +156,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
 
   bool _validateCurrentStep() {
     debugPrint('🔍 _validateCurrentStep called for step: $currentStep');
-    
+
     switch (currentStep) {
       case 0: // Step One validation
         bool result = _validateStepOne();
@@ -185,14 +192,14 @@ class _AssessmentPageState extends State<AssessmentPage> {
     // - Validate that the pet data was successfully fetched
     // - Check if the pet belongs to the current user
     // - Validate pet status (active, not deleted, etc.)
-    
+
     return true; // For now, any selected existing pet is valid
   }
 
   /// Validates new pet data input
   bool _validateNewPetData() {
     debugPrint('🔍 Validating new pet data...');
-    
+
     // Step 1: Check if all required fields are filled
     if (!_hasAllRequiredFields()) {
       debugPrint('❌ Missing required fields');
@@ -213,24 +220,26 @@ class _AssessmentPageState extends State<AssessmentPage> {
 
   /// Checks if all required fields have input
   bool _hasAllRequiredFields() {
-    final newPetData = Map<String, dynamic>.from(assessmentData['newPetData'] as Map? ?? {});
-    
+    final newPetData =
+        Map<String, dynamic>.from(assessmentData['newPetData'] as Map? ?? {});
+
     return newPetData['name']?.toString().trim().isNotEmpty == true &&
-           newPetData['age']?.toString().trim().isNotEmpty == true &&
-           newPetData['weight']?.toString().trim().isNotEmpty == true &&
-           newPetData['breed']?.toString().trim().isNotEmpty == true;
+        newPetData['age']?.toString().trim().isNotEmpty == true &&
+        newPetData['weight']?.toString().trim().isNotEmpty == true &&
+        newPetData['breed']?.toString().trim().isNotEmpty == true;
   }
 
   /// Validates basic pet fields (name, age, weight) but not breed
   bool _validateBasicPetFields() {
-    final newPetData = Map<String, dynamic>.from(assessmentData['newPetData'] as Map? ?? {});
-    
+    final newPetData =
+        Map<String, dynamic>.from(assessmentData['newPetData'] as Map? ?? {});
+
     // For now, just check they exist and are not empty
     // In the future, you can add specific validation rules:
     // - Name: minimum length, no special characters
     // - Age: must be a valid number, within reasonable range
     // - Weight: must be a valid number, within reasonable range
-    
+
     final name = newPetData['name']?.toString().trim() ?? '';
     final age = newPetData['age']?.toString().trim() ?? '';
     final weight = newPetData['weight']?.toString().trim() ?? '';
@@ -240,8 +249,9 @@ class _AssessmentPageState extends State<AssessmentPage> {
 
   /// Validates breed specifically for new pet creation
   bool _validateBreedForNewPet() {
-    final newPetData = Map<String, dynamic>.from(assessmentData['newPetData'] as Map? ?? {});
-    
+    final newPetData =
+        Map<String, dynamic>.from(assessmentData['newPetData'] as Map? ?? {});
+
     final breed = newPetData['breed']?.toString().trim() ?? '';
     if (breed.isEmpty) {
       return false;
@@ -269,15 +279,16 @@ class _AssessmentPageState extends State<AssessmentPage> {
 
   /// Gets specific breed validation error message
   String _getBreedValidationMessage() {
-    final newPetData = Map<String, dynamic>.from(assessmentData['newPetData'] as Map? ?? {});
-    
+    final newPetData =
+        Map<String, dynamic>.from(assessmentData['newPetData'] as Map? ?? {});
+
     final breed = newPetData['breed']?.toString().trim() ?? '';
     if (breed.isEmpty) {
       return 'Please enter a breed for your pet';
     }
 
     final petType = assessmentData['selectedPetType']?.toString() ?? 'Dog';
-    
+
     // Use cached breeds for synchronous validation
     if (!_cachedBreeds.contains(breed)) {
       return 'Please select a valid breed from the list. "$breed" is not a recognized ${petType.toLowerCase()} breed.';
@@ -293,16 +304,17 @@ class _AssessmentPageState extends State<AssessmentPage> {
     // - "Selected pet could not be found"
     // - "Pet data could not be loaded"
     // - "Pet belongs to another user"
-    
+
     return 'Please select an existing pet from the list';
   }
 
   /// Gets message for missing required fields
   String _getMissingFieldsMessage() {
-    final newPetData = Map<String, dynamic>.from(assessmentData['newPetData'] as Map? ?? {});
+    final newPetData =
+        Map<String, dynamic>.from(assessmentData['newPetData'] as Map? ?? {});
 
     List<String> missingFields = [];
-    
+
     if (newPetData['name']?.toString().trim().isEmpty != false) {
       missingFields.add('name');
     }
@@ -330,17 +342,17 @@ class _AssessmentPageState extends State<AssessmentPage> {
     // - Invalid age format or range
     // - Invalid weight format or range
     // - Invalid name format
-    
+
     return 'Please check that name, age, and weight are valid';
   }
 
   bool _validateStepOne() {
     debugPrint('🔎 Validating Step One...');
     debugPrint('🔎 Is creating new pet: ${_isCreatingNewPet()}');
-    
+
     // Check pet selection/creation using dedicated methods
     bool hasValidPet = false;
-    
+
     if (_isCreatingNewPet()) {
       // User is creating a new pet - validate new pet data
       hasValidPet = _validateNewPetData();
@@ -350,7 +362,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
       hasValidPet = _validateExistingPet();
       debugPrint('🐕 Existing pet validation result: $hasValidPet');
     }
-    
+
     if (!hasValidPet) {
       debugPrint('❌ Pet validation failed');
       return false;
@@ -390,6 +402,10 @@ class _AssessmentPageState extends State<AssessmentPage> {
       assessmentData['clinicalIntake'] as Map? ?? <String, dynamic>{},
     );
 
+    if (intake.containsKey('preTriageReadyForScan')) {
+      return intake['preTriageReadyForScan'] == true;
+    }
+
     final onsetDuration = intake['onsetDuration']?.toString().trim() ?? '';
     final distributionAreas =
         (intake['distributionAreas'] as List<dynamic>? ?? []).cast<dynamic>();
@@ -399,8 +415,8 @@ class _AssessmentPageState extends State<AssessmentPage> {
     // Owner-friendly validation: allow partial answers and uncertainty.
     // Proceed when at least one useful signal is provided.
     return onsetDuration.isNotEmpty ||
-      distributionAreas.isNotEmpty ||
-      lesionAppearance.isNotEmpty;
+        distributionAreas.isNotEmpty ||
+        lesionAppearance.isNotEmpty;
   }
 
   bool _validateStepThree() {
@@ -412,7 +428,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
   void _showValidationError() {
     String message = _getValidationMessage();
     print('Showing validation error: $message');
-    
+
     // Trigger visual validation feedback for step one
     if (currentStep == 0) {
       final stepOneState = _stepOneKey.currentState;
@@ -423,7 +439,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
         }
       }
     }
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -436,25 +452,25 @@ class _AssessmentPageState extends State<AssessmentPage> {
 
   String _getValidationMessage() {
     print('Getting validation message for step: $currentStep');
-    
+
     switch (currentStep) {
       case 0:
         // Check pet validation first
         if (_isCreatingNewPet()) {
           print('Validating new pet...');
-          
+
           // Step 1: Check if all fields have input
           if (!_hasAllRequiredFields()) {
             print('Missing fields detected');
             return _getMissingFieldsMessage();
           }
-          
+
           // Step 2: Check basic fields validity (name, age, weight)
           if (!_validateBasicPetFields()) {
             print('Basic fields validation failed');
             return _getBasicFieldsValidationMessage();
           }
-          
+
           // Step 3: Check breed validation (last)
           if (!_validateBreedForNewPet()) {
             print('Breed validation failed');
@@ -467,16 +483,16 @@ class _AssessmentPageState extends State<AssessmentPage> {
             return _getExistingPetValidationMessage();
           }
         }
-        
+
         // Check behaviors validation
         if (!_validateBehaviors()) {
           print('Behavior validation failed');
           return 'Please select at least one observed behavior';
         }
-        
+
         return 'Please complete all required fields';
       case 1:
-        return 'Please answer at least one quick health question before scanning';
+        return 'Please finish the guided chat questions before starting the scan';
       case 2:
         final photos = assessmentData['photos'] as List<dynamic>?;
         if (photos == null || photos.isEmpty) {
@@ -503,7 +519,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
   void _completeAssessment() async {
     // Show loading
     _showLoading();
-    
+
     try {
       print('DEBUG: Assessment completion triggered from check button...');
       // Try to access the AssessmentStepThree widget and call its save method
@@ -516,10 +532,10 @@ class _AssessmentPageState extends State<AssessmentPage> {
           await assessmentState.saveAssessment();
         }
       }
-      
+
       // Hide loading
       _hideLoading();
-      
+
       // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -530,19 +546,19 @@ class _AssessmentPageState extends State<AssessmentPage> {
         ),
       );
 
-      print('DEBUG: Assessment saved successfully from check button, waiting for propagation...');
-      
+      print(
+          'DEBUG: Assessment saved successfully from check button, waiting for propagation...');
+
       // Small delay to ensure Firebase write has propagated
       await Future.delayed(const Duration(milliseconds: 500));
-      
+
       // Navigate to home with history tab and force refresh with timestamp
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       context.go('/home?tab=history&refresh=assessment&t=$timestamp');
-      
     } catch (e) {
       // Hide loading on error
       _hideLoading();
-      
+
       // Show error message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -584,58 +600,59 @@ class _AssessmentPageState extends State<AssessmentPage> {
 
   Future<bool> _showCancelAnalysisDialog() async {
     return await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              Icon(
-                Icons.warning,
-                color: AppColors.warning,
-                size: 24,
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Row(
+                children: [
+                  Icon(
+                    Icons.warning,
+                    color: AppColors.warning,
+                    size: 24,
+                  ),
+                  const SizedBox(width: kSpacingSmall),
+                  Text(
+                    'Cancel Analysis?',
+                    style: kMobileTextStyleTitle.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: kSpacingSmall),
-              Text(
-                'Cancel Analysis?',
-                style: kMobileTextStyleTitle.copyWith(
-                  color: AppColors.textPrimary,
+              content: Text(
+                'Image analysis is currently in progress. Going back will cancel the analysis process. Are you sure you want to continue?',
+                style: kMobileTextStyleSubtitle.copyWith(
+                  color: AppColors.textSecondary,
                 ),
               ),
-            ],
-          ),
-          content: Text(
-            'Image analysis is currently in progress. Going back will cancel the analysis process. Are you sure you want to continue?',
-            style: kMobileTextStyleSubtitle.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text(
-                'Stay',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.error,
-              ),
-              child: const Text('Cancel Analysis'),
-            ),
-          ],
-        );
-      },
-    ) ?? false;
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: Text(
+                    'Stay',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.error,
+                  ),
+                  child: const Text('Cancel Analysis'),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
   }
 
   void _updateAssessmentData(String key, dynamic value) {
     setState(() {
       assessmentData[key] = value;
     });
-    
+
     // Debug print to track data updates
     debugPrint('📊 Assessment data updated: $key = $value');
     debugPrint('📊 Current assessment data: $assessmentData');
@@ -757,7 +774,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
             ],
           ),
         ),
-        
+
         // Full screen loading overlay covering everything including app bar
         if (_isLoading) _buildLoadingOverlay(),
       ],
@@ -767,7 +784,7 @@ class _AssessmentPageState extends State<AssessmentPage> {
   Widget _buildLoadingOverlay() {
     return Positioned.fill(
       child: Material(
-        color: Colors.black.withOpacity(0.6),
+        color: Colors.black.withValues(alpha: 0.6),
         child: const Center(
           child: Card(
             elevation: 8,
@@ -777,7 +794,8 @@ class _AssessmentPageState extends State<AssessmentPage> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(AppColors.primary),
                   ),
                   SizedBox(height: 16),
                   Text(

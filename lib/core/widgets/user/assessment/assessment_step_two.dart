@@ -47,13 +47,13 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
       final photoList = widget.assessmentData['photos'] as List;
       _selectedImages = photoList.cast<XFile>();
     }
-    
+
     // Initialize with existing detection results if available
     if (widget.assessmentData['detectionResults'] != null) {
       final detectionList = widget.assessmentData['detectionResults'] as List;
       _detectionResults = detectionList.cast<Map<String, dynamic>>();
     }
-    
+
     // Check API server connectivity
     _checkServerConnection();
 
@@ -64,12 +64,40 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
   Future<void> _generatePreTriagePrior() async {
     if (_isGeneratingTriage) return;
 
-    final symptoms = (widget.assessmentData['symptoms'] as List<dynamic>? ?? [])
-        .map((e) => e.toString())
-        .toList();
+    final existingPrior = widget.assessmentData['triagePrior'];
+    final existingTopConditions =
+        existingPrior is Map ? existingPrior['top_conditions'] : null;
+    if (existingTopConditions is List && existingTopConditions.isNotEmpty) {
+      final existingTelemetry = Map<String, dynamic>.from(
+        widget.assessmentData['triageTelemetry'] as Map? ?? <String, dynamic>{},
+      );
+      widget.onDataUpdate('triageTelemetry', {
+        ...existingTelemetry,
+        'source': existingTelemetry['source']?.toString() ?? 'pretriage_reused',
+        'reusedInStepTwo': true,
+      });
+      return;
+    }
+
+    final selectedSymptoms =
+        (widget.assessmentData['symptoms'] as List<dynamic>? ?? [])
+            .map((e) => e.toString())
+            .where((e) => e.trim().isNotEmpty)
+            .toList();
     final intake = Map<String, dynamic>.from(
       widget.assessmentData['clinicalIntake'] as Map? ?? <String, dynamic>{},
     );
+    final intakeDerivedSymptoms = _deriveSymptomsFromIntake(intake);
+    final symptoms = <String>{
+      ...selectedSymptoms,
+      ...intakeDerivedSymptoms,
+    }.toList();
+
+    final cameraDetectableConditions =
+        (intake['visionCandidateLabels'] as List<dynamic>? ?? <dynamic>[])
+            .map((e) => e.toString().trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
 
     if (symptoms.isEmpty || intake.isEmpty) {
       return;
@@ -78,14 +106,17 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
     _isGeneratingTriage = true;
 
     try {
-      final petType = widget.assessmentData['selectedPetType']?.toString() ?? 'Dog';
+      final petType =
+          widget.assessmentData['selectedPetType']?.toString() ?? 'Dog';
       final hasRedFlags = intake['hasRedFlags'] == true;
 
-      final result = await GroqOrchestrationService.instance.generateTriagePrior(
+      final result =
+          await GroqOrchestrationService.instance.generateTriagePrior(
         petType: petType,
         symptoms: symptoms,
         intakeData: intake,
         hasRedFlags: hasRedFlags,
+        cameraDetectableConditions: cameraDetectableConditions,
       );
 
       if (!mounted) return;
@@ -98,6 +129,8 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
         'latencyMs': result.latencyMs,
         'cacheHit': result.cacheHit,
         'traceId': result.traceId,
+        'source': 'step_two_generation',
+        'cameraConditionCount': cameraDetectableConditions.length,
       });
     } catch (e) {
       if (!mounted) return;
@@ -107,6 +140,39 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
     }
   }
 
+  List<String> _deriveSymptomsFromIntake(Map<String, dynamic> intake) {
+    final derived = <String>[];
+
+    final itchSeverity = intake['itchSeverity']?.toString() ?? 'not_sure';
+    if (itchSeverity == 'severe' || itchSeverity == 'moderate') {
+      derived.add('Scratching');
+      derived.add('Licking');
+    }
+
+    final appearance =
+        (intake['lesionAppearance'] as List<dynamic>? ?? <dynamic>[])
+            .map((e) => e.toString())
+            .toSet();
+    if (appearance.contains('Tiny moving dots')) {
+      derived.add('Biting/Chewing');
+      derived.add('Scooting');
+    }
+    if (appearance.contains('Hair loss patches') ||
+        appearance.contains('Scabs / crusts')) {
+      derived.add('Rolling/Rubbing');
+    }
+
+    final distribution =
+        (intake['distributionAreas'] as List<dynamic>? ?? <dynamic>[])
+            .map((e) => e.toString())
+            .toSet();
+    if (distribution.contains('Ears')) {
+      derived.add('Head Shaking');
+    }
+
+    return derived;
+  }
+
   Future<void> _checkServerConnection() async {
     try {
       print('🔍 Checking server connection...');
@@ -114,7 +180,7 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
       setState(() {
         _serverConnected = health.isHealthy;
       });
-      
+
       if (health.isHealthy) {
         print('✅ Detection server is healthy');
       } else {
@@ -170,7 +236,7 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
           _selectedImages.add(photo);
         });
         widget.onDataUpdate('photos', _selectedImages);
-        
+
         // Run API detection on the new photo
         await _runAPIDetection(photo);
       }
@@ -194,7 +260,7 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
           _selectedImages.addAll(images);
         });
         widget.onDataUpdate('photos', _selectedImages);
-        
+
         // Run API detection on all new photos
         for (final image in images) {
           await _runAPIDetection(image);
@@ -209,94 +275,105 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
 
   Future<void> _runAPIDetection(XFile imageFile) async {
     setState(() => _isAnalyzing = true);
-    
+
     try {
       print('🖼️ Starting API detection on: ${imageFile.path}');
-      
+
       // Determine pet type from assessment data
-      final selectedPetType = widget.assessmentData['selectedPetType']?.toString().toLowerCase() ?? 'dogs';
-      final String apiPetType = selectedPetType == 'cat' ? PetDetectionService.CATS : PetDetectionService.DOGS;
-      
+      final selectedPetType =
+          widget.assessmentData['selectedPetType']?.toString().toLowerCase() ??
+              'dogs';
+      final String apiPetType = selectedPetType == 'cat'
+          ? PetDetectionService.CATS
+          : PetDetectionService.DOGS;
+
       print('� Pet type for API: $apiPetType');
-      
+
       // Check server connection first
       if (!_serverConnected) {
         await _checkServerConnection();
         if (!_serverConnected) {
-          throw Exception('Cannot connect to detection server. Please ensure the server is running.');
+          throw Exception(
+              'Cannot connect to detection server. Please ensure the server is running.');
         }
       }
-      
+
       // Convert XFile to File for API
       final File imageFileForAPI = File(imageFile.path);
-      
+
       print('� Image file path: ${imageFile.path}');
       print('📊 Image file size: ${await imageFile.length()} bytes');
-      
+
       // Run detection via API
       final DetectionResult result = await _detectionService.detectConditions(
         imageFile: imageFileForAPI,
         petType: apiPetType,
       );
-      
+
       print('🎯 API Detection results: ${result.totalDetections} detections');
       print('� Model info: ${result.modelInfo.description}');
-      
+
       // Convert API detections to the format expected by existing code
       final List<Map<String, dynamic>> detections = result.detections
           .map((detection) => detection.toYoloFormat())
           .toList();
-      
+
       // Log individual detections with bounding box details
       for (int i = 0; i < detections.length; i++) {
         final detection = detections[i];
         final bbox = detection['box'] as List<double>?;
-        print('Detection $i: ${detection['label']} - Confidence: ${detection['confidence']?.toStringAsFixed(3)} - BBox: [${bbox?.map((v) => v.toStringAsFixed(1)).join(', ')}]');
+        print(
+            'Detection $i: ${detection['label']} - Confidence: ${detection['confidence']?.toStringAsFixed(3)} - BBox: [${bbox?.map((v) => v.toStringAsFixed(1)).join(', ')}]');
       }
-      
+
       // Find and log the highest confidence detection
       if (detections.isNotEmpty) {
-        detections.sort((a, b) => (b['confidence'] as double).compareTo(a['confidence'] as double));
+        detections.sort((a, b) =>
+            (b['confidence'] as double).compareTo(a['confidence'] as double));
         final topDetection = detections.first;
         final topBbox = topDetection['box'] as List<double>?;
-        print('🏆 HIGHEST DETECTION: ${topDetection['label']} - Confidence: ${(topDetection['confidence'] * 100).toStringAsFixed(2)}%');
+        print(
+            '🏆 HIGHEST DETECTION: ${topDetection['label']} - Confidence: ${(topDetection['confidence'] * 100).toStringAsFixed(2)}%');
         if (topBbox != null && topBbox.length >= 4) {
-          print('📍 Bounding Box: [x1=${topBbox[0].toStringAsFixed(1)}, y1=${topBbox[1].toStringAsFixed(1)}, x2=${topBbox[2].toStringAsFixed(1)}, y2=${topBbox[3].toStringAsFixed(1)}]');
-          print('📏 Box Size: width=${(topBbox[2] - topBbox[0]).toStringAsFixed(1)}, height=${(topBbox[3] - topBbox[1]).toStringAsFixed(1)}');
+          print(
+              '📍 Bounding Box: [x1=${topBbox[0].toStringAsFixed(1)}, y1=${topBbox[1].toStringAsFixed(1)}, x2=${topBbox[2].toStringAsFixed(1)}, y2=${topBbox[3].toStringAsFixed(1)}]');
+          print(
+              '📏 Box Size: width=${(topBbox[2] - topBbox[0]).toStringAsFixed(1)}, height=${(topBbox[3] - topBbox[1]).toStringAsFixed(1)}');
         }
       }
-      
+
       setState(() {
         _detectionResults.add({
           'imagePath': imageFile.path,
           'detections': detections,
-          'apiResult': result.toMap(), // Store original API result for reference
+          'apiResult':
+              result.toMap(), // Store original API result for reference
         });
       });
-      
+
       // Update assessment data
       widget.onDataUpdate('detectionResults', _detectionResults);
-      
+
       // Show appropriate message
       if (detections.isNotEmpty) {
         _showDetectionSummary(detections);
       } else {
         _showNoDetectionDialog();
       }
-      
     } catch (e) {
       print('❌ API detection error: $e');
-      
+
       // Show more specific error messages
       String errorMessage = 'Failed to analyze image';
       if (e.toString().contains('connect')) {
-        errorMessage = 'Cannot connect to detection server. Please ensure the server is running at ${PetDetectionService.baseUrl}';
+        errorMessage =
+            'Cannot connect to detection server. Please ensure the server is running at ${PetDetectionService.baseUrl}';
       } else if (e.toString().contains('timeout')) {
         errorMessage = 'Detection request timed out. Please try again.';
       } else if (e.toString().contains('too large')) {
         errorMessage = 'Image file is too large. Please use a smaller image.';
       }
-      
+
       _showErrorDialog('$errorMessage\n\nError details: ${e.toString()}');
     } finally {
       setState(() => _isAnalyzing = false);
@@ -310,13 +387,12 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
         return AlertDialog(
           title: const Text('No Skin Conditions Detected'),
           content: const Text(
-            'The AI analysis didn\'t detect any visible skin conditions in this image. '
-            'This could mean:\n\n'
-            '• The skin appears healthy\n'
-            '• The image quality needs improvement\n'
-            '• The condition is not visible in this photo\n\n'
-            'Try taking a clearer, closer photo of the affected area.'
-          ),
+              'The AI analysis didn\'t detect any visible skin conditions in this image. '
+              'This could mean:\n\n'
+              '• The skin appears healthy\n'
+              '• The image quality needs improvement\n'
+              '• The condition is not visible in this photo\n\n'
+              'Try taking a clearer, closer photo of the affected area.'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -331,8 +407,9 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
   void _showDetectionSummary(List<Map<String, dynamic>> detections) {
     // Sort detections by confidence
     // Sort detections by confidence (highest first)
-    detections.sort((a, b) => (b['confidence'] as double).compareTo(a['confidence'] as double));
-    
+    detections.sort((a, b) =>
+        (b['confidence'] as double).compareTo(a['confidence'] as double));
+
     // Detection completed - results will be visible in the UI components
     // Snackbar removed as requested by user
   }
@@ -412,7 +489,7 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
                   ),
                 ),
               ),
-              
+
               // Close button
               Positioned(
                 top: 40,
@@ -433,7 +510,7 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
                   ),
                 ),
               ),
-              
+
               // Image info
               Positioned(
                 bottom: 40,
@@ -456,7 +533,7 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
                         ),
                       ),
                       const SizedBox(height: kSpacingSmall),
-                      
+
                       // Show analysis status only
                       if (index < _detectionResults.length) ...[
                         Text(
@@ -473,7 +550,8 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
                               height: 16,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white70),
                               ),
                             ),
                             const SizedBox(width: kSpacingSmall),
@@ -503,7 +581,6 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
       },
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -593,7 +670,10 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            widget.assessmentData['selectedPetType']?.toString().toUpperCase() ?? 'DOG',
+                            widget.assessmentData['selectedPetType']
+                                    ?.toString()
+                                    .toUpperCase() ??
+                                'DOG',
                             style: TextStyle(
                               color: const Color(0xFFFF9500),
                               fontSize: 11,
@@ -606,7 +686,7 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
                   ],
                 ),
                 const SizedBox(height: kSpacingLarge),
-                
+
                 // Photo tips
                 _buildPhotoTip(Icons.wb_sunny_outlined, 'Good lighting'),
                 const SizedBox(height: 8),
@@ -614,13 +694,14 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
                 const SizedBox(height: 8),
                 _buildPhotoTip(Icons.blur_off, 'No blur'),
                 const SizedBox(height: kSpacingLarge),
-                
+
                 // Action Buttons Row
                 Row(
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: _isLoading || _isAnalyzing ? null : _takePhoto,
+                        onPressed:
+                            _isLoading || _isAnalyzing ? null : _takePhoto,
                         icon: const Icon(Icons.photo_camera, size: 20),
                         label: const Text(
                           'Take Photo',
@@ -643,7 +724,8 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
                     const SizedBox(width: kSpacingMedium),
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: _isLoading || _isAnalyzing ? null : _uploadPhotos,
+                        onPressed:
+                            _isLoading || _isAnalyzing ? null : _uploadPhotos,
                         icon: Icon(
                           Icons.upload_outlined,
                           size: 20,
@@ -670,15 +752,14 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
                   ],
                 ),
                 const SizedBox(height: kSpacingLarge),
-                
+
                 // Photo drop zone (if no photos yet)
-                if (_selectedImages.isEmpty)
-                  _buildPhotoDropZone(),
-                
+                if (_selectedImages.isEmpty) _buildPhotoDropZone(),
+
                 // // Preparation Tips (Collapsible)
                 // const SizedBox(height: kSpacingMedium),
                 // _buildPreparationTips(),
-                
+
                 // Disclaimer at bottom
                 const SizedBox(height: kSpacingMedium),
                 Container(
@@ -701,7 +782,7 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
             ),
           ),
           const SizedBox(height: kSpacingMedium),
-          
+
           // Photos Section
           if (_selectedImages.isNotEmpty) ...[
             Container(
@@ -739,7 +820,8 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
                           decoration: BoxDecoration(
                             color: AppColors.success.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                            border: Border.all(
+                                color: AppColors.success.withOpacity(0.3)),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -769,13 +851,13 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
                     child: Row(
                       children: List.generate(_selectedImages.length, (index) {
                         final isAnalyzed = index < _detectionResults.length;
-                        final hasDetection = isAnalyzed && 
-                                           _detectionResults[index]['detections'].isNotEmpty;
-                        
+                        final hasDetection = isAnalyzed &&
+                            _detectionResults[index]['detections'].isNotEmpty;
+
                         // Determine border color based on analysis status
                         Color borderColor;
                         double borderWidth;
-                        
+
                         if (!isAnalyzed && _isAnalyzing) {
                           // Yellow for analyzing/pending
                           borderColor = AppColors.warning;
@@ -793,37 +875,44 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
                           borderColor = AppColors.border;
                           borderWidth = 1;
                         }
-                        
+
                         return Padding(
                           padding: EdgeInsets.only(
-                            right: index < _selectedImages.length - 1 ? kSpacingSmall : 0,
+                            right: index < _selectedImages.length - 1
+                                ? kSpacingSmall
+                                : 0,
                           ),
                           child: Stack(
                             children: [
                               GestureDetector(
-                                onTap: () => _showFullscreenImage(_selectedImages[index], index),
+                                onTap: () => _showFullscreenImage(
+                                    _selectedImages[index], index),
                                 child: Container(
                                   width: 80,
                                   height: 80,
                                   decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(kBorderRadius),
+                                    borderRadius:
+                                        BorderRadius.circular(kBorderRadius),
                                     border: Border.all(
                                       color: borderColor,
                                       width: borderWidth,
                                     ),
                                   ),
                                   child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(kBorderRadius),
+                                    borderRadius:
+                                        BorderRadius.circular(kBorderRadius),
                                     child: Image.file(
                                       File(_selectedImages[index].path),
                                       width: 80,
                                       height: 80,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) {
+                                      errorBuilder:
+                                          (context, error, stackTrace) {
                                         return Container(
                                           color: AppColors.background,
                                           child: Column(
-                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
                                             children: [
                                               Icon(
                                                 Icons.image,
@@ -833,8 +922,10 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
                                               const SizedBox(height: 2),
                                               Text(
                                                 '${index + 1}',
-                                                style: kMobileTextStyleLegend.copyWith(
-                                                  color: AppColors.textSecondary,
+                                                style: kMobileTextStyleLegend
+                                                    .copyWith(
+                                                  color:
+                                                      AppColors.textSecondary,
                                                   fontSize: 10,
                                                 ),
                                               ),
@@ -891,23 +982,25 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
                       }),
                     ),
                   ),
-                  
+
                   // Analysis Status Indicator (instead of detection summary)
                   if (_selectedImages.isNotEmpty) ...[
                     const SizedBox(height: kSpacingMedium),
                     Container(
                       padding: const EdgeInsets.all(kSpacingMedium),
                       decoration: BoxDecoration(
-                        color: _isAnalyzing 
+                        color: _isAnalyzing
                             ? AppColors.warning.withOpacity(0.1)
-                            : (_detectionResults.length == _selectedImages.length 
+                            : (_detectionResults.length ==
+                                    _selectedImages.length
                                 ? AppColors.success.withOpacity(0.1)
                                 : AppColors.primary.withOpacity(0.1)),
                         borderRadius: BorderRadius.circular(kBorderRadius),
                         border: Border.all(
-                          color: _isAnalyzing 
+                          color: _isAnalyzing
                               ? AppColors.warning.withOpacity(0.3)
-                              : (_detectionResults.length == _selectedImages.length 
+                              : (_detectionResults.length ==
+                                      _selectedImages.length
                                   ? AppColors.success.withOpacity(0.3)
                                   : AppColors.primary.withOpacity(0.3)),
                         ),
@@ -920,7 +1013,8 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
                               height: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(AppColors.warning),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                    AppColors.warning),
                               ),
                             ),
                             const SizedBox(width: kSpacingMedium),
@@ -944,7 +1038,8 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
                                 ],
                               ),
                             ),
-                          ] else if (_detectionResults.length == _selectedImages.length) ...[
+                          ] else if (_detectionResults.length ==
+                              _selectedImages.length) ...[
                             Icon(
                               Icons.check_circle,
                               color: AppColors.success,
@@ -1044,7 +1139,8 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
               child: Wrap(
                 children: [
                   ListTile(
-                    leading: const Icon(Icons.photo_camera, color: Color(0xFF6B4CE6)),
+                    leading: const Icon(Icons.photo_camera,
+                        color: Color(0xFF6B4CE6)),
                     title: const Text('Take Photo'),
                     onTap: () {
                       Navigator.pop(context);
@@ -1052,7 +1148,8 @@ class _AssessmentStepTwoState extends State<AssessmentStepTwo> {
                     },
                   ),
                   ListTile(
-                    leading: const Icon(Icons.photo_library, color: Color(0xFF6B4CE6)),
+                    leading: const Icon(Icons.photo_library,
+                        color: Color(0xFF6B4CE6)),
                     title: const Text('Choose from Gallery'),
                     onTap: () {
                       Navigator.pop(context);

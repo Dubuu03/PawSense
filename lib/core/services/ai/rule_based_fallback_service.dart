@@ -5,8 +5,13 @@ class RuleBasedFallbackService {
     required String petType,
     required List<String> symptoms,
     bool hasRedFlags = false,
+    List<String>? allowedConditions,
   }) {
-    final topConditions = _rankBySymptomHeuristics(symptoms, petType);
+    final topConditions = _rankBySymptomHeuristics(
+      symptoms,
+      petType,
+      allowedConditions: allowedConditions,
+    );
 
     return {
       'top_conditions': topConditions,
@@ -87,51 +92,134 @@ class RuleBasedFallbackService {
 
   List<Map<String, dynamic>> _rankBySymptomHeuristics(
     List<String> symptoms,
-    String petType,
-  ) {
-    final normalized = symptoms.map((s) => s.toLowerCase()).toList();
+    String petType, {
+    List<String>? allowedConditions,
+  }) {
+    final normalizedSymptoms = symptoms
+        .map((s) => s.toLowerCase().trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
 
+    final candidateConditions = _buildCandidateConditionList(allowedConditions);
     final conditionScores = <String, int>{
-      'allergic_dermatitis': 0,
-      'fungal_infection': 0,
-      'bacterial_infection': 0,
-      'mange_or_mites': 0,
+      for (final condition in candidateConditions) condition: 0,
     };
 
-    for (final symptom in normalized) {
-      if (symptom.contains('scratching') || symptom.contains('licking')) {
-        conditionScores['allergic_dermatitis'] =
-            (conditionScores['allergic_dermatitis'] ?? 0) + 2;
-      }
-      if (symptom.contains('biting') || symptom.contains('chewing')) {
-        conditionScores['mange_or_mites'] =
-            (conditionScores['mange_or_mites'] ?? 0) + 2;
-      }
-      if (symptom.contains('head shaking')) {
-        conditionScores['bacterial_infection'] =
-            (conditionScores['bacterial_infection'] ?? 0) + 1;
-      }
-      if (symptom.contains('rolling') || symptom.contains('rubbing')) {
-        conditionScores['fungal_infection'] =
-            (conditionScores['fungal_infection'] ?? 0) + 1;
+    void boost(List<String> conditions, [int by = 1]) {
+      for (final condition in conditions) {
+        final normalized = _normalizeConditionLabel(condition);
+        if (!conditionScores.containsKey(normalized)) continue;
+        conditionScores[normalized] = (conditionScores[normalized] ?? 0) + by;
       }
     }
 
-    final sorted = conditionScores.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    for (final symptom in normalizedSymptoms) {
+      if (symptom.contains('scratch') || symptom.contains('lick')) {
+        boost(['dermatitis', 'fleas', 'mange'], 2);
+      }
+      if (symptom.contains('bit') || symptom.contains('chew')) {
+        boost(['fleas', 'ticks', 'mange'], 2);
+      }
+      if (symptom.contains('head shaking')) {
+        boost(['ticks', 'pyoderma'], 1);
+      }
+      if (symptom.contains('rolling') || symptom.contains('rubbing')) {
+        boost(['dermatitis', 'fungal_infection'], 1);
+      }
+      if (symptom.contains('scoot')) {
+        boost(['fleas', 'ticks'], 1);
+      }
+      if (symptom.contains('hair loss')) {
+        boost(['mange', 'ringworm', 'fungal_infection'], 2);
+      }
+      if (symptom.contains('red') || symptom.contains('rash')) {
+        boost(['dermatitis', 'pyoderma', 'hotspot'], 2);
+      }
+      if (symptom.contains('scab') || symptom.contains('crust')) {
+        boost(['mange', 'pyoderma'], 2);
+      }
+      if (symptom.contains('ooz') || symptom.contains('moist')) {
+        boost(['hotspot', 'pyoderma'], 2);
+      }
+      if (symptom.contains('circular') || symptom.contains('ring')) {
+        boost(['ringworm', 'fungal_infection'], 2);
+      }
+      if (symptom.contains('flaky') || symptom.contains('dandruff')) {
+        boost(['fungal_infection', 'dermatitis'], 1);
+      }
+      if (symptom.contains('odor') || symptom.contains('discharge')) {
+        boost(['pyoderma', 'hotspot'], 1);
+      }
+    }
 
-    final top = sorted.take(3).toList();
-    final base = petType.toLowerCase() == 'cat' ? 0.56 : 0.58;
+    if (petType.toLowerCase() == 'cat') {
+      boost(['ringworm', 'fungal_infection'], 1);
+    }
+
+    final maxScore = conditionScores.values.isEmpty
+        ? 0
+        : conditionScores.values.reduce((a, b) => a > b ? a : b);
+
+    final sorted = conditionScores.entries.toList()
+      ..sort((a, b) {
+        final scoreCompare = b.value.compareTo(a.value);
+        if (scoreCompare != 0) return scoreCompare;
+        return a.key.compareTo(b.key);
+      });
+
+    final top = sorted.take(candidateConditions.length.clamp(1, 5)).toList();
+    final base = petType.toLowerCase() == 'cat' ? 0.52 : 0.55;
 
     return top.asMap().entries.map((entry) {
       final index = entry.key;
       final item = entry.value;
-      final score = (base - (index * 0.08)).clamp(0.25, 0.95);
+      final normalizedComponent =
+          maxScore > 0 ? (item.value / maxScore) * 0.32 : 0.0;
+      final score =
+          (base + normalizedComponent - (index * 0.09)).clamp(0.18, 0.95);
       return {
         'condition': item.key,
         'score': double.parse(score.toStringAsFixed(2)),
         'source': 'rule_fallback',
       };
     }).toList();
+  }
+
+  List<String> _buildCandidateConditionList(List<String>? allowedConditions) {
+    final normalizedAllowed = (allowedConditions ?? <String>[])
+        .map(_normalizeConditionLabel)
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList();
+
+    if (normalizedAllowed.isNotEmpty) {
+      normalizedAllowed.sort();
+      return normalizedAllowed;
+    }
+
+    return <String>[
+      'dermatitis',
+      'fleas',
+      'fungal_infection',
+      'hotspot',
+      'mange',
+      'pyoderma',
+      'ringworm',
+      'ticks',
+      'unknown_abnormality',
+    ];
+  }
+
+  String _normalizeConditionLabel(String raw) {
+    final normalized =
+        raw.trim().toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
+
+    const aliases = <String, String>{
+      'allergic_dermatitis': 'dermatitis',
+      'mange_or_mites': 'mange',
+      'bacterial_infection': 'pyoderma',
+    };
+
+    return aliases[normalized] ?? normalized;
   }
 }
