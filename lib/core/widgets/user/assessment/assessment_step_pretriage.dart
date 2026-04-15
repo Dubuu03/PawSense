@@ -56,6 +56,7 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
   String? _activeQuestion;
   String? _activeQuestionId;
   List<String> _activeQuickOptions = <String>[];
+  bool _showThinkingIndicator = false;
   bool _llmSaysDone = false;
   bool _isGeneratingNextQuestion = false;
   bool _isGeneratingStructuredPrior = false;
@@ -921,9 +922,18 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
   }
 
   Future<void> _requestNextQuestion({bool isInitial = false}) async {
-    if (_isGeneratingNextQuestion || _llmSaysDone) return;
+    if (_isGeneratingNextQuestion) return;
+    if (_llmSaysDone) {
+      if (_showThinkingIndicator && mounted) {
+        setState(() => _showThinkingIndicator = false);
+      }
+      return;
+    }
 
-    setState(() => _isGeneratingNextQuestion = true);
+    setState(() {
+      _isGeneratingNextQuestion = true;
+      _showThinkingIndicator = true;
+    });
 
     try {
       final petType =
@@ -1152,7 +1162,10 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
       _pushData();
     } finally {
       if (mounted) {
-        setState(() => _isGeneratingNextQuestion = false);
+        setState(() {
+          _isGeneratingNextQuestion = false;
+          _showThinkingIndicator = false;
+        });
       }
     }
   }
@@ -1672,7 +1685,7 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
   }
 
   Future<void> _sendCurrentMessage({String? prefilledText}) async {
-    if (_isGeneratingNextQuestion) return;
+    if (_isGeneratingNextQuestion || _showThinkingIndicator) return;
 
     final answeredQuestionId = _activeQuestionId?.trim() ?? '';
     final answeredQuestionText = _activeQuestion?.trim() ?? '';
@@ -1694,6 +1707,7 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
       _activeQuestion = null;
       _activeQuestionId = null;
       _activeQuickOptions = <String>[];
+      _showThinkingIndicator = true;
       _llmSaysDone = false;
       _lastAnsweredQuestionId = answeredQuestionId;
       _lastAnsweredQuestion = answeredQuestionText;
@@ -1715,6 +1729,7 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
 
     if (_isReadyForScan) {
       setState(() {
+        _showThinkingIndicator = false;
         _llmSaysDone = true;
       });
       _appendMessage(
@@ -1754,6 +1769,7 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
       _activeQuestion = null;
       _activeQuestionId = null;
       _activeQuickOptions = <String>[];
+      _showThinkingIndicator = false;
       _llmSaysDone = false;
     });
 
@@ -1778,7 +1794,7 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
 
   Future<void> _sendQuickReplyOption(String option) async {
     final text = option.trim();
-    if (text.isEmpty || _isGeneratingNextQuestion) {
+    if (text.isEmpty || _isGeneratingNextQuestion || _showThinkingIndicator) {
       return;
     }
 
@@ -1901,6 +1917,8 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
     final displayTurnCount =
         _isReadyForScan ? _minTurnsForReadiness : _turnCount;
     final quickReplyOptions = _quickReplyOptionsForActiveQuestion();
+    final isAwaitingAssistant =
+      _showThinkingIndicator || _isGeneratingNextQuestion;
     return Padding(
       padding: const EdgeInsets.all(kSpacingMedium),
       child: Column(
@@ -2014,7 +2032,7 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              if (_isGeneratingNextQuestion)
+                              if (isAwaitingAssistant)
                                 Align(
                                   alignment: Alignment.centerLeft,
                                   child: Container(
@@ -2081,7 +2099,7 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
                                 ),
                               ],
                               if (_activeQuestion != null &&
-                                  !_isGeneratingNextQuestion)
+                                  !isAwaitingAssistant)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 8),
                                   child: Align(
@@ -2095,7 +2113,7 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
                                   ),
                                 ),
                               if (_activeQuestion != null &&
-                                  !_isGeneratingNextQuestion &&
+                                  !isAwaitingAssistant &&
                                   quickReplyOptions.isNotEmpty)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 8),
@@ -2107,7 +2125,7 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
                                       children: quickReplyOptions
                                           .map(
                                             (option) => ActionChip(
-                                              onPressed: _isGeneratingNextQuestion
+                                              onPressed: isAwaitingAssistant
                                                   ? null
                                                   : () => _sendQuickReplyOption(
                                                         option,
@@ -2144,7 +2162,9 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
                                       minLines: 1,
                                       maxLines: 4,
                                       textInputAction: TextInputAction.send,
-                                      onSubmitted: (_) => _sendCurrentMessage(),
+                                      onSubmitted: isAwaitingAssistant
+                                          ? null
+                                          : (_) => _sendCurrentMessage(),
                                       decoration: const InputDecoration(
                                         hintText: 'Type your answer here...',
                                         labelText: 'Your message',
@@ -2153,7 +2173,7 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
                                   ),
                                   const SizedBox(width: 8),
                                   FilledButton(
-                                    onPressed: _isGeneratingNextQuestion
+                                    onPressed: isAwaitingAssistant
                                         ? null
                                         : _sendCurrentMessage,
                                     style: FilledButton.styleFrom(
@@ -2168,7 +2188,7 @@ class _AssessmentStepPreTriageState extends State<AssessmentStepPreTriage> {
                                   ),
                                 ],
                               ),
-                              if (_turnCount > 0 && !_isGeneratingNextQuestion)
+                              if (_turnCount > 0 && !isAwaitingAssistant)
                                 Align(
                                   alignment: Alignment.centerLeft,
                                   child: TextButton.icon(
